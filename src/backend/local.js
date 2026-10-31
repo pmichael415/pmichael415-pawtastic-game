@@ -19,6 +19,9 @@ export const isPublicSite = backend => backend?.kind === 'local' && backend.rele
  * payments: the client from src/net/pay-api.js when real purchases are on, else null.
  */
 export function createLocalBackend({ wallet, features = DEMO_FEATURES, release = 'demo', payments = null }) {
+  // On the public site anything bought with money comes only from the server (applyPurchase, after
+  // Stripe), so the simulated purchases below are refused there whatever screen asks for them.
+  const simulated = buy => (release === 'public' ? async () => ({ ok: false, error: 'coming-soon' }) : buy);
   return {
     kind: 'local',
     release,
@@ -58,10 +61,10 @@ export function createLocalBackend({ wallet, features = DEMO_FEATURES, release =
     applyRefund: (id, product) => wallet.applyRefund(id, product),
     syncPass: pass => wallet.syncPass(pass),
 
-    async buyPack(packId) { return wallet.buyPack(packId); },
-    async buyStarterPack() { return wallet.buyStarterPack(); },
+    buyPack: simulated(async packId => wallet.buyPack(packId)),
+    buyStarterPack: simulated(async () => wallet.buyStarterPack()),
     async convertCoins(n) { return wallet.convertCoins(n); },
-    async startPass() { return wallet.startPass(); },
+    startPass: simulated(async () => wallet.startPass()),
     async cancelPass() { return wallet.cancelPass(); },
     async claimTier(track, tier) { return wallet.claimTier(track, tier); },
     async setSpendingLimit(usd) { return wallet.setSpendingLimit(usd); },

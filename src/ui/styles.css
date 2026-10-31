@@ -131,8 +131,10 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60;
   background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 0.9rem; max-width: calc(100% - 32px);
   box-shadow: var(--shadow); display: flex; align-items: center; gap: 12px;
+  pointer-events: none; /* a message never swallows a tap meant for the button under it */
 }
 .toast-action {
+  pointer-events: auto;
   font: inherit; font-weight: 700; color: inherit; background: none; border: 0; padding: 8px 4px; min-height: 44px;
   text-decoration: underline; text-underline-offset: 3px; cursor: pointer; flex: none;
 }
