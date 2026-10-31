@@ -31,6 +31,8 @@ Not in this copy (they were never in the artifact): the automated tests, `src/ne
   `npm install && npm run build:single`. Rebuild it after changing anything in `src/` or `index.html`.
 - In the Lovable project "PAWtastic Graduation" it lives at `public/play/index.html`, next to the music in
   `public/play/static/audio/`. The home page (`src/routes/index.tsx`) sends visitors straight to `/play/index.html`.
+- `lovable/public/` holds the site icons that go in the Lovable project's `public/` folder: `favicon.ico`,
+  `apple-touch-icon.png` (iPhone share sheet and home screen) and `og-image.png` (link previews in Messages).
 - To update the live game: rebuild `dist/index.html`, push it here, then ask the Lovable agent to download the new
   file from this repo's raw URL into `public/play/index.html` unchanged (and check its sha256), then publish.
   The Lovable project is not linked to GitHub, so pushing here alone does not change the site.
