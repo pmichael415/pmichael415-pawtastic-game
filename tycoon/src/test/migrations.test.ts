@@ -67,6 +67,7 @@ describe("migrations", () => {
       "0001_save_revisions.sql",
       "0002_game_measurement.sql",
       "0003_payment_refunds_hardening.sql",
+      "0004_referrals.sql",
     ]);
   });
 });
@@ -355,5 +356,31 @@ describe("measurement", () => {
       ),
     );
     expect(f).toEqual({ h: 1, s: 1, first: 2 });
+  });
+
+  it("referral counts: only first-time players from the link, never the inviter's own device", async () => {
+    const ins = (dev: string, name: string, props: string) =>
+      db.query(
+        `INSERT INTO public.game_events(client_at, device_id, cohort_day, session_id, build, name, props) VALUES (now(), $1, '2026-11-01', 'session01', 'b', $2, $3::jsonb)`,
+        [dev, name, props],
+      );
+    await ins("friend-0001", "session_start", '{"ref":"ABCDEFGH","first_visit":true}');
+    await ins("friend-0001", "tutorial_complete", "{}");
+    await ins("friend-0002", "session_start", '{"ref":"ABCDEFGH","first_visit":true}');
+    await ins("oldplayer01", "session_start", '{"ref":"ABCDEFGH","first_visit":false}'); // already a player
+    await ins("inviter0001", "session_start", '{"ref":"ABCDEFGH","first_visit":true}'); // own device
+    await ins("inviter0001", "tutorial_complete", "{}");
+    await ins("friend-0003", "session_start", '{"ref":"ZZZZZZZZ","first_visit":true}'); // someone else's code
+    const r = await as("service_role", null, () =>
+      one<{ joined: number; completed: number }>(`SELECT * FROM public.referral_stats('ABCDEFGH', 'inviter0001')`),
+    );
+    expect(r).toEqual({ joined: 2, completed: 1 });
+    for (const role of ["anon", "authenticated"] as const) {
+      expect(await fails(as(role, U1, () => db.query(`SELECT * FROM public.referral_stats('ABCDEFGH', '')`)))).toMatch(/permission denied/);
+    }
+    const f = await as("service_role", null, () =>
+      one<{ n: number }>(`SELECT sum(first_time_players_from_referrals)::int n FROM public.game_daily_funnel`),
+    );
+    expect(f.n).toBeGreaterThanOrEqual(3);
   });
 });

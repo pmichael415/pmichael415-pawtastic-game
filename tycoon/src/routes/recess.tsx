@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Pause, Play, Share2 } from "lucide-react";
@@ -11,6 +11,8 @@ import { LOGO_URL } from "@/game/sprites";
 import { shareCard } from "@/game/share";
 import { GameHeader } from "@/components/game/GameHeader";
 import { track } from "@/lib/analytics";
+import { myReferralCode } from "@/lib/referral";
+import { useShareContext } from "@/components/game/ShareSheet";
 
 const search = z.object({
   seed: z.string().regex(/^[\w-]{1,32}$/).optional().catch(undefined),
@@ -43,6 +45,9 @@ function Recess() {
   const [best, setBest] = useState(0);
   const [left, setLeft] = useState(RECESS_DAILY_COIN_CAP);
   const [result, setResult] = useState<string | null>(null);
+  const shareRef = useRef<() => void>(() => {});
+  const runShare = useCallback(() => shareRef.current(), []);
+  useShareContext("recess", { label: "🏆 Share my Recess Rush challenge", run: runShare });
   const { visuals } = useEntitlements();
   const trailRef = useRef(false);
   trailRef.current = visuals["sparkle-trail"];
@@ -159,7 +164,7 @@ function Recess() {
   };
 
   const share = async () => {
-    const link = `${window.location.origin}/recess?seed=${runSeed}&challenge=${hud.score}&utm_source=game_share&utm_medium=share&utm_campaign=recess_rush`;
+    const link = `${window.location.origin}/recess?seed=${runSeed}&challenge=${hud.score}&ref=${myReferralCode()}&utm_source=game_share&utm_medium=share&utm_campaign=recess_rush`;
     const res = await shareCard(
       { title: "Recess Rush Score", big: String(hud.score), lines: [hud.score >= (challenge ?? Infinity) ? "Challenge crushed! 🏆" : "Zoomies unlocked 🐾", `Run code: ${runSeed}`], link, logoUrl: LOGO_URL },
       `🐶 I scored ${hud.score} in PAWtastic Recess Rush! Same course, your turn:`,
@@ -168,6 +173,8 @@ function Recess() {
     if (res === "downloaded") toast.success("Card downloaded & challenge link copied!");
     if (res === "copied") toast.success("Challenge link copied!");
   };
+
+  shareRef.current = share;
 
   return (
     <main className="px-3 pt-3">
@@ -215,7 +222,7 @@ function Recess() {
       <section className="mt-4 rounded-2xl bg-card p-3 shadow-soft">
         <h2 className="font-display font-bold text-secondary">Free bandanas (shared with Tycoon)</h2>
         <ul className="mt-1 text-sm font-bold text-muted-foreground">
-          {FREE_COSMETICS.map((c) => <li key={c.id}>{best >= c.unlockScore ? "✅" : "🔒"} {c.name} — score {c.unlockScore}</li>)}
+          {FREE_COSMETICS.filter((c) => Number.isFinite(c.unlockScore)).map((c) => <li key={c.id}>{best >= c.unlockScore ? "✅" : "🔒"} {c.name} — score {c.unlockScore}</li>)}
         </ul>
         <p className="mt-2 text-[11px] font-bold text-muted-foreground">Each run gives up to {RECESS_RUN_COIN_CAP} daycare coins, up to {RECESS_DAILY_COIN_CAP} a day ({left} left today). Scores the course can't produce aren't counted. Scores stay on this device — there's no public leaderboard.</p>
       </section>

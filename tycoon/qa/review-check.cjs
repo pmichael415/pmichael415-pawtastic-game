@@ -30,6 +30,13 @@ const srv = http.createServer((req, res) => {
   await page.getByRole('link', { name: 'Shop' }).tap();
   await page.waitForTimeout(800);
   const locked = await page.getByText(/Private review build — purchases are turned off/).first().isVisible();
-  console.log(JSON.stringify({ hub, checkedIn: s?.stats?.admitted === 1, coins: s?.coins, locked, errors: errs }, null, 1));
+  await page.getByRole('link', { name: 'Graduation' }).tap();
+  const gd = await page.frameLocator('iframe[title="Graduation Day match-3 game"]').getByText(/ENROLL YOUR PUP|Tap to start|GRADUATION DAY/i).first().isVisible({ timeout: 15000 }).catch(() => false);
+  await page.waitForTimeout(1500);
+  const graduation = await page.frameLocator('iframe[title="Graduation Day match-3 game"]').getByText(/ENROLL YOUR PUP|Tap to start|GRADUATION DAY/i).first().isVisible().catch(() => false);
+  await page.getByRole('button', { name: 'Share and invite friends' }).tap();
+  await page.waitForTimeout(800);
+  const share = await page.getByText(/Private review build: invite links point here/).isVisible();
+  console.log(JSON.stringify({ hub, checkedIn: s?.stats?.admitted === 1, coins: s?.coins, locked, graduation: gd || graduation, share, errors: errs }, null, 1));
   await browser.close(); srv.close();
 })();

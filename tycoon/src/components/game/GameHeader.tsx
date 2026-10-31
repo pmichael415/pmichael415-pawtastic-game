@@ -9,6 +9,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { Logo } from "@/game/sprites";
+import { ShareButton } from "./ShareSheet";
 import { useSession } from "@/lib/auth";
 import { useLink, useSyncStatus } from "@/game/cloud";
 import {
@@ -42,9 +43,9 @@ export function SaveStatus() {
     );
   if (!link || link.userId !== user.id)
     return (
-      <Link to="/account" className="inline-flex min-h-6 items-center gap-1 underline">
+      <span className="inline-flex  items-center gap-1">
         <Cloud className="h-3 w-3" /> Signed in · choose a save to sync
-      </Link>
+      </span>
     );
   if (st.kind === "syncing")
     return (
@@ -54,15 +55,15 @@ export function SaveStatus() {
     );
   if (st.kind === "error")
     return (
-      <Link to="/account" className="inline-flex items-center gap-1 text-destructive underline">
+      <span className="inline-flex items-center gap-1 text-destructive">
         <TriangleAlert className="h-3 w-3" /> Cloud save error — retrying
-      </Link>
+      </span>
     );
   if (st.kind === "conflict")
     return (
-      <Link to="/account" className="inline-flex items-center gap-1 text-destructive underline">
+      <span className="inline-flex items-center gap-1 text-destructive">
         <TriangleAlert className="h-3 w-3" /> Newer save on another device — choose
-      </Link>
+      </span>
     );
   return (
     <span className="inline-flex items-center gap-1">
@@ -104,6 +105,7 @@ export function GameHeader({
         </p>
       </div>
       {children}
+      <ShareButton />
       <SettingsSheet />
     </header>
   );

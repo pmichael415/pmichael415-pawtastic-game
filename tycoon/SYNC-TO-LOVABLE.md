@@ -41,9 +41,16 @@ creates/links a repository the owner chooses.
    `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
    `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.refunded`.
 
+## Graduation Day inside the hub
+
+`public/graduation/index.html` is a copy of the Graduation Day build served by the PAWtastic Graduation
+project (`public/play/index.html`), minus its install-manifest link. When Graduation Day changes, refresh it
+with `scripts/update-graduation.sh <built index.html>` and sync that one file. The Graduation project itself
+is not changed by any of this.
+
 ## Database migrations (already dry-run on the live game database)
 
-`0002_game_measurement.sql` and `0003_payment_refunds_hardening.sql` were executed against the live
+`0002_game_measurement.sql`, `0003_payment_refunds_hardening.sql` and `0004_referrals.sql` were executed against the live
 game database inside a transaction that was rolled back (nothing persisted). All checks passed: grant,
 duplicate event, refund revocation, closed checkout, least-privilege grants, the restore policy and the
 measurement views. The existing webhook code keeps working after 0003 (the new function parameter is

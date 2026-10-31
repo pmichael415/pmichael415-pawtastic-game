@@ -90,6 +90,8 @@ import { DaycareStage, type FocusPrompt, type StageHandle } from "@/components/g
 import { GameHeader } from "@/components/game/GameHeader";
 import type { FocusTarget, RoomHint, WorldPick } from "@/world/renderer";
 import { setSettings, useSettings } from "@/lib/settings";
+import { useShareContext } from "@/components/game/ShareSheet";
+import { myReferralCode } from "@/lib/referral";
 import { track } from "@/lib/analytics";
 
 export const Route = createFileRoute("/daycare")({
@@ -167,6 +169,10 @@ function Daycare() {
     "missions" | "upgrades" | "decor" | "staff" | "regulars" | "awards"
   >("missions");
   const [no3d, setNo3d] = useState(false);
+  // The header's Share sheet offers "Share my daycare card" while you're here.
+  const shareRef = useRef<() => void>(() => {});
+  const runShare = useCallback(() => shareRef.current(), []);
+  useShareContext("daycare", { label: "📸 Share my daycare card", run: runShare });
   const stage = useRef<StageHandle>(null);
   const prevScuffles = useRef(0);
   const day = todayKey();
@@ -490,7 +496,7 @@ function Daycare() {
 
   const share = async () => {
     const score = daycareScore(state);
-    const link = `${window.location.origin}/recess?challenge=${score}&seed=${day}&utm_source=game_share&utm_medium=share&utm_campaign=pawtastic_tycoon`;
+    const link = `${window.location.origin}/recess?challenge=${score}&seed=${day}&ref=${myReferralCode()}&utm_source=game_share&utm_medium=share&utm_campaign=pawtastic_tycoon`;
     const line = SHARE_LINES[score % SHARE_LINES.length]!;
     const res = await shareCard(
       {
@@ -513,6 +519,8 @@ function Daycare() {
     if (res === "downloaded") toast.success("Card downloaded & challenge link copied!");
     if (res === "copied") toast.success("Challenge link copied!");
   };
+
+  shareRef.current = share;
 
   const mouseDrag = (id: string, x: number, y: number) => {
     const up = (e: PointerEvent) => {
@@ -548,23 +556,7 @@ function Daycare() {
       className="px-3 pt-3"
       style={{ paddingBottom: sheetOpen ? "min(62svh, 560px)" : undefined }}
     >
-      <GameHeader title="Daycare" subtitle={siteName}>
-        <div
-          className="flex items-center gap-1 rounded-full bg-card px-3 py-1.5 font-display text-lg font-bold text-secondary shadow-soft"
-          aria-label={`${state.coins} coins`}
-        >
-          <Coins className="h-5 w-5 text-accent" aria-hidden /> {state.coins}
-        </div>
-        <Button
-          size="icon"
-          variant="secondary"
-          className="h-11 w-11"
-          aria-label={paused ? "Resume game clock" : "Pause game clock"}
-          onClick={() => setPaused(!paused)}
-        >
-          {paused ? <Play /> : <Pause />}
-        </Button>
-      </GameHeader>
+      <GameHeader title="Daycare" subtitle={`${siteName} · rep ${Math.round(state.reputation)}`} />
 
       {preview && (
         <div
@@ -623,9 +615,21 @@ function Daycare() {
               : `🔒 No drop-offs 12–2 · reopens in ${fmtDur(lobbyNow.minutesToChange)} · care continues`}
           </div>
         </div>
-        <div className="text-right text-[10px] font-extrabold leading-tight">
-          Rep.<div className="font-display text-base">{Math.round(state.reputation)}</div>
+        <div
+          className="flex shrink-0 items-center gap-1 rounded-full bg-card px-2.5 py-1 font-display text-base font-bold text-secondary"
+          aria-label={`${state.coins} coins`}
+        >
+          <Coins className="h-4 w-4 text-accent" aria-hidden /> {state.coins}
         </div>
+        <Button
+          size="icon"
+          variant="secondary"
+          className="h-11 w-11 shrink-0"
+          aria-label={paused ? "Resume game clock" : "Pause game clock"}
+          onClick={() => setPaused(!paused)}
+        >
+          {paused ? <Play /> : <Pause />}
+        </Button>
       </section>
 
       {sites(state).length > 1 && (

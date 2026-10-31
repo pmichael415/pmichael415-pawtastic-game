@@ -7,6 +7,7 @@ const src = path.resolve(__dirname, "../src");
 export default defineConfig({
   root: __dirname,
   base: "./",
+  publicDir: false, // the embedded Graduation Day build is not part of the private review build
   plugins: [react(), tailwindcss()],
   define: { "import.meta.env.VITE_REVIEW_BUILD": JSON.stringify("1"), "process.env": "{}" },
   resolve: {

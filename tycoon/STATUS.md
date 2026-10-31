@@ -10,6 +10,40 @@
 | Live game database (Lovable Cloud / Supabase) | Unchanged. New migrations were only dry-run inside a rolled-back transaction. |
 | Customer app (app.pawtasticacademy.com), its database and Stripe | Not touched. |
 
+## Update — all three games combined, plus Share & referrals
+
+- **One hub, three games.** Daycare Tycoon (`/daycare`), Recess Rush (`/recess`) and Graduation Day
+  (`/graduation`) share one home page, one bottom navigation (Home · Daycare · Recess Rush · Graduation · Shop),
+  one header with back-to-hub, Share and Settings, one profile and one achievement list.
+- **Graduation Day inside the hub** is the newest build from the PAWtastic Graduation Lovable project, embedded
+  as free play (`public/graduation/index.html`; refresh with `scripts/update-graduation.sh`). Its payment
+  check finds no game server on the hub's site and stays off, so the hub has a single purchase system.
+  Graduation Day's own public site, its Stripe setup and its saves are untouched.
+- **Shared, not merged, economies.** The hub reads Graduation Day's progress on this device (read-only).
+  Finishing Orientation unlocks the Honor Roll Bandana for daycare pups, graduating unlocks the Valedictorian
+  Bandana; new shared achievements: Honor Roll, Valedictorian, All-Rounder (play all three) and Pack Builder.
+  No coins or Treats convert between games.
+- **Share button on every screen** opens one sheet: share a personal invite (card image or copy link), share
+  this screen's thing (daycare card / Recess Rush challenge), or recommend PAWtastic Academy to a dog owner
+  (Hawthorne or Hillsdale free-evaluation form, tagged `utm_source=pawtastic_games_referral` with the
+  player's code in `utm_term`; no prices or promotions). Nothing is posted automatically.
+- **Referrals.** Each device gets a random 8-character code (no personal data). A new player's first session
+  through that link is counted; when they finish the first-day tutorial the inviter gets +100 daycare coins
+  (up to 5 friends) and the Best Buddy Bandana. Your own link never counts; existing players opening a link
+  don't count. Counts come from the server (`referral_stats`, migration 0004). The rewards are game-only and
+  device-based — someone could farm them with extra devices, which is why they're small and capped.
+- **Measurement added:** invite shares, PAWtastic recommendations, referral link opens, first-time players from
+  referrals, and booking-link clicks by referred players. A click on the evaluation form is not a booking.
+
+Tests for this update: unit/integration 138 passing (incl. referral counting on PGlite), browser QA on an
+iPhone 13 profile: games & sharing 32/32, daycare 36/36, hub 26/26. Migrations 0002 (updated) and 0004 were
+dry-run on the live game database in a rolled-back transaction.
+
+Not included / limits: the private review link leaves Graduation Day out (I only publish files I've reviewed
+in full; the embedded build wasn't written in this session). Graduation Day's music files weren't exported,
+so it plays without music inside the hub. Friend counts need the deployed server (they show "not available"
+in the preview).
+
 ## The check-in problem — root causes (each reproduced on an iPhone-sized touch screen first)
 
 1. The **Check in** button existed only in a panel drawn below all four playrooms (y≈1203px on a 664px screen).

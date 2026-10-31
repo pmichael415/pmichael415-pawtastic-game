@@ -25,14 +25,14 @@ const check = (n, ok, d = '') => { ok ? pass++ : fail++; out.push(`${ok ? 'PASS'
   await fresh(undefined, '/');
   check('hub shows both games', await page.getByText('Daycare Tycoon').isVisible() && await page.getByText('Recess Rush', { exact: true }).first().isVisible());
   const navLabels = await page.locator('nav[aria-label="Game tabs"] a').allInnerTexts();
-  check('one bottom navigation for every game', navLabels.join('|') === 'Home|Daycare|Recess Rush|Shop|Account', navLabels.join('|'));
+  check('one bottom navigation for every game', navLabels.join('|') === 'Home|Daycare|Recess Rush|Graduation|Shop', navLabels.join('|'));
   await page.getByRole('link', { name: /Open your daycare/ }).tap();
   await page.waitForURL(/\/daycare/);
   await page.waitForTimeout(800);
   await page.getByRole('link', { name: 'Back to PAWtastic Games home' }).tap();
   await page.waitForURL((u) => new URL(u).pathname === '/');
   check('daycare → back button returns to the hub', new URL(page.url()).pathname === '/');
-  for (const p of ['/recess', '/shop', '/account', '/visit', '/help']) {
+  for (const p of ['/recess', '/graduation', '/shop', '/account', '/visit', '/help']) {
     await page.goto(BASE + p, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(500);
     check(`${p} has a visible way back to the hub`, await page.getByRole('link', { name: 'Back to PAWtastic Games home' }).isVisible());

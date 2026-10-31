@@ -12,11 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as DaycareRouteImport } from './routes/daycare'
+import { Route as GraduationRouteImport } from './routes/graduation'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as RecessRouteImport } from './routes/recess'
 import { Route as ShopRouteImport } from './routes/shop'
 import { Route as VisitRouteImport } from './routes/visit'
 import { Route as ApiPublicEventsRouteImport } from './routes/api/public/events'
+import { Route as ApiPublicReferralsRouteImport } from './routes/api/public/referrals'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -32,6 +34,11 @@ const AccountRoute = AccountRouteImport.update({
 const DaycareRoute = DaycareRouteImport.update({
   id: '/daycare',
   path: '/daycare',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GraduationRoute = GraduationRouteImport.update({
+  id: '/graduation',
+  path: '/graduation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HelpRoute = HelpRouteImport.update({
@@ -59,6 +66,11 @@ const ApiPublicEventsRoute = ApiPublicEventsRouteImport.update({
   path: '/api/public/events',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicReferralsRoute = ApiPublicReferralsRouteImport.update({
+  id: '/api/public/referrals',
+  path: '/api/public/referrals',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicPaymentsWebhookRoute =
   ApiPublicPaymentsWebhookRouteImport.update({
     id: '/api/public/payments/webhook',
@@ -70,22 +82,26 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/daycare': typeof DaycareRoute
+  '/graduation': typeof GraduationRoute
   '/help': typeof HelpRoute
   '/recess': typeof RecessRoute
   '/shop': typeof ShopRoute
   '/visit': typeof VisitRoute
   '/api/public/events': typeof ApiPublicEventsRoute
+  '/api/public/referrals': typeof ApiPublicReferralsRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/daycare': typeof DaycareRoute
+  '/graduation': typeof GraduationRoute
   '/help': typeof HelpRoute
   '/recess': typeof RecessRoute
   '/shop': typeof ShopRoute
   '/visit': typeof VisitRoute
   '/api/public/events': typeof ApiPublicEventsRoute
+  '/api/public/referrals': typeof ApiPublicReferralsRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesById {
@@ -93,11 +109,13 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/daycare': typeof DaycareRoute
+  '/graduation': typeof GraduationRoute
   '/help': typeof HelpRoute
   '/recess': typeof RecessRoute
   '/shop': typeof ShopRoute
   '/visit': typeof VisitRoute
   '/api/public/events': typeof ApiPublicEventsRoute
+  '/api/public/referrals': typeof ApiPublicReferralsRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRouteTypes {
@@ -106,33 +124,39 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/daycare'
+    | '/graduation'
     | '/help'
     | '/recess'
     | '/shop'
     | '/visit'
     | '/api/public/events'
+    | '/api/public/referrals'
     | '/api/public/payments/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/account'
     | '/daycare'
+    | '/graduation'
     | '/help'
     | '/recess'
     | '/shop'
     | '/visit'
     | '/api/public/events'
+    | '/api/public/referrals'
     | '/api/public/payments/webhook'
   id:
     | '__root__'
     | '/'
     | '/account'
     | '/daycare'
+    | '/graduation'
     | '/help'
     | '/recess'
     | '/shop'
     | '/visit'
     | '/api/public/events'
+    | '/api/public/referrals'
     | '/api/public/payments/webhook'
   fileRoutesById: FileRoutesById
 }
@@ -140,11 +164,13 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
   DaycareRoute: typeof DaycareRoute
+  GraduationRoute: typeof GraduationRoute
   HelpRoute: typeof HelpRoute
   RecessRoute: typeof RecessRoute
   ShopRoute: typeof ShopRoute
   VisitRoute: typeof VisitRoute
   ApiPublicEventsRoute: typeof ApiPublicEventsRoute
+  ApiPublicReferralsRoute: typeof ApiPublicReferralsRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
 }
 
@@ -169,6 +195,13 @@ declare module '@tanstack/react-router' {
       path: '/daycare'
       fullPath: '/daycare'
       preLoaderRoute: typeof DaycareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/graduation': {
+      id: '/graduation'
+      path: '/graduation'
+      fullPath: '/graduation'
+      preLoaderRoute: typeof GraduationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/help': {
@@ -206,6 +239,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicEventsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/referrals': {
+      id: '/api/public/referrals'
+      path: '/api/public/referrals'
+      fullPath: '/api/public/referrals'
+      preLoaderRoute: typeof ApiPublicReferralsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/payments/webhook': {
       id: '/api/public/payments/webhook'
       path: '/api/public/payments/webhook'
@@ -220,11 +260,13 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
   DaycareRoute: DaycareRoute,
+  GraduationRoute: GraduationRoute,
   HelpRoute: HelpRoute,
   RecessRoute: RecessRoute,
   ShopRoute: ShopRoute,
   VisitRoute: VisitRoute,
   ApiPublicEventsRoute: ApiPublicEventsRoute,
+  ApiPublicReferralsRoute: ApiPublicReferralsRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
 }
 export const routeTree = rootRouteImport

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { LOCATIONS, bookingUrl } from "@/lib/locations";
 import { GameHeader } from "@/components/game/GameHeader";
 import { track } from "@/lib/analytics";
+import { referredBy } from "@/lib/referral";
 
 export const Route = createFileRoute("/visit")({
   head: () => ({
@@ -29,7 +30,7 @@ function Visit() {
           <h2 className="font-display text-xl font-bold text-secondary">{l.name}</h2>
           <p className="flex items-center gap-1 text-sm font-bold text-muted-foreground"><MapPin className="h-4 w-4" /> {l.address}</p>
           <Button size="lg" className="mt-3 h-14 w-full font-display text-base" asChild>
-            <a href={bookingUrl(l)} target="_blank" rel="noopener noreferrer" onClick={() => track("booking_click", { location: l.id })}>Book free evaluation <ExternalLink /></a>
+            <a href={bookingUrl(l)} target="_blank" rel="noopener noreferrer" onClick={() => { const ref = referredBy(); track("booking_click", { location: l.id, ...(ref ? { ref } : {}) }); }}>Book free evaluation <ExternalLink /></a>
           </Button>
         </article>
       ))}

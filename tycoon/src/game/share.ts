@@ -33,7 +33,7 @@ export async function renderCard(d: CardData): Promise<Blob | null> {
   g.roundRect(80, 80, 920, 920, 60);
   g.fill();
   const logo = await loadImg(d.logoUrl);
-  if (logo) g.drawImage(logo, 440, 120, 200, 188);
+  if (logo) g.drawImage(logo, 440, 110, 200, 200);
   g.textAlign = "center";
   g.fillStyle = "#102c49";
   g.font = "700 56px Fredoka, sans-serif";

@@ -148,6 +148,10 @@ export type GameState = {
   weekKey: string;
   weekBase: Stats;
   weekClaimed: boolean;
+  /** Progress from the other PAWtastic games on this device (read-only bridge; never currency). */
+  linked: { gradCleared: number; gradStars: number };
+  /** Friends from this player's invite link who finished their first day and have been rewarded (capped). */
+  referralsRewarded: number;
 };
 
 export const emptyStats = (): Stats => ({ admitted: 0, baths: 0, plays: 0, earned: 0, checkouts: 0, cleans: 0, boarders: 0, shares: 0, runs: 0, scuffles: 0 });
@@ -185,6 +189,8 @@ export function newGame(now: number, day: string): GameState {
     weekKey: "",
     weekBase: emptyStats(),
     weekClaimed: false,
+    linked: { gradCleared: 0, gradStars: 0 },
+    referralsRewarded: 0,
   };
 }
 
@@ -696,6 +702,10 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: "rich", label: "Top Dog — earn 5,000 coins", test: (s) => s.stats.earned >= 5000 },
   { id: "share", label: "Proud Parent — share your card", test: (s) => s.stats.shares >= 1 },
   { id: "runner", label: "Zoomies — score 500 in Recess Rush", test: (s) => s.recessBest >= 500 },
+  { id: "honor", label: "Honor Roll — finish Orientation in Graduation Day", test: (s) => (s.linked?.gradCleared ?? 0) >= 8 },
+  { id: "valedictorian", label: "Valedictorian — graduate in Graduation Day", test: (s) => (s.linked?.gradCleared ?? 0) >= 40 },
+  { id: "allround", label: "All-Rounder — play all three PAWtastic games", test: (s) => s.stats.admitted >= 1 && s.stats.runs >= 1 && (s.linked?.gradCleared ?? 0) >= 1 },
+  { id: "referral", label: "Pack Builder — a friend you invited finished their first day", test: (s) => (s.referralsRewarded ?? 0) >= 1 },
 ];
 
 export function checkAchievements(s: GameState): { state: GameState; unlocked: Achievement[] } {
@@ -705,12 +715,39 @@ export function checkAchievements(s: GameState): { state: GameState; unlocked: A
 }
 
 // ---------- Free cosmetics shared with Recess Rush ----------
-export type Cosmetic = { id: string; name: string; color: string; unlockScore: number };
+export type Cosmetic = { id: string; name: string; color: string; unlockScore: number; how: string };
 export const FREE_COSMETICS: Cosmetic[] = [
-  { id: "bandana-red", name: "Ruby Bandana", color: "oklch(0.6 0.2 25)", unlockScore: 150 },
-  { id: "bandana-green", name: "Clover Bandana", color: "oklch(0.65 0.17 145)", unlockScore: 400 },
-  { id: "bandana-gold", name: "Golden Bandana", color: "oklch(0.82 0.16 85)", unlockScore: 800 },
+  { id: "bandana-red", name: "Ruby Bandana", color: "oklch(0.6 0.2 25)", unlockScore: 150, how: "Score 150 in Recess Rush" },
+  { id: "bandana-green", name: "Clover Bandana", color: "oklch(0.65 0.17 145)", unlockScore: 400, how: "Score 400 in Recess Rush" },
+  { id: "bandana-gold", name: "Golden Bandana", color: "oklch(0.82 0.16 85)", unlockScore: 800, how: "Score 800 in Recess Rush" },
+  { id: "bandana-honor", name: "Honor Roll Bandana", color: "oklch(0.5 0.17 300)", unlockScore: Infinity, how: "Finish Orientation (level 8) in Graduation Day" },
+  { id: "bandana-valedictorian", name: "Valedictorian Bandana", color: "oklch(0.3 0.07 252)", unlockScore: Infinity, how: "Graduate (level 40) in Graduation Day" },
+  { id: "bandana-buddy", name: "Best Buddy Bandana", color: "oklch(0.7 0.13 200)", unlockScore: Infinity, how: "A friend you invited finishes their first day" },
 ];
+
+/** Graduation Day milestones → shared achievements and free daycare bandanas. No coins change hands. */
+export function linkProgress(s: GameState, g: { cleared: number; stars: number }): { state: GameState; newCosmetics: Cosmetic[] } {
+  const cleared = Math.max(s.linked?.gradCleared ?? 0, Math.min(40, Math.max(0, Math.floor(g.cleared))));
+  const stars = Math.max(s.linked?.gradStars ?? 0, Math.min(120, Math.max(0, Math.floor(g.stars))));
+  const want = [...(cleared >= 8 ? ["bandana-honor"] : []), ...(cleared >= 40 ? ["bandana-valedictorian"] : [])];
+  const newCosmetics = FREE_COSMETICS.filter((c) => want.includes(c.id) && !s.cosmetics.includes(c.id));
+  if (cleared === (s.linked?.gradCleared ?? 0) && stars === (s.linked?.gradStars ?? 0) && !newCosmetics.length) return { state: s, newCosmetics };
+  return { state: { ...s, linked: { gradCleared: cleared, gradStars: stars }, cosmetics: [...s.cosmetics, ...newCosmetics.map((c) => c.id)] }, newCosmetics };
+}
+
+// ---------- Referral rewards (small, capped, free; never cash or real-world credit) ----------
+export const REFERRAL_COINS_EACH = 100;
+export const REFERRAL_MAX_REWARDED = 5;
+/** `completed` = friends from this player's invite link who finished their first day (counted by the server). */
+export function claimReferrals(s: GameState, completed: number): { state: GameState; coins: number; newFriends: number } {
+  const target = Math.min(REFERRAL_MAX_REWARDED, Math.max(0, Math.floor(completed)));
+  const already = s.referralsRewarded ?? 0;
+  const newFriends = Math.max(0, target - already);
+  if (!newFriends) return { state: s, coins: 0, newFriends: 0 };
+  const coins = newFriends * REFERRAL_COINS_EACH;
+  const cos = s.cosmetics.includes("bandana-buddy") ? s.cosmetics : [...s.cosmetics, "bandana-buddy"];
+  return { state: { ...s, coins: s.coins + coins, referralsRewarded: target, cosmetics: cos }, coins, newFriends };
+}
 
 // ---------- Recess Rush course + reward rules (shared by the game and its reward validation) ----------
 export const RECESS_DURATION = 60;
@@ -833,6 +870,9 @@ export function parseSave(raw: unknown): GameState | null {
   st.weekKey = typeof raw['weekKey'] === "string" ? raw['weekKey'].slice(0, 10) : "";
   st.weekBase = isObj(raw['weekBase']) ? statsOf(raw['weekBase']) : { ...st.stats };
   st.weekClaimed = raw['weekClaimed'] === true;
+  const lk = isObj(raw['linked']) ? raw['linked'] : {};
+  st.linked = { gradCleared: Math.floor(num(lk['gradCleared'], 0, 0, 40)), gradStars: Math.floor(num(lk['gradStars'], 0, 0, 120)) };
+  st.referralsRewarded = Math.floor(num(raw['referralsRewarded'], 0, 0, REFERRAL_MAX_REWARDED));
   st.guestBook = (Array.isArray(raw['guestBook']) ? raw['guestBook'].filter(isObj) : [])
     .filter((g) => typeof g['name'] === "string" && g['name'] && typeof g['breed'] === "number" && Number.isInteger(g['breed']) && g['breed'] >= 0 && g['breed'] < BREEDS.length && (g['size'] === "small" || g['size'] === "large") && (g['temper'] === "gentle" || g['temper'] === "active"))
     .slice(0, GUESTBOOK_MAX)

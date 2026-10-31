@@ -76,7 +76,7 @@ function Shop() {
       </section>
 
       <section>
-        <h2 className="font-display text-lg font-bold text-secondary">Inventory · free, earned in Recess Rush</h2>
+        <h2 className="font-display text-lg font-bold text-secondary">Inventory · free, earned across PAWtastic Games</h2>
         <div className="mt-2 grid gap-2">
           {FREE_COSMETICS.map((c) => {
             const owned = s.cosmetics.includes(c.id);
@@ -85,7 +85,7 @@ function Shop() {
                 <span className="h-8 w-8 rounded-full border-2 border-secondary" style={{ background: c.color }} />
                 <div className="flex-1">
                   <div className="font-display font-bold text-secondary">{c.name}</div>
-                  <div className="text-xs font-bold text-muted-foreground">{owned ? "Owned" : `Score ${c.unlockScore} in Recess Rush`}</div>
+                  <div className="text-xs font-bold text-muted-foreground">{owned ? "Owned" : c.how}</div>
                 </div>
                 <Button variant="outline" size="sm" className="min-h-11" onPointerEnter={() => setPreview(c.id)} onClick={() => setPreview(c.id)}>Preview</Button>
                 <Button size="sm" className="min-h-11" disabled={!owned} onClick={() => { equip(s.equipped === c.id ? null : c.id); setPreview(null); }}>

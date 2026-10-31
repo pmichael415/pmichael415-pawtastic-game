@@ -3,6 +3,7 @@
 // check-ins, return rates by cohort/build, camera preference, errors, shop previews and booking-link clicks.
 // A booking-link click is only a click — it is never reported as a booking or a customer.
 import { getSettings } from "./settings";
+import { captureReferral, referredBy } from "./referral";
 
 export const BUILD_ID = "2026-10-31.games-hub-1";
 export const EVENT_NAMES = [
@@ -20,6 +21,7 @@ export const EVENT_NAMES = [
   "recess_run",
   "share",
   "hub_open",
+  "referral_open",
 ] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 type Props = Record<string, string | number | boolean | null>;
@@ -123,8 +125,13 @@ export function startSession(where: string) {
     const last = localStorage.getItem(LAST_KEY);
     const daysSinceFirst = Math.round((Date.parse(today) - Date.parse(d.cohort)) / 86400000);
     localStorage.setItem(LAST_KEY, today);
+    // Arrived through a friend's invite link? Remember it (first link only) and tag this session.
+    const newRef = captureReferral(location.search);
+    if (newRef) track("referral_open", { ref: newRef, first_visit: !last });
+    const ref = referredBy();
     track("session_start", {
       where,
+      ...(ref ? { ref } : {}),
       first_visit: !last,
       returning_same_day: last === today,
       days_since_first: daysSinceFirst,
@@ -134,13 +141,15 @@ export function startSession(where: string) {
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) flush();
     });
+    const mobile = matchMedia("(pointer: coarse)").matches;
     window.addEventListener("error", (e) =>
-      track("client_error", { message: String(e.message).slice(0, 120), where: location.pathname }),
+      track("client_error", { message: String(e.message).slice(0, 120), where: location.pathname, mobile }),
     );
     window.addEventListener("unhandledrejection", (e) =>
       track("client_error", {
         message: String((e as PromiseRejectionEvent).reason).slice(0, 120),
         where: location.pathname,
+        mobile,
       }),
     );
   } catch {

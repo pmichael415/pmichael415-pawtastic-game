@@ -9,12 +9,13 @@ import {
   type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
-import { Building2, Gamepad2, House, ShoppingBag, UserRound } from "lucide-react";
+import { Building2, Gamepad2, GraduationCap, House, ShoppingBag } from "lucide-react";
 import { useSession } from "@/lib/auth";
 import { useCloudSync } from "@/game/cloud";
 import { EntitlementsProvider } from "@/lib/entitlements";
 import { Toaster } from "@/components/ui/sonner";
 import { startSession } from "@/lib/analytics";
+import { ShareSheet } from "@/components/game/ShareSheet";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -106,8 +107,8 @@ const TABS = [
   { to: "/", label: "Home", icon: House },
   { to: "/daycare", label: "Daycare", icon: Building2 },
   { to: "/recess", label: "Recess Rush", icon: Gamepad2 },
+  { to: "/graduation", label: "Graduation", icon: GraduationCap },
   { to: "/shop", label: "Shop", icon: ShoppingBag },
-  { to: "/account", label: "Account", icon: UserRound },
 ] as const;
 
 function RootComponent() {
@@ -138,6 +139,7 @@ function RootComponent() {
           ))}
         </ul>
       </nav>
+      <ShareSheet />
       <Toaster position="top-center" offset={8} mobileOffset={{ top: 8 }} richColors duration={1800} />
       </EntitlementsProvider>
     </QueryClientProvider>
