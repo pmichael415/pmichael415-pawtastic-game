@@ -11,14 +11,19 @@ import { PASS, formatUsd } from '../../economy/catalog.js';
 
 const SITE_URL = 'https://pawtasticacademy.com';
 
-function publicRules(paid) {
+function publicRules(paid, accounts) {
   if (!paid) {
     return [
       h('h1', {}, 'Game rules & privacy'),
       h('h2', {}, 'Treats'),
       h('p', {}, "Treats are play money for Graduation Day. They have no cash value and can't be bought, sold, transferred or cashed out. You earn them free from your daily streak and spend them in the game."),
       h('h2', {}, 'Your progress'),
-      h('p', {}, "There's no sign-in, and the game never asks for your name, email or other personal details. Your dog's name and your progress are saved only in this browser on this device. Clearing your browser data erases them."),
+      ...(accounts
+        ? [
+          h('p', {}, "You can play without signing in: your dog's name and progress are then saved only in this browser on this device, and clearing your browser data erases them."),
+          h('p', {}, 'If you choose Save progress to the cloud, you sign in with your email and a one-time code. We then keep your email address and your saved game, so you can pick up on any device. We use your email only for sign-in and for replies to your questions.'),
+        ]
+        : [h('p', {}, "There's no sign-in, and the game never asks for your name, email or other personal details. Your dog's name and your progress are saved only in this browser on this device. Clearing your browser data erases them.")]),
       h('p', {}, 'Our website host counts visits, such as page views, so we know how many people play.'),
       ...questions(),
     ];
@@ -33,7 +38,7 @@ function publicRules(paid) {
     h('p', {}, 'You choose a monthly spending limit in the Shop, and purchases can never go over $100 a month.'),
     h('h2', {}, 'Your progress and privacy'),
     h('p', {}, "You can play without signing in: your dog's name and progress are then saved only in this browser on this device."),
-    h('p', {}, 'To buy, you sign in with your email and a one-time code. We then keep your email address, your purchases and your saved game, so you can pick up on another device. We use your email only for sign-in codes, receipts and replies to your questions.'),
+    h('p', {}, 'To buy, or to save your progress to the cloud, you sign in with your email and a one-time code. We then keep your email address, your purchases and your saved game, so you can pick up on another device. We use your email only for sign-in codes, receipts and replies to your questions.'),
     h('p', {}, 'Our website host counts visits, such as page views, so we know how many people play.'),
     ...questions(),
   ];
@@ -64,7 +69,7 @@ function customerRules() {
 export function render(app) {
   const bar = topBar(app, { title: 'Rules', back: () => app.go('map') });
   const { backend } = app.services;
-  const body = isPublicSite(backend) ? publicRules(!!backend.payments) : customerRules();
+  const body = isPublicSite(backend) ? publicRules(!!backend.payments, !!app.services.pay?.accounts) : customerRules();
   app.view.append(bar, h('section', { class: 'rules stack card' }, ...body));
   return () => bar.stop();
 }

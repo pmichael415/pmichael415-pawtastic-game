@@ -9,6 +9,7 @@ import { topBar } from '../topbar.js';
 import { AREA_INTROS } from '../tips.js';
 import { showDailyRewards } from '../daily.js';
 import { showStarterPackOffer } from './results.js';
+import { cloudSaveCard } from '../payments.js';
 import { AREAS, LEVELS, isHardLevel } from '../../engine/levels.js';
 import { COSTUMES } from '../../economy/catalog.js';
 
@@ -103,7 +104,7 @@ export function render(app, params = {}) {
   });
 
   const allDone = state.progress.levels[40];
-  app.view.append(...[bar, continueCard, nav, signs, h('div', { class: 'map' },
+  app.view.append(...[bar, continueCard, cloudSaveCard(app), nav, signs, h('div', { class: 'map' },
     allDone ? h('p', { class: 'card grad-note' }, `${state.dog?.name ?? 'Your pup'} graduated from PAWtastic Academy!`) : null,
     areas)].filter(Boolean));
 

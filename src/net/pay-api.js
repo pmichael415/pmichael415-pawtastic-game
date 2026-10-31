@@ -3,7 +3,7 @@
 // PAWtastic about problems. Buyers sign in with a one-time code sent by email (Lovable Cloud).
 //
 // All of it is optional: when the server can't be reached (claude.ai, a file on disk) the game
-// stays free-play, and when payments are switched off on the server only reports work.
+// stays free-play; when payments are off on the server, sign-in (cloud saves) and reports still work.
 //
 // Results are { ok: true, ... } or { ok: false, error } with error one of
 // 'offline' | 'signed-out' | 'rate-limited' | 'server' | a server error code (e.g. 'monthly-cap').
@@ -83,8 +83,10 @@ export async function openPayments({
     } catch { config = null; } finally { if (timer) clearTimeout(timer); }
   }
   if (!config) return null;
-  const payments = config.payments === true && typeof config.authUrl === 'string' && typeof config.authKey === 'string';
-  const authUrl = payments ? config.authUrl.replace(/\/+$/, '') : '';
+  // Accounts (sign-in and cloud saves) work whenever the server offers sign-in; payments only add buying.
+  const accounts = typeof config.authUrl === 'string' && !!config.authUrl && typeof config.authKey === 'string' && !!config.authKey;
+  const payments = config.payments === true && accounts;
+  const authUrl = accounts ? config.authUrl.replace(/\/+$/, '') : '';
 
   let session = (() => { try { return store.load(); } catch { return null; } })();
   if (!session?.access_token) session = null;
@@ -92,7 +94,7 @@ export async function openPayments({
   const forget = () => { session = null; try { store.save(null); } catch { /* ignore */ } };
 
   // A sign-in link from the email lands here with the session in the URL fragment.
-  if (payments && loc?.hash && /access_token=/.test(loc.hash)) {
+  if (accounts && loc?.hash && /access_token=/.test(loc.hash)) {
     const params = new URLSearchParams(loc.hash.slice(1));
     const landed = toSession(Object.fromEntries(params), nowS());
     if (landed) keep(landed);
@@ -101,7 +103,7 @@ export async function openPayments({
 
   // Sign-in calls carry the publishable key as `apikey`. Only an old-style key (a JWT) may also go in the
   // Authorization header; the newer sb_publishable_ keys are refused there.
-  const keyIsJwt = config.authKey.split('.').length === 3;
+  const keyIsJwt = accounts && config.authKey.split('.').length === 3;
   const auth = (path, body, token) => request('POST', `${authUrl}/auth/v1/${path}`, { body, apikey: config.authKey, token: token ?? (keyIsJwt ? config.authKey : undefined) });
 
   let refreshing = null;
@@ -147,13 +149,14 @@ export async function openPayments({
   const redirectTo = () => { try { return `${loc.origin}/play/index.html`; } catch { return undefined; } };
 
   return {
+    accounts,
     payments,
     mode: config.mode === 'live' ? 'live' : 'test',
     get signedIn() { return !!session; },
     get email() { return session?.email ?? null; },
 
     async sendCode(email) {
-      if (!payments) return { ok: false, error: 'server' };
+      if (!accounts) return { ok: false, error: 'server' };
       if (!isEmail(email)) return { ok: false, error: 'invalid-email' };
       const to = redirectTo();
       const res = await auth(`otp${to ? `?redirect_to=${encodeURIComponent(to)}` : ''}`, { email: email.trim(), create_user: true, data: {}, gotrue_meta_security: {} });
@@ -162,7 +165,7 @@ export async function openPayments({
     },
 
     async verifyCode(email, code) {
-      if (!payments) return { ok: false, error: 'server' };
+      if (!accounts) return { ok: false, error: 'server' };
       const token = String(code ?? '').replace(/\s+/g, '');
       if (!/^\d{6,10}$/.test(token)) return { ok: false, error: 'wrong-code' };
       const res = await auth('verify', { type: 'email', email: email.trim(), token });
@@ -177,7 +180,7 @@ export async function openPayments({
     async signOut() {
       const token = session?.access_token;
       forget();
-      if (token && payments) await auth('logout', {}, token).catch(() => {});
+      if (token && accounts) await auth('logout', {}, token).catch(() => {});
       return { ok: true };
     },
 
