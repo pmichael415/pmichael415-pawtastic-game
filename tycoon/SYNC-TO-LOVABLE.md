@@ -20,9 +20,10 @@ Send this to the project's agent, replacing `<COMMIT>` with the commit to deploy
 > the same relative path, overwriting existing files. Do not touch `.env`, `public/favicon.png` or
 > `src/assets/daycare-room.jpg`. Then run `sha256sum -c` on the manifest lines (ignore lines starting
 > with `#`) and report any mismatch. Run `bun install`, `bunx vitest run` and `bunx tsc --noEmit` and
-> report the exact counts. Apply the new drizzle migrations `0002_game_measurement` and
-> `0003_payment_refunds_hardening` (both are written to be safe to re-run). Do not publish, do not
-> change visibility, do not add or change secrets, do not enable live payments.
+> report the exact counts. Apply the new drizzle migrations `0002_game_measurement`,
+> `0003_payment_refunds_hardening`, `0004_referrals` and `0005_teams` (all are written to be safe to
+> re-run). Do not publish, do not change visibility, do not add or change secrets, do not enable live
+> payments.
 
 ## Option B — connect the Lovable project to GitHub
 
