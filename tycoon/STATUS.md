@@ -10,7 +10,22 @@
 | Live game database (Lovable Cloud / Supabase) | Unchanged. New migrations were only dry-run inside a rolled-back transaction. |
 | Customer app (app.pawtasticacademy.com), its database and Stripe | Not touched. |
 
-## Update — customers pick their team (Team Hawthorne vs Team Hillsdale)
+## Lovable sync attempt (31 Oct, 20:32 UTC) — stopped, nothing changed
+
+One agent message asked Lovable to copy commit `795d8e1` into the Daycare project. Its agent downloaded the
+files, then stopped before copying anything: its rules don't allow overwriting generated files that the file
+list includes (`drizzle/migrations/meta/*`, `src/integrations/supabase/types.ts`, `src/routeTree.gen.ts`).
+No project files changed; 0.7 credits used. Next step needs the owner: link the Daycare project to GitHub
+(as the Graduation project already is), or approve a second message that skips those files.
+
+## Graduation Day fix — buying Treats at "So close!" (out of moves)
+
+On the public site with payments on, "Get 55 Treats for $2.99" used the old claude.ai demo path: a "Demo — no
+real charge" sheet, then 55 Treats added in the browser with no payment and no Stripe page. Fixed in the
+Graduation source at the repo root (`src/ui/screens/level.js`, `src/backend/local.js`, `src/ui/styles.css`) and
+rebuilt `dist/index.html`; it is not on the live site until it is copied to the linked repo and published.
+
+ (Team Hawthorne vs Team Hillsdale)
 
 - **Pick your team.** New players are asked once per visit (home page, and before their first daycare check-in):
   Team Hawthorne or Team Hillsdale, each shown with its real address. "Not sure yet" is always allowed. Switch from
