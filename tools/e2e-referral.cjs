@@ -110,7 +110,7 @@ async function staffSignIn(page, email) {
   await desk.click('button:text-is("Sign out")');
   await desk.waitForTimeout(500);
   await staffSignIn(desk, 'info@pawtasticacademy.com');
-  check(/Look up a friend code/.test(await text(desk)), 'staff email signs in to the referral desk');
+  check(/Look up a code/.test(await text(desk)), 'staff email signs in to the referral desk');
   await desk.fill('#lookup', 'QQQQQQ');
   await desk.click('button:text-is("Look up")');
   await desk.waitForTimeout(500);

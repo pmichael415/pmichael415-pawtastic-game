@@ -46,7 +46,7 @@ export function render(app, { board = 'weekly', location = 'all' } = {}) {
       h('div', { class: 'team-row' }, Object.entries(LOCATIONS).map(([id, name]) => {
         const leader = Object.entries(res.teams).sort((a, b) => (b[1]?.total ?? 0) - (a[1]?.total ?? 0))[0]?.[0];
         return h('div', { class: `team${leader === id && (res.teams[id]?.total ?? 0) > 0 ? ' leading' : ''}` },
-          h('strong', {}, name), h('span', { class: 'num' }, num(res.teams[id]?.total)), h('span', { class: 'small muted' }, `${res.teams[id]?.players ?? 0} players`));
+          h('strong', {}, name), h('span', { class: 'num' }, num(res.teams[id]?.total)), h('span', { class: 'small muted' }, `${res.teams[id]?.players ?? 0} ${(res.teams[id]?.players ?? 0) === 1 ? 'player' : 'players'}`));
       })));
     const unit = board === 'weekly' ? 'pts' : '★';
     const rows = (res.entries ?? []).map(e => h('li', { class: `lb-row${e.me ? ' me' : ''}` },
