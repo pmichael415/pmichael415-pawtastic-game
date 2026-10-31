@@ -3,7 +3,7 @@
 
 import { pitchFor } from '../fx/callouts.js';
 
-export const SFX_NAMES = ['swap', 'invalid', 'match', 'special-made', 'zoomie', 'bomb', 'blaster', 'crate', 'mud', 'star', 'tap', 'lose', 'stamp', 'purchase'];
+export const SFX_NAMES = ['swap', 'invalid', 'match', 'special-made', 'zoomie', 'bomb', 'blaster', 'crate', 'mud', 'untie', 'star', 'tap', 'lose', 'stamp', 'purchase'];
 
 const C5 = 523.25;
 const noiseBuffers = new WeakMap();
@@ -65,6 +65,7 @@ const RECIPES = {
   blaster: (ctx, d) => { for (let i = 0; i < 5; i++) tone(ctx, d, { freq: 600 + Math.random() * 800, at: i * 0.04, dur: 0.06, gain: 0.12 }); },
   crate: (ctx, d) => { noise(ctx, d, { f0: 1800, dur: 0.07, gain: 0.3 }); tone(ctx, d, { type: 'square', freq: 180, dur: 0.05, gain: 0.08 }); },
   mud: (ctx, d) => noise(ctx, d, { filter: 'lowpass', f0: 500, f1: 200, dur: 0.18, gain: 0.25 }),
+  untie: (ctx, d) => { tone(ctx, d, { type: 'triangle', freq: 520, freqEnd: 880, dur: 0.12, gain: 0.18 }); noise(ctx, d, { f0: 2500, dur: 0.05, gain: 0.1 }); },
   star: (ctx, d, n = 1) => {
     const freq = [1046.5, 1318.5, 1568][Math.min(Math.max(n, 1), 3) - 1];
     tone(ctx, d, { freq, dur: 0.35, gain: 0.22 });

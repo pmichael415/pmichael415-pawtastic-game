@@ -7,7 +7,7 @@ import { bookingLinkEl } from '../booking-links.js';
 import { starIcon } from '../icons.js';
 import { topBar } from '../topbar.js';
 import { shareDog } from '../share-card.js';
-import { AREAS } from '../../engine/levels.js';
+import { AREAS, chapterOf } from '../../engine/levels.js';
 import { COSTUMES } from '../../economy/catalog.js';
 
 const costumeName = id => COSTUMES.find(c => c.id === id)?.name ?? id;
@@ -18,7 +18,7 @@ export function render(app, { areaId = 'orientation' } = {}) {
   const card = backend.reportCard(area.id);
   const dog = backend.state().dog;
   const bar = topBar(app, { title: 'Report card', back: () => app.go('map') });
-  const kind = area.id === 'graduation' ? 'graduation' : 'area';
+  const kind = area.id === 'graduation' ? 'graduation' : area.id === 'talent' ? 'camp' : 'area';
 
   const share = h('button', { class: 'btn gold', type: 'button' }, 'Share');
   share.addEventListener('click', async () => {
@@ -33,7 +33,7 @@ export function render(app, { areaId = 'orientation' } = {}) {
     h('div', { class: 'report-head' },
       logoImg({ size: 48 }),
       h('div', {},
-        h('p', { class: 'eyebrow' }, 'PAWtastic Academy'),
+        h('p', { class: 'eyebrow' }, chapterOf(area.first).name),
         h('h1', { class: 'caps' }, `Report Card — ${area.name}`))),
     h('div', { class: 'results-dog', html: dogSVG({ ...dog, costume: area.costume, label: `${card.dogName} wearing the ${costumeName(area.costume)}` }) }),
     h('p', { class: 'report-student' }, dog?.photoUrl ? dogPhoto(dog.photoUrl, { size: 36, alt: card.dogName, look: dog }) : null, `Student: ${card.dogName}`),

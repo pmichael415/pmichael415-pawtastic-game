@@ -190,6 +190,13 @@ input[type="text"], input[type="number"], input[type="email"], input[type="passw
 .area { display: flex; flex-direction: column; gap: 12px; }
 .area-banner { display: flex; flex-direction: column; gap: 4px; }
 .area-banner.locked { opacity: 0.6; }
+.friend-code { font-weight: 700; font-size: 2.2rem; line-height: 1.1; letter-spacing: 0.22em; text-align: center; padding: 12px 8px; border: 3px dashed var(--brand, #0068D6); border-radius: 14px; background: #FFFFFF; color: var(--brand, #0068D6); margin: 0; }
+.invite-sheet .install-steps { margin: 0; }
+.bath-card { background: #FFF6E2; border: 2px solid #F6A823; }
+.invite-btn { grid-column: 1 / -1; }
+.chapter-banner { display: flex; flex-direction: column; gap: 4px; margin-top: 18px; text-align: center; background: linear-gradient(160deg, #E6F2E8, #FFF6E2); border: 2px solid #2F6B3A; }
+.chapter-banner h2 { color: #2F6B3A; }
+.chapter-banner.locked { opacity: 0.75; border-style: dashed; }
 .path { display: flex; flex-direction: column; gap: 10px; }
 .node-row { display: flex; justify-content: center; }
 .node-group { display: flex; align-items: center; gap: 10px; transform: translateX(calc(var(--offset) * 34px)); }
@@ -248,6 +255,10 @@ input[type="text"], input[type="number"], input[type="email"], input[type="passw
 .cell.mud1::before { background: #A97B54; }
 .cell.mud2::before { background: #7A5232; box-shadow: inset 0 0 0 3px #5C3B22; }
 .crate { position: absolute; inset: 4px; border-radius: 6px; background: repeating-linear-gradient(90deg, #C08A4E 0 8px, #A9743C 8px 10px); border: 3px solid #7E5228; }
+.leash { position: absolute; left: 0; top: 0; width: var(--cell); height: var(--cell); padding: calc(var(--cell) * 0.02); z-index: 2; pointer-events: none; }
+.leash svg { width: 100%; height: 100%; display: block; }
+.leash.untie { animation: untie 300ms ease-out forwards; }
+@keyframes untie { to { opacity: 0; scale: 1.3; rotate: 25deg; } }
 .crate.crate2 { box-shadow: inset 0 0 0 3px #7E5228, inset 0 0 0 7px #C08A4E, inset 0 0 0 9px #7E5228; }
 .tile { appearance: none; border: 0; background: transparent; padding: calc(var(--cell) * 0.08); cursor: pointer; transition: transform 210ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 160ms; z-index: 1; border-radius: 10px; }
 .tile svg { width: 100%; height: 100%; display: block; pointer-events: none; }

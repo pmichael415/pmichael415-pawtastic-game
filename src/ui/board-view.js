@@ -3,7 +3,7 @@
 // All input is ignored while a move is animating (busy).
 
 import { h, reducedMotion } from './dom.js';
-import { tileSVG, TILE_COLORS } from './art.js';
+import { tileSVG, leashSVG, TILE_COLORS } from './art.js';
 import { stepEffects } from '../fx/step-effects.js';
 import { SPECIAL_LABELS, calloutSize } from '../fx/callouts.js';
 import { createParticleLayer } from '../fx/particles.js';
@@ -56,7 +56,10 @@ export function createBoardView(container, game, { onSwap, fx = null }) {
         const crate = h('div', { class: 'crate', hidden: true, 'aria-hidden': 'true' });
         el.append(crate);
         board.append(el);
-        under.set(`${r},${c}`, { el, crate });
+        // Leashes sit over the piece they hold, so they get their own layer above the tiles.
+        const leash = h('div', { class: 'leash', hidden: true, 'aria-hidden': 'true' });
+        board.append(leash);
+        under.set(`${r},${c}`, { el, crate, leash, knots: 0 });
         updateObstacles(r, c);
       }
     }
@@ -70,11 +73,26 @@ export function createBoardView(container, game, { onSwap, fx = null }) {
     u.el.classList.toggle('mud2', cell.mud === 2);
     u.crate.hidden = cell.crate === 0;
     u.crate.className = `crate crate${cell.crate}`;
+    setLeash(u, cell.leash > 0 ? cell.leash : 0);
   }
 
-  function setObstacle(r, c, { crate, mud }) {
+  function setLeash(u, knots, animate = false) {
+    if (u.knots === knots) return;
+    if (animate && effectsOn()) {
+      const ghost = h('div', { class: 'leash untie', 'aria-hidden': 'true', html: leashSVG(u.knots), style: `transform:${u.leash.style.transform}` });
+      board.append(ghost);
+      transient.add(ghost);
+      setTimeout(() => { ghost.remove(); transient.delete(ghost); }, 320);
+    }
+    u.knots = knots;
+    u.leash.hidden = knots === 0;
+    u.leash.innerHTML = knots ? leashSVG(knots) : '';
+  }
+
+  function setObstacle(r, c, { crate, mud, leash }) {
     const u = under.get(`${r},${c}`);
     if (!u) return;
+    if (leash !== undefined) { setLeash(u, leash, true); const t = tileAt(r, c); if (t) label(t); }
     if (mud !== undefined) { u.el.classList.toggle('mud1', mud === 1); u.el.classList.toggle('mud2', mud === 2); }
     if (crate !== undefined) { u.crate.hidden = crate === 0; u.crate.className = `crate crate${crate}`; }
   }
@@ -85,13 +103,15 @@ export function createBoardView(container, game, { onSwap, fx = null }) {
     for (const [key, u] of under) {
       const [r, c] = key.split(',').map(Number);
       u.el.style.transform = px(r, c);
+      u.leash.style.transform = px(r, c);
     }
     for (const t of tiles.values()) t.el.style.transform = px(t.r, t.c);
   }
 
   // ---------- tiles ----------
   function label(t) {
-    t.el.setAttribute('aria-label', `${tileName(t.kind, t.special)}, row ${t.r + 1} column ${t.c + 1}`);
+    const tied = cellAt(grid, t.r, t.c)?.leash > 0 ? ', tied with a leash' : '';
+    t.el.setAttribute('aria-label', `${tileName(t.kind, t.special)}${tied}, row ${t.r + 1} column ${t.c + 1}`);
   }
 
   function place(tile, r, c, { startRow } = {}) {
@@ -232,6 +252,7 @@ export function createBoardView(container, game, { onSwap, fx = null }) {
       for (const cl of step.cleared) removeTile(cl.id);
       for (const k of step.crates) setObstacle(k.r, k.c, { crate: k.left });
       for (const m of step.mud) setObstacle(m.r, m.c, { mud: m.left });
+      for (const l of step.leash ?? []) setObstacle(l.r, l.c, { leash: l.left });
       for (const cr of step.created) place(cr.tile, cr.r, cr.c).el.classList.add('pop-in');
       for (const m of e.made) {
         tileAt(m.r, m.c)?.el.classList.add('made');
@@ -242,8 +263,13 @@ export function createBoardView(container, game, { onSwap, fx = null }) {
         if (t) { t.r = f.to.r; t.c = f.to.c; t.el.style.transform = px(f.to.r, f.to.c); t.el.dataset.r = f.to.r; t.el.dataset.c = f.to.c; label(t); }
       }
       const perColumn = new Map();
-      for (const s of step.spawned) perColumn.set(s.c, (perColumn.get(s.c) || 0) + 1);
-      for (const s of step.spawned) place(s.tile, s.r, s.c, { startRow: s.r - perColumn.get(s.c) });
+      // A piece inside a leash that is still tied appears in place instead of dropping in.
+      const tiedSpawn = s => cellAt(grid, s.r, s.c)?.leash > 0;
+      for (const s of step.spawned) if (!tiedSpawn(s)) perColumn.set(s.c, (perColumn.get(s.c) || 0) + 1);
+      for (const s of step.spawned) {
+        if (tiedSpawn(s)) place(s.tile, s.r, s.c).el.classList.add('pop-in');
+        else place(s.tile, s.r, s.c, { startRow: s.r - perColumn.get(s.c) });
+      }
       await wait(dur(MS.fall));
     }
     if (destroyed) return;

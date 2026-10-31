@@ -10,6 +10,7 @@ import { createLocalBackend, DEMO_FEATURES, FREE_PLAY_FEATURES, PAID_FEATURES } 
 import { openPayments } from './net/pay-api.js';
 import { afterOpen, readCheckoutReturn } from './ui/payments.js';
 import { initInstall } from './ui/install.js';
+import { captureReferral, confirmFriendCode, referralNews } from './ui/referral.js';
 import { openSavedGame } from './backend/saved-game.js';
 import { bootServer } from './net/boot.js';
 import { createAttemptQueue, QUEUE_KEY } from './net/attempt-queue.js';
@@ -36,6 +37,8 @@ import { createAudio } from './audio/engine.js';
 
 // Catch the browser's "install app" offer early (Android/desktop), for the Add to Home Screen button.
 initInstall();
+// An invite link (?ref=CODE): keep the friend code for the $10 off offer.
+captureReferral();
 
 const params = new URLSearchParams(location.search);
 const debug = params.has('debug');
@@ -107,6 +110,8 @@ async function bootLocal() {
   app.go(debugScreen || 'loading', debugScreen ? { levelId: Number(params.get('level') || 1), areaId: params.get('area') || undefined, skipIntro: true } : {});
   // Purchases paid for (or refunded) since last time, and the return from Stripe's checkout.
   if (pay) afterOpen(app, checkoutReturn).catch(() => {});
+  // Invite a friend: confirm an invite link's code, and tell the player about free baths they earned.
+  if (pay?.accounts) { confirmFriendCode(app).catch(() => {}); referralNews(app).catch(() => {}); }
 }
 
 async function bootServerMode() {

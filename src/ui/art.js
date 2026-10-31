@@ -21,7 +21,7 @@ const INK = '#31271F'; // brand text: eyes, noses, details
 const OUTLINE = '#5A4A3E'; // warm brown outline for every dog
 
 // Board pieces in the brand palette; each keeps its own shape for colour-blind players.
-export const TILE_COLORS = { paw: '#0068D6', ball: '#45A167', duck: '#F6A823', frisbee: '#DF3A3A', bone: '#F3E3C3', biscuit: '#A8693A' };
+export const TILE_COLORS = { paw: '#0068D6', ball: '#45A167', duck: '#F6A823', frisbee: '#DF3A3A', bone: '#F3E3C3', biscuit: '#A8693A', pinecone: '#8B5A2B', lantern: '#7B4FB8' };
 
 function shade(hex, amount) {
   const n = parseInt(hex.slice(1), 16);
@@ -34,7 +34,7 @@ const svg = (viewBox, label, body) =>
 
 // ---------- Tiles (100 x 100) ----------
 
-const TILE_NAMES = { bone: 'Bone', ball: 'Tennis Ball', paw: 'PAWtastic Paw', frisbee: 'Frisbee', biscuit: 'Biscuit', duck: 'Rubber Duck' };
+const TILE_NAMES = { bone: 'Bone', ball: 'Tennis Ball', paw: 'PAWtastic Paw', frisbee: 'Frisbee', biscuit: 'Biscuit', duck: 'Rubber Duck', pinecone: 'Pinecone', lantern: 'Camp Lantern' };
 const SPECIAL_NAMES = { zoomieH: 'Zoomie (row)', zoomieV: 'Zoomie (column)', bomb: 'Bone Bomb', blaster: 'Bubble Blaster' };
 
 const TILE_BODIES = {
@@ -55,7 +55,27 @@ const TILE_BODIES = {
       <circle cx="34" cy="64" r="4"/><circle cx="50" cy="64" r="4"/><circle cx="66" cy="64" r="4"/></g>`,
   duck: `<path d="M18 62 C18 46 34 44 46 50 C44 30 56 20 68 24 C80 28 82 42 74 50 C86 52 86 74 70 80 H34 C24 80 18 72 18 62 Z" fill="${TILE_COLORS.duck}" stroke="#B9790F" stroke-width="4"/>
       <path d="M78 34 L92 38 L78 44 Z" fill="#F08A24"/><circle cx="66" cy="34" r="4" fill="${INK}"/>`,
+  // Summer Camp pieces: a pinecone (brown, scaled teardrop) and a camp lantern (purple, glowing window).
+  pinecone: `<path d="M50 12 C70 26 80 46 78 64 C76 82 64 90 50 90 C36 90 24 82 22 64 C20 46 30 26 50 12 Z" fill="${TILE_COLORS.pinecone}" stroke="#5C3A1A" stroke-width="4"/>
+      <g fill="none" stroke="#5C3A1A" stroke-width="3" stroke-linecap="round"><path d="M40 30 Q45 36 50 30 Q55 36 60 30"/><path d="M30 46 Q40 54 50 46 Q60 54 70 46"/>
+      <path d="M25 62 Q37 70 50 62 Q63 70 75 62"/><path d="M31 77 Q40 84 50 77 Q60 84 69 77"/></g>
+      <path d="M50 13 L50 5" stroke="#3E7D3A" stroke-width="5" stroke-linecap="round"/>`,
+  lantern: `<path d="M38 22 Q50 6 62 22" fill="none" stroke="#4E2F80" stroke-width="5" stroke-linecap="round"/>
+      <rect x="34" y="19" width="32" height="10" rx="3" fill="#4E2F80"/>
+      <rect x="27" y="29" width="46" height="52" rx="10" fill="${TILE_COLORS.lantern}" stroke="#4E2F80" stroke-width="4"/>
+      <rect x="37" y="37" width="26" height="36" rx="6" fill="#FFE08A"/>
+      <path d="M50 44 C57 53 57 62 50 67 C43 62 43 53 50 44 Z" fill="${GOLD}"/>
+      <rect x="31" y="80" width="38" height="8" rx="3" fill="#4E2F80"/>`,
 };
+
+// A tangled leash over a board piece: one strap for one knot, crossed straps for two.
+export function leashSVG(knots) {
+  const strap = d => `<path d="${d}" stroke="#08448F" stroke-width="14" fill="none" stroke-linecap="round"/><path d="${d}" stroke="#3F8EF0" stroke-width="8" fill="none" stroke-linecap="round"/><path d="${d}" stroke="#FFFFFF" stroke-width="2" fill="none" stroke-dasharray="3 8" opacity="0.8"/>`;
+  const a = 'M8 22 C30 34 70 66 92 78', b = 'M8 78 C30 66 70 34 92 22';
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" aria-hidden="true">${strap(a)}${knots > 1 ? strap(b) : ''}
+    <circle cx="50" cy="50" r="11" fill="${BRAND}" stroke="#08448F" stroke-width="4"/>
+    <circle cx="10" cy="22" r="6" fill="none" stroke="${GOLD}" stroke-width="4"/></svg>`;
+}
 
 const SPECIAL_OVERLAYS = {
   zoomieH: `<g stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" opacity="0.95"><path d="M6 30 H40"/><path d="M60 70 H94"/><path d="M4 50 H24"/><path d="M76 50 H96"/></g>
@@ -127,6 +147,11 @@ const COSTUME_ART = {
   'cap-and-gown': `<path d="M40 150 C58 186 142 186 160 150 L166 198 H34 Z" fill="#1B1B1F"/><path d="M80 156 L100 176 L120 156" stroke="${GOLD}" stroke-width="4" fill="none"/><path d="M100 18 L162 40 L100 62 L38 40 Z" fill="#1B1B1F"/><rect x="72" y="44" width="56" height="16" fill="#1B1B1F"/><path d="M100 40 L156 46 L156 74" stroke="${GOLD}" stroke-width="3" fill="none"/><circle cx="156" cy="78" r="5" fill="${GOLD}"/>`,
   'gold-collar': `<path d="${NECK}" stroke="${GOLD}" stroke-width="10" fill="none"/><circle cx="100" cy="172" r="8" fill="#5BC0EB" stroke="${GOLD}" stroke-width="3"/>`,
   'letterman-scarf': `<path d="M54 152 C70 172 130 172 146 152" stroke="${TRIM}" stroke-width="16" fill="none"/><path d="M54 152 C70 172 130 172 146 152" stroke="${GOLD}" stroke-width="4" stroke-dasharray="10 10" fill="none"/><rect x="118" y="160" width="16" height="36" fill="${TRIM}"/><path d="M118 172 h16 M118 184 h16" stroke="${GOLD}" stroke-width="4"/>`,
+  'camp-bandana': `<path d="M56 148 L144 148 L100 190 Z" fill="#2F6B3A" stroke="#1E4726" stroke-width="3"/><path d="M86 174 L100 158 L114 174 Z" fill="#FFFFFF"/><path d="M100 163 L96 174 H104 Z" fill="#2F6B3A"/><circle cx="100" cy="150" r="6" fill="${GOLD}" stroke="#B88A0F" stroke-width="2"/>`,
+  'life-vest': `<path d="M40 150 C50 168 70 176 88 178 L88 198 H34 Z M160 150 C150 168 130 176 112 178 L112 198 H166 Z" fill="#F26B1D" stroke="#B4480C" stroke-width="3"/><path d="M37 187 H88 M112 187 H163" stroke="#1B1B1F" stroke-width="5"/><rect x="84" y="182" width="32" height="10" rx="2" fill="#1B1B1F"/><path d="M50 164 l10 7 M150 164 l-10 7" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>`,
+  'ranger-hat': `<ellipse cx="100" cy="54" rx="70" ry="12" fill="#B08B4F" stroke="#7A5E2E" stroke-width="3"/><path d="M68 54 C68 30 80 16 100 14 C120 16 132 30 132 54 Z" fill="#C9A15E" stroke="#7A5E2E" stroke-width="3"/><path d="M100 16 V38 M84 24 L91 40 M116 24 L109 40" stroke="#7A5E2E" stroke-width="3" stroke-linecap="round"/><rect x="69" y="44" width="62" height="8" fill="#2F6B3A"/>`,
+  'cozy-flannel': `<path d="M40 150 C58 186 142 186 160 150 L166 198 H34 Z" fill="#C0392B" stroke="#7E2318" stroke-width="3"/><g stroke="#1B1B1F" stroke-width="6" opacity="0.5"><path d="M62 166 V198 M100 176 V198 M138 166 V198"/><path d="M42 182 H158 M37 194 H163"/></g><path d="M74 156 L100 178 L126 156" fill="none" stroke="#7E2318" stroke-width="5"/><circle cx="100" cy="188" r="3" fill="#FFFFFF"/>`,
+  'camp-medal': `<path d="M72 148 L100 178 L128 148" fill="none" stroke="${BRAND}" stroke-width="10"/><path d="M72 148 L100 178 L128 148" fill="none" stroke="#DF3A3A" stroke-width="3"/><circle cx="100" cy="183" r="15" fill="${GOLD}" stroke="#B88A0F" stroke-width="3"/><path d="M100 173 l3 6.5 h7 l-5.5 4.3 2.2 7 -6.7 -4.2 -6.7 4.2 2.2 -7 -5.5 -4.3 h7 Z" fill="#FFFFFF"/>`,
   'honor-roll-sash': `<path d="M50 150 L150 196 L136 200 L44 160 Z" fill="${GOLD}" stroke="#B88A0F" stroke-width="2"/><circle cx="110" cy="180" r="8" fill="${BRAND}"/>`,
 };
 
@@ -135,7 +160,7 @@ export function dogSVG({ breed = 'lab', coat = COATS[0].hex, costume = null, lab
   const overlay = costume && COSTUME_ART[costume] ? `<g data-costume="${costume}">${COSTUME_ART[costume]}</g>` : '';
   const collar = costume ? '' : `<path d="${NECK}" stroke="${BRAND}" stroke-width="8" fill="none" stroke-linecap="round"/><circle cx="100" cy="171" r="5" fill="${GOLD}" stroke="${OUTLINE}" stroke-width="2"/>`;
   // Hats and glasses sit on top of the head; neckwear sits on the body.
-  const onHead = ['sunglasses', 'cap-and-gown', 'spa-robe', 'pajamas', 'raincoat'].includes(costume);
+  const onHead = ['sunglasses', 'cap-and-gown', 'spa-robe', 'pajamas', 'raincoat', 'ranger-hat'].includes(costume);
   return svg('0 0 200 200', label, body + collar + ears(breed, coat) + (onHead ? '' : overlay) + head(breed, coat) + (onHead ? overlay : ''));
 }
 

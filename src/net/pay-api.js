@@ -47,7 +47,7 @@ export const isEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(s ?? '')
  */
 export async function openPayments({
   fetchImpl = globalThis.fetch?.bind(globalThis), base = '', loc = globalThis.location, hist = globalThis.history,
-  store = createLocalStorage(SESSION_KEY), now = () => Date.now(), timeoutMs = 3500,
+  store = createLocalStorage(SESSION_KEY), now = () => Date.now(), timeoutMs = 3500, redirectPath = '/play/index.html',
 } = {}) {
   if (typeof fetchImpl !== 'function') return null;
   const nowS = () => Math.floor(now() / 1000);
@@ -146,7 +146,7 @@ export async function openPayments({
     return { ok: false, error: errorOf(res) };
   }
 
-  const redirectTo = () => { try { return `${loc.origin}/play/index.html`; } catch { return undefined; } };
+  const redirectTo = () => { try { return `${loc.origin}${redirectPath}`; } catch { return undefined; } };
 
   return {
     accounts,
@@ -188,6 +188,12 @@ export async function openPayments({
     account: () => call('GET', '/api/public/game/account'),
     ack: ({ claimed = [], refunds = [] }) => call('POST', '/api/public/game/account/ack', { claimed, refunds }),
     portal: () => call('POST', '/api/public/game/portal', {}),
+    // Invite a friend: the player's own code and free baths, and a check of a code from an invite link.
+    referral: () => call('GET', '/api/public/game/referral'),
+    checkReferral: code => call('GET', `/api/public/game/referral/check?code=${encodeURIComponent(code)}`, undefined, { signedIn: false }),
+    // The front desk's referral page (staff emails only).
+    staffHome: () => call('GET', '/api/public/game/staff'),
+    staffAction: input => call('POST', '/api/public/game/staff', input),
     report: ({ kind, message, email, details }) => call('POST', '/api/public/game/report', {
       kind, message: String(message ?? '').slice(0, 2000), ...(email ? { email } : {}), ...(details ? { details } : {}),
     }, { signedIn: false }),

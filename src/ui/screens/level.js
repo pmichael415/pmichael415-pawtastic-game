@@ -1,7 +1,7 @@
 // Playing a level: HUD, board, boosters, quit, and the end-of-level flow.
 
 import { h } from '../dom.js';
-import { tileSVG, professorPawsSVG } from '../art.js';
+import { tileSVG, leashSVG, professorPawsSVG } from '../art.js';
 import { starIcon, heartIcon, shuffleIcon, mudIcon, closeIcon } from '../icons.js';
 import { createBoardView } from '../board-view.js';
 import { createHint } from '../hint.js';
@@ -25,6 +25,7 @@ const BOOSTER_INFO = {
 function goalIcon(goal) {
   if (goal.type === 'collect') return tileSVG(goal.kind, null);
   if (goal.type === 'mud') return mudIcon('Mud');
+  if (goal.type === 'leash') return leashSVG(2);
   return starIcon(true, 'Points');
 }
 
@@ -33,6 +34,7 @@ function goalLabel(game) {
   const p = goalProgress(game);
   if (goal.type === 'collect') return `${Math.min(p.current, p.target)} / ${p.target} ${KIND_NAMES[goal.kind][1]}`;
   if (goal.type === 'mud') return `${p.current} / ${p.target} mud cleaned`;
+  if (goal.type === 'leash') return `${p.current} / ${p.target} leash knots untied`;
   return `${Math.min(p.current, p.target).toLocaleString('en-US')} / ${p.target.toLocaleString('en-US')} points`;
 }
 

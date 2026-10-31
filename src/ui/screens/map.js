@@ -1,4 +1,4 @@
-// The school-year map: five areas named after PAWtastic's real services.
+// The map: the school year's five areas (named after PAWtastic's real services), then Summer Camp's five.
 
 import { h } from '../dom.js';
 import { dogSVG, professorPawsSVG } from '../art.js';
@@ -11,8 +11,9 @@ import { showDailyRewards } from '../daily.js';
 import { showStarterPackOffer } from './results.js';
 import { cloudSaveCard } from '../payments.js';
 import { installCard } from '../install.js';
+import { friendOfferCard, showInvite } from '../referral.js';
 import { isPublicSite } from '../../backend/local.js';
-import { AREAS, LEVELS, isHardLevel } from '../../engine/levels.js';
+import { AREAS, CHAPTERS, LEVELS, LAST_LEVEL, isHardLevel, chapterOf } from '../../engine/levels.js';
 import { COSTUMES } from '../../economy/catalog.js';
 
 const OFFSETS = [0, 1, 2, 1, 0, -1, -2, -1];
@@ -61,6 +62,7 @@ export function render(app, params = {}) {
     h('button', { class: 'btn secondary', type: 'button', onClick: () => app.go('pass') }, 'Pup Pass'),
     h('button', { class: 'btn secondary jar-btn', type: 'button', onClick: () => app.go('jar') }, 'Treat Jar',
       backend.features.jar && jar.canOpen() ? h('span', { class: 'dot', 'aria-label': 'Free open available' }) : null),
+    isPublicSite(backend) ? h('button', { class: 'btn gold invite-btn', type: 'button', onClick: () => showInvite(app) }, 'Invite friends') : null,
   );
 
   const signs = h('div', { class: 'signposts', 'aria-label': 'Locations' },
@@ -72,8 +74,11 @@ export function render(app, params = {}) {
     const passed = ids.filter(id => state.progress.levels[id]).length;
     const stars = ids.reduce((s, id) => s + (state.progress.levels[id]?.stars || 0), 0);
     const locked = area.first > unlocked;
+    const chapter = chapterOf(area.first);
+    const inChapter = AREAS.filter(a => chapterOf(a.first) === chapter);
+    const place = `Area ${inChapter.indexOf(area) + 1} of ${inChapter.length}`;
     const banner = h('div', { class: `area-banner card${locked ? ' locked' : ''}` },
-      h('p', { class: 'eyebrow' }, `Area ${ai + 1} of ${AREAS.length}`),
+      h('p', { class: 'eyebrow' }, chapter.id === 'academy' ? place : `Summer Camp · ${place}`),
       h('h2', {}, area.name),
       h('p', { class: 'small muted' }, `In real life: ${area.service}`),
       h('p', { class: 'small num' }, locked
@@ -102,15 +107,27 @@ export function render(app, params = {}) {
       if (isCurrent || (id === unlocked)) currentNode = row;
       return row;
     });
-    return h('section', { class: 'area', 'aria-label': area.name }, banner, h('div', { class: 'path' }, nodes));
-  });
+    const section = h('section', { class: 'area', 'aria-label': area.name }, banner, h('div', { class: 'path' }, nodes));
+    if (chapter.first !== area.first || chapter.id === 'academy') return section;
+    // The start of a new adventure gets its own sign.
+    const open = unlocked >= chapter.first;
+    return [h('div', { class: `chapter-banner card${open ? '' : ' locked'}`, 'aria-label': chapter.name },
+      h('p', { class: 'eyebrow' }, 'New adventure'),
+      h('h2', {}, chapter.name),
+      h('p', { class: 'small' }, open
+        ? '40 new levels with Pinecones, Camp Lanterns and tangled leashes. Five new costumes to earn.'
+        : 'For graduates only: pass Level 40 to open camp. 40 new levels, new pieces and five new costumes.')), section];
+  }).flat();
 
-  const allDone = state.progress.levels[40];
+  const dogName = state.dog?.name ?? 'Your pup';
+  const gradNote = state.progress.levels[LAST_LEVEL]
+    ? `${dogName} is a PAWtastic Summer Camp champion!`
+    : state.progress.levels[CHAPTERS[0].last] ? `${dogName} graduated from PAWtastic Academy! Summer Camp is open.` : null;
   const publicSite = isPublicSite(backend);
-  // One small banner at a time: Add to Home Screen first, then Save progress to the cloud.
-  const nudge = publicSite ? (installCard(app) ?? cloudSaveCard(app)) : null;
+  // One small banner at a time: a friend's offer first, then Add to Home Screen, then Save progress to the cloud.
+  const nudge = publicSite ? (friendOfferCard(app) ?? installCard(app) ?? cloudSaveCard(app)) : null;
   app.view.append(...[bar, continueCard, nudge, nav, signs, h('div', { class: 'map' },
-    allDone ? h('p', { class: 'card grad-note' }, `${state.dog?.name ?? 'Your pup'} graduated from PAWtastic Academy!`) : null,
+    gradNote ? h('p', { class: 'card grad-note' }, gradNote) : null,
     areas)].filter(Boolean));
 
   // After a win, the dog hops from the level just passed to the new one.

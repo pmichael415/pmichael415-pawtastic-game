@@ -36,10 +36,35 @@ Not in this copy (they were never in the artifact): the automated tests, `src/ne
 - `lovable/public/` also holds `manifest.webmanifest` and `icon-192/512` + a maskable icon, so phones show
   "PAWtastic" under the Home Screen icon and open the game full screen.
 - The Lovable project is linked to GitHub: **pmichael415/pawtastic-graduation** (private, branch `main`).
-  To update the live game: rebuild `dist/index.html`, copy it to that repo's `public/play/index.html` (and any
-  changed `lovable/public/` files to its `public/`), push to `main`, then publish in Lovable. No Lovable credits.
+  To update the live game: rebuild `dist/index.html` (and `dist/staff.html`), copy them to that repo's
+  `public/play/index.html` and `public/staff/index.html` (and any changed `lovable/public/` files to its
+  `public/`), push to `main`, then publish in Lovable. No Lovable credits.
   Don't push while Lovable's agent is mid-job: Lovable takes the push as the latest version and can drop the
   agent's unsaved commit.
+
+## Summer Camp (levels 41–80)
+
+- After Graduation (level 40) the map opens **PAWtastic Summer Camp**: Cabin Check-in, Lake Day, Trail Hike,
+  Campfire Night and the Talent Show, 8 levels each (`src/engine/levels.js`, `AREAS` and `CHAPTERS`).
+- New pieces: Pinecones and Camp Lanterns (Lake Day brings the Rubber Duck back). New obstacle: the tangled
+  leash (`l` = one knot, `L` = two) holds its piece in place; any clear there unties a knot. Leash goals
+  ("untie every knot") work like mud goals.
+- Each area earns a costume: Camp Bandana, Life Vest, Ranger Hat, Cozy Flannel, and the Camp Champion Medal.
+- Moves and star scores come from a bot that plays every level hundreds of times without boosters
+  (`npm run -s sim -- --levels 41-80`, `--tune`, `--stars`). Engine checks: `node --test tools/test-engine.mjs`.
+
+## Invite a friend (referrals)
+
+- Signed-in players get a 6-character friend code (Menu or map → Invite friends). Their invite link is
+  `/play/index.html?ref=CODE`. A friend who opens it sees "$10 off your first PAWtastic visit" with the code.
+- At the friend's first visit the front desk gives $10 off in the register and records it on the staff page,
+  **/staff** (`public/staff/index.html`, built from `staff.html` + `src/staff/main.js` with
+  `npm run -s build:staff`). That earns the player a free bath; the game tells them, and staff tap
+  "Bath given" when it's done. Staff emails: info@pawtasticacademy.com and the owner's email (change with the
+  `GAME_STAFF_EMAILS` secret in Lovable, comma-separated).
+- Server: `src/lib/game/referrals.server.ts` and `/api/public/game/referral`, `/referral/check`, `/staff`
+  in the Lovable repo; tables `game_referral_codes` and `game_referrals`.
+- Browser test: `node tools/e2e-referral.cjs` against `tools/mock-pay-server.mjs`.
 
 ## Payments and revenue
 

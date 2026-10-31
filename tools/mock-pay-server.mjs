@@ -24,7 +24,17 @@ const CATALOG = {
 };
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.mp3': 'audio/mpeg', '.woff2': 'font/woff2', '.ico': 'image/x-icon' };
 
-const db = { users: new Map(), tokens: new Map(), refresh: new Map(), saves: new Map(), purchases: [], subs: new Map(), sessions: new Map(), reports: [], codesSent: [] };
+const db = { users: new Map(), tokens: new Map(), refresh: new Map(), saves: new Map(), purchases: [], subs: new Map(), sessions: new Map(), reports: [], codesSent: [], codes: new Map(), referrals: [] };
+// Invite a friend, as the real server does it (src/lib/game/referrals.server.ts in the Lovable project).
+const STAFF = new Set(['info@pawtasticacademy.com']);
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const codeOf = user => {
+  if (!db.codes.has(user.id)) db.codes.set(user.id, { code: Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * 32)]).join(''), email: user.email, since: new Date().toISOString() });
+  return db.codes.get(user.id).code;
+};
+const ownerOf = code => [...db.codes.entries()].find(([, v]) => v.code === code);
+const summary = rows => { const live = rows.filter(r => r.status !== 'void'); const waiting = live.filter(r => r.status === 'earned').length; return { friends: live.length, bathsWaiting: waiting, bathsGiven: live.length - waiting }; };
+const lookupCode = code => { const o = ownerOf(code); if (!o) return null; const referrals = db.referrals.filter(r => r.code === code).reverse(); return { code, email: o[1].email, since: o[1].since, referrals, ...summary(referrals) }; };
 const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const today = () => new Date().toISOString().slice(0, 10);
 const addDays = (d, n) => new Date(Date.parse(d) + n * 86400000).toISOString().slice(0, 10);
@@ -113,9 +123,44 @@ createServer(async (req, res) => {
       return send(res, 200, { ok: true });
     }
 
+    if (path === '/api/public/game/referral/check') {
+      const code = String(url.searchParams.get('code') ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const owner = ownerOf(code);
+      const user = authed(req);
+      return send(res, 200, owner ? { valid: true, code, own: !!user && owner[0] === user.id } : { valid: false });
+    }
+
     if (path.startsWith('/api/public/game/') && path !== '/api/public/game/config') {
       const user = authed(req);
       if (!user) return send(res, 401, { error: 'signed-out' });
+      if (path === '/api/public/game/referral' && req.method === 'GET') {
+        const code = codeOf(user);
+        return send(res, 200, { code, ...summary(db.referrals.filter(r => r.code === code)) });
+      }
+      if (path === '/api/public/game/staff') {
+        const staff = STAFF.has(user.email);
+        if (req.method === 'GET') {
+          if (!staff) return send(res, 200, { staff: false, email: user.email });
+          return send(res, 200, { staff: true, email: user.email, recent: [...db.referrals].reverse().slice(0, 50).map(r => ({ ...r, referrer: ownerOf(r.code)?.[1].email ?? '' })) });
+        }
+        if (!staff) return send(res, 403, { error: 'not-staff' });
+        const b = await bodyOf(req);
+        if (b.action === 'lookup' || b.action === 'record') {
+          const code = String(b.code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+          const found = lookupCode(code);
+          if (!found) return send(res, 404, { error: 'unknown-code' });
+          if (b.action === 'lookup') return send(res, 200, found);
+          if (typeof b.friendName !== 'string' || !b.friendName.trim()) return send(res, 400, { error: 'invalid-request' });
+          const key = (n, d) => `${n.trim().toLowerCase()}|${(d ?? '').trim().toLowerCase()}`;
+          if (!b.allowDuplicate && found.referrals.some(r => r.status !== 'void' && key(r.friend_name, r.friend_dog) === key(b.friendName, b.friendDog))) return send(res, 409, { error: 'duplicate' });
+          db.referrals.push({ id: randomUUID(), code, friend_name: b.friendName.trim(), friend_dog: b.friendDog ?? null, location: b.location ?? null, note: b.note ?? null, status: 'earned', recorded_by: user.email, created_at: new Date().toISOString(), bath_given_at: null });
+          return send(res, 200, lookupCode(code));
+        }
+        const r = db.referrals.find(x => x.id === b.id);
+        if (b.action === 'bath') { if (!r || r.status !== 'earned') return send(res, 409, { error: 'no-bath-waiting' }); r.status = 'bath-given'; r.bath_given_at = new Date().toISOString(); return send(res, 200, lookupCode(r.code)); }
+        if (b.action === 'void') { if (!r || r.status === 'void') return send(res, 409, { error: 'already-undone' }); r.status = 'void'; return send(res, 200, lookupCode(r.code)); }
+        return send(res, 400, { error: 'invalid-request' });
+      }
       if (path === '/api/public/game/save' && req.method === 'GET') {
         const s = db.saves.get(user.id);
         return send(res, 200, { exists: !!s, data: s ?? null });
@@ -180,7 +225,7 @@ createServer(async (req, res) => {
       const t = issue(userFor(url.searchParams.get('email') || 'buyer@example.com'));
       return send(res, 200, { url: `${origin}/play/index.html#access_token=${t.access_token}&expires_at=${t.expires_at}&expires_in=3600&refresh_token=${t.refresh_token}&token_type=bearer&type=magiclink` });
     }
-    if (path === '/mock/state') return send(res, 200, { purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent });
+    if (path === '/mock/state') return send(res, 200, { purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent, codes: Object.fromEntries(db.codes), referrals: db.referrals });
     if (path === '/mock/refund' && req.method === 'POST') {
       const { email, product } = await bodyOf(req);
       const user = userFor(email);
@@ -197,6 +242,12 @@ createServer(async (req, res) => {
         res.writeHead(200, { 'content-type': path.endsWith('.webmanifest') ? 'application/manifest+json' : TYPES[extname(path)] ?? 'application/octet-stream' });
         return res.end(data);
       } catch { return send(res, 404, { error: 'not-found' }); }
+    }
+
+    // The front desk's referral page.
+    if (path === '/staff/index.html' || path === '/staff/') {
+      try { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(await readFile(join(dir, 'staff.html'))); }
+      catch { return send(res, 404, { error: 'not-found' }); }
     }
 
     // The built page at /play/.

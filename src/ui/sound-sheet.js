@@ -6,6 +6,7 @@ import { effectsEnabled } from '../audio/settings.js';
 import { isPublicSite } from '../backend/local.js';
 import { accountMenu } from './payments.js';
 import { installMenuItem } from './install.js';
+import { referralMenuItems } from './referral.js';
 
 function switchRow(label, on, onToggle) {
   const btn = h('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(on), 'aria-label': label },
@@ -44,6 +45,7 @@ export function showSoundSheet(app) {
     switchRow('Celebration effects', effectsEnabled(now, reducedMotion()), on => settings.set({ effects: on ? 'on' : 'off' })),
     app.services.backend?.features.account ? accountSection(app, () => sheet.close()) : null,
     // The public site: its own account options (sign-in for buyers, reports) and rules & privacy.
+    ...(isPublicSite(app.services.backend) ? referralMenuItems(app, () => sheet.close()) : []),
     isPublicSite(app.services.backend) ? installMenuItem(app, () => sheet.close()) : null,
     isPublicSite(app.services.backend) ? accountMenu(app, () => sheet.close()) : null,
     isPublicSite(app.services.backend)

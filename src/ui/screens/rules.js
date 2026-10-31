@@ -25,6 +25,7 @@ function publicRules(paid, accounts) {
         ]
         : [h('p', {}, "There's no sign-in, and the game never asks for your name, email or other personal details. Your dog's name and your progress are saved only in this browser on this device. Clearing your browser data erases them.")]),
       h('p', {}, 'Our website host counts visits, such as page views, so we know how many people play.'),
+      ...(accounts ? referralTerms() : []),
       ...questions(),
     ];
   }
@@ -40,7 +41,18 @@ function publicRules(paid, accounts) {
     h('p', {}, "You can play without signing in: your dog's name and progress are then saved only in this browser on this device."),
     h('p', {}, 'To buy, or to save your progress to the cloud, you sign in with your email and a one-time code. We then keep your email address, your purchases and your saved game, so you can pick up on another device. We use your email only for sign-in codes, receipts and replies to your questions.'),
     h('p', {}, 'Our website host counts visits, such as page views, so we know how many people play.'),
+    ...referralTerms(),
     ...questions(),
+  ];
+}
+
+// Invite a friend: real-world rewards given by PAWtastic's front desk, never anything in the game.
+function referralTerms() {
+  return [
+    h('h2', {}, 'Invite friends'),
+    h('p', {}, 'Signed-in players get a friend code. A person who is new to PAWtastic Academy and shows a friend code at the front desk on their first visit gets $10 off that visit (daycare, boarding or grooming). After that first visit, the player whose code it was gets one free bath for their dog. One $10 discount per new client, and one free bath for each new client.'),
+    h('p', {}, "Front desk staff confirm who is a new client. The discount and the bath have no cash value, can't be exchanged for money or Treats, and sharing never earns anything inside the game. PAWtastic Academy may change or end this offer at any time."),
+    h('p', {}, 'When a friend uses your code, the front desk records their name and their dog\'s name with your code, so we know who earned the bath.'),
   ];
 }
 

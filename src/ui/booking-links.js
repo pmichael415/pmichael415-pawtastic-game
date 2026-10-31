@@ -12,6 +12,11 @@ export const BOOKING_LINKS = {
   spa: { text: dog => `Book ${dog} a real Ivy-League Wash`, href: `${APP_URL}/portal/shop` },
   dorms: { text: dog => `Book ${dog} a real Dorm night`, href: `${APP_URL}/book` },
   graduation: { text: dog => `Plan ${dog}'s next visit`, href: `${APP_URL}/portal` },
+  cabins: { text: dog => `Plan ${dog}'s next visit`, href: `${APP_URL}/portal` },
+  lake: { text: dog => `Book ${dog} a real bath`, href: `${APP_URL}/portal/shop` },
+  trail: { text: dog => `Book ${dog} a real daycare day`, href: `${APP_URL}/portal/shop` },
+  campfire: { text: dog => `Book ${dog} a real Dorm night`, href: `${APP_URL}/book` },
+  talent: { text: dog => `Plan ${dog}'s next visit`, href: `${APP_URL}/portal` },
 };
 
 export function bookingLink(areaId, dogName) {

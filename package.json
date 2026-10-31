@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:single": "node tools/build-single.mjs . dist/index.html"
+    "build:single": "node tools/build-single.mjs . dist/index.html",
+    "build:staff": "node tools/build-staff.mjs . dist/staff.html",
+    "sim": "node tools/simulate.mjs"
   },
   "devDependencies": {
     "esbuild": "0.25.12"

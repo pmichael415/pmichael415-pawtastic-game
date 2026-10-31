@@ -20,6 +20,12 @@ export function h(tag, attrs = {}, ...children) {
   return el;
 }
 
+/** Replaces an element's children, skipping null/false the way h() does (replaceChildren would print "null"). */
+export function fill(el, ...children) {
+  el.replaceChildren(...children.flat(Infinity).filter(c => c !== null && c !== undefined && c !== false));
+  return el;
+}
+
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])';
 
 // A bottom sheet. Escape and the backdrop close it when `dismissible`.

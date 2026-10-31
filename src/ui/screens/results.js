@@ -6,7 +6,7 @@ import { starIcon } from '../icons.js';
 import { dogSVG, professorPawsSVG } from '../art.js';
 import { winTimeline, playWin, countUp } from '../../fx/celebrate.js';
 import { createParticleLayer } from '../../fx/particles.js';
-import { AREAS, getLevel, areaOf } from '../../engine/levels.js';
+import { AREAS, getLevel, areaOf, LAST_LEVEL } from '../../engine/levels.js';
 import { COSTUMES, STARTER_PACK, formatUsd, treatsToUsd } from '../../economy/catalog.js';
 import { confirmPurchase } from '../purchase.js';
 import { realPayments, startCheckout } from '../payments.js';
@@ -21,6 +21,11 @@ const BADGE_NAMES = {
   'grad-spa': 'Finished the Ivy-League Spa',
   'grad-dorms': 'Finished Dorms & Graduate Suites',
   'grad-graduation': 'Graduated from PAWtastic Academy',
+  'grad-cabins': 'Checked in at Summer Camp',
+  'grad-lake': 'Finished Lake Day',
+  'grad-trail': 'Finished the Trail Hike',
+  'grad-campfire': 'Finished Campfire Night',
+  'grad-talent': 'Summer Camp champion',
 };
 
 const costumeName = id => COSTUMES.find(c => c.id === id)?.name ?? id;
@@ -67,7 +72,7 @@ export function showStarterPackOffer(app) {
 
 function areaDone(app, areaId) {
   const area = AREAS.find(a => a.id === areaId);
-  const kind = areaId === 'graduation' ? 'graduation' : 'area';
+  const kind = areaId === 'graduation' ? 'graduation' : areaId === 'talent' ? 'camp' : 'area';
   return h('div', { class: 'btn-pair' },
     h('button', { class: 'btn gold', type: 'button', onClick: () => app.go('report', { areaId }) }, 'See your report card'),
     h('button', { class: 'btn secondary', type: 'button', onClick: () => shareDog(app, { kind, areaName: area.name, costume: area.costume }) }, 'Share'));
@@ -78,7 +83,7 @@ function areaDone(app, areaId) {
 export function renderWin(app, { levelId, score, starsEarned, summary, bonus = 0 }) {
   const { backend, audio } = app.services;
   const dog = backend.state().dog;
-  const next = levelId < 40 ? getLevel(levelId + 1) : null;
+  const next = levelId < LAST_LEVEL ? getLevel(levelId + 1) : null;
   const area = summary.areaCompleted ? AREAS.find(a => a.id === summary.areaCompleted) : null;
   const effects = app.effects();
 

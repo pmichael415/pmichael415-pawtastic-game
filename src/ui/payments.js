@@ -2,7 +2,7 @@
 // customer portal for the Pup Pass, adding what was paid for, and "Report a problem".
 // Only used when the local backend carries a payments client (src/net/pay-api.js).
 
-import { h } from './dom.js';
+import { h, fill } from './dom.js';
 import { confirmPurchase } from './purchase.js';
 import { PACKS, STARTER_PACK, PASS, formatUsd } from '../economy/catalog.js';
 import { pendingCheckout, isEmail } from '../net/pay-api.js';
@@ -33,7 +33,7 @@ export const payError = code => ERRORS[code] ?? ERRORS.server;
 const paymentsOf = app => app.services.backend?.payments ?? null;
 const standalone = () => globalThis.navigator?.standalone === true || !!globalThis.matchMedia?.('(display-mode: standalone)').matches;
 // The site's server client: sign-in and cloud saves work with or without payments.
-const clientOf = app => app.services.pay ?? null;
+export const clientOf = app => app.services.pay ?? null;
 export const cloudSaves = app => !!clientOf(app)?.accounts;
 
 // Stripe pages are https; plain http is allowed only on this computer (the test server).
@@ -57,7 +57,7 @@ async function saveNow(app) {
 }
 
 // Leave the game (to Stripe, or to reload once signed in) with the save sent first.
-async function leave(app, go) {
+export async function leave(app, go) {
   await saveNow(app);
   go();
 }
@@ -88,7 +88,7 @@ export function signInSheet(app, { title = 'Sign in', reason = '' } = {}) {
         send.disabled = false;
         if (res.ok) askCode(); else note.textContent = payError(res.error);
       });
-      box.replaceChildren(h('h2', {}, title), reason ? h('p', {}, reason) : null, form,
+      fill(box, h('h2', {}, title), reason ? h('p', {}, reason) : null, form,
         h('p', { class: 'muted small' }, "No password needed. We'll email you a 6-digit code."));
       setTimeout(() => input.focus(), 50);
     }
@@ -107,7 +107,7 @@ export function signInSheet(app, { title = 'Sign in', reason = '' } = {}) {
         go.disabled = false;
         if (res.ok) finish(true); else note.textContent = payError(res.error);
       });
-      box.replaceChildren(h('h2', {}, 'Check your email'),
+      fill(box, h('h2', {}, 'Check your email'),
         h('p', {}, 'We sent an email to ', h('strong', {}, email), '. Type the 6-digit code from it here, or tap the sign-in link in the email. It can take a minute to arrive.'),
         standalone() ? h('p', { class: 'muted small' }, 'In the Home Screen app, type the code: the link in the email opens your browser instead of the app.') : null,
         form,
