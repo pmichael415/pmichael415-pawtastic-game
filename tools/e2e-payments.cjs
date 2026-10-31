@@ -128,6 +128,24 @@ async function goShop(page) { await page.click('button:has-text("Shop")', { forc
     const wb = await wallet(b);
     check(wb.dog?.name === 'Biscuit' && wb.treats.paid === 100, 'second device: progress and purchase restored', `${wb.dog?.name} / ${wb.treats.paid}`);
 
+    // 3b. Third device: the sign-in link from the email (instead of the code) signs in too.
+    const c = await newPage();
+    await enroll(c, 'Max');
+    const link = (await (await fetch(`${base}/mock/magic-link?email=${encodeURIComponent(EMAIL)}`)).json()).url;
+    // An email link opens the page fresh, in a new tab of the same browser.
+    const tab = await c.context().newPage();
+    await tab.goto(link, { waitUntil: 'networkidle' });
+    await tab.waitForTimeout(800);
+    check(!/access_token/.test(tab.url()), 'sign-in link (new tab): tokens removed from the address bar');
+    await tab.close();
+    // The same link landing in the tab already running the game reloads it.
+    await c.evaluate(u => { location.hash = new URL(u).hash; }, link);
+    await c.waitForTimeout(1500);
+    check(!/access_token/.test(c.url()), 'sign-in link: tokens removed from the address bar');
+    await c.goto(GAME, { waitUntil: 'networkidle' }); await closeIntroSheets(c); await c.waitForTimeout(1000);
+    const wc = await wallet(c);
+    check(wc.dog?.name === 'Biscuit' && wc.treats.paid === 100, 'sign-in link: signed in and purchase restored', `${wc.dog?.name} / ${wc.treats.paid}`);
+
     // 4. Pup Pass: subscribe.
     await a.click('button:has-text("Pup Pass")', { force: true }); await a.waitForTimeout(600);
     await a.click('button:has-text("Get the Pup Pass")', { force: true });

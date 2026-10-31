@@ -104,7 +104,7 @@ export function signInSheet(app, { title = 'Sign in', reason = '' } = {}) {
         if (res.ok) finish(true); else note.textContent = payError(res.error);
       });
       box.replaceChildren(h('h2', {}, 'Check your email'),
-        h('p', {}, 'We sent a code to ', h('strong', {}, email), '. It can take a minute to arrive.'),
+        h('p', {}, 'We sent an email to ', h('strong', {}, email), '. Type the 6-digit code from it here, or tap the sign-in link in the email. It can take a minute to arrive.'),
         form,
         h('div', { class: 'btn-pair' },
           h('button', { class: 'linkish', type: 'button', onClick: async () => { note.textContent = 'Sending a new code…'; const r = await pay.sendCode(email); note.textContent = r.ok ? 'New code sent.' : payError(r.error); } }, 'Send a new code'),

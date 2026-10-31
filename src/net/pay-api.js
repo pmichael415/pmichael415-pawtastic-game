@@ -99,7 +99,10 @@ export async function openPayments({
     try { hist?.replaceState(null, '', loc.pathname + loc.search); } catch { /* ignore */ }
   }
 
-  const auth = (path, body, token) => request('POST', `${authUrl}/auth/v1/${path}`, { body, apikey: config.authKey, token: token ?? config.authKey });
+  // Sign-in calls carry the publishable key as `apikey`. Only an old-style key (a JWT) may also go in the
+  // Authorization header; the newer sb_publishable_ keys are refused there.
+  const keyIsJwt = config.authKey.split('.').length === 3;
+  const auth = (path, body, token) => request('POST', `${authUrl}/auth/v1/${path}`, { body, apikey: config.authKey, token: token ?? (keyIsJwt ? config.authKey : undefined) });
 
   let refreshing = null;
   async function refresh() {

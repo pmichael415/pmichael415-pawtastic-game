@@ -135,5 +135,8 @@ async function bootServerMode() {
   await app.services.reboot();
 }
 
+// A sign-in link from the email opened in a tab where the game is already running: load it properly.
+if (freePlay) addEventListener('hashchange', () => { if (/access_token=/.test(location.hash)) location.reload(); });
+
 if (serverMode) bootServerMode().catch(() => app.go('gate', { reason: 'server' }));
 else bootLocal();

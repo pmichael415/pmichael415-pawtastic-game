@@ -16,6 +16,7 @@ const [dir = 'dist', port = '8790'] = process.argv.slice(2);
 const PAYMENTS = process.env.MOCK_PAYMENTS !== '0';
 const LOSE = process.env.MOCK_LOSE_PAYMENTS === '1';
 const CODE = '123456';
+const PUBLISHABLE = 'sb_publishable_mock_key';
 const CATALOG = {
   pack55: { cents: 299, name: '55 Treats' }, pack100: { cents: 499, name: '100 Treats' },
   pack220: { cents: 999, name: '220 Treats' }, pack480: { cents: 1999, name: '480 Treats' },
@@ -72,9 +73,14 @@ createServer(async (req, res) => {
     const origin = `http://${req.headers.host}`;
     const path = url.pathname;
 
-    if (path === '/api/public/game/config') return send(res, 200, { payments: PAYMENTS, mode: 'test', authUrl: origin, authKey: 'mock-anon-key' });
+    if (path === '/api/public/game/config') return send(res, 200, { payments: PAYMENTS, mode: 'test', authUrl: origin, authKey: PUBLISHABLE });
 
-    // Fake GoTrue (Lovable Cloud auth).
+    // Fake GoTrue (Lovable Cloud auth). Like the real one, it needs the publishable key as `apikey` and
+    // refuses a publishable (non-JWT) key in the Authorization header.
+    if (path.startsWith('/auth/v1/')) {
+      if (req.headers.apikey !== PUBLISHABLE) return send(res, 401, { message: 'Invalid API key' });
+      if (/^Bearer sb_/i.test(req.headers.authorization || '')) return send(res, 401, { message: 'Invalid JWT' });
+    }
     if (path === '/auth/v1/otp' && req.method === 'POST') {
       const { email } = await bodyOf(req);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || '')) return send(res, 400, { msg: 'invalid email' });
@@ -169,6 +175,11 @@ createServer(async (req, res) => {
     }
 
     // Test helpers.
+    // What the sign-in link in a real email does: land on the game with the session in the URL fragment.
+    if (path === '/mock/magic-link') {
+      const t = issue(userFor(url.searchParams.get('email') || 'buyer@example.com'));
+      return send(res, 200, { url: `${origin}/play/index.html#access_token=${t.access_token}&expires_at=${t.expires_at}&expires_in=3600&refresh_token=${t.refresh_token}&token_type=bearer&type=magiclink` });
+    }
     if (path === '/mock/state') return send(res, 200, { purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent });
     if (path === '/mock/refund' && req.method === 'POST') {
       const { email, product } = await bodyOf(req);
