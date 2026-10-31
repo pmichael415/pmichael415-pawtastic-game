@@ -91,6 +91,18 @@ export const STREAK = [
   { treats: 10 }, { treats: 15 }, { treats: 25, booster: 'bomb' },
 ];
 
+// Milestone rewards (asked for by the owner, 31 Oct 2026): a chest for each area finished, a bigger
+// one for finishing each adventure (levels 40 and 80), and the Star Road for star totals. Each is
+// granted once. unlimitedMin: minutes of unlimited lives, so a good run can keep going.
+export const MILESTONES = {
+  area: { treats: 20, booster: 'bomb', unlimitedMin: 30 },
+  adventure: { treats: 60, boosters: ['shuffle', 'bomb', 'blaster'], unlimitedMin: 120 },
+  starRoad: [
+    [30, { treats: 10 }], [60, { booster: 'shuffle' }], [90, { unlimitedMin: 60 }], [120, { treats: 15 }],
+    [150, { booster: 'blaster' }], [180, { unlimitedMin: 60 }], [210, { treats: 20 }], [240, { treats: 25, booster: 'bomb' }],
+  ],
+};
+
 export const WELCOME_BACK = { afterDays: 7, treats: 20, booster: 'shuffle' };
 
 // [minimum stars out of 24, grade, Professor Paws' comment]

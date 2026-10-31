@@ -66,6 +66,21 @@ Not in this copy (they were never in the artifact): the automated tests, `src/ne
   in the Lovable repo; tables `game_referral_codes` and `game_referrals`.
 - Browser test: `node tools/e2e-referral.cjs` against `tools/mock-pay-server.mjs`.
 
+## Milestone rewards
+
+- Each area finished pays a chest (20 Treats, a Bone Bomb, 30 minutes of unlimited lives); finishing an
+  adventure (levels 40 and 80) pays a bigger one (60 Treats, one of each booster, 2 hours of unlimited lives).
+- The Star Road (on the map) pays rewards at 30, 60, … 240 stars. All in `MILESTONES` (`src/economy/catalog.js`),
+  each granted once; older saves catch up when the game opens.
+
+## iPhone Home Screen app sign-in
+
+- iOS opens the email's sign-in link in Safari, which keeps its storage apart from the Home Screen app. After the
+  link, Safari shows a 6-digit code; typing it in the app's "Check your email" box signs the app in too
+  (`src/ui/app-signin.js`, server `src/lib/game/signin.server.ts`). The menu in Safari can make a new code any time.
+- `/api/public/game/account` also lists every purchase on the account (`owned`), so a purchase made in one copy of
+  the game reaches every other copy once. Browser test: `node tools/e2e-homescreen.cjs`.
+
 ## Payments and revenue
 
 - Real purchases run on the separate games Stripe account (Pawtastic Academy II LLC, `acct_1UWfxx58XGeAL8Pr`),

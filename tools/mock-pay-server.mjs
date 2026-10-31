@@ -32,6 +32,8 @@ const codeOf = user => {
   if (!db.codes.has(user.id)) db.codes.set(user.id, { code: Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * 32)]).join(''), email: user.email, since: new Date().toISOString() });
   return db.codes.get(user.id).code;
 };
+// Home Screen app sign-in codes (src/lib/game/signin.server.ts in the Lovable project).
+const appCodes = [];
 const ownerOf = code => [...db.codes.entries()].find(([, v]) => v.code === code);
 const summary = rows => { const live = rows.filter(r => r.status !== 'void'); const waiting = live.filter(r => r.status === 'earned').length; return { friends: live.length, bathsWaiting: waiting, bathsGiven: live.length - waiting }; };
 const lookupCode = code => { const o = ownerOf(code); if (!o) return null; const referrals = db.referrals.filter(r => r.code === code).reverse(); return { code, email: o[1].email, since: o[1].since, referrals, ...summary(referrals) }; };
@@ -130,9 +132,27 @@ createServer(async (req, res) => {
       return send(res, 200, owner ? { valid: true, code, own: !!user && owner[0] === user.id } : { valid: false });
     }
 
+    if (path === '/api/public/game/signin-code/claim' && req.method === 'POST') {
+      const b = await bodyOf(req);
+      const email = String(b.email ?? '').trim().toLowerCase();
+      const active = appCodes.filter(c => c.email === email && !c.used && c.expires > Date.now());
+      if (!active.length || !/^\d{6}$/.test(String(b.code ?? ''))) return send(res, 400, { error: 'wrong-code' });
+      if (active.some(c => c.failed >= 5)) return send(res, 429, { error: 'rate-limited' });
+      const hit = active.find(c => c.code === b.code);
+      if (!hit) { active.forEach(c => { c.failed += 1; }); return send(res, 400, { error: 'wrong-code' }); }
+      hit.used = true;
+      const t = issue(userFor(email));
+      return send(res, 200, { ...t, user: { id: userFor(email).id, email } });
+    }
+
     if (path.startsWith('/api/public/game/') && path !== '/api/public/game/config') {
       const user = authed(req);
       if (!user) return send(res, 401, { error: 'signed-out' });
+      if (path === '/api/public/game/signin-code' && req.method === 'POST') {
+        const code = String(Math.floor(Math.random() * 1e6)).padStart(6, '0');
+        appCodes.push({ code, email: user.email, expires: Date.now() + 600000, used: false, failed: 0 });
+        return send(res, 200, { code, minutes: 10 });
+      }
       if (path === '/api/public/game/referral' && req.method === 'GET') {
         const code = codeOf(user);
         return send(res, 200, { code, ...summary(db.referrals.filter(r => r.code === code)) });
@@ -183,7 +203,8 @@ createServer(async (req, res) => {
       if (path === '/api/public/game/account' && req.method === 'GET') {
         const purchases = db.purchases.filter(p => p.userId === user.id && ((p.status === 'paid' && !p.claimed) || (p.status === 'refunded' && !p.refundAcked)))
           .map(p => ({ id: p.id, product: p.product, status: p.status }));
-        return send(res, 200, { email: user.email, purchases, pass: passOf(user) });
+        const owned = db.purchases.filter(p => p.userId === user.id && (p.status === 'paid' || p.status === 'refunded')).map(p => ({ id: p.id, product: p.product, status: p.status }));
+        return send(res, 200, { email: user.email, purchases, owned, pass: passOf(user) });
       }
       if (path === '/api/public/game/account/ack' && req.method === 'POST') {
         const { claimed = [], refunds = [] } = await bodyOf(req);
@@ -225,7 +246,7 @@ createServer(async (req, res) => {
       const t = issue(userFor(url.searchParams.get('email') || 'buyer@example.com'));
       return send(res, 200, { url: `${origin}/play/index.html#access_token=${t.access_token}&expires_at=${t.expires_at}&expires_in=3600&refresh_token=${t.refresh_token}&token_type=bearer&type=magiclink` });
     }
-    if (path === '/mock/state') return send(res, 200, { purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent, codes: Object.fromEntries(db.codes), referrals: db.referrals });
+    if (path === '/mock/state') return send(res, 200, { purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent, codes: Object.fromEntries(db.codes), referrals: db.referrals, appCodes });
     if (path === '/mock/refund' && req.method === 'POST') {
       const { email, product } = await bodyOf(req);
       const user = userFor(email);

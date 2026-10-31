@@ -12,6 +12,7 @@ import { confirmPurchase } from '../purchase.js';
 import { realPayments, startCheckout } from '../payments.js';
 import { shareDog } from '../share-card.js';
 import { showFailure } from '../failure.js';
+import { milestoneList } from '../daily.js';
 
 const BADGE_NAMES = {
   'first-three-stars': 'First 3-star level',
@@ -110,6 +111,7 @@ export function renderWin(app, { levelId, score, starsEarned, summary, bonus = 0
     diploma,
     summary.unlockedCostume && !area ? h('p', { class: 'card' }, `New costume earned: ${costumeName(summary.unlockedCostume)}`) : null,
     summary.newBadges.length ? h('ul', { class: 'plain-list badges' }, summary.newBadges.map(b => h('li', {}, `Badge: ${BADGE_NAMES[b] ?? b}`))) : null,
+    summary.milestones?.length ? h('div', { class: 'card milestone-card' }, h('p', { class: 'eyebrow' }, 'Milestone reward!'), milestoneList(summary.milestones)) : null,
     summary.areaCompleted ? areaDone(app, summary.areaCompleted) : null,
     h('div', { class: 'btn-pair' },
       next ? h('button', { class: 'btn', type: 'button', onClick: () => app.go('level', { levelId: next.id }) }, 'Next level') : null,

@@ -15,6 +15,8 @@ import { friendOfferCard, showInvite } from '../referral.js';
 import { isPublicSite } from '../../backend/local.js';
 import { AREAS, CHAPTERS, LEVELS, LAST_LEVEL, isHardLevel, chapterOf } from '../../engine/levels.js';
 import { COSTUMES } from '../../economy/catalog.js';
+import { nextStarMilestone } from '../../economy/progression.js';
+import { rewardText } from '../daily.js';
 
 const OFFSETS = [0, 1, 2, 1, 0, -1, -2, -1];
 const costumeName = id => COSTUMES.find(c => c.id === id)?.name ?? id;
@@ -65,6 +67,13 @@ export function render(app, params = {}) {
     isPublicSite(backend) ? h('button', { class: 'btn gold invite-btn', type: 'button', onClick: () => showInvite(app) }, 'Invite friends') : null,
   );
 
+  // The Star Road: how far to the next star reward.
+  const road = nextStarMilestone(state);
+  const starRoad = road.target
+    ? h('div', { class: 'star-road', role: 'progressbar', 'aria-label': 'Star Road', 'aria-valuemin': '0', 'aria-valuemax': String(road.target), 'aria-valuenow': String(road.stars) },
+      h('p', { class: 'small' }, h('strong', {}, `Star Road: ${road.stars} / ${road.target} ★`), ` · next reward: ${rewardText(road.reward)}`),
+      h('span', { class: 'star-road-bar', style: `--fill:${Math.round((road.stars / road.target) * 100)}%` }))
+    : h('p', { class: 'star-road small' }, h('strong', {}, `Star Road complete: ${road.stars} ★`));
   const signs = h('div', { class: 'signposts', 'aria-label': 'Locations' },
     h('span', { class: 'sign' }, '← Hillsdale'), h('span', { class: 'sign' }, 'Hawthorne →'));
 
@@ -126,7 +135,7 @@ export function render(app, params = {}) {
   const publicSite = isPublicSite(backend);
   // One small banner at a time: a friend's offer first, then Add to Home Screen, then Save progress to the cloud.
   const nudge = publicSite ? (friendOfferCard(app) ?? installCard(app) ?? cloudSaveCard(app)) : null;
-  app.view.append(...[bar, continueCard, nudge, nav, signs, h('div', { class: 'map' },
+  app.view.append(...[bar, continueCard, nudge, nav, starRoad, signs, h('div', { class: 'map' },
     gradNote ? h('p', { class: 'card grad-note' }, gradNote) : null,
     areas)].filter(Boolean));
 

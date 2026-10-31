@@ -194,6 +194,11 @@ input[type="text"], input[type="number"], input[type="email"], input[type="passw
 .invite-sheet .install-steps { margin: 0; }
 .bath-card { background: #FFF6E2; border: 2px solid #F6A823; }
 .invite-btn { grid-column: 1 / -1; }
+.star-road { display: flex; flex-direction: column; gap: 4px; margin: 0 0 4px; }
+.star-road p { margin: 0; }
+.star-road-bar { display: block; height: 8px; border-radius: 999px; background: linear-gradient(90deg, #F6A823 var(--fill, 0%), #E7E1D9 var(--fill, 0%)); }
+.milestone-card { background: #FFF6E2; border: 2px solid #F6A823; text-align: left; }
+.milestone-list li { padding: 2px 0; }
 .chapter-banner { display: flex; flex-direction: column; gap: 4px; margin-top: 18px; text-align: center; background: linear-gradient(160deg, #E6F2E8, #FFF6E2); border: 2px solid #2F6B3A; }
 .chapter-banner h2 { color: #2F6B3A; }
 .chapter-banner.locked { opacity: 0.75; border-style: dashed; }

@@ -9,10 +9,14 @@ import { STREAK, COSTUMES } from '../economy/catalog.js';
 
 const BOOSTER_NAMES = { shuffle: 'Shuffle', bomb: 'Bone Bomb', blaster: 'Bubble Blaster' };
 
+const livesTime = min => (min >= 60 ? `${min / 60} ${min === 60 ? 'hour' : 'hours'}` : `${min} minutes`);
+
 export function rewardText(reward) {
   const parts = [];
   if (reward.treats) parts.push(`${reward.treats} Treats`);
   if (reward.booster) parts.push(`1 ${BOOSTER_NAMES[reward.booster]}`);
+  if (reward.boosters?.length) parts.push(reward.boosters.map(b => `1 ${BOOSTER_NAMES[b]}`).join(', '));
+  if (reward.unlimitedMin) parts.push(`${livesTime(reward.unlimitedMin)} of unlimited lives`);
   if (reward.costume) parts.push(COSTUMES.find(c => c.id === reward.costume)?.name ?? reward.costume);
   return parts.join(' + ');
 }
@@ -26,8 +30,22 @@ function sheet(app, label, ...children) {
   });
 }
 
+/** Milestone rewards: after a win (results screen) or caught up on opening the game. */
+export function milestoneList(milestones) {
+  return h('ul', { class: 'plain-list milestone-list' }, milestones.map(m =>
+    h('li', {}, h('strong', {}, m.title), h('span', {}, ` · ${rewardText(m.reward)}`))));
+}
+
 export async function showDailyRewards(app, openResult) {
   if (!openResult) return;
+  if (openResult.milestones?.length) {
+    app.services.audio?.sfx('star', 3);
+    await sheet(app, 'Milestone rewards',
+      h('p', { class: 'eyebrow' }, 'Milestone rewards'),
+      h('h2', {}, openResult.milestones.length === 1 ? 'You reached a milestone!' : `You reached ${openResult.milestones.length} milestones!`),
+      milestoneList(openResult.milestones),
+      h('p', { class: 'muted small' }, 'Finish areas and collect stars on the Star Road for more rewards.'));
+  }
   const dogName = app.services.backend.state().dog?.name || 'pup';
   if (openResult.welcomeBack) {
     await sheet(app, 'Welcome back',

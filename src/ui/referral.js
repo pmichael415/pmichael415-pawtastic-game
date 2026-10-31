@@ -57,7 +57,7 @@ export function shareLink() {
 
 // Modals wait for the map with no other sheet open (daily rewards, area intros), so they never stack
 // on another sheet or cover the start screen and the dog setup.
-async function onMap(app, timeoutMs = 180000) {
+export async function onMap(app, timeoutMs = 180000) {
   const free = () => app.current === 'map' && !document.querySelector('.overlay');
   let calm = 0;
   for (let t = 0; t < timeoutMs; t += 250) {

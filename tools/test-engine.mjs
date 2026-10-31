@@ -77,3 +77,43 @@ test('80 levels in 10 areas of 8, two adventures', () => {
 test('every level starts with a valid move', () => {
   for (const l of LEVELS) for (const seed of [1, 2, 3]) assert.ok(findValidMove(createGame(l, seed).grid), `level ${l.id} seed ${seed}`);
 });
+
+// ---------- Milestone rewards ----------
+import { createWallet } from '../src/economy/wallet.js';
+const memory = (value = null) => ({ load: () => value, save: v => { value = JSON.parse(JSON.stringify(v)); }, persistent: true });
+
+test('finishing an area pays its chest once, with unlimited lives for a while', () => {
+  let t = Date.UTC(2026, 10, 1, 15);
+  const w = createWallet({ storage: memory(), now: () => t });
+  w.setDog?.({ name: 'Biscuit', breed: 'lab', coat: '#C68B59' });
+  for (let id = 1; id <= 7; id++) { w.startLevel(id); w.endLevel({ levelId: id, won: true, stars: 1, score: 9000, movesMade: 8 }); }
+  const before = w.state.treats.free;
+  w.startLevel(8);
+  const s = w.endLevel({ levelId: 8, won: true, stars: 1, score: 9000, movesMade: 8 });
+  assert.deepEqual(s.milestones.map(m => m.id), ['area-orientation']);
+  assert.equal(w.state.treats.free - before, 20);
+  assert.equal(w.state.inventory.boosters.bomb >= 1, true);
+  assert.equal(w.lives().unlimited, true);
+  assert.ok(w.lives().unlimitedMs > 29 * 60000);
+  // Unlimited lives: starting a level costs nothing.
+  const count = w.lives().count;
+  w.startLevel(9); w.endLevel({ levelId: 9, won: false, stars: 0, score: 100, movesMade: 8 });
+  assert.equal(w.lives().count, count);
+  // Replaying the area's last level pays nothing again; after 30 minutes lives count again.
+  w.startLevel(8);
+  assert.deepEqual(w.endLevel({ levelId: 8, won: true, stars: 3, score: 20000, movesMade: 8 }).milestones, []);
+  t += 31 * 60000;
+  assert.equal(w.lives().unlimited, false);
+});
+
+test('older saves catch up on milestones when the game opens', () => {
+  const levels = {}; for (let i = 1; i <= 40; i++) levels[i] = { stars: 3, score: 30000 };
+  const old = { version: 1, progress: { unlocked: 41, levels, badges: [] }, treats: { free: 0, converted: 0, paid: 0 } };
+  const w = createWallet({ storage: memory(old), now: () => Date.UTC(2026, 10, 1, 15) });
+  const opened = w.onAppOpen();
+  const ids = opened.milestones.map(m => m.id);
+  assert.ok(ids.includes('area-graduation') && ids.includes('adventure-academy') && ids.includes('stars-120'));
+  assert.ok(!ids.includes('stars-150'));
+  assert.equal(w.onAppOpen().milestones.length, 0);
+  assert.ok(w.lives().unlimitedMs >= 120 * 60000);
+});

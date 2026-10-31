@@ -11,6 +11,7 @@ import { openPayments } from './net/pay-api.js';
 import { afterOpen, readCheckoutReturn } from './ui/payments.js';
 import { initInstall } from './ui/install.js';
 import { captureReferral, confirmFriendCode, referralNews } from './ui/referral.js';
+import { offerAppCode } from './ui/app-signin.js';
 import { openSavedGame } from './backend/saved-game.js';
 import { bootServer } from './net/boot.js';
 import { createAttemptQueue, QUEUE_KEY } from './net/attempt-queue.js';
@@ -111,7 +112,7 @@ async function bootLocal() {
   // Purchases paid for (or refunded) since last time, and the return from Stripe's checkout.
   if (pay) afterOpen(app, checkoutReturn).catch(() => {});
   // Invite a friend: confirm an invite link's code, and tell the player about free baths they earned.
-  if (pay?.accounts) { confirmFriendCode(app).catch(() => {}); referralNews(app).catch(() => {}); }
+  if (pay?.accounts) { confirmFriendCode(app).catch(() => {}); referralNews(app).catch(() => {}); offerAppCode(app).catch(() => {}); }
 }
 
 async function bootServerMode() {

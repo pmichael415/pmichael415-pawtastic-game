@@ -3,6 +3,7 @@
 // Only used when the local backend carries a payments client (src/net/pay-api.js).
 
 import { h, fill } from './dom.js';
+import { appCodeMenuItem } from './app-signin.js';
 import { confirmPurchase } from './purchase.js';
 import { PACKS, STARTER_PACK, PASS, formatUsd } from '../economy/catalog.js';
 import { pendingCheckout, isEmail } from '../net/pay-api.js';
@@ -109,7 +110,7 @@ export function signInSheet(app, { title = 'Sign in', reason = '' } = {}) {
       });
       fill(box, h('h2', {}, 'Check your email'),
         h('p', {}, 'We sent an email to ', h('strong', {}, email), '. Type the 6-digit code from it here, or tap the sign-in link in the email. It can take a minute to arrive.'),
-        standalone() ? h('p', { class: 'muted small' }, 'In the Home Screen app, type the code: the link in the email opens your browser instead of the app.') : null,
+        standalone() ? h('p', { class: 'card small' }, h('strong', {}, 'Playing from your Home Screen? '), 'Tap the link in the email: Safari opens and shows a 6-digit code. Come back to this app and type that code here.') : null,
         form,
         h('div', { class: 'btn-pair' },
           h('button', { class: 'linkish', type: 'button', onClick: async () => { note.textContent = 'Sending a new code…'; const r = await pay.sendCode(email); note.textContent = r.ok ? 'New code sent.' : payError(r.error); } }, 'Send a new code'),
@@ -198,7 +199,12 @@ export async function syncAccount(app) {
   const added = [];
   const refunded = [];
   let passBought = false;
-  for (const p of Array.isArray(res.purchases) ? res.purchases : []) {
+  // Pending purchases plus every purchase on the account ("owned"), so a purchase made in another copy
+  // of the game (Safari vs the Home Screen app, another phone) still reaches this save, once.
+  const seen = new Set();
+  const all = [...(Array.isArray(res.purchases) ? res.purchases : []), ...(Array.isArray(res.owned) ? res.owned : [])]
+    .filter(p => typeof p?.id === 'string' && !seen.has(p.id) && seen.add(p.id));
+  for (const p of all) {
     if (typeof p?.id !== 'string' || typeof p.product !== 'string') continue;
     if (p.status === 'refunded') {
       const r = backend.applyRefund(p.id, p.product);
@@ -307,6 +313,7 @@ export function accountMenu(app, close) {
     items.push(h('h3', { class: 'eyebrow' }, 'Account'));
     if (pay.signedIn) {
       items.push(h('p', { class: 'small muted' }, `Signed in as ${pay.email ?? 'your account'}. Your progress is saved to the cloud.`),
+        appCodeMenuItem(app, close),
         pay.payments ? h('button', { class: 'btn secondary block', type: 'button', onClick: go(() => openPortal(app)) }, 'Manage Pup Pass & receipts') : null,
         h('button', { class: 'btn secondary block', type: 'button', onClick: go(async () => { await saveNow(app); await pay.signOut(); location.reload(); }) }, 'Sign out'));
     } else {

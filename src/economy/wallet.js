@@ -3,7 +3,7 @@
 
 import { dayKey, monthKey } from './time.js';
 import {
-  applyLevelResult, applyDailyOpen, passActive, startPass, cancelPass, claimTier, tierReached, reportCard,
+  applyLevelResult, applyDailyOpen, claimMilestones, passActive, startPass, cancelPass, claimTier, tierReached, reportCard,
 } from './progression.js';
 import {
   PACKS, ITEMS, BOOSTERS, COSTUMES, SETS, STARTER_PACK, EVENT, LIVES, COINS, SPENDING_LIMIT, PASS,
@@ -15,7 +15,7 @@ export function defaultState() {
     dog: null,
     demoCoins: COINS.demoStart,
     treats: { free: 0, converted: 0, paid: 0 },
-    lives: { count: LIVES.max, lastRegenAt: 0 },
+    lives: { count: LIVES.max, lastRegenAt: 0, unlimitedUntil: 0 },
     activeLevel: null,
     inventory: { boosters: { shuffle: 0, bomb: 0, blaster: 0 }, costumes: [], equipped: null },
     progress: { unlocked: 1, levels: {}, badges: [] },
@@ -30,6 +30,7 @@ export function defaultState() {
     spending: [],
     spendingLimit: SPENDING_LIMIT.default,
     seenIntros: [],
+    milestones: { claimed: [] },
   };
 }
 
@@ -67,6 +68,8 @@ function cleanLists(state) {
   state.pass.claimedFree = list(state.pass.claimedFree, isTier);
   state.pass.claimedPremium = list(state.pass.claimedPremium, isTier);
   state.seenIntros = list(state.seenIntros, isText);
+  state.milestones.claimed = list(state.milestones.claimed, isText);
+  if (!Number.isFinite(state.lives.unlimitedUntil)) state.lives.unlimitedUntil = 0;
   state.purchases.applied = list(state.purchases.applied, isText);
   state.purchases.refunded = list(state.purchases.refunded, isText);
   state.spending = list(state.spending, s => isPlainObject(s) && Number.isFinite(s.at) && Number.isFinite(s.usd) && isText(s.what));
@@ -87,7 +90,9 @@ const fail = error => ({ ok: false, error });
 export function createWallet({ storage, now }) {
   const state = loadState(storage);
   const save = () => storage.save(state);
-  const unlimitedLives = () => passActive(state, now());
+  // Unlimited lives: with the Pup Pass, or for a while after a milestone reward.
+  const timedLivesMs = () => Math.max(0, (state.lives.unlimitedUntil || 0) - now());
+  const unlimitedLives = () => passActive(state, now()) || timedLivesMs() > 0;
 
   function regenLives() {
     const lives = state.lives;
@@ -286,7 +291,8 @@ export function createWallet({ storage, now }) {
       const { count, lastRegenAt } = state.lives;
       const unlimited = unlimitedLives();
       const nextInMs = !unlimited && count < LIVES.max ? LIVES.regenMs - (now() - lastRegenAt) : null;
-      return { count, max: LIVES.max, unlimited, nextInMs };
+      const pass = passActive(state, now());
+      return { count, max: LIVES.max, unlimited, nextInMs, pass, unlimitedMs: pass ? null : timedLivesMs() || null };
     },
 
     startLevel(levelId) {
@@ -361,8 +367,9 @@ export function createWallet({ storage, now }) {
       const abandonedLevel = wallet.recoverAbandonedLevel();
       const daily = applyDailyOpen(state, now());
       if (daily.passRenewed) logSpend(PASS.usd, 'pass');
+      const milestones = claimMilestones(state, now());
       save();
-      return { abandonedLevel, ...daily };
+      return { abandonedLevel, ...daily, milestones };
     },
 
     passStatus() {

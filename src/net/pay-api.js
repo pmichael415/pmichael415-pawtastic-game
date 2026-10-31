@@ -94,10 +94,11 @@ export async function openPayments({
   const forget = () => { session = null; try { store.save(null); } catch { /* ignore */ } };
 
   // A sign-in link from the email lands here with the session in the URL fragment.
+  let landedFromLink = false;
   if (accounts && loc?.hash && /access_token=/.test(loc.hash)) {
     const params = new URLSearchParams(loc.hash.slice(1));
     const landed = toSession(Object.fromEntries(params), nowS());
-    if (landed) keep(landed);
+    if (landed) { keep(landed); landedFromLink = true; }
     try { hist?.replaceState(null, '', loc.pathname + loc.search); } catch { /* ignore */ }
   }
 
@@ -153,6 +154,8 @@ export async function openPayments({
     payments,
     mode: config.mode === 'live' ? 'live' : 'test',
     get signedIn() { return !!session; },
+    // True when this page was opened by the email's sign-in link (iPhone: that's Safari, not the Home Screen app).
+    landedFromLink,
     get email() { return session?.email ?? null; },
 
     async sendCode(email) {
@@ -173,7 +176,18 @@ export async function openPayments({
         const s = toSession(res.data, nowS());
         if (s) { keep({ ...s, email: s.email ?? email.trim() }); return { ok: true }; }
       }
-      if (res.status === 0 || res.status === 429 || res.status >= 500) return { ok: false, error: errorOf(res) };
+      if (res.status === 0 || res.status >= 500) return { ok: false, error: errorOf(res) };
+      // Not the email's own code: maybe the code Safari showed after the sign-in link (Home Screen apps).
+      if (/^\d{6}$/.test(token)) {
+        const handoff = await request('POST', `${base}/api/public/game/signin-code/claim`, { body: { email: email.trim(), code: token } });
+        if (handoff.status === 200) {
+          const s = toSession(handoff.data, nowS());
+          if (s) { keep({ ...s, email: s.email ?? email.trim() }); return { ok: true }; }
+        }
+        if (handoff.status === 429) return { ok: false, error: 'rate-limited' };
+        if (handoff.status === 0 || handoff.status >= 500) return { ok: false, error: errorOf(handoff) };
+      }
+      if (res.status === 429) return { ok: false, error: 'rate-limited' };
       return { ok: false, error: 'wrong-code' };
     },
 
@@ -188,6 +202,8 @@ export async function openPayments({
     account: () => call('GET', '/api/public/game/account'),
     ack: ({ claimed = [], refunds = [] }) => call('POST', '/api/public/game/account/ack', { claimed, refunds }),
     portal: () => call('POST', '/api/public/game/portal', {}),
+    // A 6-digit code that signs the Home Screen app in to this account (good for 10 minutes).
+    appSigninCode: () => call('POST', '/api/public/game/signin-code', {}),
     // Invite a friend: the player's own code and free baths, and a check of a code from an invite link.
     referral: () => call('GET', '/api/public/game/referral'),
     checkReferral: code => call('GET', `/api/public/game/referral/check?code=${encodeURIComponent(code)}`, undefined, { signedIn: false }),

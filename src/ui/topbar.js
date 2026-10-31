@@ -9,21 +9,24 @@ import { showsDollars } from './prices.js';
 
 export function formatCountdown(ms) {
   const total = Math.max(0, Math.ceil(ms / 1000));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+  const pad = n => String(n).padStart(2, '0');
+  if (total >= 3600) return `${Math.floor(total / 3600)}:${pad(Math.floor(total / 60) % 60)}:${pad(total % 60)}`;
+  return `${Math.floor(total / 60)}:${pad(total % 60)}`;
 }
 
 export function livesText(lives) {
-  if (lives.unlimited) return '∞';
+  if (lives.unlimited) return lives.unlimitedMs ? `∞ · ${formatCountdown(lives.unlimitedMs)}` : '∞';
   if (lives.count >= lives.max) return String(lives.count);
   return `${lives.count} · ${formatCountdown(lives.nextInMs)}`;
 }
 
 // Chips stack a small second line (dollar value, refill timer) so the header stays one line on phones.
 const stacked = (main, sub) => h('span', { class: 'chip-stack' }, h('span', { class: 'chip-main' }, main), sub ? h('span', { class: 'chip-sub' }, sub) : null);
-const livesStack = l => stacked(l.unlimited ? '∞' : String(l.count), !l.unlimited && l.count < l.max ? formatCountdown(l.nextInMs) : '');
+const livesStack = l => stacked(l.unlimited ? '∞' : String(l.count),
+  l.unlimited ? (l.unlimitedMs ? formatCountdown(l.unlimitedMs) : '') : l.count < l.max ? formatCountdown(l.nextInMs) : '');
 
 export function livesLabel(lives) {
-  if (lives.unlimited) return 'Unlimited lives with the Pup Pass';
+  if (lives.unlimited) return lives.unlimitedMs ? `Unlimited lives for ${formatCountdown(lives.unlimitedMs)}` : 'Unlimited lives with the Pup Pass';
   if (lives.count >= lives.max) return `${lives.count} lives`;
   return `${lives.count} lives, next free life in ${formatCountdown(lives.nextInMs)}`;
 }
