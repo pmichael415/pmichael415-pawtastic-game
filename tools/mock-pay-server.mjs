@@ -190,6 +190,15 @@ createServer(async (req, res) => {
       return send(res, 200, { ok: true, id: p.id });
     }
 
+    // Site files that live at the root of the Lovable project (icons, the web app manifest).
+    if (/^\/(manifest\.webmanifest|icon-[\w-]+\.png|apple-touch-icon[\w-]*\.png|favicon\.ico|og-image\.png)$/.test(path)) {
+      try {
+        const data = await readFile(join('lovable/public', path.slice(1)));
+        res.writeHead(200, { 'content-type': path.endsWith('.webmanifest') ? 'application/manifest+json' : TYPES[extname(path)] ?? 'application/octet-stream' });
+        return res.end(data);
+      } catch { return send(res, 404, { error: 'not-found' }); }
+    }
+
     // The built page at /play/.
     if (path === '/' ) return redirect(res, '/play/index.html');
     if (path.startsWith('/play/')) {

@@ -31,6 +31,7 @@ const ERRORS = {
 export const payError = code => ERRORS[code] ?? ERRORS.server;
 
 const paymentsOf = app => app.services.backend?.payments ?? null;
+const standalone = () => globalThis.navigator?.standalone === true || !!globalThis.matchMedia?.('(display-mode: standalone)').matches;
 // The site's server client: sign-in and cloud saves work with or without payments.
 const clientOf = app => app.services.pay ?? null;
 export const cloudSaves = app => !!clientOf(app)?.accounts;
@@ -108,6 +109,7 @@ export function signInSheet(app, { title = 'Sign in', reason = '' } = {}) {
       });
       box.replaceChildren(h('h2', {}, 'Check your email'),
         h('p', {}, 'We sent an email to ', h('strong', {}, email), '. Type the 6-digit code from it here, or tap the sign-in link in the email. It can take a minute to arrive.'),
+        standalone() ? h('p', { class: 'muted small' }, 'In the Home Screen app, type the code: the link in the email opens your browser instead of the app.') : null,
         form,
         h('div', { class: 'btn-pair' },
           h('button', { class: 'linkish', type: 'button', onClick: async () => { note.textContent = 'Sending a new code…'; const r = await pay.sendCode(email); note.textContent = r.ok ? 'New code sent.' : payError(r.error); } }, 'Send a new code'),
@@ -315,11 +317,18 @@ export function accountMenu(app, close) {
   return h('div', { class: 'stack account' }, ...items);
 }
 
-/** The map's nudge for players not signed in: save progress to the cloud. */
+const CLOUD_DISMISS_KEY = 'pawtastic-gd-cloud-dismissed-v1';
+const cloudDismissed = () => { try { return Date.now() - Number(localStorage.getItem(CLOUD_DISMISS_KEY)) < 7 * 86400000; } catch { return false; } };
+
+/** The map's nudge for players not signed in: save progress to the cloud (× hides it for a week). */
 export function cloudSaveCard(app) {
   const pay = clientOf(app);
-  if (!pay?.accounts || pay.signedIn) return null;
-  return h('div', { class: 'card continue-card cloud-card' },
+  if (!pay?.accounts || pay.signedIn || cloudDismissed()) return null;
+  return h('div', { class: 'card nudge-card cloud-card' },
     h('p', {}, "Save your pup's progress to the cloud, so you never lose it."),
-    h('button', { class: 'btn', type: 'button', onClick: () => signInThenReload(app, { reason: saveReason(app) }) }, 'Save progress'));
+    h('button', { class: 'btn small-btn', type: 'button', onClick: () => signInThenReload(app, { reason: saveReason(app) }) }, 'Save progress'),
+    h('button', { class: 'nudge-close', type: 'button', 'aria-label': 'Not now', onClick: () => {
+      try { localStorage.setItem(CLOUD_DISMISS_KEY, String(Date.now())); } catch { /* ignore */ }
+      if (app.current === 'map') app.go('map');
+    } }, '×'));
 }

@@ -9,6 +9,7 @@ import { createWallet } from './economy/wallet.js';
 import { createLocalBackend, DEMO_FEATURES, FREE_PLAY_FEATURES, PAID_FEATURES } from './backend/local.js';
 import { openPayments } from './net/pay-api.js';
 import { afterOpen, readCheckoutReturn } from './ui/payments.js';
+import { initInstall } from './ui/install.js';
 import { openSavedGame } from './backend/saved-game.js';
 import { bootServer } from './net/boot.js';
 import { createAttemptQueue, QUEUE_KEY } from './net/attempt-queue.js';
@@ -32,6 +33,9 @@ import { render as jarScreen } from './ui/screens/jar.js';
 import { COATS } from './ui/art.js';
 import { createSoundSettings, SETTINGS_KEY } from './audio/settings.js';
 import { createAudio } from './audio/engine.js';
+
+// Catch the browser's "install app" offer early (Android/desktop), for the Add to Home Screen button.
+initInstall();
 
 const params = new URLSearchParams(location.search);
 const debug = params.has('debug');

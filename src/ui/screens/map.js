@@ -10,6 +10,8 @@ import { AREA_INTROS } from '../tips.js';
 import { showDailyRewards } from '../daily.js';
 import { showStarterPackOffer } from './results.js';
 import { cloudSaveCard } from '../payments.js';
+import { installCard } from '../install.js';
+import { isPublicSite } from '../../backend/local.js';
 import { AREAS, LEVELS, isHardLevel } from '../../engine/levels.js';
 import { COSTUMES } from '../../economy/catalog.js';
 
@@ -104,7 +106,10 @@ export function render(app, params = {}) {
   });
 
   const allDone = state.progress.levels[40];
-  app.view.append(...[bar, continueCard, cloudSaveCard(app), nav, signs, h('div', { class: 'map' },
+  const publicSite = isPublicSite(backend);
+  // One small banner at a time: Add to Home Screen first, then Save progress to the cloud.
+  const nudge = publicSite ? (installCard(app) ?? cloudSaveCard(app)) : null;
+  app.view.append(...[bar, continueCard, nudge, nav, signs, h('div', { class: 'map' },
     allDone ? h('p', { class: 'card grad-note' }, `${state.dog?.name ?? 'Your pup'} graduated from PAWtastic Academy!`) : null,
     areas)].filter(Boolean));
 

@@ -77,6 +77,9 @@ async function goShop(page) { await page.click('button:has-text("Shop")', { forc
     await page.click('.sheet button:text-is("Done")');
     // Cloud saves without buying anything: the map card signs in and the save goes to the account.
     await page.goto(GAME, { waitUntil: 'networkidle' }); await closeIntroSheets(page);
+    // One banner at a time: Add to Home Screen comes first; "Not now" brings up Save progress.
+    check(!(await page.$('.cloud-card')) && await page.$('.install-card'), 'map shows one banner: Add to Home Screen first');
+    await page.click('.install-card button[aria-label="Not now"]', { force: true }); await page.waitForTimeout(400);
     check(/Save your pup's progress to the cloud/.test(await text(page)), 'map shows the Save progress card');
     await page.click('.cloud-card button:text-is("Save progress")', { force: true });
     await signIn(page, 'saver@example.com');
@@ -90,6 +93,7 @@ async function goShop(page) { await page.click('button:has-text("Shop")', { forc
     // Another device gets the same progress back.
     const other = await newPage();
     await enroll(other, 'Rex');
+    await other.click('.install-card button[aria-label="Not now"]', { force: true }); await other.waitForTimeout(400);
     await other.click('.cloud-card button:text-is("Save progress")', { force: true });
     await signIn(other, 'saver@example.com');
     await closeIntroSheets(other); await other.waitForTimeout(1500);
