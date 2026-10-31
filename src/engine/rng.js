@@ -1,0 +1,33 @@
+// Seeded random numbers (mulberry32) so a level replays identically.
+
+export function createRng(seed) {
+  let state = seed >>> 0;
+  const rng = {
+    next() {
+      state = (state + 0x6d2b79f5) >>> 0;
+      let t = state;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    },
+    int(n) {
+      return Math.floor(rng.next() * n);
+    },
+    pick(arr) {
+      return arr[rng.int(arr.length)];
+    },
+    // The generator's position, so a saved game refills the board the same way it would have.
+    getState() {
+      return state;
+    },
+    clone() {
+      const copy = createRng(0);
+      copy._setState(state);
+      return copy;
+    },
+    _setState(s) {
+      state = s >>> 0;
+    },
+  };
+  return rng;
+}

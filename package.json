@@ -1,0 +1,11 @@
+{
+  "name": "pawtastic-graduation-day",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:single": "node tools/build-single.mjs . dist/index.html"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
+  }
+}
