@@ -45,6 +45,9 @@ export const GROUPS: { id: GroupId; size: Size; temper: Temper; name: string; em
   { id: "large-active", size: "large", temper: "active", name: "Large & Active", emoji: "🏃" },
 ];
 export const groupOf = (d: { size: Size; temper: Temper }): GroupId => `${d.size}-${d.temper}`;
+export const otherSite = (id: SiteId): SiteId => (id === "hawthorne" ? "hillsdale" : "hawthorne");
+export const siteName = (id: SiteId) => SITES.find((x) => x.id === id)!.name;
+export const isSiteId = (v: unknown): v is SiteId => v === "hawthorne" || v === "hillsdale";
 export const groupName = (g: GroupId) => GROUPS.find((x) => x.id === g)!.name;
 export const traitLabel = (d: { size: Size; temper: Temper }) => `${d.size === "small" ? "Small" : "Large"} · ${d.temper === "gentle" ? "Gentle" : "Active"}`;
 
@@ -152,6 +155,13 @@ export type GameState = {
   linked: { gradCleared: number; gradStars: number };
   /** Friends from this player's invite link who finished their first day and have been rewarded (capped). */
   referralsRewarded: number;
+  /** Where this daycare opened (the team's location for new players). The other location is the second-location upgrade. */
+  home: SiteId;
+  /** Team Hawthorne or Team Hillsdale — picked by the player; null until they choose. */
+  team: SiteId | null;
+  teamChangedAt: number;
+  /** Progress through the team's story adventure (fictional chapters). */
+  adventure: { team: SiteId; chapter: number; base: Stats } | null;
 };
 
 export const emptyStats = (): Stats => ({ admitted: 0, baths: 0, plays: 0, earned: 0, checkouts: 0, cleans: 0, boarders: 0, shares: 0, runs: 0, scuffles: 0 });
@@ -191,6 +201,10 @@ export function newGame(now: number, day: string): GameState {
     weekClaimed: false,
     linked: { gradCleared: 0, gradStars: 0 },
     referralsRewarded: 0,
+    home: "hawthorne",
+    team: null,
+    teamChangedAt: 0,
+    adventure: null,
   };
 }
 
@@ -216,7 +230,9 @@ const GUESTBOOK_MAX = 40;
 export const regularOf = (s: GameState, d: { name: string; breed: number }) => s.guestBook.find((g) => g.name === d.name && g.breed === d.breed) ?? null;
 
 export function sites(s: GameState): SiteId[] {
-  return s.upgrades.includes("hillsdale") ? ["hawthorne", "hillsdale"] : ["hawthorne"];
+  // The upgrade keeps its original id "hillsdale" (older saves), but it opens whichever location isn't home.
+  const home = s.home ?? "hawthorne";
+  return s.upgrades.includes("hillsdale") ? [home, otherSite(home)] : [home];
 }
 export function roomCapacity(s: GameState) {
   return BASE_ROOM_CAP + (s.upgrades.includes("yard1") ? 1 : 0) + (s.upgrades.includes("yard2") ? 2 : 0);
@@ -491,7 +507,7 @@ export function buyUpgrade(s: GameState, id: string): Result {
   if (s.upgrades.includes(id)) return { ok: false, error: "Already owned" };
   if (u.requires && !s.upgrades.includes(u.requires)) return { ok: false, error: "Locked — buy the previous upgrade first." };
   if (s.coins < u.cost) return { ok: false, error: `Need ${u.cost - s.coins} more coins.` };
-  return { ok: true, state: { ...s, coins: s.coins - u.cost, upgrades: [...s.upgrades, id] }, msg: `${u.name} unlocked!` };
+  return { ok: true, state: { ...s, coins: s.coins - u.cost, upgrades: [...s.upgrades, id] }, msg: `${upgradeInfo(s, u).name} unlocked!` };
 }
 
 export function buyDecor(s: GameState, id: string): Result {
@@ -698,7 +714,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: "full", label: "Full House — fill a playroom", test: (s) => sites(s).some((site) => GROUPS.some((g) => roomDogs(s, site, g.id).length >= roomCapacity(s))) },
   { id: "team", label: "Pack Leader — 3 staff", test: (s) => s.staff.length >= 3 },
   { id: "board", label: "Sweet Dreams — host a boarder", test: (s) => s.stats.boarders >= 1 },
-  { id: "hills", label: "Two Towns — open Hillsdale", test: (s) => s.upgrades.includes("hillsdale") },
+  { id: "hills", label: "Two Towns — open your second location", test: (s) => s.upgrades.includes("hillsdale") },
   { id: "rich", label: "Top Dog — earn 5,000 coins", test: (s) => s.stats.earned >= 5000 },
   { id: "share", label: "Proud Parent — share your card", test: (s) => s.stats.shares >= 1 },
   { id: "runner", label: "Zoomies — score 500 in Recess Rush", test: (s) => s.recessBest >= 500 },
@@ -706,6 +722,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: "valedictorian", label: "Valedictorian — graduate in Graduation Day", test: (s) => (s.linked?.gradCleared ?? 0) >= 40 },
   { id: "allround", label: "All-Rounder — play all three PAWtastic games", test: (s) => s.stats.admitted >= 1 && s.stats.runs >= 1 && (s.linked?.gradCleared ?? 0) >= 1 },
   { id: "referral", label: "Pack Builder — a friend you invited finished their first day", test: (s) => (s.referralsRewarded ?? 0) >= 1 },
+  { id: "teamspirit", label: "Team Spirit — finish your team's adventure", test: (s) => !!s.adventure && s.adventure.chapter >= ADVENTURES[s.adventure.team].chapters.length },
 ];
 
 export function checkAchievements(s: GameState): { state: GameState; unlocked: Achievement[] } {
@@ -723,7 +740,91 @@ export const FREE_COSMETICS: Cosmetic[] = [
   { id: "bandana-honor", name: "Honor Roll Bandana", color: "oklch(0.5 0.17 300)", unlockScore: Infinity, how: "Finish Orientation (level 8) in Graduation Day" },
   { id: "bandana-valedictorian", name: "Valedictorian Bandana", color: "oklch(0.3 0.07 252)", unlockScore: Infinity, how: "Graduate (level 40) in Graduation Day" },
   { id: "bandana-buddy", name: "Best Buddy Bandana", color: "oklch(0.7 0.13 200)", unlockScore: Infinity, how: "A friend you invited finishes their first day" },
+  { id: "bandana-team-hawthorne", name: "Team Hawthorne Bandana", color: "oklch(0.47 0.16 254)", unlockScore: Infinity, how: "Finish Team Hawthorne's adventure" },
+  { id: "bandana-team-hillsdale", name: "Team Hillsdale Bandana", color: "oklch(0.58 0.15 150)", unlockScore: Infinity, how: "Finish Team Hillsdale's adventure" },
 ];
+
+// ---------- Teams & team adventures ----------
+// Players pick Team Hawthorne or Team Hillsdale. The stories are fictional game adventures — they make no
+// claims about the real locations, staff or services — and both are equally hard and equally rewarding.
+export const TEAM_SWITCH_MS = 7 * 24 * 60 * 60 * 1000;
+export type Chapter = { title: string; story: string; stat: keyof Stats; target: number; reward: number };
+export type Adventure = { team: SiteId; title: string; intro: string; chapters: Chapter[]; bandana: string };
+export const ADVENTURES: Record<SiteId, Adventure> = {
+  hawthorne: {
+    team: "hawthorne",
+    title: "Rain-or-Shine Week",
+    intro: "A week of wild weather in the game's Hawthorne daycare — keep every pup dry, busy and happy.",
+    bandana: "bandana-team-hawthorne",
+    chapters: [
+      { title: "Morning rush", story: "Umbrellas everywhere! Families are lining up at the front desk.", stat: "admitted", target: 3, reward: 60 },
+      { title: "Puddle patrol", story: "Muddy paw prints from the parking lot to the playrooms…", stat: "cleans", target: 2, reward: 60 },
+      { title: "Indoor zoomies", story: "Nobody's going outside today — time for indoor games.", stat: "plays", target: 6, reward: 80 },
+      { title: "Towel time", story: "Soggy coats need a warm bath and a fluffy towel.", stat: "baths", target: 4, reward: 80 },
+      { title: "Sunbreak sprint", story: "The clouds part! Celebrate with a Recess Rush run.", stat: "runs", target: 1, reward: 80 },
+      { title: "Rainbow send-off", story: "A rainbow over the lot — send everyone home happy.", stat: "checkouts", target: 5, reward: 120 },
+    ],
+  },
+  hillsdale: {
+    team: "hillsdale",
+    title: "The Great Ball Hunt",
+    intro: "Someone hid a hundred tennis balls around the game's Hillsdale daycare. Find them all!",
+    bandana: "bandana-team-hillsdale",
+    chapters: [
+      { title: "Ball count", story: "Fresh pups mean fresh noses for the hunt. Check them in!", stat: "admitted", target: 3, reward: 60 },
+      { title: "Fetch fever", story: "Every ball found is a ball that needs throwing.", stat: "plays", target: 6, reward: 80 },
+      { title: "Muddy paws", story: "Some balls were hidden in the garden. Bath time!", stat: "baths", target: 4, reward: 80 },
+      { title: "Spotless search", story: "Mop the floors — there might be balls under the benches.", stat: "cleans", target: 2, reward: 60 },
+      { title: "Ball-pit sprint", story: "The last balls are out on the Recess Rush course.", stat: "runs", target: 1, reward: 80 },
+      { title: "Trophy parade", story: "Every ball is home. Send the champions off proudly.", stat: "checkouts", target: 5, reward: 120 },
+    ],
+  },
+};
+
+/** Join a team (once a week). A daycare that hasn't checked anyone in yet opens at the team's location. */
+export function pickTeam(s: GameState, team: SiteId, now: number): Result {
+  if (!isSiteId(team)) return { ok: false, error: "Pick Team Hawthorne or Team Hillsdale." };
+  if (s.team === team) return { ok: false, error: `You're already on Team ${siteName(team)}.` };
+  if (s.team && now - (s.teamChangedAt ?? 0) < TEAM_SWITCH_MS) {
+    const days = Math.ceil((TEAM_SWITCH_MS - (now - s.teamChangedAt)) / 86400000);
+    return { ok: false, error: `You can switch teams once a week — next switch in ${days} day${days === 1 ? "" : "s"}.` };
+  }
+  const freshStart = s.stats.admitted === 0 && !s.upgrades.includes("hillsdale");
+  let next: GameState = { ...s, team, teamChangedAt: now, adventure: { team, chapter: 0, base: { ...s.stats } } };
+  if (freshStart) next = { ...next, home: team, site: team, dogs: next.dogs.map((d) => ({ ...d, site: team })) };
+  const note = freshStart ? ` Your daycare opens in ${siteName(team)}.` : sites(next).includes(team) ? "" : ` Open ${siteName(team)} as your second location in Upgrades.`;
+  return { ok: true, state: next, msg: `Welcome to Team ${siteName(team)}!${note}` };
+}
+
+export function adventureStatus(s: GameState): { adventure: Adventure; chapter: number; current: Chapter | null; progress: number; done: boolean } | null {
+  if (!s.adventure) return null;
+  const adventure = ADVENTURES[s.adventure.team];
+  const chapter = s.adventure.chapter;
+  const current = adventure.chapters[chapter] ?? null;
+  if (!current) return { adventure, chapter, current: null, progress: 1, done: true };
+  const progress = Math.min(current.target, Math.max(0, s.stats[current.stat] - (s.adventure.base[current.stat] ?? 0)));
+  return { adventure, chapter, current, progress, done: false };
+}
+
+export function claimChapter(s: GameState): Result {
+  const st = adventureStatus(s);
+  if (!st || st.done || !st.current || !s.adventure) return { ok: false, error: st?.done ? "Adventure complete — great teamwork!" : "Pick a team to start an adventure." };
+  if (st.progress < st.current.target) return { ok: false, error: `Not finished yet (${st.progress}/${st.current.target}).` };
+  const last = st.chapter === st.adventure.chapters.length - 1;
+  const cos = last && !s.cosmetics.includes(st.adventure.bandana) ? [...s.cosmetics, st.adventure.bandana] : s.cosmetics;
+  return {
+    ok: true,
+    state: { ...s, coins: s.coins + st.current.reward, cosmetics: cos, adventure: { ...s.adventure, chapter: st.chapter + 1, base: { ...s.stats } } },
+    msg: last ? `Adventure complete! +${st.current.reward} coins and the ${FREE_COSMETICS.find((c) => c.id === st.adventure.bandana)!.name}` : `Chapter done: ${st.current.title}! +${st.current.reward} coins`,
+  };
+}
+
+/** Upgrade name/description for this daycare (the second location is whichever isn't home). */
+export function upgradeInfo(s: GameState, u: Upgrade): { name: string; desc: string } {
+  if (u.id !== "hillsdale") return { name: u.name, desc: u.desc };
+  const other = siteName(otherSite(s.home ?? "hawthorne"));
+  return { name: `Second Location: ${other}`, desc: `A second lobby, 4 playrooms & suites in ${other} · +25% revenue` };
+}
 
 /** Graduation Day milestones → shared achievements and free daycare bandanas. No coins change hands. */
 export function linkProgress(s: GameState, g: { cleared: number; stars: number }): { state: GameState; newCosmetics: Cosmetic[] } {
@@ -860,12 +961,19 @@ export function parseSave(raw: unknown): GameState | null {
     cosmetics: [...new Set(strArr(raw['cosmetics']).filter((c) => FREE_COSMETICS.some((f) => f.id === c)))],
     equipped: typeof raw['equipped'] === "string" ? raw['equipped'] : null,
     seq: Math.floor(num(raw['seq'], 1, 1)),
-    site: raw['site'] === "hillsdale" && upgrades.includes("hillsdale") ? "hillsdale" : "hawthorne",
+    home: isSiteId(raw['home']) ? raw['home'] : "hawthorne",
     clockMin: v >= 3 ? num(raw['clockMin'], DAY_OPEN, DAY_OPEN, DAY_CLOSE - 1) : DAY_OPEN,
     gameDay: v >= 3 ? Math.floor(num(raw['gameDay'], 1, 1)) : 1,
     reputation: v >= 3 ? num(raw['reputation'], 80, REP_MIN, 100) : 80,
   };
   if (st.equipped && !st.cosmetics.includes(st.equipped)) st.equipped = null;
+  st.site = isSiteId(raw['site']) && sites(st).includes(raw['site']) ? raw['site'] : st.home;
+  st.team = isSiteId(raw['team']) ? raw['team'] : null;
+  st.teamChangedAt = Math.floor(num(raw['teamChangedAt'], 0, 0));
+  const adv = raw['adventure'];
+  st.adventure = isObj(adv) && isSiteId(adv['team']) && typeof adv['chapter'] === "number" && Number.isInteger(adv['chapter']) && adv['chapter'] >= 0 && adv['chapter'] <= ADVENTURES[adv['team']].chapters.length
+    ? { team: adv['team'], chapter: adv['chapter'], base: statsOf(adv['base']) }
+    : null;
   st.dayBase = isObj(raw['dayBase']) ? statsOf(raw['dayBase']) : { ...st.stats };
   st.weekKey = typeof raw['weekKey'] === "string" ? raw['weekKey'].slice(0, 10) : "";
   st.weekBase = isObj(raw['weekBase']) ? statsOf(raw['weekBase']) : { ...st.stats };
@@ -897,7 +1005,7 @@ export function parseSave(raw: unknown): GameState | null {
     const breed = typeof d['breed'] === "number" && Number.isInteger(d['breed']) && d['breed'] >= 0 && d['breed'] < BREEDS.length ? d['breed'] : 0;
     const size: Size = v >= 2 && (d['size'] === "small" || d['size'] === "large") ? d['size'] : BREEDS[breed]!.size;
     const temper: Temper = v >= 2 && (d['temper'] === "gentle" || d['temper'] === "active") ? d['temper'] : i % 2 ? "active" : "gentle";
-    const site: SiteId = v >= 2 && (d["site"] === "hawthorne" || d["site"] === "hillsdale") && open.includes(d["site"]) ? d["site"] : "hawthorne";
+    const site: SiteId = v >= 2 && isSiteId(d["site"]) && open.includes(d["site"]) ? d["site"] : st.home;
     let place: Place = { kind: "lobby" };
     const p = d["place"];
     if (v >= 2 && isObj(p)) {

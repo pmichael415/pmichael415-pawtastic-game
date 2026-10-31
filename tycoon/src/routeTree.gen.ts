@@ -19,6 +19,7 @@ import { Route as ShopRouteImport } from './routes/shop'
 import { Route as VisitRouteImport } from './routes/visit'
 import { Route as ApiPublicEventsRouteImport } from './routes/api/public/events'
 import { Route as ApiPublicReferralsRouteImport } from './routes/api/public/referrals'
+import { Route as ApiPublicTeamStandingsRouteImport } from './routes/api/public/team-standings'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -71,6 +72,11 @@ const ApiPublicReferralsRoute = ApiPublicReferralsRouteImport.update({
   path: '/api/public/referrals',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicTeamStandingsRoute = ApiPublicTeamStandingsRouteImport.update({
+  id: '/api/public/team-standings',
+  path: '/api/public/team-standings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicPaymentsWebhookRoute =
   ApiPublicPaymentsWebhookRouteImport.update({
     id: '/api/public/payments/webhook',
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/visit': typeof VisitRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/referrals': typeof ApiPublicReferralsRoute
+  '/api/public/team-standings': typeof ApiPublicTeamStandingsRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesByTo {
@@ -102,6 +109,7 @@ export interface FileRoutesByTo {
   '/visit': typeof VisitRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/referrals': typeof ApiPublicReferralsRoute
+  '/api/public/team-standings': typeof ApiPublicTeamStandingsRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesById {
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/visit': typeof VisitRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/referrals': typeof ApiPublicReferralsRoute
+  '/api/public/team-standings': typeof ApiPublicTeamStandingsRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRouteTypes {
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
     | '/visit'
     | '/api/public/events'
     | '/api/public/referrals'
+    | '/api/public/team-standings'
     | '/api/public/payments/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
     | '/visit'
     | '/api/public/events'
     | '/api/public/referrals'
+    | '/api/public/team-standings'
     | '/api/public/payments/webhook'
   id:
     | '__root__'
@@ -157,6 +168,7 @@ export interface FileRouteTypes {
     | '/visit'
     | '/api/public/events'
     | '/api/public/referrals'
+    | '/api/public/team-standings'
     | '/api/public/payments/webhook'
   fileRoutesById: FileRoutesById
 }
@@ -171,6 +183,7 @@ export interface RootRouteChildren {
   VisitRoute: typeof VisitRoute
   ApiPublicEventsRoute: typeof ApiPublicEventsRoute
   ApiPublicReferralsRoute: typeof ApiPublicReferralsRoute
+  ApiPublicTeamStandingsRoute: typeof ApiPublicTeamStandingsRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
 }
 
@@ -246,6 +259,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicReferralsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/team-standings': {
+      id: '/api/public/team-standings'
+      path: '/api/public/team-standings'
+      fullPath: '/api/public/team-standings'
+      preLoaderRoute: typeof ApiPublicTeamStandingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/payments/webhook': {
       id: '/api/public/payments/webhook'
       path: '/api/public/payments/webhook'
@@ -267,6 +287,7 @@ const rootRouteChildren: RootRouteChildren = {
   VisitRoute: VisitRoute,
   ApiPublicEventsRoute: ApiPublicEventsRoute,
   ApiPublicReferralsRoute: ApiPublicReferralsRoute,
+  ApiPublicTeamStandingsRoute: ApiPublicTeamStandingsRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
 }
 export const routeTree = rootRouteImport

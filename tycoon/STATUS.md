@@ -10,6 +10,27 @@
 | Live game database (Lovable Cloud / Supabase) | Unchanged. New migrations were only dry-run inside a rolled-back transaction. |
 | Customer app (app.pawtasticacademy.com), its database and Stripe | Not touched. |
 
+## Update — customers pick their team (Team Hawthorne vs Team Hillsdale)
+
+- **Pick your team.** New players are asked once per visit (home page, and before their first daycare check-in):
+  Team Hawthorne or Team Hillsdale, each shown with its real address. "Not sure yet" is always allowed. Switch from
+  Settings or the home page, once a week.
+- **Your team sets where your daycare opens.** A brand-new Team Hillsdale player's daycare opens in Hillsdale (green
+  trim) and can expand to Hawthorne; Team Hawthorne the reverse. Existing players keep their daycare and are told how
+  to open their team's location as the second location.
+- **Team adventures (fictional stories, labelled as such):** Team Hawthorne "Rain-or-Shine Week", Team Hillsdale
+  "The Great Ball Hunt". Six chapters each, different stories and order, identical difficulty and rewards (tested),
+  ending in a team bandana and the Team Spirit achievement.
+- **Weekly Team Hawthorne vs Team Hillsdale.** Points from check-ins, care, Recess Rush runs and Graduation Day levels;
+  capped at 60 per device per day in the app and again on the server (`team_standings`, migration 0005). The home page
+  shows this week's real totals and players per team, and last week's winner — or "not available" when the server
+  can't be reached. Nothing is invented.
+- **Your location first:** Visit and "Recommend PAWtastic" lead with your team's location. Team picks are measured.
+
+Tests for this update: 149 automated (incl. team rules, fairness, the cap and an empty week on PGlite); browser QA
+on an iPhone 13 profile: teams 27/27, games & sharing 32/32, daycare 36/36, hub 26/26. Migration 0005 dry-run on the
+live game database (it caught a bug — an empty team showed 60 points — fixed and re-verified).
+
 ## Update — all three games combined, plus Share & referrals
 
 - **One hub, three games.** Daycare Tycoon (`/daycare`), Recess Rush (`/recess`) and Graduation Day

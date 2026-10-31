@@ -85,6 +85,7 @@ export function ShareSheet() {
   const [stats, setStats] = useState<Stats>("loading");
   const [rewarded, setRewarded] = useState(0);
   const link = code ? inviteLink(window.location.origin, code, s.context) : "";
+  const team = s.open ? peekSave().team : null;
 
   useEffect(() => {
     if (!s.open) return;
@@ -246,17 +247,20 @@ export function ShareSheet() {
               mentioned — no prices or promotions.
             </p>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              {LOCATIONS.map((l, i) => (
-                <Button
-                  key={l.id}
-                  variant="outline"
-                  className="h-12"
-                  disabled={!code}
-                  onClick={() => recommend(i)}
-                >
-                  {l.name}
-                </Button>
-              ))}
+              {LOCATIONS.map((l, i) => ({ l, i }))
+                .sort((a, b) => Number(b.l.id === team) - Number(a.l.id === team))
+                .map(({ l, i }) => (
+                  <Button
+                    key={l.id}
+                    variant={l.id === team ? "default" : "outline"}
+                    className="h-12"
+                    disabled={!code}
+                    onClick={() => recommend(i)}
+                  >
+                    {l.name}
+                    {l.id === team ? " (your team)" : ""}
+                  </Button>
+                ))}
             </div>
           </section>
           {import.meta.env["VITE_REVIEW_BUILD"] && (

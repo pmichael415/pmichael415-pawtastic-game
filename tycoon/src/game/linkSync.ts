@@ -2,6 +2,7 @@
 import { checkAchievements, linkProgress, type Cosmetic } from "./engine";
 import { updateSave } from "./store";
 import { readGraduationFromStorage } from "@/lib/graduation";
+import { addTeamPoints } from "@/lib/team";
 
 export function syncGraduation(): { newCosmetics: Cosmetic[]; newAchievements: string[] } {
   const g = readGraduationFromStorage();
@@ -9,11 +10,16 @@ export function syncGraduation(): { newCosmetics: Cosmetic[]; newAchievements: s
     newCosmetics: [],
     newAchievements: [],
   };
+  let newLevels = 0;
+  let team: "hawthorne" | "hillsdale" | null = null;
   updateSave((s) => {
     const r = linkProgress(s, g);
+    newLevels = r.state.linked.gradCleared - (s.linked?.gradCleared ?? 0);
+    team = r.state.team;
     const a = checkAchievements(r.state);
     out = { newCosmetics: r.newCosmetics, newAchievements: a.unlocked.map((x) => x.label) };
     return a.state;
   });
+  if (newLevels > 0) addTeamPoints(team, newLevels * 2, "graduation"); // capped per event and per day
   return out;
 }

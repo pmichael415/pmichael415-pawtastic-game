@@ -12,6 +12,7 @@ import { shareCard } from "@/game/share";
 import { GameHeader } from "@/components/game/GameHeader";
 import { track } from "@/lib/analytics";
 import { myReferralCode } from "@/lib/referral";
+import { addTeamPoints } from "@/lib/team";
 import { useShareContext } from "@/components/game/ShareSheet";
 
 const search = z.object({
@@ -53,7 +54,8 @@ function Recess() {
   trailRef.current = visuals["sparkle-trail"];
   const g = useRef({ lane: 1, items: [] as Item[], t: 0, spawn: 0, score: 0, lives: 3, shield: false, rand: mulberry(1), flash: 0 });
 
-  useEffect(() => { const s = peekSave(); setBest(s.recessBest); setLeft(recessCoinsLeft(s, todayKey())); }, []);
+  const teamRef = useRef<"hawthorne" | "hillsdale" | null>(null);
+  useEffect(() => { const s = peekSave(); setBest(s.recessBest); setLeft(recessCoinsLeft(s, todayKey())); teamRef.current = s.team; }, []);
 
   const start = () => {
     g.current = { lane: 1, items: [], t: 0, spawn: 0, score: 0, lives: 3, shield: false, rand: mulberry(seedFrom("recess-" + runSeed)), flash: 0 };
@@ -88,6 +90,7 @@ function Recess() {
     setBest(s.recessBest);
     setLeft(recessCoinsLeft(s, day));
     track("recess_run", { score, coins, capped, rejected: !!rejected });
+    if (!rejected) addTeamPoints(s.team, Math.max(1, Math.floor(score / 50)), "recess");
     const msg = rejected ?? (coins > 0 ? `+${coins} daycare coins${capped ? " (daily coin limit reached)" : ""}` : "Daily coin limit reached — runs still count for your best score and bandanas.");
     setResult(msg);
     if (rejected) toast.error(rejected); else toast.success(msg);
@@ -128,7 +131,8 @@ function Recess() {
       st.flash = Math.max(0, st.flash - dt);
       // draw
       ctx.fillStyle = "#e9f3ff"; ctx.fillRect(0, 0, W, H);
-      for (let l = 0; l < 3; l++) { ctx.fillStyle = l % 2 ? "#d6e8fb" : "#e2effd"; ctx.fillRect((l * W) / 3, 0, W / 3, H); }
+      const lanes = teamRef.current === "hillsdale" ? ["#e3f5ea", "#d2ecdc"] : ["#e2effd", "#d6e8fb"]; // team colours
+      for (let l = 0; l < 3; l++) { ctx.fillStyle = lanes[l % 2]!; ctx.fillRect((l * W) / 3, 0, W / 3, H); }
       ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 4; ctx.setLineDash([24, 20]); ctx.lineDashOffset = -st.t * speed;
       [W / 3, (2 * W) / 3].forEach((x) => { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); });
       ctx.setLineDash([]);

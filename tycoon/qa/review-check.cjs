@@ -11,7 +11,9 @@ const srv = http.createServer((req, res) => {
 }).listen(5181);
 (async () => {
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
-  const page = await (await browser.newContext({ ...devices['iPhone 13'] })).newPage();
+  const rctx = await browser.newContext({ ...devices['iPhone 13'] });
+  await rctx.addInitScript(() => { try { sessionStorage.setItem('pawtastic-team-dismissed', '1'); } catch {} });
+  const page = await rctx.newPage();
   const errs = [];
   page.on('pageerror', (e) => errs.push('pageerror ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error') errs.push('console ' + m.text()); });

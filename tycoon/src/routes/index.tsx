@@ -7,6 +7,8 @@ import { ACHIEVEMENTS, FREE_COSMETICS, REFERRAL_COINS_EACH, REFERRAL_MAX_REWARDE
 import { peekSave, todayKey } from "@/game/store";
 import { GameHeader } from "@/components/game/GameHeader";
 import { openShare } from "@/components/game/ShareSheet";
+import { TeamCard } from "@/components/game/TeamCard";
+import { maybeAskForTeam } from "@/components/game/TeamPicker";
 import { useSession } from "@/lib/auth";
 import { shareCard } from "@/game/share";
 import { LOGO_URL } from "@/game/sprites";
@@ -36,6 +38,7 @@ function Hub() {
     setS(peekSave());
     setG(readGraduationFromStorage());
     track("hub_open", {});
+    maybeAskForTeam();
   }, []);
   if (!s) return <div className="grid min-h-dvh place-items-center font-display text-2xl text-primary">Loading PAWtastic Games…</div>;
   const name = (user?.user_metadata?.["display_name"] as string | undefined) || (user ? "Player" : "Guest");
@@ -88,6 +91,8 @@ function Hub() {
         </p>
         <Button asChild size="lg" variant="secondary" className="mt-3 h-12 w-full font-display text-base"><Link to="/graduation">{g && g.cleared ? "Continue Graduation Day" : "Play Graduation Day"} <ArrowRight /></Link></Button>
       </section>
+
+      <TeamCard />
 
       <section aria-label="Invite friends" className="flex items-center gap-3 rounded-3xl border-2 border-accent bg-card p-4 shadow-soft">
         <div className="min-w-0 flex-1">

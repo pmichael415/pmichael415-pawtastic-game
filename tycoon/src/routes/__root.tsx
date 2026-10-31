@@ -16,6 +16,7 @@ import { EntitlementsProvider } from "@/lib/entitlements";
 import { Toaster } from "@/components/ui/sonner";
 import { startSession } from "@/lib/analytics";
 import { ShareSheet } from "@/components/game/ShareSheet";
+import { TeamPicker } from "@/components/game/TeamPicker";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -140,6 +141,7 @@ function RootComponent() {
         </ul>
       </nav>
       <ShareSheet />
+      <TeamPicker />
       <Toaster position="top-center" offset={8} mobileOffset={{ top: 8 }} richColors duration={1800} />
       </EntitlementsProvider>
     </QueryClientProvider>

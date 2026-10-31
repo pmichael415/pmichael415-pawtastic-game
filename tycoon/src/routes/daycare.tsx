@@ -30,6 +30,10 @@ import {
   ACHIEVEMENTS,
   DECOR,
   FAVORITE_LABEL,
+  adventureStatus,
+  claimChapter,
+  siteName as nameOfSite,
+  upgradeInfo,
   GROUPS,
   claimWeekly,
   friendshipLevel,
@@ -91,6 +95,8 @@ import { GameHeader } from "@/components/game/GameHeader";
 import type { FocusTarget, RoomHint, WorldPick } from "@/world/renderer";
 import { setSettings, useSettings } from "@/lib/settings";
 import { useShareContext } from "@/components/game/ShareSheet";
+import { TEAM_COLORS, maybeAskForTeam, openTeamPicker } from "@/components/game/TeamPicker";
+import { addTeamPoints } from "@/lib/team";
 import { myReferralCode } from "@/lib/referral";
 import { track } from "@/lib/analytics";
 
@@ -183,6 +189,9 @@ function Daycare() {
       const r = act(apply);
       if (r.ok && effect && dogId) stage.current?.effect(effect, dogId);
       if (r.ok && effect === "checkin") track("checkin_success", { tutorial: r.state.tutorial });
+      // Team points for real care (capped per day); scuffle separations never earn points.
+      if (r.ok && (effect === "checkin" || effect === "play" || effect === "bath" || effect === "checkout"))
+        addTeamPoints(r.state.team, 1, effect);
       return r;
     },
     [act],
@@ -214,11 +223,13 @@ function Daycare() {
   useEffect(() => {
     if (!state || seeded.current) return;
     seeded.current = true;
+    // New players pick their team first — their daycare opens at that location.
+    if (!state.team && state.stats.admitted === 0) maybeAskForTeam();
     if (state.tutorial === 0 && state.dogs.length === 0 && lobbyStatus(state.clockMin).open)
-      act((s) => createArrival(s, Math.random, false, "hawthorne"), { quiet: true });
+      act((s) => createArrival(s, Math.random), { quiet: true });
   }, [state, act]);
 
-  const site = state && sites(state).includes(state.site) ? state.site : "hawthorne";
+  const site = state && sites(state).includes(state.site) ? state.site : (state?.home ?? "hawthorne");
   const looks: Looks & { deluxe: boolean } = useMemo(
     () => ({
       bandana:
@@ -638,7 +649,7 @@ function Daycare() {
           role="tablist"
           aria-label="Location"
         >
-          {SITES.map((x) => (
+          {sites(state).map((id) => ({ id, name: nameOfSite(id) })).map((x) => (
             <button
               key={x.id}
               type="button"
@@ -971,6 +982,8 @@ function Daycare() {
         </p>
       </div>
 
+      <TeamAdventure state={state} onClaim={() => act(claimChapter)} />
+
       <section
         aria-label="Next goal"
         className="mt-4 rounded-2xl border-2 border-accent bg-card p-3 shadow-soft"
@@ -1048,15 +1061,15 @@ function Daycare() {
             return (
               <Row
                 key={u.id}
-                title={u.name}
+                title={upgradeInfo(state, u).name}
                 sub={
                   locked
                     ? `Requires ${UPGRADES.find((x) => x.id === u.requires)?.name}`
                     : owned
-                      ? `${u.desc} · built — look for it in the 3D view`
+                      ? `${upgradeInfo(state, u).desc} · built — look for it in the 3D view`
                       : !owned && state.coins < u.cost
-                        ? `${u.desc} · need ${u.cost - state.coins} more coins`
-                        : u.desc
+                        ? `${upgradeInfo(state, u).desc} · need ${u.cost - state.coins} more coins`
+                        : upgradeInfo(state, u).desc
                 }
               >
                 <Button
@@ -1327,3 +1340,41 @@ function Daycare() {
 }
 
 export type { Result };
+
+/** The player's team adventure (fictional chapters), or a prompt to pick a team. */
+function TeamAdventure({ state, onClaim }: { state: GameState; onClaim: () => void }) {
+  const st = adventureStatus(state);
+  if (!state.team || !st) {
+    return (
+      <section aria-label="Team adventure" className="mt-4 flex items-center gap-3 rounded-2xl bg-card p-3 shadow-soft">
+        <p className="min-w-0 flex-1 text-sm font-bold text-secondary">Pick Team Hawthorne or Team Hillsdale to start your team adventure.</p>
+        <Button className="h-11 shrink-0" onClick={openTeamPicker}>Pick team</Button>
+      </section>
+    );
+  }
+  const c = TEAM_COLORS[state.team];
+  return (
+    <section aria-label="Team adventure" className={`mt-4 rounded-2xl border-2 bg-card p-3 shadow-soft ring-2 ${c.ring}`}>
+      <p className={`text-xs font-extrabold uppercase tracking-wide ${c.text}`}>Team {nameOfSite(state.team)} adventure · fictional story</p>
+      <h2 className="font-display text-base font-bold text-secondary">
+        “{st.adventure.title}”{st.done ? " — complete! 🏅" : ` · chapter ${st.chapter + 1}/${st.adventure.chapters.length}: ${st.current!.title}`}
+      </h2>
+      {st.current ? (
+        <>
+          <p className="text-xs font-bold text-muted-foreground">{st.chapter === 0 ? `${st.adventure.intro} ` : ""}{st.current.story}</p>
+          <div className="mt-1 flex items-center gap-2">
+            <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
+              <div className={`h-full rounded-full ${c.bg}`} style={{ width: `${(st.progress / st.current.target) * 100}%` }} />
+            </div>
+            <span className="text-xs font-extrabold text-secondary">{st.progress}/{st.current.target}</span>
+            <Button className="h-11" disabled={st.progress < st.current.target} onClick={onClaim} data-testid="claim-chapter">
+              {st.progress < st.current.target ? `+${st.current.reward}` : `Claim +${st.current.reward}`}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <p className="text-xs font-bold text-muted-foreground">You earned the Team {nameOfSite(state.team)} Bandana — equip it in the Style Shop.</p>
+      )}
+    </section>
+  );
+}

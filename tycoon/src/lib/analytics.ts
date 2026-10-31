@@ -22,6 +22,8 @@ export const EVENT_NAMES = [
   "share",
   "hub_open",
   "referral_open",
+  "team_pick",
+  "team_points",
 ] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 type Props = Record<string, string | number | boolean | null>;

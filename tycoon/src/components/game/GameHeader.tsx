@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/game/sprites";
 import { ShareButton } from "./ShareSheet";
+import { openTeamPicker } from "./TeamPicker";
 import { useSession } from "@/lib/auth";
 import { useLink, useSyncStatus } from "@/game/cloud";
 import {
@@ -184,6 +185,13 @@ export function SettingsSheet() {
           <p className="text-xs font-bold text-muted-foreground">
             Battery saver and reduced motion apply the next time the 3D view opens.
           </p>
+          <button
+            type="button"
+            onClick={openTeamPicker}
+            className="grid min-h-11 w-full place-items-center rounded-xl bg-muted text-sm font-extrabold"
+          >
+            Your team: pick or switch (once a week)
+          </button>
           <div className="grid grid-cols-2 gap-2">
             <Link
               to="/help"

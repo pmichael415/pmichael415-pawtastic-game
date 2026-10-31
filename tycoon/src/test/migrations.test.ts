@@ -68,6 +68,7 @@ describe("migrations", () => {
       "0002_game_measurement.sql",
       "0003_payment_refunds_hardening.sql",
       "0004_referrals.sql",
+      "0005_teams.sql",
     ]);
   });
 });
@@ -382,5 +383,35 @@ describe("measurement", () => {
       one<{ n: number }>(`SELECT sum(first_time_players_from_referrals)::int n FROM public.game_daily_funnel`),
     );
     expect(f.n).toBeGreaterThanOrEqual(3);
+  });
+
+  it("team totals: per-device daily cap, only valid points, this week vs last week", async () => {
+    const ins = (dev: string, team: string, points: string, at: string) =>
+      db.query(
+        `INSERT INTO public.game_events(received_at, client_at, device_id, cohort_day, session_id, build, name, props) VALUES ($4::timestamptz, now(), $1, '2026-11-01', 'session01', 'b', 'team_points', jsonb_build_object('team', $2::text, 'points', $3::text))`,
+        [dev, team, points, at],
+      );
+    const now = (await one<{ t: string }>(`SELECT (now() AT TIME ZONE 'UTC')::text t`)).t;
+    const nowIso = new Date(now.replace(" ", "T") + "Z").toISOString();
+    for (let i = 0; i < 9; i++) await ins("teamdev-001", "hillsdale", "10", nowIso); // 90 in one day → capped at 60
+    await ins("teamdev-002", "hillsdale", "5", nowIso);
+    await ins("teamdev-003", "hawthorne", "7", nowIso);
+    await ins("teamdev-004", "hawthorne", "500", nowIso); // invalid: over 10
+    await ins("teamdev-005", "moon", "5", nowIso); // invalid team
+    await ins("teamdev-006", "hawthorne", "9", new Date(Date.parse(nowIso) - 8 * 86400000).toISOString()); // last week or earlier
+    const rows = await as("service_role", null, async () => (await db.query<{ team: string; points: number; players: number }>(`SELECT * FROM public.team_standings(0)`)).rows);
+    expect(rows).toEqual([
+      { team: "hawthorne", points: 7, players: 1 },
+      { team: "hillsdale", points: 65, players: 2 },
+    ]);
+    // a week with no points at all must read 0 for both teams (not the cap)
+    const empty = await as("service_role", null, async () => (await db.query<{ team: string; points: number; players: number }>(`SELECT * FROM public.team_standings(20)`)).rows);
+    expect(empty).toEqual([
+      { team: "hawthorne", points: 0, players: 0 },
+      { team: "hillsdale", points: 0, players: 0 },
+    ]);
+    for (const role of ["anon", "authenticated"] as const) {
+      expect(await fails(as(role, U1, () => db.query(`SELECT * FROM public.team_standings(0)`)))).toMatch(/permission denied/);
+    }
   });
 });
