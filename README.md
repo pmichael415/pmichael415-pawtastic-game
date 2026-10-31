@@ -33,9 +33,24 @@ Not in this copy (they were never in the artifact): the automated tests, `src/ne
   `public/play/static/audio/`. The home page (`src/routes/index.tsx`) sends visitors straight to `/play/index.html`.
 - `lovable/public/` holds the site icons that go in the Lovable project's `public/` folder: `favicon.ico`,
   `apple-touch-icon.png` (iPhone share sheet and home screen) and `og-image.png` (link previews in Messages).
-- To update the live game: rebuild `dist/index.html`, push it here, then ask the Lovable agent to download the new
-  file from this repo's raw URL into `public/play/index.html` unchanged (and check its sha256), then publish.
-  The Lovable project is not linked to GitHub, so pushing here alone does not change the site.
+- `lovable/public/` also holds `manifest.webmanifest` and `icon-192/512` + a maskable icon, so phones show
+  "PAWtastic" under the Home Screen icon and open the game full screen.
+- The Lovable project is linked to GitHub: **pmichael415/pawtastic-graduation** (private, branch `main`).
+  To update the live game: rebuild `dist/index.html`, copy it to that repo's `public/play/index.html` (and any
+  changed `lovable/public/` files to its `public/`), push to `main`, then publish in Lovable. No Lovable credits.
+  Don't push while Lovable's agent is mid-job: Lovable takes the push as the latest version and can drop the
+  agent's unsaved commit.
+
+## Payments and revenue
+
+- Real purchases run on the separate games Stripe account (Pawtastic Academy II LLC, `acct_1UWfxx58XGeAL8Pr`),
+  never the daycare accounts. Server code lives in the Lovable repo (`src/lib/game/`, `/api/public/game/*`,
+  `/api/public/stripe/webhook`).
+- Every payment carries Stripe metadata `game=pawtastic-graduation`, and item names start with
+  "Graduation Day · ", so Stripe's payments list, receipts and exports show which game earned what.
+- Each purchase is also recorded in the game's database (`game_mode_purchases`: product, amount, date, refunds,
+  test vs live), which a revenue report can read.
+- Sign-in and cloud saves work for every player, with or without payments.
 
 ## Music
 
