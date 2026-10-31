@@ -17,6 +17,8 @@ const ERR = {
   'already-undone': 'That record was already undone.',
   'rate-limited': 'Too many tries. Wait a minute and try again.',
   'invalid-email': 'Please enter a valid email address.',
+  'not-redeemable': 'This prize was already used, voided or has expired.',
+  'already-void': 'This prize was already voided.',
   'wrong-code': "That code didn't work. Check the email and try again.",
 };
 const errText = e => ERR[e] ?? 'Something went wrong. Please try again.';
@@ -25,6 +27,34 @@ const STATUS = { earned: 'Free bath waiting', 'bath-given': 'Bath given', void: 
 const place = l => (l === 'hawthorne' ? 'Hawthorne' : l === 'hillsdale' ? 'Hillsdale' : '');
 
 let pay = null;
+const LOC = { hawthorne: 'Hawthorne', hillsdale: 'Hillsdale' };
+const REWARD = { 'daycare-day': 'Free day of daycare', bath: 'Free bath' };
+const PRIZE_STATUS = { won: 'Not used yet', redeemed: 'Redeemed', void: 'Voided', expired: 'Expired' };
+
+function prizeBox(p, after) {
+  const actions = [];
+  if (p.status === 'won') actions.push(h('button', { class: 'btn', type: 'button', onClick: async () => {
+    if (!confirm(`Give ${p.dogName} the ${REWARD[p.reward]?.toLowerCase()} now and mark the prize redeemed?`)) return;
+    const res = await pay.staffPrizeAction({ action: 'redeem', id: p.id });
+    if (!res.ok) { alert(errText(res.error)); return; }
+    after(res.prize);
+  } }, 'Mark redeemed'));
+  if (p.status !== 'void') actions.push(h('button', { class: 'link', type: 'button', onClick: async () => {
+    if (!confirm('Void this prize? Use this only for cheating or a mistake.')) return;
+    const res = await pay.staffPrizeAction({ action: 'void', id: p.id });
+    if (!res.ok) { alert(errText(res.error)); return; }
+    after(res.prize);
+  } }, 'Void'));
+  return h('div', { class: 'card stack' },
+    h('p', { class: 'eyebrow' }, 'Weekly Challenge prize'),
+    h('p', { class: 'code' }, p.code),
+    h('p', { class: 'big' }, `${REWARD[p.reward] ?? p.reward} for ${p.dogName}`),
+    h('p', {}, `#${p.rank} at ${LOC[p.location] ?? p.location}, week of ${p.week} · player ${p.email || 'unknown'}`),
+    h('p', {}, h('span', { class: `tag ${p.status === 'won' ? 'earned' : p.status === 'redeemed' ? 'bath-given' : ''}` }, PRIZE_STATUS[p.status] ?? p.status),
+      p.status === 'won' ? ` · use by ${when(p.expiresAt)}` : p.redeemedAt ? ` · ${when(p.redeemedAt)} by ${p.redeemedBy ?? ''}` : ''),
+    p.status === 'won' ? h('p', { class: 'muted' }, "One dog. New clients complete the usual evaluation and paperwork first. Prize can't be exchanged for cash.") : null,
+    actions.length ? h('div', { class: 'row-side' }, ...actions) : null);
+}
 
 function screen(...children) {
   fill(root, h('header', { class: 'top' },
@@ -146,14 +176,22 @@ async function home() {
   const input = h('input', { id: 'lookup', maxlength: 12, autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', placeholder: 'K7Q3DM', class: 'code-input' });
   const look = h('button', { class: 'btn', type: 'submit' }, 'Look up');
   const form = h('form', { class: 'card stack' },
-    h('h2', {}, 'Look up a friend code'),
-    h('p', { class: 'muted' }, 'A new client shows a code from the PAWtastic game, or a player comes in for their free bath.'),
-    h('label', { for: 'lookup' }, 'Friend code (6 letters and numbers)'), input, note, look);
+    h('h2', {}, 'Look up a code'),
+    h('p', { class: 'muted' }, 'A Weekly Challenge prize code, a new client\'s friend code, or a player coming in for their referral bath.'),
+    h('label', { for: 'lookup' }, 'Code (6 letters and numbers)'), input, note, look);
   form.addEventListener('submit', async e => {
     e.preventDefault();
     const code = normalizeCode(input.value);
     if (!code) { note.textContent = errText('unknown-code'); return; }
     look.disabled = true; note.textContent = 'Looking up…';
+    // A prize code (Weekly Challenge) or a friend code (Invite a friend).
+    const prize = await pay.staffPrizeAction({ action: 'lookup', code });
+    if (prize.ok) {
+      look.disabled = false; note.textContent = '';
+      const show = p => fill(area, prizeBox(p, show));
+      show(prize.prize);
+      return;
+    }
     const found = await pay.staffAction({ action: 'lookup', code });
     look.disabled = false;
     if (!found.ok) { note.textContent = errText(found.error); return; }
@@ -161,6 +199,28 @@ async function home() {
     showCode(found, area);
   });
   const recent = Array.isArray(res.recent) ? res.recent : [];
+  const prizes = await pay.staffPrizes();
+  const prizeList = prizes.ok && Array.isArray(prizes.prizes) ? prizes.prizes : [];
+  const boardRows = prizes.ok && Array.isArray(prizes.board) ? prizes.board : [];
+  const prizeSection = h('section', { class: 'card stack' }, h('h2', {}, 'Weekly Challenge prizes'),
+    h('p', { class: 'muted' }, 'Each week the top 3 at each location win: 1st a free day of daycare, 2nd and 3rd a free bath. Players show their code at the front desk within 30 days.'),
+    prizeList.length
+      ? h('ul', { class: 'list' }, prizeList.map(p => h('li', { class: `row ${p.status === 'won' ? 'earned' : p.status === 'void' || p.status === 'expired' ? 'void' : ''}` },
+        h('div', {}, h('strong', {}, `${REWARD[p.reward] ?? p.reward} · ${p.dogName}`), h('p', { class: 'muted' }, `#${p.rank} ${LOC[p.location] ?? ''} · week of ${p.week} · code ${p.code} · ${p.email || ''}`)),
+        h('div', { class: 'row-side' }, h('span', { class: `tag ${p.status === 'won' ? 'earned' : p.status === 'redeemed' ? 'bath-given' : ''}` }, PRIZE_STATUS[p.status] ?? p.status)))))
+      : h('p', { class: 'muted' }, 'No prizes yet. Winners appear here after each week ends (Monday).'));
+  const boardSection = h('section', { class: 'card stack' }, h('h2', {}, "This week's leaderboard"),
+    h('p', { class: 'muted' }, 'Hide a player whose dog name is rude, or who is cheating. Hidden players are off the leaderboard and win no prizes.'),
+    boardRows.length
+      ? h('ul', { class: 'list' }, boardRows.map(b => h('li', { class: `row${b.hidden ? ' void' : ''}` },
+        h('div', {}, h('strong', {}, b.dogName), h('p', { class: 'muted' }, `${LOC[b.location] ?? ''} · ${Number(b.score).toLocaleString('en-US')} pts`)),
+        h('div', { class: 'row-side' }, h('button', { class: 'link', type: 'button', onClick: async () => {
+          if (!confirm(b.hidden ? `Show ${b.dogName} on the leaderboard again?` : `Hide ${b.dogName} from the leaderboard?`)) return;
+          const r = await pay.staffPrizeAction({ action: 'hide', userId: b.userId, hidden: !b.hidden });
+          if (!r.ok) { alert(errText(r.error)); return; }
+          home();
+        } }, b.hidden ? 'Show' : 'Hide')))))
+      : h('p', { class: 'muted' }, 'No scores yet this week.'));
   screen(
     h('p', { class: 'muted signed' }, `Signed in as ${res.email}`),
     form, area,
@@ -168,7 +228,10 @@ async function home() {
       h('ol', {},
         h('li', {}, 'A new client shows a friend code from the game at their first visit. Give them $10 off in the register.'),
         h('li', {}, 'Look up the code here and record the first visit. The player who shared now has a free bath waiting.'),
-        h('li', {}, 'When that player brings their dog in, look up their code, give the free bath and tap "Bath given".'))),
+        h('li', {}, 'When that player brings their dog in, look up their code, give the free bath and tap "Bath given".'),
+        h('li', {}, 'Weekly Challenge winners show a prize code: look it up, give the free daycare day or bath, and tap "Mark redeemed".'))),
+    prizeSection,
+    boardSection,
     h('section', { class: 'card stack' }, h('h2', {}, 'Recent'),
       recent.length ? h('ul', { class: 'list' }, recent.map(r => referralRow(r, (a, row) => change(a, row, () => home())))) : h('p', { class: 'muted' }, 'No referrals recorded yet.')));
   setTimeout(() => input.focus(), 50);

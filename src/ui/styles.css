@@ -199,6 +199,31 @@ input[type="text"], input[type="number"], input[type="email"], input[type="passw
 .star-road-bar { display: block; height: 8px; border-radius: 999px; background: linear-gradient(90deg, #F6A823 var(--fill, 0%), #E7E1D9 var(--fill, 0%)); }
 .milestone-card { background: #FFF6E2; border: 2px solid #F6A823; text-align: left; }
 .milestone-list li { padding: 2px 0; }
+.seg { display: flex; gap: 4px; padding: 4px; background: #EEE7DF; border-radius: 14px; margin: 4px 0; }
+.seg-btn { flex: 1; appearance: none; border: 0; background: transparent; border-radius: 10px; padding: 10px 8px; font: inherit; font-weight: 700; color: var(--ink, #31271F); cursor: pointer; min-height: 44px; }
+.seg-btn.on { background: #FFFFFF; color: var(--brand, #0068D6); box-shadow: 0 1px 3px rgba(49, 39, 31, 0.15); }
+.small-seg .seg-btn { padding: 6px 8px; min-height: 36px; font-size: 0.9rem; }
+.weekly-card { background: linear-gradient(160deg, #FFF6E2, #FFFFFF); border: 2px solid #F6A823; display: flex; flex-direction: column; gap: 6px; }
+.weekly-card h2, .weekly-card p { margin: 0; }
+.home-card { border: 2px solid var(--brand, #0068D6); }
+.home-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.home-choice { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 8px; }
+.home-choice.picked { outline: 3px solid var(--brand, #0068D6); }
+.lb-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lb-row { display: grid; grid-template-columns: 3.2em 1fr auto; align-items: center; gap: 8px; background: #FFFFFF; border-radius: 12px; padding: 10px 12px; box-shadow: 0 1px 2px rgba(49, 39, 31, 0.1); }
+.lb-row.me { outline: 3px solid #F6A823; }
+.lb-rank { font-weight: 700; font-size: 1.1rem; }
+.lb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-score { font-weight: 700; }
+.you-tag { margin-left: 6px; font-size: 0.75rem; font-weight: 700; background: #F6A823; color: #31271F; border-radius: 999px; padding: 2px 8px; }
+.teams .team-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+.team { display: flex; flex-direction: column; align-items: center; padding: 8px; border-radius: 12px; background: #F4F1EC; }
+.team.leading { background: #FFF0CC; outline: 2px solid #F6A823; }
+.prize-card { border: 2px solid #2E9E5B; background: #EEF8F1; display: flex; flex-direction: column; gap: 6px; }
+.prize-card h3, .prize-card p { margin: 0; }
+.big-score { font-size: 2.4rem; font-weight: 700; margin: 0; text-align: center; color: var(--brand, #0068D6); }
+.challenge-info { margin: 4px 0; }
+.center { text-align: center; }
 .chapter-banner { display: flex; flex-direction: column; gap: 4px; margin-top: 18px; text-align: center; background: linear-gradient(160deg, #E6F2E8, #FFF6E2); border: 2px solid #2F6B3A; }
 .chapter-banner h2 { color: #2F6B3A; }
 .chapter-banner.locked { opacity: 0.75; border-style: dashed; }

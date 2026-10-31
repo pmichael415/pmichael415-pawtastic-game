@@ -7,6 +7,7 @@ import { isPublicSite } from '../backend/local.js';
 import { accountMenu } from './payments.js';
 import { installMenuItem } from './install.js';
 import { referralMenuItems } from './referral.js';
+import { pickHome, syncProfile, homeName } from './compete.js';
 
 function switchRow(label, on, onToggle) {
   const btn = h('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(on), 'aria-label': label },
@@ -45,6 +46,11 @@ export function showSoundSheet(app) {
     switchRow('Celebration effects', effectsEnabled(now, reducedMotion()), on => settings.set({ effects: on ? 'on' : 'off' })),
     app.services.backend?.features.account ? accountSection(app, () => sheet.close()) : null,
     // The public site: its own account options (sign-in for buyers, reports) and rules & privacy.
+    isPublicSite(app.services.backend) ? h('button', { class: 'btn secondary block', type: 'button', onClick: () => { sheet.close(); app.go('leaderboard'); } }, 'Leaderboard & Weekly Challenge') : null,
+    isPublicSite(app.services.backend) ? h('button', { class: 'btn secondary block', type: 'button', onClick: async () => {
+      sheet.close();
+      if (await pickHome(app)) { syncProfile(app).catch(() => null); if (app.current === 'map') app.go('map', { skipIntro: true }); }
+    } }, homeName(app.services.backend.state()) ? `My PAWtastic: ${homeName(app.services.backend.state())} (change)` : 'Pick my PAWtastic') : null,
     ...(isPublicSite(app.services.backend) ? referralMenuItems(app, () => sheet.close()) : []),
     isPublicSite(app.services.backend) ? installMenuItem(app, () => sheet.close()) : null,
     isPublicSite(app.services.backend) ? accountMenu(app, () => sheet.close()) : null,

@@ -7,6 +7,7 @@
 //   makes "Pay" succeed without recording the purchase (to test "Purchase not delivered").
 //   Test helpers: GET /mock/state, POST /mock/refund { email, product }.
 
+import { weekKey, weekEndsAt, replayChallenge } from '../src/engine/challenge.js';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { join, normalize, extname } from 'node:path';
@@ -32,6 +33,23 @@ const codeOf = user => {
   if (!db.codes.has(user.id)) db.codes.set(user.id, { code: Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * 32)]).join(''), email: user.email, since: new Date().toISOString() });
   return db.codes.get(user.id).code;
 };
+// Competing (src/lib/game/compete.server.ts in the Lovable project): profiles, weekly scores, prizes.
+const players = new Map(); // userId → { dogName, location, stars, levels, bestTotal, hidden }
+const weekly = []; // { week, userId, location, score, moves, at }
+const prizes = []; // { id, week, location, rank, userId, dogName, email, score, reward, code, status, expiresAt }
+const rankWeek = week => weekly.filter(w => w.week === week && !players.get(w.userId)?.hidden).sort((a, b) => b.score - a.score || a.at - b.at);
+function awardWeek(week) {
+  for (const location of ['hawthorne', 'hillsdale']) {
+    rankWeek(week).filter(w => w.location === location).slice(0, 3).forEach((w, i) => {
+      if (prizes.some(p => p.week === week && p.location === location && p.rank === i + 1)) return;
+      const user = [...db.users.values()].find(u => u.id === w.userId);
+      prizes.push({ id: randomUUID(), week, location, rank: i + 1, userId: w.userId, dogName: players.get(w.userId)?.dogName ?? 'PAWtastic Pup', email: user?.email ?? '',
+        score: w.score, reward: i === 0 ? 'daycare-day' : 'bath', code: Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * 32)]).join(''), status: 'won', expiresAt: new Date(Date.now() + 30 * 86400000).toISOString() });
+    });
+  }
+}
+const prizeOut = p => ({ id: p.id, week: p.week, location: p.location, rank: p.rank, reward: p.reward, code: p.code, status: p.status, expiresAt: p.expiresAt, score: p.score });
+
 // Home Screen app sign-in codes (src/lib/game/signin.server.ts in the Lovable project).
 const appCodes = [];
 const ownerOf = code => [...db.codes.entries()].find(([, v]) => v.code === code);
@@ -132,6 +150,31 @@ createServer(async (req, res) => {
       return send(res, 200, owner ? { valid: true, code, own: !!user && owner[0] === user.id } : { valid: false });
     }
 
+    if (path === '/api/public/game/challenge' && req.method === 'GET') {
+      const week = weekKey(Date.now());
+      return send(res, 200, { week, endsAt: new Date(weekEndsAt(week)).toISOString(), moves: 25 });
+    }
+    if (path === '/api/public/game/leaderboard') {
+      const user = authed(req);
+      const board = url.searchParams.get('board') === 'alltime' ? 'alltime' : 'weekly';
+      const loc = url.searchParams.get('location');
+      const location = ['hawthorne', 'hillsdale'].includes(loc) ? loc : 'all';
+      if (board === 'weekly') {
+        const rows = rankWeek(weekKey(Date.now()));
+        const shown = location === 'all' ? rows : rows.filter(r => r.location === location);
+        const entries = shown.map((r, i) => ({ rank: i + 1, dogName: players.get(r.userId)?.dogName ?? 'PAWtastic Pup', location: r.location, score: r.score, me: !!user && r.userId === user.id }));
+        const me = entries.find(e => e.me);
+        const teams = Object.fromEntries(['hawthorne', 'hillsdale'].map(l => [l, { total: rows.filter(r => r.location === l).reduce((t, r) => t + r.score, 0), players: rows.filter(r => r.location === l).length }]));
+        return send(res, 200, { board, location, entries: entries.slice(0, 50), me: me ? { rank: me.rank, score: me.score } : null, teams });
+      }
+      const all = [...players.entries()].filter(([, p]) => !p.hidden).sort((a, b) => b[1].stars - a[1].stars || b[1].bestTotal - a[1].bestTotal);
+      const shown = location === 'all' ? all : all.filter(([, p]) => p.location === location);
+      const entries = shown.map(([id, p], i) => ({ rank: i + 1, dogName: p.dogName, location: p.location, stars: p.stars, levels: p.levels, bestTotal: p.bestTotal, me: !!user && id === user.id }));
+      const me = entries.find(e => e.me);
+      const teams = Object.fromEntries(['hawthorne', 'hillsdale'].map(l => [l, { total: all.filter(([, p]) => p.location === l).reduce((t, [, p]) => t + p.stars, 0), players: all.filter(([, p]) => p.location === l).length }]));
+      return send(res, 200, { board, location, entries: entries.slice(0, 50), me: me ? { rank: me.rank, stars: me.stars } : null, teams });
+    }
+
     if (path === '/api/public/game/signin-code/claim' && req.method === 'POST') {
       const b = await bodyOf(req);
       const email = String(b.email ?? '').trim().toLowerCase();
@@ -148,6 +191,46 @@ createServer(async (req, res) => {
     if (path.startsWith('/api/public/game/') && path !== '/api/public/game/config') {
       const user = authed(req);
       if (!user) return send(res, 401, { error: 'signed-out' });
+      if (path === '/api/public/game/profile' && req.method === 'POST') {
+        const b = await bodyOf(req);
+        if (!['hawthorne', 'hillsdale'].includes(b.location) || typeof b.dogName !== 'string') return send(res, 400, { error: 'invalid-request' });
+        players.set(user.id, { ...(players.get(user.id) ?? {}), dogName: b.dogName.trim().slice(0, 20), location: b.location, stars: Math.min(b.stars, b.levels * 3), levels: b.levels, bestTotal: b.bestTotal, hidden: players.get(user.id)?.hidden ?? false });
+        return send(res, 200, { ok: true });
+      }
+      if (path === '/api/public/game/challenge' && req.method === 'POST') {
+        const b = await bodyOf(req);
+        if (b.week !== weekKey(Date.now())) return send(res, 400, { error: 'week-over' });
+        const replay = replayChallenge(b.week, b.moves);
+        if (!replay.ok) return send(res, 400, { error: 'bad-run' });
+        const p = players.get(user.id);
+        if (!p?.location) return send(res, 400, { error: 'no-home' });
+        let row = weekly.find(w => w.week === b.week && w.userId === user.id);
+        if (!row) { row = { week: b.week, userId: user.id, location: p.location, score: replay.score, moves: b.moves, at: Date.now() }; weekly.push(row); }
+        else if (replay.score > row.score) Object.assign(row, { score: replay.score, moves: b.moves, at: Date.now() });
+        const team = rankWeek(b.week).filter(w => w.location === row.location);
+        return send(res, 200, { score: replay.score, best: row.score, rank: team.findIndex(w => w.userId === user.id) + 1, players: team.length, location: row.location, week: b.week });
+      }
+      if (path === '/api/public/game/prizes' && req.method === 'GET') {
+        return send(res, 200, { prizes: prizes.filter(p => p.userId === user.id).reverse().map(prizeOut) });
+      }
+      if (path === '/api/public/game/staff/prizes') {
+        if (!STAFF.has(user.email)) return send(res, 403, { error: 'not-staff' });
+        const staffOut = p => ({ ...prizeOut(p), dogName: p.dogName, email: p.email, redeemedAt: p.redeemedAt ?? null, redeemedBy: p.redeemedBy ?? null });
+        if (req.method === 'GET') {
+          const rows = weekly.filter(w => w.week === weekKey(Date.now())).sort((a, b) => b.score - a.score);
+          return send(res, 200, { prizes: [...prizes].reverse().map(staffOut), board: rows.map(r => ({ userId: r.userId, dogName: players.get(r.userId)?.dogName ?? '', location: r.location, score: r.score, hidden: !!players.get(r.userId)?.hidden })) });
+        }
+        const b = await bodyOf(req);
+        if (b.action === 'lookup') {
+          const p = prizes.find(x => x.code === String(b.code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, ''));
+          return p ? send(res, 200, { prize: staffOut(p) }) : send(res, 404, { error: 'unknown-code' });
+        }
+        if (b.action === 'hide') { const p = players.get(b.userId); if (!p) return send(res, 404, { error: 'unknown-player' }); p.hidden = !!b.hidden; return send(res, 200, { ok: true }); }
+        const p = prizes.find(x => x.id === b.id);
+        if (b.action === 'redeem') { if (!p || p.status !== 'won') return send(res, 409, { error: 'not-redeemable' }); Object.assign(p, { status: 'redeemed', redeemedAt: new Date().toISOString(), redeemedBy: user.email }); return send(res, 200, { prize: staffOut(p) }); }
+        if (b.action === 'void') { if (!p || p.status === 'void') return send(res, 409, { error: 'already-void' }); p.status = 'void'; return send(res, 200, { prize: staffOut(p) }); }
+        return send(res, 400, { error: 'invalid-request' });
+      }
       if (path === '/api/public/game/signin-code' && req.method === 'POST') {
         const code = String(Math.floor(Math.random() * 1e6)).padStart(6, '0');
         appCodes.push({ code, email: user.email, expires: Date.now() + 600000, used: false, failed: 0 });
@@ -246,7 +329,9 @@ createServer(async (req, res) => {
       const t = issue(userFor(url.searchParams.get('email') || 'buyer@example.com'));
       return send(res, 200, { url: `${origin}/play/index.html#access_token=${t.access_token}&expires_at=${t.expires_at}&expires_in=3600&refresh_token=${t.refresh_token}&token_type=bearer&type=magiclink` });
     }
-    if (path === '/mock/state') return send(res, 200, { purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent, codes: Object.fromEntries(db.codes), referrals: db.referrals, appCodes });
+    // Ends the week early for tests: this week's top 3 at each location win their prizes.
+    if (path === '/mock/award-week' && req.method === 'POST') { awardWeek(weekKey(Date.now())); return send(res, 200, { prizes }); }
+    if (path === '/mock/state') return send(res, 200, { players: Object.fromEntries(players), weekly, prizes, purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent, codes: Object.fromEntries(db.codes), referrals: db.referrals, appCodes });
     if (path === '/mock/refund' && req.method === 'POST') {
       const { email, product } = await bodyOf(req);
       const user = userFor(email);

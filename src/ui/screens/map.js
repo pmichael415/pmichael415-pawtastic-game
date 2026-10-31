@@ -13,7 +13,8 @@ import { cloudSaveCard } from '../payments.js';
 import { installCard } from '../install.js';
 import { friendOfferCard, showInvite } from '../referral.js';
 import { isPublicSite } from '../../backend/local.js';
-import { AREAS, CHAPTERS, LEVELS, LAST_LEVEL, isHardLevel, chapterOf } from '../../engine/levels.js';
+import { AREAS, CHAPTERS, LEVELS, ALL_LEVELS, LAST_LEVEL, isHardLevel, chapterOf, locationChapter, levelNumber } from '../../engine/levels.js';
+import { weeklyCard, pickHome, homeChoices, syncProfile } from '../compete.js';
 import { COSTUMES } from '../../economy/catalog.js';
 import { nextStarMilestone } from '../../economy/progression.js';
 import { rewardText } from '../daily.js';
@@ -35,7 +36,14 @@ function showIntro(app, area) {
 export function render(app, params = {}) {
   const { backend, jar } = app.services;
   const state = backend.state();
-  const unlocked = Math.min(state.progress.unlocked, LEVELS.length);
+  const publicSite = isPublicSite(backend);
+  // Two roads: the main one (Academy, then Summer Camp) and the player's home-location adventure.
+  const local = locationChapter(state.home);
+  const localOpen = !!local && !!state.progress.levels[local.opensAfter];
+  const view = params.view === 'local' && local ? 'local' : 'main';
+  const unlocked = view === 'local'
+    ? (localOpen ? state.progress.side[local.location] : 0)
+    : Math.min(state.progress.unlocked, LAST_LEVEL);
   const bar = topBar(app);
 
   // A level left mid-way is picked up where it was; starting another one drops it, so ask first.
@@ -46,16 +54,16 @@ export function render(app, params = {}) {
     if (inProgress.levelId === id) { resume(id); return; }
     let sheet;
     sheet = app.modal(h('div', { class: 'stack' },
-      h('p', {}, `Leave Level ${inProgress.levelId}? That board will be lost.`),
+      h('p', {}, `Leave Level ${levelNumber(inProgress.levelId)}? That board will be lost.`),
       h('div', { class: 'btn-pair' },
         h('button', { class: 'btn', type: 'button', onClick: () => { sheet.close(); app.go('level', { levelId: id }); } }, 'Leave it'),
-        h('button', { class: 'btn secondary', type: 'button', onClick: () => { sheet.close(); resume(inProgress.levelId); } }, `Continue Level ${inProgress.levelId}`))),
+        h('button', { class: 'btn secondary', type: 'button', onClick: () => { sheet.close(); resume(inProgress.levelId); } }, `Continue Level ${levelNumber(inProgress.levelId)}`))),
     { label: `Leave Level ${inProgress.levelId}?` });
   }
   const continueCard = inProgress
     ? h('div', { class: 'card continue-card' },
-      h('p', {}, `You were in the middle of Level ${inProgress.levelId}.`),
-      h('button', { class: 'btn', type: 'button', onClick: () => resume(inProgress.levelId) }, `Continue Level ${inProgress.levelId}`))
+      h('p', {}, `You were in the middle of Level ${levelNumber(inProgress.levelId)}.`),
+      h('button', { class: 'btn', type: 'button', onClick: () => resume(inProgress.levelId) }, `Continue Level ${levelNumber(inProgress.levelId)}`))
     : null;
 
   const nav = h('nav', { class: 'map-nav', 'aria-label': 'Academy' },
@@ -77,9 +85,25 @@ export function render(app, params = {}) {
   const signs = h('div', { class: 'signposts', 'aria-label': 'Locations' },
     h('span', { class: 'sign' }, '← Hillsdale'), h('span', { class: 'sign' }, 'Hawthorne →'));
 
+  // Road switcher, and the home pick for players who haven't chosen yet.
+  const roads = local
+    ? h('div', { class: 'seg', role: 'tablist', 'aria-label': 'Adventures' },
+      h('button', { type: 'button', role: 'tab', class: `seg-btn${view === 'main' ? ' on' : ''}`, 'aria-selected': String(view === 'main'), onClick: () => app.go('map', { skipIntro: true }) }, 'Main road'),
+      h('button', { type: 'button', role: 'tab', class: `seg-btn${view === 'local' ? ' on' : ''}`, 'aria-selected': String(view === 'local'), onClick: () => app.go('map', { view: 'local', skipIntro: true }) }, local.name))
+    : null;
+  const homeCard = !state.home && state.dog
+    ? h('section', { class: 'card stack home-card' },
+      h('p', { class: 'eyebrow' }, 'New: your local adventure'),
+      h('h2', {}, 'Which PAWtastic is yours?'),
+      h('p', { class: 'small' }, 'Pick your location to unlock its own 16-level adventure and join its team in the leaderboards.'),
+      homeChoices(null, async id => { await backend.setHome(id); syncProfile(app).catch(() => null); app.go('map', { view: 'local', skipIntro: true }); }))
+    : null;
+  const shownAreas = AREAS.filter(a => (view === 'local' ? chapterOf(a.first) === local : !chapterOf(a.first).location));
+  const label = levelNumber;
+
   let currentNode = null;
-  const areas = AREAS.map((area, ai) => {
-    const ids = LEVELS.filter(l => l.area === area.id).map(l => l.id);
+  const areas = shownAreas.map((area, ai) => {
+    const ids = ALL_LEVELS.filter(l => l.area === area.id).map(l => l.id);
     const passed = ids.filter(id => state.progress.levels[id]).length;
     const stars = ids.reduce((s, id) => s + (state.progress.levels[id]?.stars || 0), 0);
     const locked = area.first > unlocked;
@@ -87,11 +111,11 @@ export function render(app, params = {}) {
     const inChapter = AREAS.filter(a => chapterOf(a.first) === chapter);
     const place = `Area ${inChapter.indexOf(area) + 1} of ${inChapter.length}`;
     const banner = h('div', { class: `area-banner card${locked ? ' locked' : ''}` },
-      h('p', { class: 'eyebrow' }, chapter.id === 'academy' ? place : `Summer Camp · ${place}`),
+      h('p', { class: 'eyebrow' }, chapter.id === 'academy' ? place : chapter.id === 'camp' ? `Summer Camp · ${place}` : `${chapter.name} · ${place}`),
       h('h2', {}, area.name),
       h('p', { class: 'small muted' }, `In real life: ${area.service}`),
       h('p', { class: 'small num' }, locked
-        ? `Unlocks after ${AREAS[ai - 1].name}`
+        ? (ai === 0 ? `Opens after Orientation (Level ${chapter.opensAfter ?? 8})` : `Unlocks after ${shownAreas[ai - 1].name}`)
         : `${passed}/8 passed · ${stars}/24 stars · Finish to earn the ${costumeName(area.costume)}`),
       backend.features.account && !locked ? bookingLinkEl(app, area.id, state.dog?.name, 'booking-link small') : null,
     );
@@ -101,9 +125,9 @@ export function render(app, params = {}) {
       const isCurrent = id === unlocked && !done;
       const node = h('button', {
         type: 'button', class: `node${isLocked ? ' locked' : ''}${isCurrent ? ' current' : ''}${done ? ' done' : ''}`,
-        disabled: isLocked, 'aria-label': `Level ${id}${isHardLevel(id) ? ', pop quiz' : ''}${done ? `, ${done.stars} stars` : ''}${isLocked ? ', locked' : ''}`,
+        disabled: isLocked, 'aria-label': `Level ${label(id)}${isHardLevel(id) ? ', pop quiz' : ''}${done ? `, ${done.stars} stars` : ''}${isLocked ? ', locked' : ''}`,
         onClick: () => openLevel(id),
-      }, isLocked ? h('span', { html: lockIcon() }) : h('span', { class: 'node-num' }, String(id)));
+      }, isLocked ? h('span', { html: lockIcon() }) : h('span', { class: 'node-num' }, String(label(id))));
       const row = h('div', { class: 'node-row' }, h('div', { class: 'node-group', style: `--offset:${OFFSETS[i]}` },
         h('div', { class: 'node-wrap' },
           node,
@@ -117,7 +141,7 @@ export function render(app, params = {}) {
       return row;
     });
     const section = h('section', { class: 'area', 'aria-label': area.name }, banner, h('div', { class: 'path' }, nodes));
-    if (chapter.first !== area.first || chapter.id === 'academy') return section;
+    if (chapter.first !== area.first || chapter.id !== 'camp') return section;
     // The start of a new adventure gets its own sign.
     const open = unlocked >= chapter.first;
     return [h('div', { class: `chapter-banner card${open ? '' : ' locked'}`, 'aria-label': chapter.name },
@@ -132,15 +156,15 @@ export function render(app, params = {}) {
   const gradNote = state.progress.levels[LAST_LEVEL]
     ? `${dogName} is a PAWtastic Summer Camp champion!`
     : state.progress.levels[CHAPTERS[0].last] ? `${dogName} graduated from PAWtastic Academy! Summer Camp is open.` : null;
-  const publicSite = isPublicSite(backend);
   // One small banner at a time: a friend's offer first, then Add to Home Screen, then Save progress to the cloud.
   const nudge = publicSite ? (friendOfferCard(app) ?? installCard(app) ?? cloudSaveCard(app)) : null;
-  app.view.append(...[bar, continueCard, nudge, nav, starRoad, signs, h('div', { class: 'map' },
-    gradNote ? h('p', { class: 'card grad-note' }, gradNote) : null,
+  const weekly = publicSite && state.dog ? weeklyCard(app) : null;
+  app.view.append(...[bar, continueCard, nudge, nav, weekly, homeCard, roads, starRoad, view === 'main' ? signs : null, h('div', { class: 'map' },
+    view === 'main' && gradNote ? h('p', { class: 'card grad-note' }, gradNote) : null,
     areas)].filter(Boolean));
 
   // After a win, the dog hops from the level just passed to the new one.
-  const hop = app.services.lastWin;
+  const hop = view === 'main' ? app.services.lastWin : null;
   app.services.lastWin = null;
   if (hop) {
     const opened = AREAS.find(a => a.first === hop.to && a.first > 1);
@@ -163,7 +187,7 @@ export function render(app, params = {}) {
     anim.onfinish = () => dog.classList.remove('hopping');
   });
 
-  const area = AREAS.find(a => unlocked >= a.first && unlocked <= a.last) ?? AREAS[AREAS.length - 1];
+  const area = shownAreas.find(a => unlocked >= a.first && unlocked <= a.last) ?? (view === 'local' ? null : shownAreas[shownAreas.length - 1]);
   // Daily rewards come first, once per app open; then this area's intro.
   const daily = app.services.dailyShown || params.skipIntro ? Promise.resolve() : showDailyRewards(app, app.services.openResult);
   app.services.dailyShown = true;
@@ -174,6 +198,6 @@ export function render(app, params = {}) {
       app.services.pendingStarterOffer = false;
       return backend.state().starterPack.bought ? null : showStarterPackOffer(app);
     })
-    .then(() => { if (!gone && !state.seenIntros.includes(area.id) && !params.skipIntro) showIntro(app, area); });
+    .then(() => { if (!gone && area && !state.seenIntros.includes(area.id) && !params.skipIntro) showIntro(app, area); });
   return () => { gone = true; bar.stop(); };
 }

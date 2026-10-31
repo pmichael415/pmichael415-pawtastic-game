@@ -76,6 +76,7 @@ export function restoreGame(level, snap) {
 export function goalProgress(game) {
   const { goal } = game.level;
   let current, target;
+  if (goal.type === 'attack') return { current: game.score, target: 0, remaining: 0, done: false };
   if (goal.type === 'score') { current = game.score; target = goal.target; }
   else if (goal.type === 'collect') { current = game.collected; target = goal.count; }
   else if (goal.type === 'leash') { current = game.leashTotal - game.leashLeft; target = game.leashTotal; }
@@ -91,6 +92,11 @@ export function starsFor(level, score, won) {
 }
 
 function checkEnd(game) {
+  // Score attack (the Weekly Challenge): play every move; the score at the end is the result.
+  if (game.level.goal.type === 'attack') {
+    if (game.movesLeft === 0) { game.status = 'won'; game.bonus = 0; game.stars = starsFor(game.level, game.score, true); }
+    return;
+  }
   if (goalProgress(game).done) {
     game.status = 'won';
     game.bonus = BONUS_PER_MOVE * game.movesLeft;
@@ -156,6 +162,7 @@ export function useBooster(game, type, cell) {
 export function remainingText(game) {
   const { remaining } = goalProgress(game);
   const { goal } = game.level;
+  if (goal.type === 'attack') return `${game.movesLeft} ${game.movesLeft === 1 ? 'move' : 'moves'} left`;
   if (goal.type === 'score') return `${remaining.toLocaleString('en-US')} more points`;
   if (goal.type === 'collect') {
     const [one, many] = KIND_NAMES[goal.kind];

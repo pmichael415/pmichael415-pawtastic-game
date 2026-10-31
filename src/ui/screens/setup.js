@@ -3,12 +3,16 @@
 import { h } from '../dom.js';
 import { dogSVG, BREEDS, BREED_NAMES, COATS, logoImg } from '../art.js';
 import { withBusy, showFailure } from '../failure.js';
+import { homeChoices } from '../compete.js';
 
 export function render(app) {
   const { backend } = app.services;
   const existing = backend.state().dog;
   let breed = existing?.breed ?? 'lab';
   let coat = existing?.coat ?? COATS[0].hex;
+  let home = backend.state().home ?? null;
+  const homeBox = h('div', {});
+  const drawHome = () => homeBox.replaceChildren(homeChoices(home, id => { home = id; drawHome(); }));
 
   const preview = h('div', { class: 'preview' });
   const nameInput = h('input', { type: 'text', id: 'dog-name', maxlength: '20', autocomplete: 'off', value: existing?.name ?? '' });
@@ -41,6 +45,7 @@ export function render(app) {
     const res = await withBusy(startBtn, () => backend.setDog({ name: nameInput.value, breed, coat }));
     if (res.error === 'invalid-name') { error.hidden = false; error.textContent = "Give your pup a name (up to 20 letters)."; return; }
     if (!res.ok) { showFailure(app, res.error); return; }
+    if (home) await backend.setHome?.(home);
     app.go('map');
   } },
     h('div', { class: 'row' }, logoImg({ size: 48 }), h('div', {},
@@ -49,9 +54,12 @@ export function render(app) {
     h('div', { class: 'field' }, h('label', { for: 'dog-name' }, "Your dog's name"), nameInput, error),
     h('div', { class: 'field', role: 'radiogroup', 'aria-label': 'Breed look' }, h('span', { class: 'eyebrow' }, 'Breed look'), h('div', { class: 'choices' }, breedButtons)),
     h('div', { class: 'field', role: 'radiogroup', 'aria-label': 'Coat colour' }, h('span', { class: 'eyebrow' }, 'Coat colour'), h('div', { class: 'swatches' }, coatButtons)),
+    backend.setHome ? h('div', { class: 'field' }, h('span', { class: 'eyebrow' }, 'Your PAWtastic (optional)'),
+      h('p', { class: 'small muted' }, 'Pick the location you visit or the closest one: it unlocks its own adventure and your leaderboard team.'), homeBox) : null,
     startBtn,
   );
   nameInput.addEventListener('input', refresh);
+  drawHome();
   app.view.append(form);
   refresh();
 }

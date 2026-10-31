@@ -5,7 +5,12 @@
 export const CHAPTERS = [
   { id: 'academy', name: 'PAWtastic Academy', first: 1, last: 40 },
   { id: 'camp', name: 'PAWtastic Summer Camp', first: 41, last: 80 },
+  // Home-location adventures: each player plays the one for the PAWtastic they picked (Hawthorne or Hillsdale).
+  // They open after Orientation (level 8) and run alongside the main road.
+  { id: 'hawthorne', name: 'Hawthorne Adventure', first: 101, last: 116, location: 'hawthorne', opensAfter: 8 },
+  { id: 'hillsdale', name: 'Hillsdale Adventure', first: 201, last: 216, location: 'hillsdale', opensAfter: 8 },
 ];
+export const LOCATIONS = { hawthorne: 'Hawthorne', hillsdale: 'Hillsdale' };
 
 export const AREAS = [
   { id: 'orientation', name: 'Orientation', first: 1, last: 8, service: 'Front desk and evaluation day', costume: 'student-id-collar' },
@@ -18,9 +23,13 @@ export const AREAS = [
   { id: 'trail', name: 'Trail Hike', first: 57, last: 64, service: 'Daycare group play', costume: 'ranger-hat' },
   { id: 'campfire', name: 'Campfire Night', first: 65, last: 72, service: 'Boarding (Dorm Room, Graduate Suite)', costume: 'cozy-flannel' },
   { id: 'talent', name: 'Talent Show', first: 73, last: 80, service: 'Daycare, boarding and grooming', costume: 'camp-medal' },
+  { id: 'hawthorne-walk', name: 'Hawthorne Walkabout', first: 101, last: 108, service: 'PAWtastic Hawthorne', costume: 'hawthorne-scarf' },
+  { id: 'hawthorne-park', name: 'Hawthorne Park Day', first: 109, last: 116, service: 'PAWtastic Hawthorne', costume: 'hawthorne-jersey' },
+  { id: 'hillsdale-trail', name: 'Hillsdale Trailhead', first: 201, last: 208, service: 'PAWtastic Hillsdale', costume: 'hillsdale-scarf' },
+  { id: 'hillsdale-parade', name: 'Hillsdale Pup Parade', first: 209, last: 216, service: 'PAWtastic Hillsdale', costume: 'hillsdale-jersey' },
 ];
 
-const HARD_LEVELS = new Set([10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80]);
+const HARD_LEVELS = new Set([10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 108, 116, 208, 216]);
 
 // Board shapes for the later areas ('#' = no cell).
 const SHAPES = {
@@ -143,19 +152,70 @@ const DEFS = [
   [78, CAMP6, C('lantern', 32), 34, [16000, 19500], shaped('waist', ['........', '.l....l.', '..c..c..', '..llll..', '..llll..', '..c..c..', '.l....l.', '........'])],
   [79, CAMP6, MUD, 34, [17000, 21000], shaped('stage', ['mmmmmmmm', '........', '..l..l..', '..mccm..', '..mccm..', '..l..l..', '........', 'mmmmmmmm'])],
   [80, CAMP6, LEASH, 41, [24500, 29500], shaped('stage', ['...LL...', '........', '..l..l..', 'l..LL..l', 'l..LL..l', '..l..l..', '........', '...LL...'])],
+  // ---------- Home-location adventures (16 levels each) ----------
+  // Hawthorne Walkabout / Park Day
+  [101, 5, C('paw', 30), 15, [17500, 23000], ['........', '........', '..c..c..', '........', '........', '..c..c..', '........', '........']],
+  [102, 5, MUD, 14, [14000, 19000], ['........', '.mmmmmm.', '........', '..mmmm..', '..mmmm..', '........', '.mmmmmm.', '........']],
+  [103, 5, S(14000), 15, [16000, 18000], shaped('corners', ['........', '........', '..c..c..', '...ll...', '...ll...', '..c..c..', '........', '........'])],
+  [104, CAMP5, C('lantern', 30), 16, [16000, 21500], ['........', '.l....l.', '........', '...CC...', '...CC...', '........', '.l....l.', '........']],
+  [105, 5, LEASH, 13, [12500, 16500], ['........', '..l..l..', '...ll...', '........', '........', '...ll...', '..l..l..', '........']],
+  [106, 6, C('frisbee', 30), 30, [14500, 17500], shaped('waist', ['........', '.c....c.', '........', '..llll..', '..llll..', '........', '.c....c.', '........'])],
+  [107, 6, MUD, 19, [9500, 11000], shaped('pillars', ['........', '.mmmmmm.', '..mccm..', '........', '........', '..mccm..', '.mmmmmm.', '........'])],
+  [108, 6, S(17000), 31, [18500, 20500], shaped('hole', ['.l....l.', '..c..c..', '........', '........', '........', '........', '..c..c..', '.l....l.'])],
+  [109, LAKE5, C('duck', 35), 19, [17000, 21500], shaped('dock', ['........', '........', '.c....c.', '........', '........', '.l....l.', '........', '........'])],
+  [110, LAKE6, MUD, 29, [17000, 19500], ['........', 'mmmmmmmm', '...ll...', '........', '........', '...ll...', 'mmmmmmmm', '........']],
+  [111, CAMP6, LEASH, 36, [18500, 23500], shaped('stage', ['........', '.l....l.', '..lLLl..', '........', '........', '..lLLl..', '.l....l.', '........'])],
+  [112, CAMP6, C('pinecone', 30), 31, [16500, 20000], shaped('trail', ['........', '..c.....', '...ll...', '..cCCc..', '..cCCc..', '...ll...', '.....c..', '........'])],
+  [113, 6, S(16000), 27, [17500, 19500], shaped('tent', ['........', '........', '..c..c..', '.l....l.', '.l....l.', '..c..c..', '........', '........'])],
+  [114, CAMP6, MUD, 30, [15000, 18500], shaped('corners', ['........', '.mmmmmm.', '.m.ll.m.', '.m....m.', '.m....m.', '.m.ll.m.', '.mmmmmm.', '........'])],
+  [115, CAMP6, C('lantern', 32), 34, [16500, 20000], shaped('waist', ['..l..l..', '........', '.c....c.', '..CllC..', '..CllC..', '.c....c.', '........', '..l..l..'])],
+  [116, CAMP6, LEASH, 22, [10500, 13500], shaped('hole', ['........', '..l..l..', '.l....l.', '..c..c..', '..c..c..', '.l....l.', '..l..l..', '........'])],
+  // Hillsdale Trailhead / Pup Parade
+  [201, 5, C('bone', 30), 14, [15500, 21000], ['........', '........', '.c....c.', '........', '........', '.c....c.', '........', '........']],
+  [202, 5, MUD, 13, [14500, 20000], ['........', '........', 'mmmmmmmm', '........', '........', 'mmmmmmmm', '........', '........']],
+  [203, 5, S(14000), 19, [16500, 18500], shaped('waist', ['........', '........', '..l..l..', '...cc...', '...cc...', '..l..l..', '........', '........'])],
+  [204, CAMP5, C('pinecone', 30), 16, [18000, 21500], ['........', '..l..l..', '........', '.C....C.', '.C....C.', '........', '..l..l..', '........']],
+  [205, 6, LEASH, 29, [17000, 20500], ['........', '.l....l.', '..l..l..', '...ll...', '...ll...', '..l..l..', '.l....l.', '........']],
+  [206, 6, C('ball', 30), 28, [15000, 19000], shaped('corners', ['........', '..c..c..', '........', '.l.ll.l.', '........', '........', '..c..c..', '........'])],
+  [207, 6, MUD, 34, [15500, 17000], shaped('hole', ['.mmmmmm.', '........', '..m..m..', '..c..c..', '..c..c..', '..m..m..', '........', '.mmmmmm.'])],
+  [208, 6, S(17000), 32, [19500, 21500], shaped('pillars', ['........', '..l..l..', '...cc...', '........', '........', '...cc...', '..l..l..', '........'])],
+  [209, CAMP5, C('lantern', 35), 16, [20500, 24500], shaped('stage', ['........', '........', '.c....c.', '........', '........', '.l....l.', '........', '........'])],
+  [210, CAMP6, MUD, 24, [13500, 15500], ['........', 'mmmmmmmm', '...ll...', '........', '........', '...ll...', 'mmmmmmmm', '........']],
+  [211, LAKE6, LEASH, 37, [16000, 19500], shaped('dock', ['........', '.l....l.', '..lLLl..', '........', '........', '..l..l..', '.l....l.', '........'])],
+  [212, LAKE6, C('duck', 30), 29, [15000, 17500], shaped('corners', ['........', '...cc...', '.l....l.', '..CllC..', '..CllC..', '.l....l.', '...cc...', '........'])],
+  [213, 6, S(16000), 24, [18000, 20000], shaped('trail', ['........', '..c.....', '..l..l..', '.c....c.', '.c....c.', '..l..l..', '.....c..', '........'])],
+  [214, CAMP6, MUD, 21, [10000, 12500], shaped('waist', ['........', '.mmmmmm.', '..m..m..', '...ll...', '...ll...', '..m..m..', '.mmmmmm.', '........'])],
+  [215, CAMP6, C('frisbee', 32), 31, [17500, 21000], shaped('stage', ['........', '..l..l..', '.c....c.', '..CllC..', '..CllC..', '.c....c.', '..l..l..', '........'])],
+  [216, CAMP6, LEASH, 22, [11500, 14500], shaped('pillars', ['........', '..l..l..', '.l....l.', '..c..c..', '..c..c..', '.l....l.', '..l..l..', '........'])],
 ];
 
-export const LEVELS = DEFS.map(([id, kinds, goal, moves, stars, layout, tip]) => {
+export const ALL_LEVELS = DEFS.map(([id, kinds, goal, moves, stars, layout, tip]) => {
   const area = AREAS.find(a => id >= a.first && id <= a.last).id;
   const level = { id, area, moves, kinds, goal, stars };
   if (layout) level.layout = layout;
   if (tip) level.tip = tip;
   return level;
 });
+const BY_ID = new Map(ALL_LEVELS.map(l => [l.id, l]));
+// The main road (Academy then Summer Camp): levels 1–80, in order.
+export const LEVELS = ALL_LEVELS.filter(l => l.id <= 80);
 
 export function getLevel(id) {
-  return LEVELS[id - 1];
+  return BY_ID.get(Number(id));
 }
+
+/** The level after this one in its own adventure (the main road runs Academy → Summer Camp), or null. */
+export function nextLevelId(id) {
+  const ch = CHAPTERS.find(c => id >= c.first && id <= c.last);
+  if (!ch) return null;
+  if (id < ch.last) return id + 1;
+  return ch.id === 'academy' ? 41 : null;
+}
+
+export const isLocationLevel = id => id > 100;
+/** The number players see: location adventures count from 1 (level 105 is "Level 5"). */
+export const levelNumber = id => (id > 100 ? id % 100 : id);
+export const locationChapter = location => CHAPTERS.find(c => c.location === location) ?? null;
 
 export function areaOf(id) {
   return AREAS.find(a => id >= a.first && id <= a.last);
@@ -173,6 +233,7 @@ export function isHardLevel(id) {
 
 export function winBand(id) {
   if (isHardLevel(id)) return [0.25, 0.35];
+  if (id > 100) return (id % 100) <= 8 ? [0.5, 0.7] : [0.4, 0.55];
   if (id <= 8) return [0.9, 1];
   if (id <= 24) return [0.6, 0.8];
   if (id <= 40) return [0.4, 0.6];

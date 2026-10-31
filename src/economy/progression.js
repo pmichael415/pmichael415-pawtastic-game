@@ -7,7 +7,7 @@
 
 import { dayKey, monthKey, daysBetween, addDays } from './time.js';
 import { PASS, STREAK, WELCOME_BACK, REPORT_GRADES, MILESTONES } from './catalog.js';
-import { AREAS, CHAPTERS, areaOf } from '../engine/levels.js';
+import { AREAS, CHAPTERS, areaOf, chapterOf } from '../engine/levels.js';
 
 function ensureMonth(state, nowMs) {
   const month = monthKey(nowMs);
@@ -54,7 +54,9 @@ export function applyLevelResult(state, { levelId, won, stars, score, movesMade 
     const firstWin = !levels[levelId];
     const prev = levels[levelId] || { stars: 0, score: 0 };
     levels[levelId] = { stars: Math.max(prev.stars, stars), score: Math.max(prev.score, score) };
-    state.progress.unlocked = Math.max(state.progress.unlocked, levelId + 1);
+    const chapter = chapterOf(levelId);
+    if (chapter?.location) state.progress.side[chapter.location] = Math.max(state.progress.side[chapter.location], Math.min(levelId + 1, chapter.last + 1));
+    else state.progress.unlocked = Math.max(state.progress.unlocked, levelId + 1);
     if (stars === 3) addBadge(state, summary, 'first-three-stars');
     if (Object.keys(levels).length >= 10) addBadge(state, summary, 'ten-wins');
     const area = areaOf(levelId);
@@ -76,6 +78,11 @@ export function applyLevelResult(state, { levelId, won, stars, score, movesMade 
   return summary;
 }
 
+/** Best scores added up across every level passed (the all-time leaderboard's tie-breaker). */
+export function totalBestScore(state) {
+  return Object.values(state.progress.levels).reduce((sum, l) => sum + (l?.score || 0), 0);
+}
+
 export function totalStars(state) {
   return Object.values(state.progress.levels).reduce((sum, l) => sum + (l?.stars || 0), 0);
 }
@@ -86,7 +93,8 @@ export function earnedMilestones(state) {
   const out = [];
   for (const a of AREAS) if (levels[a.last]) out.push({ id: `area-${a.id}`, title: `Finished ${a.name}`, reward: MILESTONES.area });
   for (const ch of CHAPTERS) {
-    if (levels[ch.last]) out.push({ id: `adventure-${ch.id}`, title: ch.id === 'academy' ? 'Graduated from PAWtastic Academy' : 'PAWtastic Summer Camp champion', reward: MILESTONES.adventure });
+    const title = ch.id === 'academy' ? 'Graduated from PAWtastic Academy' : ch.id === 'camp' ? 'PAWtastic Summer Camp champion' : `Finished the ${ch.name}`;
+    if (levels[ch.last]) out.push({ id: `adventure-${ch.id}`, title, reward: MILESTONES.adventure });
   }
   const stars = totalStars(state);
   for (const [n, reward] of MILESTONES.starRoad) if (stars >= n) out.push({ id: `stars-${n}`, title: `${n} stars on the Star Road`, reward });

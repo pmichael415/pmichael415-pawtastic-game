@@ -20,6 +20,10 @@ export const AREA_INTROS = {
   trail: 'Hit the trail! Fallen logs and tangled leashes are all over the path.',
   campfire: 'Campfire Night: everyone gathers round the fire pit. Untangle those leashes before lights out!',
   talent: 'The Talent Show! Pass all 8 acts to win the Camp Champion Medal.',
+  'hawthorne-walk': 'Welcome to your Hawthorne Adventure! A walkabout around town with your PAWtastic Hawthorne pals.',
+  'hawthorne-park': 'Park Day in Hawthorne! Finish all 8 levels to earn the Hawthorne Jersey.',
+  'hillsdale-trail': 'Welcome to your Hillsdale Adventure! Hit the trail with your PAWtastic Hillsdale pals.',
+  'hillsdale-parade': 'The Hillsdale Pup Parade! Finish all 8 levels to earn the Hillsdale Jersey.',
 };
 
 export const JAR_HOST = 'One free open every day. Good luck, student!';

@@ -18,7 +18,11 @@ export function defaultState() {
     lives: { count: LIVES.max, lastRegenAt: 0, unlimitedUntil: 0 },
     activeLevel: null,
     inventory: { boosters: { shuffle: 0, bomb: 0, blaster: 0 }, costumes: [], equipped: null },
-    progress: { unlocked: 1, levels: {}, badges: [] },
+    progress: { unlocked: 1, levels: {}, badges: [], side: { hawthorne: 101, hillsdale: 201 } },
+    // The player's own PAWtastic: picks their home-location adventure and their leaderboard team.
+    home: null,
+    // This week's Weekly Challenge on this device: best score and the moves that made it.
+    weekly: { week: null, best: 0, bestMoves: null, sentBest: 0 },
     pass: {
       active: false, autoRenew: false, startedOn: null, renewsOn: null,
       month: null, points: 0, claimedFree: [], claimedPremium: [], countedDay: null, countedToday: 0,
@@ -70,6 +74,12 @@ function cleanLists(state) {
   state.seenIntros = list(state.seenIntros, isText);
   state.milestones.claimed = list(state.milestones.claimed, isText);
   if (!Number.isFinite(state.lives.unlimitedUntil)) state.lives.unlimitedUntil = 0;
+  if (state.home !== 'hawthorne' && state.home !== 'hillsdale') state.home = null;
+  for (const [k, first] of [['hawthorne', 101], ['hillsdale', 201]]) {
+    const v = state.progress.side[k];
+    state.progress.side[k] = Number.isInteger(v) && v >= first && v <= first + 16 ? v : first;
+  }
+  if (!Array.isArray(state.weekly.bestMoves)) state.weekly.bestMoves = null;
   state.purchases.applied = list(state.purchases.applied, isText);
   state.purchases.refunded = list(state.purchases.refunded, isText);
   state.spending = list(state.spending, s => isPlainObject(s) && Number.isFinite(s.at) && Number.isFinite(s.usd) && isText(s.what));
@@ -161,6 +171,26 @@ export function createWallet({ storage, now }) {
       state.dog = { name: trimmed, breed, coat };
       save();
       return { ok: true };
+    },
+
+    setHome(location) {
+      if (location !== 'hawthorne' && location !== 'hillsdale') return fail('invalid-location');
+      state.home = location;
+      save();
+      return { ok: true };
+    },
+
+    // The Weekly Challenge best on this device (tries are free: no lives, no boosters).
+    recordChallenge(week, score, moves) {
+      const w = state.weekly;
+      if (w.week !== week) Object.assign(w, { week, best: 0, bestMoves: null, sentBest: 0 });
+      const best = score > w.best;
+      if (best) { w.best = score; w.bestMoves = moves; }
+      save();
+      return { best, bestScore: w.best };
+    },
+    markChallengeSent(week, score) {
+      if (state.weekly.week === week) { state.weekly.sentBest = Math.max(state.weekly.sentBest, score); save(); }
     },
 
     balance() {

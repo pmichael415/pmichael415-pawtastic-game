@@ -202,6 +202,13 @@ export async function openPayments({
     account: () => call('GET', '/api/public/game/account'),
     ack: ({ claimed = [], refunds = [] }) => call('POST', '/api/public/game/account/ack', { claimed, refunds }),
     portal: () => call('POST', '/api/public/game/portal', {}),
+    // Competing: the Weekly Challenge (the server replays each run), leaderboards, the player's
+    // leaderboard profile (dog name, home location, stars) and prizes won.
+    challengeWeek: () => call('GET', '/api/public/game/challenge', undefined, { signedIn: false }),
+    submitChallenge: ({ week, moves }) => call('POST', '/api/public/game/challenge', { week, moves }),
+    leaderboard: ({ board = 'weekly', location = 'all' } = {}) => call('GET', `/api/public/game/leaderboard?board=${encodeURIComponent(board)}&location=${encodeURIComponent(location)}`, undefined, { signedIn: false }),
+    sendProfile: profile => call('POST', '/api/public/game/profile', profile),
+    prizes: () => call('GET', '/api/public/game/prizes'),
     // A 6-digit code that signs the Home Screen app in to this account (good for 10 minutes).
     appSigninCode: () => call('POST', '/api/public/game/signin-code', {}),
     // Invite a friend: the player's own code and free baths, and a check of a code from an invite link.
@@ -210,6 +217,8 @@ export async function openPayments({
     // The front desk's referral page (staff emails only).
     staffHome: () => call('GET', '/api/public/game/staff'),
     staffAction: input => call('POST', '/api/public/game/staff', input),
+    staffPrizes: () => call('GET', '/api/public/game/staff/prizes'),
+    staffPrizeAction: input => call('POST', '/api/public/game/staff/prizes', input),
     report: ({ kind, message, email, details }) => call('POST', '/api/public/game/report', {
       kind, message: String(message ?? '').slice(0, 2000), ...(email ? { email } : {}), ...(details ? { details } : {}),
     }, { signedIn: false }),
