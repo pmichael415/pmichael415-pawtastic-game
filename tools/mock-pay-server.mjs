@@ -1,5 +1,5 @@
 // A stand-in for the public site's server, for testing the game's real-purchase flow on this
-// computer: the /api/game/* endpoints (same contract as the Lovable server), a fake email-code
+// computer: the /api/public/game/* endpoints (same contract as the Lovable server), a fake email-code
 // sign-in (the code is always 123456), and fake Stripe Checkout and customer-portal pages.
 //
 //   node tools/mock-pay-server.mjs <folder with the built page> [port]
@@ -72,7 +72,7 @@ createServer(async (req, res) => {
     const origin = `http://${req.headers.host}`;
     const path = url.pathname;
 
-    if (path === '/api/game/config') return send(res, 200, { payments: PAYMENTS, mode: 'test', authUrl: origin, authKey: 'mock-anon-key' });
+    if (path === '/api/public/game/config') return send(res, 200, { payments: PAYMENTS, mode: 'test', authUrl: origin, authKey: 'mock-anon-key' });
 
     // Fake GoTrue (Lovable Cloud auth).
     if (path === '/auth/v1/otp' && req.method === 'POST') {
@@ -95,7 +95,7 @@ createServer(async (req, res) => {
     }
     if (path === '/auth/v1/logout') { db.tokens.delete((req.headers.authorization || '').replace(/^Bearer /, '')); res.writeHead(204); return res.end(); }
 
-    if (path === '/api/game/report' && req.method === 'POST') {
+    if (path === '/api/public/game/report' && req.method === 'POST') {
       const user = authed(req);
       const key = user?.id ?? req.socket.remoteAddress;
       const recent = (reportsBy.get(key) ?? []).filter(t => Date.now() - t < 3600000);
@@ -107,16 +107,16 @@ createServer(async (req, res) => {
       return send(res, 200, { ok: true });
     }
 
-    if (path.startsWith('/api/game/') && path !== '/api/game/config') {
+    if (path.startsWith('/api/public/game/') && path !== '/api/public/game/config') {
       const user = authed(req);
       if (!user) return send(res, 401, { error: 'signed-out' });
-      if (path === '/api/game/save' && req.method === 'GET') {
+      if (path === '/api/public/game/save' && req.method === 'GET') {
         const s = db.saves.get(user.id);
         return send(res, 200, { exists: !!s, data: s ?? null });
       }
-      if (path === '/api/game/save' && req.method === 'PUT') { db.saves.set(user.id, (await bodyOf(req)).data); return send(res, 200, { ok: true }); }
+      if (path === '/api/public/game/save' && req.method === 'PUT') { db.saves.set(user.id, (await bodyOf(req)).data); return send(res, 200, { ok: true }); }
       if (!PAYMENTS) return send(res, 503, { error: 'payments-off' });
-      if (path === '/api/game/checkout' && req.method === 'POST') {
+      if (path === '/api/public/game/checkout' && req.method === 'POST') {
         const { product } = await bodyOf(req);
         if (!CATALOG[product]) return send(res, 400, { error: 'unknown-product' });
         const mine = db.purchases.filter(p => p.userId === user.id);
@@ -129,17 +129,17 @@ createServer(async (req, res) => {
         db.sessions.set(id, { id, userId: user.id, product, success: `${origin}/play/index.html?checkout=success&session_id=${id}`, cancel: `${origin}/play/index.html?checkout=cancel` });
         return send(res, 200, { url: `${origin}/mock-stripe/checkout/${id}` });
       }
-      if (path === '/api/game/account' && req.method === 'GET') {
+      if (path === '/api/public/game/account' && req.method === 'GET') {
         const purchases = db.purchases.filter(p => p.userId === user.id && ((p.status === 'paid' && !p.claimed) || (p.status === 'refunded' && !p.refundAcked)))
           .map(p => ({ id: p.id, product: p.product, status: p.status }));
         return send(res, 200, { email: user.email, purchases, pass: passOf(user) });
       }
-      if (path === '/api/game/account/ack' && req.method === 'POST') {
+      if (path === '/api/public/game/account/ack' && req.method === 'POST') {
         const { claimed = [], refunds = [] } = await bodyOf(req);
         for (const p of db.purchases) if (p.userId === user.id) { if (claimed.includes(p.id)) p.claimed = true; if (refunds.includes(p.id)) p.refundAcked = true; }
         return send(res, 200, { ok: true });
       }
-      if (path === '/api/game/portal' && req.method === 'POST') return send(res, 200, { url: `${origin}/mock-stripe/portal/${encodeURIComponent(user.id)}` });
+      if (path === '/api/public/game/portal' && req.method === 'POST') return send(res, 200, { url: `${origin}/mock-stripe/portal/${encodeURIComponent(user.id)}` });
       return send(res, 404, { error: 'not-found' });
     }
 

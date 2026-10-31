@@ -1,4 +1,4 @@
-// Real purchases on the public PAWtastic site. The site's own server (/api/game/*) sells Treat
+// Real purchases on the public PAWtastic site. The site's own server (/api/public/game/*) sells Treat
 // packs, the Starter Pack and the Pup Pass through Stripe, keeps buyers' saved games and emails
 // PAWtastic about problems. Buyers sign in with a one-time code sent by email (Lovable Cloud).
 //
@@ -12,7 +12,7 @@ import { createLocalStorage } from '../economy/storage-local.js';
 
 export const SESSION_KEY = 'pawtastic-gd-session-v1';
 export const PENDING_KEY = 'pawtastic-gd-pending-checkout-v1';
-const CONFIG_PATH = '/api/game/config';
+const CONFIG_PATH = '/api/public/game/config';
 const REFRESH_EARLY_S = 60;
 
 function decodeJwt(token) {
@@ -178,11 +178,11 @@ export async function openPayments({
       return { ok: true };
     },
 
-    checkout: product => call('POST', '/api/game/checkout', { product }),
-    account: () => call('GET', '/api/game/account'),
-    ack: ({ claimed = [], refunds = [] }) => call('POST', '/api/game/account/ack', { claimed, refunds }),
-    portal: () => call('POST', '/api/game/portal', {}),
-    report: ({ kind, message, email, details }) => call('POST', '/api/game/report', {
+    checkout: product => call('POST', '/api/public/game/checkout', { product }),
+    account: () => call('GET', '/api/public/game/account'),
+    ack: ({ claimed = [], refunds = [] }) => call('POST', '/api/public/game/account/ack', { claimed, refunds }),
+    portal: () => call('POST', '/api/public/game/portal', {}),
+    report: ({ kind, message, email, details }) => call('POST', '/api/public/game/report', {
       kind, message: String(message ?? '').slice(0, 2000), ...(email ? { email } : {}), ...(details ? { details } : {}),
     }, { signedIn: false }),
 
@@ -191,12 +191,12 @@ export async function openPayments({
     accountStore() {
       const doc = {
         async get() {
-          const r = await call('GET', '/api/game/save');
+          const r = await call('GET', '/api/public/game/save');
           if (!r.ok) throw new Error(r.error);
           return { exists: !!r.exists && r.data != null, data: () => r.data };
         },
         async set(value) {
-          const r = await call('PUT', '/api/game/save', { data: value });
+          const r = await call('PUT', '/api/public/game/save', { data: value });
           if (!r.ok) throw new Error(r.error);
         },
       };
