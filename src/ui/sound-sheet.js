@@ -3,7 +3,8 @@
 
 import { h, reducedMotion } from './dom.js';
 import { effectsEnabled } from '../audio/settings.js';
-import { isPublicFreePlay } from '../backend/local.js';
+import { isPublicSite } from '../backend/local.js';
+import { accountMenu } from './payments.js';
 
 function switchRow(label, on, onToggle) {
   const btn = h('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(on), 'aria-label': label },
@@ -41,8 +42,9 @@ export function showSoundSheet(app) {
     switchRow('Sound effects', now.sfx, on => settings.set({ sfx: on })),
     switchRow('Celebration effects', effectsEnabled(now, reducedMotion()), on => settings.set({ effects: on ? 'on' : 'off' })),
     app.services.backend?.features.account ? accountSection(app, () => sheet.close()) : null,
-    // The public site has no account section, so its rules & privacy note is linked here.
-    isPublicFreePlay(app.services.backend)
+    // The public site: its own account options (sign-in for buyers, reports) and rules & privacy.
+    isPublicSite(app.services.backend) ? accountMenu(app, () => sheet.close()) : null,
+    isPublicSite(app.services.backend)
       ? h('button', { class: 'btn secondary block', type: 'button', onClick: () => { sheet.close(); app.go('rules'); } }, 'Game rules & privacy')
       : null,
     h('button', { class: 'btn block', type: 'button', onClick: () => sheet.close() }, 'Done'),

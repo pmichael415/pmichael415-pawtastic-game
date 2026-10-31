@@ -9,6 +9,7 @@ import { createParticleLayer } from '../../fx/particles.js';
 import { AREAS, getLevel, areaOf } from '../../engine/levels.js';
 import { COSTUMES, STARTER_PACK, formatUsd, treatsToUsd } from '../../economy/catalog.js';
 import { confirmPurchase } from '../purchase.js';
+import { realPayments, startCheckout } from '../payments.js';
 import { shareDog } from '../share-card.js';
 import { showFailure } from '../failure.js';
 
@@ -34,6 +35,7 @@ export function showStarterPackOffer(app) {
     const buy = async () => {
       buying = true;
       sheet.close();
+      if (realPayments(app)) { await startCheckout(app, 'starter'); resolve(); return; }
       const ok = await confirmPurchase(app, {
         title: 'Starter Pack', usd: STARTER_PACK.usd,
         lines: [`${STARTER_PACK.treats} Treats`, '1 Shuffle, 1 Bone Bomb, 1 Bubble Blaster', 'Bandana costume'],
@@ -47,7 +49,7 @@ export function showStarterPackOffer(app) {
       resolve();
     };
     sheet = app.modal(h('div', { class: 'stack' },
-      h('span', { class: 'demo-label' }, 'Demo — no real charge'),
+      realPayments(app) ? null : h('span', { class: 'demo-label' }, 'Demo — no real charge'),
       h('p', { class: 'eyebrow' }, 'One-time offer'),
       h('h2', {}, 'Starter Pack'),
       h('ul', { class: 'plain-list' },

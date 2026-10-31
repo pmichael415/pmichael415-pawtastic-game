@@ -6,7 +6,9 @@
 
 import { createRng } from './engine/rng.js';
 import { createWallet } from './economy/wallet.js';
-import { createLocalBackend, DEMO_FEATURES, FREE_PLAY_FEATURES } from './backend/local.js';
+import { createLocalBackend, DEMO_FEATURES, FREE_PLAY_FEATURES, PAID_FEATURES } from './backend/local.js';
+import { openPayments } from './net/pay-api.js';
+import { afterOpen, readCheckoutReturn } from './ui/payments.js';
 import { openSavedGame } from './backend/saved-game.js';
 import { bootServer } from './net/boot.js';
 import { createAttemptQueue, QUEUE_KEY } from './net/attempt-queue.js';
@@ -62,19 +64,25 @@ const screens = {
 
 let app = null;
 // storagePersistent: false shows "Progress won't be saved on this device."
-const startApp = ({ storagePersistent, jar = null }) => {
+// pay: the public site's server (src/net/pay-api.js); flushSave: send the saved game now.
+const startApp = ({ storagePersistent, jar = null, pay = null, flushSave = null }) => {
   app = createApp(document.getElementById('app'), {
-    backend: null, api: null, reboot: null, jar, debug, openResult: null, settings, audio,
+    backend: null, api: null, reboot: null, jar, debug, openResult: null, settings, audio, pay, flushSave,
     onScreen: name => audio.music(name === 'level' ? 'level-theme' : 'map-theme'),
     storagePersistent,
   }, screens);
 };
 
 async function bootLocal() {
+  // The public site's own server: real purchases (Stripe), buyers' saved games and reports.
+  // Null anywhere else (claude.ai, a file on disk), where the game stays as it was.
+  const pay = freePlay ? await openPayments() : null;
+  const checkoutReturn = pay ? readCheckoutReturn() : { checkout: null, sessionId: null };
   // Inside claude.ai the saved game also lives on the player's account, so an app that forgets
-  // its storage (the Claude phone app) picks up where they left off.
+  // its storage (the Claude phone app) picks up where they left off. On the public site the same
+  // happens for a signed-in buyer, with their PAWtastic game account.
   const saved = await openSavedGame({
-    claude: window.claude, now,
+    claude: window.claude ?? (pay?.signedIn ? pay.accountStore() : undefined), now,
     stores: { wallet: createLocalStorage(STORAGE_KEYS.wallet), jar: createLocalStorage(STORAGE_KEYS.jar) },
     stamp: createLocalStorage('pawtastic-gd-saved-at-v1'),
   });
@@ -83,13 +91,18 @@ async function bootLocal() {
   // Send the latest save before the page goes away (a closed app or a switched tab).
   addEventListener('pagehide', () => { saved.flush(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) saved.flush(); });
-  startApp({ storagePersistent: saved.stores.wallet.persistent && saved.stores.jar.persistent, jar });
+  startApp({ storagePersistent: saved.stores.wallet.persistent && saved.stores.jar.persistent, jar, pay, flushSave: () => saved.flush() });
   // Debug only: give screenshot runs a dog so they can jump straight to a screen.
   if (debug && !wallet.state.dog) wallet.setDog({ name: 'Biscuit', breed: 'lab', coat: COATS[0].hex });
-  app.services.backend = createLocalBackend({ wallet, features: freePlay ? FREE_PLAY_FEATURES : DEMO_FEATURES });
+  const features = !freePlay ? DEMO_FEATURES : pay?.payments ? PAID_FEATURES : FREE_PLAY_FEATURES;
+  app.services.backend = createLocalBackend({
+    wallet, features, release: freePlay ? 'public' : 'demo', payments: pay?.payments ? pay : null,
+  });
   app.services.openResult = await app.services.backend.open();
   const debugScreen = debug && params.get('screen');
   app.go(debugScreen || 'loading', debugScreen ? { levelId: Number(params.get('level') || 1), areaId: params.get('area') || undefined, skipIntro: true } : {});
+  // Purchases paid for (or refunded) since last time, and the return from Stripe's checkout.
+  if (pay) afterOpen(app, checkoutReturn).catch(() => {});
 }
 
 async function bootServerMode() {

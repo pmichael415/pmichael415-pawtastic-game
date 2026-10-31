@@ -5,15 +5,24 @@
 // resolves { ok: true, … } or { ok: false, error }.
 
 export const DEMO_FEATURES = { purchases: true, jar: true, pass: true, account: false, stats: false };
-// The public free-play site: nothing for sale, no Pup Pass, no Treat Jar (they show "Coming soon").
+// The public site without payments: nothing for sale, no Pup Pass, no Treat Jar (they show "Coming soon").
 export const FREE_PLAY_FEATURES = { purchases: false, jar: false, pass: false, account: false, stats: false };
+// The public site with Stripe switched on: real Treat packs, Starter Pack and Pup Pass. The Treat Jar
+// stays off (a prize draw next to real purchases needs official rules approved first).
+export const PAID_FEATURES = { purchases: true, jar: false, pass: true, account: false, stats: false };
 
-// True on the public free-play site: local mode with nothing for sale.
-export const isPublicFreePlay = backend => backend?.kind === 'local' && !backend.features.purchases;
+// True on the public site (pawtastic-graduation.lovable.app), with or without payments.
+export const isPublicSite = backend => backend?.kind === 'local' && backend.release === 'public';
 
-export function createLocalBackend({ wallet, features = DEMO_FEATURES }) {
+/**
+ * release:  'demo' (claude.ai, simulated purchases) or 'public' (the website).
+ * payments: the client from src/net/pay-api.js when real purchases are on, else null.
+ */
+export function createLocalBackend({ wallet, features = DEMO_FEATURES, release = 'demo', payments = null }) {
   return {
     kind: 'local',
+    release,
+    payments,
     features: { ...features },
 
     state: () => wallet.state,
@@ -40,6 +49,11 @@ export function createLocalBackend({ wallet, features = DEMO_FEATURES }) {
     async resumeLevel(levelId) { return wallet.resumeLevel(levelId); },
     async logEvent() { return { ok: true }; },
     async stats() { return { ok: false, error: 'coming-soon' }; },
+
+    // Real purchases: apply what the server says was paid or refunded, and the Pup Pass status.
+    applyPurchase: (id, product) => wallet.applyPurchase(id, product),
+    applyRefund: (id, product) => wallet.applyRefund(id, product),
+    syncPass: pass => wallet.syncPass(pass),
 
     async buyPack(packId) { return wallet.buyPack(packId); },
     async buyStarterPack() { return wallet.buyStarterPack(); },

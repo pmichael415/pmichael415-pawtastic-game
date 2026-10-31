@@ -7,6 +7,7 @@ import { dogSVG, tileSVG } from '../art.js';
 import { treatIcon, heartIcon, shuffleIcon } from '../icons.js';
 import { topBar } from '../topbar.js';
 import { confirmPurchase, confirmTreatSpend } from '../purchase.js';
+import { realPayments, startCheckout, reportSheet, testModeLabel, REFUND_POLICY } from '../payments.js';
 import {
   PACKS, ITEMS, COSTUMES, SETS, STARTER_PACK, EVENT, COINS,
   formatUsd, treatsToUsd,
@@ -69,11 +70,13 @@ export function render(app) {
   }
 
   async function buyPack(pack) {
+    if (realPayments(app)) { await startCheckout(app, pack.id); return; }
     const ok = await confirmPurchase(app, { title: `${pack.treats} Treats`, usd: pack.usd, lines: [`${pack.treats} Treats added to your balance`] });
     if (ok) done(backend.buyPack(pack.id), 'Treats added. Receipt sent (demo).');
   }
 
   async function buyStarter() {
+    if (realPayments(app)) { await startCheckout(app, 'starter'); return; }
     const ok = await confirmPurchase(app, {
       title: 'Starter Pack', usd: STARTER_PACK.usd,
       lines: [`${STARTER_PACK.treats} Treats`, '1 Shuffle, 1 Bone Bomb, 1 Bubble Blaster', 'Bandana costume'],
@@ -111,7 +114,14 @@ export function render(app) {
     ), { label: 'Convert Reward Coins' });
   }
 
-  function refundNote() {
+  function refundNote(s) {
+    if (realPayments(app)) {
+      reportSheet(app, {
+        kind: 'refund', title: 'Request a refund', intro: REFUND_POLICY, requireMessage: false,
+        details: { purchase: spendName(s.what), usd: s.usd, date: new Date(s.at).toISOString() },
+      });
+      return;
+    }
     let sheet;
     sheet = app.modal(h('div', { class: 'stack' },
       h('span', { class: 'demo-label' }, 'Demo'),
@@ -143,7 +153,8 @@ export function render(app) {
         h('span', { class: 'shop-art', html: treatIcon() }),
         h('strong', { class: 'num' }, `${p.treats} Treats`),
         h('span', { class: 'price num' }, formatUsd(p.usd))))),
-    h('p', { class: 'muted small' }, 'Demo — no real charge.'));
+    realPayments(app) ? h('p', { class: 'muted small' }, 'Secure checkout by Stripe.') : h('p', { class: 'muted small' }, 'Demo — no real charge.'),
+    realPayments(app) ? testModeLabel(app) : null);
 
     const starter = state.starterPack.bought ? null : section('Starter Pack',
       h('div', { class: 'shop-row' },
@@ -182,8 +193,8 @@ export function render(app) {
 
     const history = [...state.spending].reverse();
     const spending = section('Spending',
-      h('p', { class: 'num' }, `Demo spending this month: ${formatUsd(spent)} of ${formatUsd(limit)} limit`),
-      spent > limit ? h('p', { class: 'muted small' }, 'Over your limit — the real app would block more purchases this month.') : null,
+      h('p', { class: 'num' }, `${realPayments(app) ? 'Spending' : 'Demo spending'} this month: ${formatUsd(spent)} of ${formatUsd(limit)} limit`),
+      spent > limit ? h('p', { class: 'muted small' }, realPayments(app) ? "You've reached your limit for this month." : 'Over your limit — the real app would block more purchases this month.') : null,
       h('div', { class: 'limit-choices', role: 'group', 'aria-label': 'Monthly spending limit' },
         LIMIT_CHOICES.map(v => h('button', {
           class: `chip${v === limit ? ' on' : ''}`, type: 'button', 'aria-pressed': String(v === limit),
@@ -194,7 +205,7 @@ export function render(app) {
           h('strong', {}, spendName(s.what)),
           h('strong', { class: 'num' }, formatUsd(s.usd)),
           h('span', { class: 'muted small' }, formatLongDate(dayKey(s.at))),
-          h('button', { class: 'btn secondary small-btn', type: 'button', onClick: refundNote }, 'Request refund'))))
+          h('button', { class: 'btn secondary small-btn', type: 'button', onClick: () => refundNote(s) }, 'Request refund'))))
         : h('p', { class: 'muted small' }, 'No purchases yet.'));
 
     // The free-play release sells nothing for money: only what free Treats buy.
@@ -202,6 +213,8 @@ export function render(app) {
       const soon = section('Coming soon', h('p', {}, 'Buying Treats is coming soon. Free Treats come from your daily streak.'));
       return h('div', { class: 'shop stack' }, h('h1', {}, 'Shop'), balance, items, costumes, soon);
     }
+    // Reward Coins come from real PAWtastic visits, which the public site can't see yet.
+    if (realPayments(app)) return h('div', { class: 'shop stack' }, h('h1', {}, 'Shop'), balance, packs, starter, items, costumes, spending);
     return h('div', { class: 'shop stack' }, h('h1', {}, 'Shop'), balance, packs, starter, items, costumes, coins, spending);
   }
 

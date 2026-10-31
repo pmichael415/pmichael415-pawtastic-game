@@ -10,6 +10,7 @@ import { rewardFor } from '../../economy/progression.js';
 import { dayKey, addDays, formatLongDate } from '../../economy/time.js';
 import { showFailure } from '../failure.js';
 import { render as comingSoon } from './coming-soon.js';
+import { realPayments, startCheckout, openPortal, testModeLabel } from '../payments.js';
 
 const PRICE = formatUsd(PASS.usd);
 const ERRORS = {
@@ -35,19 +36,23 @@ export function render(app) {
 
   function signUp(renewsOn) {
     let s;
-    const start = h('button', { class: 'btn', type: 'button', disabled: true }, 'Start Pup Pass');
+    const real = realPayments(app);
+    // Real payments: resuming a cancelled pass happens on Stripe's account page.
+    if (real && backend.passStatus().active) { openPortal(app); return; }
+    const start = h('button', { class: 'btn', type: 'button', disabled: true }, real ? 'Continue to checkout' : 'Start Pup Pass');
     const agree = h('input', { type: 'checkbox', id: 'pass-agree' });
     agree.addEventListener('change', () => { start.disabled = !agree.checked; });
     start.addEventListener('click', async () => {
       if (!agree.checked) return;
       s.close();
+      if (real) { await startCheckout(app, 'pass', { confirmed: true }); return; }
       const res = await backend.startPass();
       if (res.ok || res.error === 'already-active') app.toast(res.ok ? "You're in! A confirmation email would be sent now (demo)." : 'Your Pup Pass is already active.');
       else showFailure(app, res.error);
       refresh();
     });
     s = app.modal(h('div', { class: 'stack pass-sheet' },
-      h('span', { class: 'demo-label' }, 'Demo — no real charge'),
+      real ? testModeLabel(app) : h('span', { class: 'demo-label' }, 'Demo — no real charge'),
       h('h2', {}, 'Pup Pass'),
       h('p', { class: 'pass-price' }, `${PRICE} every month until you cancel`),
       h('p', {}, `Renews ${formatLongDate(renewsOn)}`),
@@ -55,12 +60,14 @@ export function render(app) {
         h('li', {}, 'Unlimited lives'),
         h('li', {}, 'Premium rewards on all 20 tiers'),
         h('li', {}, 'The Honor Roll Sash costume at tier 20')),
-      h('p', {}, 'Cancel anytime in Pup Pass settings — one tap.'),
+      h('p', {}, real ? 'Cancel anytime from this screen or the menu: Manage Pup Pass & receipts.' : 'Cancel anytime in Pup Pass settings — one tap.'),
       h('label', { class: 'consent', for: 'pass-agree' }, agree, h('span', {}, `I agree to be charged ${PRICE} every month until I cancel.`)),
-      h('fieldset', { class: 'demo-card', disabled: true },
-        h('legend', {}, 'Demo — no card needed'),
-        h('label', {}, 'Card number', h('input', { type: 'text', placeholder: '•••• •••• •••• ••••', disabled: true })),
-        h('label', {}, 'Expiry', h('input', { type: 'text', placeholder: 'MM / YY', disabled: true }))),
+      real
+        ? h('p', { class: 'muted small' }, "You'll enter your card on Stripe's secure checkout page. PAWtastic never sees your card number.")
+        : h('fieldset', { class: 'demo-card', disabled: true },
+          h('legend', {}, 'Demo — no card needed'),
+          h('label', {}, 'Card number', h('input', { type: 'text', placeholder: '•••• •••• •••• ••••', disabled: true })),
+          h('label', {}, 'Expiry', h('input', { type: 'text', placeholder: 'MM / YY', disabled: true }))),
       h('div', { class: 'btn-pair' },
         start,
         h('button', { class: 'btn secondary', type: 'button', onClick: () => s.close() }, 'No thanks')),
@@ -69,6 +76,16 @@ export function render(app) {
 
   function cancel(renewsOn) {
     let s;
+    if (realPayments(app)) {
+      s = app.modal(h('div', { class: 'stack' },
+        h('h2', {}, 'Cancel Pup Pass?'),
+        h('p', {}, `You'll cancel on Stripe's secure account page. You won't be charged again, and your benefits continue until ${formatLongDate(renewsOn)}.`),
+        h('div', { class: 'btn-pair' },
+          h('button', { class: 'btn', type: 'button', onClick: () => { s.close(); openPortal(app); } }, 'Continue to cancel'),
+          h('button', { class: 'btn secondary', type: 'button', onClick: () => s.close() }, 'Keep it'))),
+      { label: 'Cancel Pup Pass' });
+      return;
+    }
     const yes = async () => {
       s.close();
       const res = await backend.cancelPass();

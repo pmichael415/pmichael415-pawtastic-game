@@ -25,6 +25,8 @@ export function defaultState() {
     },
     streak: { day: 0, lastOpenDay: null },
     starterPack: { bought: false, offerShown: false },
+    // Real purchases (public site): server purchase ids already added to, or refunded from, this save.
+    purchases: { applied: [], refunded: [] },
     spending: [],
     spendingLimit: SPENDING_LIMIT.default,
     seenIntros: [],
@@ -65,6 +67,8 @@ function cleanLists(state) {
   state.pass.claimedFree = list(state.pass.claimedFree, isTier);
   state.pass.claimedPremium = list(state.pass.claimedPremium, isTier);
   state.seenIntros = list(state.seenIntros, isText);
+  state.purchases.applied = list(state.purchases.applied, isText);
+  state.purchases.refunded = list(state.purchases.refunded, isText);
   state.spending = list(state.spending, s => isPlainObject(s) && Number.isFinite(s.at) && Number.isFinite(s.usd) && isText(s.what));
 }
 
@@ -117,6 +121,20 @@ export function createWallet({ storage, now }) {
     if (!state.inventory.costumes.includes(id)) state.inventory.costumes.push(id);
   }
 
+  function grantPack(pack) {
+    state.treats.paid += pack.treats;
+    logSpend(pack.usd, pack.id);
+  }
+
+  function grantStarterPack() {
+    state.treats.paid += STARTER_PACK.treats;
+    for (const [b, n] of Object.entries(STARTER_PACK.boosters)) state.inventory.boosters[b] += n;
+    grantCostume(STARTER_PACK.costume);
+    completeSets();
+    state.starterPack.bought = true;
+    logSpend(STARTER_PACK.usd, 'starter-pack');
+  }
+
   function completeSets() {
     for (const set of SETS) {
       const owned = state.inventory.costumes;
@@ -149,22 +167,65 @@ export function createWallet({ storage, now }) {
     buyPack(packId) {
       const pack = PACKS.find(p => p.id === packId);
       if (!pack) return fail('unknown-pack');
-      state.treats.paid += pack.treats;
-      logSpend(pack.usd, pack.id);
+      grantPack(pack);
       save();
       return { ok: true, treats: pack.treats };
     },
 
     buyStarterPack() {
       if (state.starterPack.bought) return fail('already-bought');
-      state.treats.paid += STARTER_PACK.treats;
-      for (const [b, n] of Object.entries(STARTER_PACK.boosters)) state.inventory.boosters[b] += n;
-      grantCostume(STARTER_PACK.costume);
-      completeSets();
-      state.starterPack.bought = true;
-      logSpend(STARTER_PACK.usd, 'starter-pack');
+      grantStarterPack();
       save();
       return { ok: true };
+    },
+
+    // A purchase the server confirmed was paid (Stripe). Each purchase id is added once per save,
+    // so syncing again, or on another device with the same save, never doubles it.
+    applyPurchase(id, product) {
+      if (typeof id !== 'string' || !id) return fail('invalid');
+      if (state.purchases.applied.includes(id)) return { ok: true, duplicate: true };
+      const pack = PACKS.find(p => p.id === product);
+      if (pack) grantPack(pack);
+      else if (product === 'starter') grantStarterPack();
+      else if (product === 'pass') { startPass(state, now()); logSpend(PASS.usd, 'pass'); }
+      else return fail('unknown-product');
+      state.purchases.applied.push(id);
+      save();
+      return { ok: true, product, treats: pack?.treats ?? (product === 'starter' ? STARTER_PACK.treats : 0) };
+    },
+
+    // A refunded purchase: its bought Treats come back off the balance (never below zero).
+    // A refunded Pup Pass ends through syncPass, from the server's subscription status.
+    applyRefund(id, product) {
+      if (typeof id !== 'string' || !id) return fail('invalid');
+      if (state.purchases.refunded.includes(id)) return { ok: true, duplicate: true };
+      const treats = PACKS.find(p => p.id === product)?.treats ?? (product === 'starter' ? STARTER_PACK.treats : 0);
+      let left = treats;
+      for (const ledger of ['paid', 'converted', 'free']) {
+        const take = Math.min(state.treats[ledger], left);
+        state.treats[ledger] -= take;
+        left -= take;
+      }
+      state.purchases.refunded.push(id);
+      save();
+      return { ok: true, product, treats: treats - left };
+    },
+
+    // The Pup Pass as Stripe sees it: { active, renewsOn: 'YYYY-MM-DD' | null, autoRenew }.
+    syncPass(pass) {
+      if (!pass || typeof pass.active !== 'boolean') return fail('invalid');
+      const p = state.pass;
+      if (pass.active) {
+        if (!p.active) p.startedOn = dayKey(now());
+        p.active = true;
+        p.autoRenew = !!pass.autoRenew;
+        if (typeof pass.renewsOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(pass.renewsOn)) p.renewsOn = pass.renewsOn;
+      } else if (p.active) {
+        p.active = false;
+        p.autoRenew = false;
+      }
+      save();
+      return { ok: true, active: passActive(state, now()) };
     },
 
     convertCoins(n) {
