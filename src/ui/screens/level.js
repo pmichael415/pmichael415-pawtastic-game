@@ -13,6 +13,7 @@ import { createGame, trySwap, addMoves, useBooster, canUseBooster, snapshotGame,
 import { findValidMove } from '../../engine/shuffle.js';
 import { ITEMS, PACKS, formatUsd } from '../../economy/catalog.js';
 import { confirmPurchase } from '../purchase.js';
+import { realPayments, startCheckout } from '../payments.js';
 import { withBusy, showFailure } from '../failure.js';
 import { treatPrice, showsDollars } from '../prices.js';
 import { syncProfile } from '../compete.js';
@@ -253,6 +254,9 @@ function play(app, levelId, snapshot = null) {
       updateHud();
     };
     const buyTreats = async () => {
+      // On the public site Treats are sold only through Stripe Checkout. The board is already saved
+      // at "So close!", so after paying the player continues this level from the map.
+      if (realPayments(app)) { await startCheckout(app, PACKS[0].id); return; }
       const ok = await confirmPurchase(app, { title: `${PACKS[0].treats} Treats`, usd: PACKS[0].usd, lines: [`${PACKS[0].treats} Treats`] });
       if (ok) {
         const res = await w.buyPack(PACKS[0].id);

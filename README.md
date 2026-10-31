@@ -117,6 +117,11 @@ Not in this copy (they were never in the artifact): the automated tests, `src/ne
 - Each purchase is also recorded in the game's database (`game_mode_purchases`: product, amount, date, refunds,
   test vs live), which a revenue report can read.
 - Sign-in and cloud saves work for every player, with or without payments.
+- Every place that sells Treats for money — the Shop, the Starter Pack offer and "So close!" when a level runs out
+  of moves — goes through Stripe Checkout. The board is saved at "So close!", so after paying the player taps
+  "Continue Level N" and buys the extra moves. On the public site the browser can never add paid Treats, the
+  Starter Pack or the Pup Pass by itself (`src/backend/local.js`); only purchases the server confirms are added.
+  Tests: `node --test tools/test-backend.mjs`, and `node tools/e2e-out-of-moves.cjs` against `tools/mock-pay-server.mjs`.
 
 ## Music
 
