@@ -3,7 +3,7 @@
 // PAWtastic about problems. Buyers sign in with a one-time code sent by email (Lovable Cloud).
 //
 // All of it is optional: when the server can't be reached (claude.ai, a file on disk) the game
-// stays free-play, and when payments are switched off on the server only reports work.
+// stays free-play; when payments are off on the server, sign-in (cloud saves) and reports still work.
 //
 // Results are { ok: true, ... } or { ok: false, error } with error one of
 // 'offline' | 'signed-out' | 'rate-limited' | 'server' | a server error code (e.g. 'monthly-cap').
@@ -47,7 +47,7 @@ export const isEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(s ?? '')
  */
 export async function openPayments({
   fetchImpl = globalThis.fetch?.bind(globalThis), base = '', loc = globalThis.location, hist = globalThis.history,
-  store = createLocalStorage(SESSION_KEY), now = () => Date.now(), timeoutMs = 3500,
+  store = createLocalStorage(SESSION_KEY), now = () => Date.now(), timeoutMs = 3500, redirectPath = '/play/index.html',
 } = {}) {
   if (typeof fetchImpl !== 'function') return null;
   const nowS = () => Math.floor(now() / 1000);
@@ -83,8 +83,10 @@ export async function openPayments({
     } catch { config = null; } finally { if (timer) clearTimeout(timer); }
   }
   if (!config) return null;
-  const payments = config.payments === true && typeof config.authUrl === 'string' && typeof config.authKey === 'string';
-  const authUrl = payments ? config.authUrl.replace(/\/+$/, '') : '';
+  // Accounts (sign-in and cloud saves) work whenever the server offers sign-in; payments only add buying.
+  const accounts = typeof config.authUrl === 'string' && !!config.authUrl && typeof config.authKey === 'string' && !!config.authKey;
+  const payments = config.payments === true && accounts;
+  const authUrl = accounts ? config.authUrl.replace(/\/+$/, '') : '';
 
   let session = (() => { try { return store.load(); } catch { return null; } })();
   if (!session?.access_token) session = null;
@@ -92,16 +94,17 @@ export async function openPayments({
   const forget = () => { session = null; try { store.save(null); } catch { /* ignore */ } };
 
   // A sign-in link from the email lands here with the session in the URL fragment.
-  if (payments && loc?.hash && /access_token=/.test(loc.hash)) {
+  let landedFromLink = false;
+  if (accounts && loc?.hash && /access_token=/.test(loc.hash)) {
     const params = new URLSearchParams(loc.hash.slice(1));
     const landed = toSession(Object.fromEntries(params), nowS());
-    if (landed) keep(landed);
+    if (landed) { keep(landed); landedFromLink = true; }
     try { hist?.replaceState(null, '', loc.pathname + loc.search); } catch { /* ignore */ }
   }
 
   // Sign-in calls carry the publishable key as `apikey`. Only an old-style key (a JWT) may also go in the
   // Authorization header; the newer sb_publishable_ keys are refused there.
-  const keyIsJwt = config.authKey.split('.').length === 3;
+  const keyIsJwt = accounts && config.authKey.split('.').length === 3;
   const auth = (path, body, token) => request('POST', `${authUrl}/auth/v1/${path}`, { body, apikey: config.authKey, token: token ?? (keyIsJwt ? config.authKey : undefined) });
 
   let refreshing = null;
@@ -144,16 +147,19 @@ export async function openPayments({
     return { ok: false, error: errorOf(res) };
   }
 
-  const redirectTo = () => { try { return `${loc.origin}/play/index.html`; } catch { return undefined; } };
+  const redirectTo = () => { try { return `${loc.origin}${redirectPath}`; } catch { return undefined; } };
 
   return {
+    accounts,
     payments,
     mode: config.mode === 'live' ? 'live' : 'test',
     get signedIn() { return !!session; },
+    // True when this page was opened by the email's sign-in link (iPhone: that's Safari, not the Home Screen app).
+    landedFromLink,
     get email() { return session?.email ?? null; },
 
     async sendCode(email) {
-      if (!payments) return { ok: false, error: 'server' };
+      if (!accounts) return { ok: false, error: 'server' };
       if (!isEmail(email)) return { ok: false, error: 'invalid-email' };
       const to = redirectTo();
       const res = await auth(`otp${to ? `?redirect_to=${encodeURIComponent(to)}` : ''}`, { email: email.trim(), create_user: true, data: {}, gotrue_meta_security: {} });
@@ -162,7 +168,7 @@ export async function openPayments({
     },
 
     async verifyCode(email, code) {
-      if (!payments) return { ok: false, error: 'server' };
+      if (!accounts) return { ok: false, error: 'server' };
       const token = String(code ?? '').replace(/\s+/g, '');
       if (!/^\d{6,10}$/.test(token)) return { ok: false, error: 'wrong-code' };
       const res = await auth('verify', { type: 'email', email: email.trim(), token });
@@ -170,14 +176,25 @@ export async function openPayments({
         const s = toSession(res.data, nowS());
         if (s) { keep({ ...s, email: s.email ?? email.trim() }); return { ok: true }; }
       }
-      if (res.status === 0 || res.status === 429 || res.status >= 500) return { ok: false, error: errorOf(res) };
+      if (res.status === 0 || res.status >= 500) return { ok: false, error: errorOf(res) };
+      // Not the email's own code: maybe the code Safari showed after the sign-in link (Home Screen apps).
+      if (/^\d{6}$/.test(token)) {
+        const handoff = await request('POST', `${base}/api/public/game/signin-code/claim`, { body: { email: email.trim(), code: token } });
+        if (handoff.status === 200) {
+          const s = toSession(handoff.data, nowS());
+          if (s) { keep({ ...s, email: s.email ?? email.trim() }); return { ok: true }; }
+        }
+        if (handoff.status === 429) return { ok: false, error: 'rate-limited' };
+        if (handoff.status === 0 || handoff.status >= 500) return { ok: false, error: errorOf(handoff) };
+      }
+      if (res.status === 429) return { ok: false, error: 'rate-limited' };
       return { ok: false, error: 'wrong-code' };
     },
 
     async signOut() {
       const token = session?.access_token;
       forget();
-      if (token && payments) await auth('logout', {}, token).catch(() => {});
+      if (token && accounts) await auth('logout', {}, token).catch(() => {});
       return { ok: true };
     },
 
@@ -185,6 +202,23 @@ export async function openPayments({
     account: () => call('GET', '/api/public/game/account'),
     ack: ({ claimed = [], refunds = [] }) => call('POST', '/api/public/game/account/ack', { claimed, refunds }),
     portal: () => call('POST', '/api/public/game/portal', {}),
+    // Competing: the Weekly Challenge (the server replays each run), leaderboards, the player's
+    // leaderboard profile (dog name, home location, stars) and prizes won.
+    challengeWeek: () => call('GET', '/api/public/game/challenge', undefined, { signedIn: false }),
+    submitChallenge: ({ week, moves }) => call('POST', '/api/public/game/challenge', { week, moves }),
+    leaderboard: ({ board = 'weekly', location = 'all' } = {}) => call('GET', `/api/public/game/leaderboard?board=${encodeURIComponent(board)}&location=${encodeURIComponent(location)}`, undefined, { signedIn: false }),
+    sendProfile: profile => call('POST', '/api/public/game/profile', profile),
+    prizes: () => call('GET', '/api/public/game/prizes'),
+    // A 6-digit code that signs the Home Screen app in to this account (good for 10 minutes).
+    appSigninCode: () => call('POST', '/api/public/game/signin-code', {}),
+    // Invite a friend: the player's own code and free baths, and a check of a code from an invite link.
+    referral: () => call('GET', '/api/public/game/referral'),
+    checkReferral: code => call('GET', `/api/public/game/referral/check?code=${encodeURIComponent(code)}`, undefined, { signedIn: false }),
+    // The front desk's referral page (staff emails only).
+    staffHome: () => call('GET', '/api/public/game/staff'),
+    staffAction: input => call('POST', '/api/public/game/staff', input),
+    staffPrizes: () => call('GET', '/api/public/game/staff/prizes'),
+    staffPrizeAction: input => call('POST', '/api/public/game/staff/prizes', input),
     report: ({ kind, message, email, details }) => call('POST', '/api/public/game/report', {
       kind, message: String(message ?? '').slice(0, 2000), ...(email ? { email } : {}), ...(details ? { details } : {}),
     }, { signedIn: false }),

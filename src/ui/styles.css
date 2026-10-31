@@ -190,6 +190,43 @@ input[type="text"], input[type="number"], input[type="email"], input[type="passw
 .area { display: flex; flex-direction: column; gap: 12px; }
 .area-banner { display: flex; flex-direction: column; gap: 4px; }
 .area-banner.locked { opacity: 0.6; }
+.friend-code { font-weight: 700; font-size: 2.2rem; line-height: 1.1; letter-spacing: 0.22em; text-align: center; padding: 12px 8px; border: 3px dashed var(--brand, #0068D6); border-radius: 14px; background: #FFFFFF; color: var(--brand, #0068D6); margin: 0; }
+.invite-sheet .install-steps { margin: 0; }
+.bath-card { background: #FFF6E2; border: 2px solid #F6A823; }
+.invite-btn { grid-column: 1 / -1; }
+.star-road { display: flex; flex-direction: column; gap: 4px; margin: 0 0 4px; }
+.star-road p { margin: 0; }
+.star-road-bar { display: block; height: 8px; border-radius: 999px; background: linear-gradient(90deg, #F6A823 var(--fill, 0%), #E7E1D9 var(--fill, 0%)); }
+.milestone-card { background: #FFF6E2; border: 2px solid #F6A823; text-align: left; }
+.milestone-list li { padding: 2px 0; }
+.seg { display: flex; gap: 4px; padding: 4px; background: #EEE7DF; border-radius: 14px; margin: 4px 0; }
+.seg-btn { flex: 1; appearance: none; border: 0; background: transparent; border-radius: 10px; padding: 10px 8px; font: inherit; font-weight: 700; color: var(--ink, #31271F); cursor: pointer; min-height: 44px; }
+.seg-btn.on { background: #FFFFFF; color: var(--brand, #0068D6); box-shadow: 0 1px 3px rgba(49, 39, 31, 0.15); }
+.small-seg .seg-btn { padding: 6px 8px; min-height: 36px; font-size: 0.9rem; }
+.weekly-card { background: linear-gradient(160deg, #FFF6E2, #FFFFFF); border: 2px solid #F6A823; display: flex; flex-direction: column; gap: 6px; }
+.weekly-card h2, .weekly-card p { margin: 0; }
+.home-card { border: 2px solid var(--brand, #0068D6); }
+.home-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.home-choice { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 8px; }
+.home-choice.picked { outline: 3px solid var(--brand, #0068D6); }
+.lb-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lb-row { display: grid; grid-template-columns: 3.2em 1fr auto; align-items: center; gap: 8px; background: #FFFFFF; border-radius: 12px; padding: 10px 12px; box-shadow: 0 1px 2px rgba(49, 39, 31, 0.1); }
+.lb-row.me { outline: 3px solid #F6A823; }
+.lb-rank { font-weight: 700; font-size: 1.1rem; }
+.lb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-score { font-weight: 700; }
+.you-tag { margin-left: 6px; font-size: 0.75rem; font-weight: 700; background: #F6A823; color: #31271F; border-radius: 999px; padding: 2px 8px; }
+.teams .team-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+.team { display: flex; flex-direction: column; align-items: center; padding: 8px; border-radius: 12px; background: #F4F1EC; }
+.team.leading { background: #FFF0CC; outline: 2px solid #F6A823; }
+.prize-card { border: 2px solid #2E9E5B; background: #EEF8F1; display: flex; flex-direction: column; gap: 6px; }
+.prize-card h3, .prize-card p { margin: 0; }
+.big-score { font-size: 2.4rem; font-weight: 700; margin: 0; text-align: center; color: var(--brand, #0068D6); }
+.challenge-info { margin: 4px 0; }
+.center { text-align: center; }
+.chapter-banner { display: flex; flex-direction: column; gap: 4px; margin-top: 18px; text-align: center; background: linear-gradient(160deg, #E6F2E8, #FFF6E2); border: 2px solid #2F6B3A; }
+.chapter-banner h2 { color: #2F6B3A; }
+.chapter-banner.locked { opacity: 0.75; border-style: dashed; }
 .path { display: flex; flex-direction: column; gap: 10px; }
 .node-row { display: flex; justify-content: center; }
 .node-group { display: flex; align-items: center; gap: 10px; transform: translateX(calc(var(--offset) * 34px)); }
@@ -248,6 +285,10 @@ input[type="text"], input[type="number"], input[type="email"], input[type="passw
 .cell.mud1::before { background: #A97B54; }
 .cell.mud2::before { background: #7A5232; box-shadow: inset 0 0 0 3px #5C3B22; }
 .crate { position: absolute; inset: 4px; border-radius: 6px; background: repeating-linear-gradient(90deg, #C08A4E 0 8px, #A9743C 8px 10px); border: 3px solid #7E5228; }
+.leash { position: absolute; left: 0; top: 0; width: var(--cell); height: var(--cell); padding: calc(var(--cell) * 0.02); z-index: 2; pointer-events: none; }
+.leash svg { width: 100%; height: 100%; display: block; }
+.leash.untie { animation: untie 300ms ease-out forwards; }
+@keyframes untie { to { opacity: 0; scale: 1.3; rotate: 25deg; } }
 .crate.crate2 { box-shadow: inset 0 0 0 3px #7E5228, inset 0 0 0 7px #C08A4E, inset 0 0 0 9px #7E5228; }
 .tile { appearance: none; border: 0; background: transparent; padding: calc(var(--cell) * 0.08); cursor: pointer; transition: transform 210ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 160ms; z-index: 1; border-radius: 10px; }
 .tile svg { width: 100%; height: 100%; display: block; pointer-events: none; }
@@ -552,3 +593,11 @@ html.fx-off .jar-art.lid-pop [data-part="lid"] { animation: none; transform: tra
 @keyframes cap-tip { 0%, 100% { rotate: 0deg; translate: 0 0; } 50% { rotate: -14deg; translate: 0 -8px; } }
 .splash .tap-hint { animation: tap-bounce 2s ease-in-out infinite; }
 @keyframes tap-bounce { 0%, 100% { transform: none; } 50% { transform: translateY(-4px); } }
+
+/* Map banners (Add to Home Screen, Save progress) and the install steps */
+.nudge-card { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; margin-block: 8px; border-color: var(--brand); }
+.nudge-card p { flex: 1; margin: 0; font-size: 0.95rem; font-weight: 500; line-height: 1.3; }
+.nudge-card .btn { flex: none; }
+.nudge-close { flex: none; width: 36px; height: 36px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 1.4rem; line-height: 1; cursor: pointer; }
+.nudge-close:hover, .nudge-close:focus-visible { background: var(--brand-soft); color: var(--text); }
+.install-steps { margin: 0; padding-left: 1.3em; display: grid; gap: 8px; }

@@ -1,7 +1,7 @@
 // Resolving a swap: clearing, crates and mud, new specials, gravity, refill
 // and cascades. Mutates the grid and returns one Step per cascade step.
 
-import { cellAt, isMovable, newTile, fillEmpty } from './grid.js';
+import { cellAt, isMovable, isLeashed, newTile, fillEmpty } from './grid.js';
 import { findMatches, specialForShape, placementCell } from './match.js';
 import { expandClears, isComboSwap, comboClears } from './specials.js';
 
@@ -30,7 +30,7 @@ export function canSwap(grid, a, b) {
 }
 
 function emptyStep() {
-  return { cleared: [], created: [], transformed: [], fell: [], spawned: [], crates: [], mud: [], points: 0 };
+  return { cleared: [], created: [], transformed: [], fell: [], spawned: [], crates: [], mud: [], leash: [], points: 0 };
 }
 
 // Clear the cells, hit crates, then place new specials from the match groups.
@@ -57,6 +57,10 @@ function applyClears(grid, step, stepNumber, { cells, groups, swap, crateCells }
       cell.mud -= 1;
       step.mud.push({ r, c, left: cell.mud });
     }
+    if (cell.leash > 0) {
+      cell.leash -= 1;
+      step.leash.push({ r, c, left: cell.leash });
+    }
   }
   for (const { r, c } of crateCells) {
     for (const [dr, dc] of NEIGHBOURS) hitCrate(r + dr, c + dc);
@@ -64,21 +68,23 @@ function applyClears(grid, step, stepNumber, { cells, groups, swap, crateCells }
   for (const group of groups) {
     const special = specialForShape(group.shape);
     if (!special) continue;
-    const p = placementCell(group, swap);
+    // New specials never land inside a leash that is still tied.
+    const free = q => { const cl = cellAt(grid, q.r, q.c); return cl && !cl.tile && !isLeashed(cl); };
+    const p = [placementCell(group, swap), ...group.cells].find(free);
+    if (!p) continue;
     const cell = cellAt(grid, p.r, p.c);
-    if (cell.tile) continue;
     cell.tile = newTile(grid, special === 'blaster' ? null : group.kind, special);
     step.created.push({ r: p.r, c: p.c, tile: cell.tile });
   }
   step.points = POINTS_PER_TILE * step.cleared.length * stepNumber;
 }
 
-// Per column, blocked cells and crates are walls; tiles fall within segments.
+// Per column, blocked cells, crates and tied leashes are walls; tiles fall within segments.
 function applyGravity(grid, step) {
   for (let c = 0; c < grid.cols; c++) {
     let r = grid.rows - 1;
     while (r >= 0) {
-      const isWall = rr => { const cell = cellAt(grid, rr, c); return !cell || cell.crate > 0; };
+      const isWall = rr => { const cell = cellAt(grid, rr, c); return !cell || cell.crate > 0 || cell.leash > 0; };
       if (isWall(r)) { r--; continue; }
       const bottom = r;
       let top = r;

@@ -46,6 +46,15 @@ export const COSTUMES = [
   { id: 'spa-robe', name: 'Spa Robe', price: null, set: null, source: 'area' },
   { id: 'pajamas', name: 'Pajamas', price: null, set: null, source: 'area' },
   { id: 'cap-and-gown', name: 'Cap & Gown', price: null, set: null, source: 'area' },
+  { id: 'camp-bandana', name: 'Camp Bandana', price: null, set: null, source: 'area' },
+  { id: 'life-vest', name: 'Life Vest', price: null, set: null, source: 'area' },
+  { id: 'ranger-hat', name: 'Ranger Hat', price: null, set: null, source: 'area' },
+  { id: 'cozy-flannel', name: 'Cozy Flannel', price: null, set: null, source: 'area' },
+  { id: 'camp-medal', name: 'Camp Champion Medal', price: null, set: null, source: 'area' },
+  { id: 'hawthorne-scarf', name: 'Hawthorne Team Scarf', price: null, set: null, source: 'area' },
+  { id: 'hawthorne-jersey', name: 'Hawthorne Jersey', price: null, set: null, source: 'area' },
+  { id: 'hillsdale-scarf', name: 'Hillsdale Team Scarf', price: null, set: null, source: 'area' },
+  { id: 'hillsdale-jersey', name: 'Hillsdale Jersey', price: null, set: null, source: 'area' },
   { id: 'gold-collar', name: 'Gold Collar', price: null, set: null, source: 'collection' },
   { id: 'letterman-scarf', name: 'Letterman Scarf', price: null, set: null, source: 'collection' },
   { id: 'honor-roll-sash', name: 'Honor Roll Sash', price: null, set: null, source: 'pass' },
@@ -85,6 +94,18 @@ export const STREAK = [
   { treats: 5 }, { treats: 5 }, { treats: 10 }, { booster: 'shuffle' },
   { treats: 10 }, { treats: 15 }, { treats: 25, booster: 'bomb' },
 ];
+
+// Milestone rewards (asked for by the owner, 31 Oct 2026): a chest for each area finished, a bigger
+// one for finishing each adventure (levels 40 and 80), and the Star Road for star totals. Each is
+// granted once. unlimitedMin: minutes of unlimited lives, so a good run can keep going.
+export const MILESTONES = {
+  area: { treats: 20, booster: 'bomb', unlimitedMin: 30 },
+  adventure: { treats: 60, boosters: ['shuffle', 'bomb', 'blaster'], unlimitedMin: 120 },
+  starRoad: [
+    [30, { treats: 10 }], [60, { booster: 'shuffle' }], [90, { unlimitedMin: 60 }], [120, { treats: 15 }],
+    [150, { booster: 'blaster' }], [180, { unlimitedMin: 60 }], [210, { treats: 20 }], [240, { treats: 25, booster: 'bomb' }],
+  ],
+};
 
 export const WELCOME_BACK = { afterDays: 7, treats: 20, booster: 'shuffle' };
 

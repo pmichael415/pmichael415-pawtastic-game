@@ -1,17 +1,25 @@
 // The board: cells, tiles and layouts.
 //
-// Cell = null (blocked) | { tile: Tile|null, crate: 0|1|2, mud: 0|1|2 }
+// Cell = null (blocked) | { tile: Tile|null, crate: 0|1|2, mud: 0|1|2, leash?: 0|1|2 }
+// A tangled leash holds its piece in place (no swapping, no falling); any clear there unties one knot.
 // Tile = { id, kind: string|null, special: null|'zoomieH'|'zoomieV'|'bomb'|'blaster' }
 
-export const KINDS = ['bone', 'ball', 'paw', 'frisbee', 'biscuit', 'duck'];
+export const KINDS = ['bone', 'ball', 'paw', 'frisbee', 'biscuit', 'duck', 'pinecone', 'lantern'];
+
+// A level's pieces: a count (the first N of KINDS) or a list of kind names (Summer Camp).
+export function kindList(kinds) {
+  return Array.isArray(kinds) ? kinds : KINDS.slice(0, kinds);
+}
 
 const DEFAULT_LAYOUT = Array(8).fill('........');
 const LAYOUT_CHARS = {
-  '.': { crate: 0, mud: 0 },
-  c: { crate: 1, mud: 0 },
-  C: { crate: 2, mud: 0 },
-  m: { crate: 0, mud: 1 },
-  M: { crate: 0, mud: 2 },
+  '.': { crate: 0, mud: 0, leash: 0 },
+  c: { crate: 1, mud: 0, leash: 0 },
+  C: { crate: 2, mud: 0, leash: 0 },
+  m: { crate: 0, mud: 1, leash: 0 },
+  M: { crate: 0, mud: 2, leash: 0 },
+  l: { crate: 0, mud: 0, leash: 1 },
+  L: { crate: 0, mud: 0, leash: 2 },
 };
 
 export function parseLayout(rows = DEFAULT_LAYOUT) {
@@ -23,7 +31,7 @@ export function parseLayout(rows = DEFAULT_LAYOUT) {
       if (ch === '#') { cells.push(null); continue; }
       const spec = LAYOUT_CHARS[ch];
       if (!spec) throw new Error(`Unknown layout character "${ch}"`);
-      cells.push({ tile: null, crate: spec.crate, mud: spec.mud });
+      cells.push({ tile: null, crate: spec.crate, mud: spec.mud, leash: spec.leash });
     }
   }
   return { rows: rows.length, cols, cells, nextId: 1 };
@@ -36,7 +44,11 @@ export function cellAt(grid, r, c) {
 
 export function isMovable(grid, r, c) {
   const cell = cellAt(grid, r, c);
-  return !!cell && cell.crate === 0 && cell.tile !== null;
+  return !!cell && cell.crate === 0 && !(cell.leash > 0) && cell.tile !== null;
+}
+
+export function isLeashed(cell) {
+  return !!cell && cell.leash > 0;
 }
 
 export function newTile(grid, kind, special = null) {
@@ -50,7 +62,7 @@ function makesRun(grid, r, c, kind) {
 }
 
 export function fillEmpty(grid, rng, kindCount, { avoidMatches = false } = {}) {
-  const kinds = KINDS.slice(0, kindCount);
+  const kinds = kindList(kindCount);
   const spawned = [];
   for (let r = 0; r < grid.rows; r++) {
     for (let c = 0; c < grid.cols; c++) {

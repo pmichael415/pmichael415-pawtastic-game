@@ -13,6 +13,7 @@ export function stepEffects(step, stepNo) {
   if (made.length) sounds.push(['special-made']);
   if (step.crates.length) sounds.push(['crate']);
   if (step.mud.length) sounds.push(['mud']);
+  if (step.leash?.length) sounds.push(['untie']);
   const n = step.cleared.length;
   const centroid = n
     ? { r: step.cleared.reduce((s, t) => s + t.r, 0) / n, c: step.cleared.reduce((s, t) => s + t.c, 0) / n }

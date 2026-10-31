@@ -4,7 +4,10 @@
 
 import { h } from './dom.js';
 import { dogSVG, LOGO_SRC } from './art.js';
+import { shareLink } from './referral.js';
+import { isPublicSite } from '../backend/local.js';
 
+const CAMP_AREAS = new Set(['Cabin Check-in', 'Lake Day', 'Trail Hike', 'Campfire Night', 'Talent Show']);
 const W = 1080, H = 1350;
 const BRAND = '#0055D4', NAVY = '#31271F', GOLD = '#F6A823', PAPER = '#FAF8F5';
 export const SHARE_FOOTER = 'Daycare · Boarding · Grooming · Hawthorne · Hillsdale';
@@ -12,6 +15,8 @@ export const SHARE_FOOTER = 'Daycare · Boarding · Grooming · Hawthorne · Hil
 export function shareCaption(kind, { dogName, areaName } = {}) {
   const dog = dogName || 'Your pup';
   if (kind === 'graduation') return `${dog} just graduated from PAWtastic Academy!`;
+  if (kind === 'camp') return `${dog} is a PAWtastic Summer Camp champion!`;
+  if (kind === 'area' && areaName && CAMP_AREAS.has(areaName)) return `${dog} aced ${areaName} at PAWtastic Summer Camp!`;
   if (kind === 'area') return `${dog} aced ${areaName} at PAWtastic Academy!`;
   return `${dog} is styling at PAWtastic Academy!`;
 }
@@ -148,8 +153,9 @@ function getDownloads() {
 
 // The phone's share sheet, with the picture when the phone can attach files. The link is the
 // family's own PAWtastic referral link (the real app only; the demo has none).
-async function systemShare(app, blob, caption, dogName, link) {
-  const data = { text: caption, url: link };
+async function systemShare(app, blob, caption, dogName, link, code = null) {
+  const text = code ? `${caption} New PAWtastic clients get $10 off their first visit with my code ${code}.` : caption;
+  const data = { text, url: link };
   const file = typeof File === 'function' ? new File([blob], shareFilename(dogName), { type: 'image/png' }) : null;
   if (file && navigator.canShare?.({ files: [file] })) data.files = [file];
   try {
@@ -162,9 +168,11 @@ async function systemShare(app, blob, caption, dogName, link) {
 export async function shareCard(app, blob, caption, dogName) {
   const src = await blobToDataUrl(blob);
   let sheet;
-  const link = app.services.backend?.referralLink?.() ?? null;
+  // The public site shares the game with the player's friend code (the $10 off invite) when they have one.
+  const invite = isPublicSite(app.services.backend) ? shareLink() : null;
+  const link = app.services.backend?.referralLink?.() ?? invite?.url ?? null;
   const canShare = !!link && typeof navigator !== 'undefined' && typeof navigator.share === 'function';
-  const shareBtn = canShare ? h('button', { class: 'btn gold', type: 'button', onClick: () => systemShare(app, blob, caption, dogName, link) }, 'Share') : null;
+  const shareBtn = canShare ? h('button', { class: 'btn gold', type: 'button', onClick: () => systemShare(app, blob, caption, dogName, link, invite?.code) }, 'Share') : null;
   const save = h('button', { class: 'btn', type: 'button', hidden: true }, 'Save image');
   sheet = app.modal(h('div', { class: 'stack share' },
     h('p', { class: 'eyebrow' }, 'Share card'),

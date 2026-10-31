@@ -73,7 +73,35 @@ async function goShop(page) { await page.click('button:has-text("Shop")', { forc
     await page.goto(GAME, { waitUntil: 'networkidle' }); await closeIntroSheets(page);
     await openMenu(page);
     const menu = await page.innerText('.sheet');
-    check(/Report a problem/.test(menu) && !/Sign in/.test(menu), 'payments off: menu has Report a problem, no sign-in', menu.replace(/\n/g, ' | '));
+    check(/Report a problem/.test(menu) && /Save progress to the cloud/.test(menu) && !/Manage Pup Pass/.test(menu), 'payments off: menu has cloud save and Report a problem, no Pup Pass billing', menu.replace(/\n/g, ' | '));
+    await page.click('.sheet button:text-is("Done")');
+    // Cloud saves without buying anything: the map card signs in and the save goes to the account.
+    await page.goto(GAME, { waitUntil: 'networkidle' }); await closeIntroSheets(page);
+    // One banner at a time: Add to Home Screen comes first; "Not now" brings up Save progress.
+    check(!(await page.$('.cloud-card')) && await page.$('.install-card'), 'map shows one banner: Add to Home Screen first');
+    await page.click('.install-card button[aria-label="Not now"]', { force: true }); await page.waitForTimeout(400);
+    check(/Save your pup's progress to the cloud/.test(await text(page)), 'map shows the Save progress card');
+    await page.click('.cloud-card button:text-is("Save progress")', { force: true });
+    await signIn(page, 'saver@example.com');
+    await closeIntroSheets(page); await page.waitForTimeout(2500);
+    check(!(await page.$('.cloud-card')), 'signed in: Save progress card gone');
+    let s = await state();
+    const saves = Object.values(s.saves);
+    check(saves.some(v => v?.wallet?.dog?.name === 'Biscuit'), 'cloud: saved game stored on the account');
+    await openMenu(page);
+    check(/Signed in as saver@example\.com\. Your progress is saved to the cloud\./.test(await page.innerText('.sheet')), 'menu: signed in, progress saved');
+    // Another device gets the same progress back.
+    const other = await newPage();
+    await enroll(other, 'Rex');
+    await other.click('.install-card button[aria-label="Not now"]', { force: true }); await other.waitForTimeout(400);
+    await other.click('.cloud-card button:text-is("Save progress")', { force: true });
+    await signIn(other, 'saver@example.com');
+    await closeIntroSheets(other); await other.waitForTimeout(1500);
+    const w2 = await wallet(other);
+    check(w2.dog?.name === 'Biscuit', 'cloud: second device restored the same pup', w2.dog?.name);
+    await openMenu(other);
+    await other.click('.sheet button:text-is("Game rules & privacy")');
+    check(/Save progress to the cloud, you sign in with your email/.test(await other.innerText('section.rules')), 'rules: explains cloud saves');
   }
 
   if (suite === 'lost') {
@@ -122,7 +150,7 @@ async function goShop(page) { await page.click('button:has-text("Shop")', { forc
     const b = await newPage();
     await enroll(b, 'Rex');
     await openMenu(b);
-    await b.click('.sheet button:text-is("Sign in to restore purchases")');
+    await b.click('.sheet button:text-is("Save progress to the cloud")');
     await signIn(b);
     await closeIntroSheets(b); await b.waitForTimeout(1200);
     const wb = await wallet(b);
@@ -229,7 +257,7 @@ async function goShop(page) { await page.click('button:has-text("Shop")', { forc
     await Promise.all([a.waitForNavigation({ waitUntil: 'networkidle' }), a.click('.sheet button:text-is("Sign out")')]);
     await closeIntroSheets(a);
     await openMenu(a);
-    check(/Sign in to restore purchases/.test(await a.innerText('.sheet')), 'signed out: menu offers sign-in');
+    check(/Save progress to the cloud/.test(await a.innerText('.sheet')), 'signed out: menu offers sign-in');
   }
 
   check(errors.length === 0, 'no page errors', errors.join(' | '));

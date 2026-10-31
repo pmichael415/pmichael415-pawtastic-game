@@ -37,6 +37,9 @@ export function createLocalBackend({ wallet, features = DEMO_FEATURES, release =
 
     async open() { return { ok: true, ...wallet.onAppOpen() }; },
     async setDog(dog) { return wallet.setDog(dog); },
+    async setHome(location) { return wallet.setHome(location); },
+    recordChallenge: (week, score, moves) => wallet.recordChallenge(week, score, moves),
+    markChallengeSent: (week, score) => wallet.markChallengeSent(week, score),
     async startLevel(levelId) { return wallet.startLevel(levelId); },
     async endLevel(result) { return { ok: true, ...wallet.endLevel(result) }; },
     async buyItem(itemId) { return wallet.buyItem(itemId); },

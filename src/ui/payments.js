@@ -2,7 +2,8 @@
 // customer portal for the Pup Pass, adding what was paid for, and "Report a problem".
 // Only used when the local backend carries a payments client (src/net/pay-api.js).
 
-import { h } from './dom.js';
+import { h, fill } from './dom.js';
+import { appCodeMenuItem } from './app-signin.js';
 import { confirmPurchase } from './purchase.js';
 import { PACKS, STARTER_PACK, PASS, formatUsd } from '../economy/catalog.js';
 import { pendingCheckout, isEmail } from '../net/pay-api.js';
@@ -31,6 +32,10 @@ const ERRORS = {
 export const payError = code => ERRORS[code] ?? ERRORS.server;
 
 const paymentsOf = app => app.services.backend?.payments ?? null;
+const standalone = () => globalThis.navigator?.standalone === true || !!globalThis.matchMedia?.('(display-mode: standalone)').matches;
+// The site's server client: sign-in and cloud saves work with or without payments.
+export const clientOf = app => app.services.pay ?? null;
+export const cloudSaves = app => !!clientOf(app)?.accounts;
 
 // Stripe pages are https; plain http is allowed only on this computer (the test server).
 function safeUrl(url) {
@@ -53,14 +58,14 @@ async function saveNow(app) {
 }
 
 // Leave the game (to Stripe, or to reload once signed in) with the save sent first.
-async function leave(app, go) {
+export async function leave(app, go) {
   await saveNow(app);
   go();
 }
 
 /** The email-code sign-in. Resolves true once signed in. */
 export function signInSheet(app, { title = 'Sign in', reason = '' } = {}) {
-  const pay = paymentsOf(app);
+  const pay = clientOf(app);
   return new Promise(resolve => {
     let sheet;
     let done = false;
@@ -84,7 +89,7 @@ export function signInSheet(app, { title = 'Sign in', reason = '' } = {}) {
         send.disabled = false;
         if (res.ok) askCode(); else note.textContent = payError(res.error);
       });
-      box.replaceChildren(h('h2', {}, title), reason ? h('p', {}, reason) : null, form,
+      fill(box, h('h2', {}, title), reason ? h('p', {}, reason) : null, form,
         h('p', { class: 'muted small' }, "No password needed. We'll email you a 6-digit code."));
       setTimeout(() => input.focus(), 50);
     }
@@ -103,8 +108,9 @@ export function signInSheet(app, { title = 'Sign in', reason = '' } = {}) {
         go.disabled = false;
         if (res.ok) finish(true); else note.textContent = payError(res.error);
       });
-      box.replaceChildren(h('h2', {}, 'Check your email'),
+      fill(box, h('h2', {}, 'Check your email'),
         h('p', {}, 'We sent an email to ', h('strong', {}, email), '. Type the 6-digit code from it here, or tap the sign-in link in the email. It can take a minute to arrive.'),
+        standalone() ? h('p', { class: 'card small' }, h('strong', {}, 'Playing from your Home Screen? '), 'Tap the link in the email: Safari opens and shows a 6-digit code. Come back to this app and type that code here.') : null,
         form,
         h('div', { class: 'btn-pair' },
           h('button', { class: 'linkish', type: 'button', onClick: async () => { note.textContent = 'Sending a new code…'; const r = await pay.sendCode(email); note.textContent = r.ok ? 'New code sent.' : payError(r.error); } }, 'Send a new code'),
@@ -193,7 +199,12 @@ export async function syncAccount(app) {
   const added = [];
   const refunded = [];
   let passBought = false;
-  for (const p of Array.isArray(res.purchases) ? res.purchases : []) {
+  // Pending purchases plus every purchase on the account ("owned"), so a purchase made in another copy
+  // of the game (Safari vs the Home Screen app, another phone) still reaches this save, once.
+  const seen = new Set();
+  const all = [...(Array.isArray(res.purchases) ? res.purchases : []), ...(Array.isArray(res.owned) ? res.owned : [])]
+    .filter(p => typeof p?.id === 'string' && !seen.has(p.id) && seen.add(p.id));
+  for (const p of all) {
     if (typeof p?.id !== 'string' || typeof p.product !== 'string') continue;
     if (p.status === 'refunded') {
       const r = backend.applyRefund(p.id, p.product);
@@ -288,22 +299,43 @@ export function reportSheet(app, { kind = 'problem', title = 'Report a problem',
   sheet = app.modal(h('div', { class: 'stack' }, h('h2', {}, title), h('p', {}, intro), form), { label: title });
 }
 
+const SAVE_REASON = "Sign in with your email to save your pup's progress to the cloud. Play on any phone, tablet or computer and never lose your progress.";
+const SAVE_REASON_PAID = "Sign in with your email to save your pup's progress to the cloud and get back anything you bought, on any device.";
+export const saveReason = app => (paymentsOf(app) ? SAVE_REASON_PAID : SAVE_REASON);
+
 /** The account part of the sound menu on the public site. */
 export function accountMenu(app, close) {
   const pay = app.services.pay;
   if (!pay) return null;
   const go = fn => () => { close(); fn(); };
   const items = [];
-  if (pay.payments) {
+  if (pay.accounts) {
     items.push(h('h3', { class: 'eyebrow' }, 'Account'));
     if (pay.signedIn) {
-      items.push(h('p', { class: 'small muted' }, `Signed in as ${pay.email ?? 'your account'}`),
-        h('button', { class: 'btn secondary block', type: 'button', onClick: go(() => openPortal(app)) }, 'Manage Pup Pass & receipts'),
+      items.push(h('p', { class: 'small muted' }, `Signed in as ${pay.email ?? 'your account'}. Your progress is saved to the cloud.`),
+        appCodeMenuItem(app, close),
+        pay.payments ? h('button', { class: 'btn secondary block', type: 'button', onClick: go(() => openPortal(app)) }, 'Manage Pup Pass & receipts') : null,
         h('button', { class: 'btn secondary block', type: 'button', onClick: go(async () => { await saveNow(app); await pay.signOut(); location.reload(); }) }, 'Sign out'));
     } else {
-      items.push(h('button', { class: 'btn secondary block', type: 'button', onClick: go(() => signInThenReload(app, { reason: 'Bought something before? Sign in with the same email to get it back on this device.' })) }, 'Sign in to restore purchases'));
+      items.push(h('button', { class: 'btn secondary block', type: 'button', onClick: go(() => signInThenReload(app, { reason: saveReason(app) })) }, 'Save progress to the cloud'));
     }
   }
   items.push(h('button', { class: 'btn secondary block', type: 'button', onClick: go(() => reportSheet(app)) }, 'Report a problem'));
   return h('div', { class: 'stack account' }, ...items);
+}
+
+const CLOUD_DISMISS_KEY = 'pawtastic-gd-cloud-dismissed-v1';
+const cloudDismissed = () => { try { return Date.now() - Number(localStorage.getItem(CLOUD_DISMISS_KEY)) < 7 * 86400000; } catch { return false; } };
+
+/** The map's nudge for players not signed in: save progress to the cloud (× hides it for a week). */
+export function cloudSaveCard(app) {
+  const pay = clientOf(app);
+  if (!pay?.accounts || pay.signedIn || cloudDismissed()) return null;
+  return h('div', { class: 'card nudge-card cloud-card' },
+    h('p', {}, "Save your pup's progress to the cloud, so you never lose it."),
+    h('button', { class: 'btn small-btn', type: 'button', onClick: () => signInThenReload(app, { reason: saveReason(app) }) }, 'Save progress'),
+    h('button', { class: 'nudge-close', type: 'button', 'aria-label': 'Not now', onClick: () => {
+      try { localStorage.setItem(CLOUD_DISMISS_KEY, String(Date.now())); } catch { /* ignore */ }
+      if (app.current === 'map') app.go('map');
+    } }, '×'));
 }

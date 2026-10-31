@@ -1,12 +1,13 @@
 // Progression: level results, badges, Paw Points, the Pup Pass, the daily
 // streak and report cards. Pure functions over wallet state.
 //
-// Guardrail (spec §3): nothing here pays Treats, lives, boosters or moves for
-// winning a level, and Paw Points depend only on playing.
+// Guardrail (spec §3): a single level win never pays Treats, lives, boosters or moves, and Paw
+// Points depend only on playing. The exception, asked for by the owner: milestone rewards for
+// finishing an area or an adventure and for star totals (catalog MILESTONES), each granted once.
 
 import { dayKey, monthKey, daysBetween, addDays } from './time.js';
-import { PASS, STREAK, WELCOME_BACK, REPORT_GRADES } from './catalog.js';
-import { AREAS, areaOf } from '../engine/levels.js';
+import { PASS, STREAK, WELCOME_BACK, REPORT_GRADES, MILESTONES } from './catalog.js';
+import { AREAS, CHAPTERS, areaOf, chapterOf } from '../engine/levels.js';
 
 function ensureMonth(state, nowMs) {
   const month = monthKey(nowMs);
@@ -19,9 +20,11 @@ function ensureMonth(state, nowMs) {
   }
 }
 
-function grant(state, reward) {
+function grant(state, reward, nowMs = Date.now()) {
   if (reward.treats) state.treats.free += reward.treats;
   if (reward.booster) state.inventory.boosters[reward.booster] += 1;
+  for (const b of reward.boosters ?? []) state.inventory.boosters[b] += 1;
+  if (reward.unlimitedMin) state.lives.unlimitedUntil = Math.max(state.lives.unlimitedUntil || 0, nowMs) + reward.unlimitedMin * 60000;
   if (reward.costume && !state.inventory.costumes.includes(reward.costume)) state.inventory.costumes.push(reward.costume);
 }
 
@@ -33,7 +36,7 @@ function addBadge(state, summary, badge) {
 
 export function applyLevelResult(state, { levelId, won, stars, score, movesMade }, nowMs) {
   ensureMonth(state, nowMs);
-  const summary = { newBadges: [], unlockedCostume: null, areaCompleted: null, pawPoints: 0, starterPackOffer: false };
+  const summary = { newBadges: [], unlockedCostume: null, areaCompleted: null, pawPoints: 0, starterPackOffer: false, milestones: [] };
 
   // Paw Points: participation only.
   const p = state.pass;
@@ -51,7 +54,9 @@ export function applyLevelResult(state, { levelId, won, stars, score, movesMade 
     const firstWin = !levels[levelId];
     const prev = levels[levelId] || { stars: 0, score: 0 };
     levels[levelId] = { stars: Math.max(prev.stars, stars), score: Math.max(prev.score, score) };
-    state.progress.unlocked = Math.max(state.progress.unlocked, levelId + 1);
+    const chapter = chapterOf(levelId);
+    if (chapter?.location) state.progress.side[chapter.location] = Math.max(state.progress.side[chapter.location], Math.min(levelId + 1, chapter.last + 1));
+    else state.progress.unlocked = Math.max(state.progress.unlocked, levelId + 1);
     if (stars === 3) addBadge(state, summary, 'first-three-stars');
     if (Object.keys(levels).length >= 10) addBadge(state, summary, 'ten-wins');
     const area = areaOf(levelId);
@@ -63,12 +68,52 @@ export function applyLevelResult(state, { levelId, won, stars, score, movesMade 
     }
   }
 
+  summary.milestones = claimMilestones(state, nowMs);
+
   const sp = state.starterPack;
   if (!sp.bought && !sp.offerShown && (!won || levelId === 5)) {
     sp.offerShown = true;
     summary.starterPackOffer = true;
   }
   return summary;
+}
+
+/** Best scores added up across every level passed (the all-time leaderboard's tie-breaker). */
+export function totalBestScore(state) {
+  return Object.values(state.progress.levels).reduce((sum, l) => sum + (l?.score || 0), 0);
+}
+
+export function totalStars(state) {
+  return Object.values(state.progress.levels).reduce((sum, l) => sum + (l?.stars || 0), 0);
+}
+
+/** Every milestone this save has reached: areas and adventures finished, and Star Road totals. */
+export function earnedMilestones(state) {
+  const levels = state.progress.levels;
+  const out = [];
+  for (const a of AREAS) if (levels[a.last]) out.push({ id: `area-${a.id}`, title: `Finished ${a.name}`, reward: MILESTONES.area });
+  for (const ch of CHAPTERS) {
+    const title = ch.id === 'academy' ? 'Graduated from PAWtastic Academy' : ch.id === 'camp' ? 'PAWtastic Summer Camp champion' : `Finished the ${ch.name}`;
+    if (levels[ch.last]) out.push({ id: `adventure-${ch.id}`, title, reward: MILESTONES.adventure });
+  }
+  const stars = totalStars(state);
+  for (const [n, reward] of MILESTONES.starRoad) if (stars >= n) out.push({ id: `stars-${n}`, title: `${n} stars on the Star Road`, reward });
+  return out;
+}
+
+/** Grants the milestones reached but not yet rewarded (also catches up saves from before milestones). */
+export function claimMilestones(state, nowMs) {
+  const claimed = state.milestones.claimed;
+  const fresh = earnedMilestones(state).filter(m => !claimed.includes(m.id));
+  for (const m of fresh) { claimed.push(m.id); grant(state, m.reward, nowMs); }
+  return fresh;
+}
+
+/** The next Star Road reward: { stars, target, reward } (target null once all are earned). */
+export function nextStarMilestone(state) {
+  const stars = totalStars(state);
+  const next = MILESTONES.starRoad.find(([n]) => n > stars);
+  return { stars, target: next?.[0] ?? null, reward: next?.[1] ?? null };
 }
 
 export function passActive(state, nowMs) {

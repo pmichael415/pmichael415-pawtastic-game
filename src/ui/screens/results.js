@@ -6,12 +6,13 @@ import { starIcon } from '../icons.js';
 import { dogSVG, professorPawsSVG } from '../art.js';
 import { winTimeline, playWin, countUp } from '../../fx/celebrate.js';
 import { createParticleLayer } from '../../fx/particles.js';
-import { AREAS, getLevel, areaOf } from '../../engine/levels.js';
+import { AREAS, getLevel, areaOf, nextLevelId, levelNumber } from '../../engine/levels.js';
 import { COSTUMES, STARTER_PACK, formatUsd, treatsToUsd } from '../../economy/catalog.js';
 import { confirmPurchase } from '../purchase.js';
 import { realPayments, startCheckout } from '../payments.js';
 import { shareDog } from '../share-card.js';
 import { showFailure } from '../failure.js';
+import { milestoneList } from '../daily.js';
 
 const BADGE_NAMES = {
   'first-three-stars': 'First 3-star level',
@@ -21,6 +22,15 @@ const BADGE_NAMES = {
   'grad-spa': 'Finished the Ivy-League Spa',
   'grad-dorms': 'Finished Dorms & Graduate Suites',
   'grad-graduation': 'Graduated from PAWtastic Academy',
+  'grad-cabins': 'Checked in at Summer Camp',
+  'grad-lake': 'Finished Lake Day',
+  'grad-trail': 'Finished the Trail Hike',
+  'grad-campfire': 'Finished Campfire Night',
+  'grad-talent': 'Summer Camp champion',
+  'grad-hawthorne-walk': 'Finished the Hawthorne Walkabout',
+  'grad-hawthorne-park': 'Finished Hawthorne Park Day',
+  'grad-hillsdale-trail': 'Finished the Hillsdale Trailhead',
+  'grad-hillsdale-parade': 'Finished the Hillsdale Pup Parade',
 };
 
 const costumeName = id => COSTUMES.find(c => c.id === id)?.name ?? id;
@@ -67,7 +77,7 @@ export function showStarterPackOffer(app) {
 
 function areaDone(app, areaId) {
   const area = AREAS.find(a => a.id === areaId);
-  const kind = areaId === 'graduation' ? 'graduation' : 'area';
+  const kind = areaId === 'graduation' ? 'graduation' : areaId === 'talent' ? 'camp' : 'area';
   return h('div', { class: 'btn-pair' },
     h('button', { class: 'btn gold', type: 'button', onClick: () => app.go('report', { areaId }) }, 'See your report card'),
     h('button', { class: 'btn secondary', type: 'button', onClick: () => shareDog(app, { kind, areaName: area.name, costume: area.costume }) }, 'Share'));
@@ -78,7 +88,9 @@ function areaDone(app, areaId) {
 export function renderWin(app, { levelId, score, starsEarned, summary, bonus = 0 }) {
   const { backend, audio } = app.services;
   const dog = backend.state().dog;
-  const next = levelId < 40 ? getLevel(levelId + 1) : null;
+  const nextId = nextLevelId(levelId);
+  const next = nextId ? getLevel(nextId) : null;
+  const mapView = levelId > 100 ? { view: 'local', skipIntro: false } : {};
   const area = summary.areaCompleted ? AREAS.find(a => a.id === summary.areaCompleted) : null;
   const effects = app.effects();
 
@@ -95,7 +107,7 @@ export function renderWin(app, { levelId, score, starsEarned, summary, bonus = 0
     h('p', { class: 'small' }, `New costume: ${costumeName(area.costume)}`)) : null;
 
   const section = h('section', { class: 'results stack', 'data-stars': String(starsEarned) },
-    h('p', { class: 'eyebrow' }, `Level ${levelId} · ${areaOf(levelId).name}`),
+    h('p', { class: 'eyebrow' }, `Level ${levelNumber(levelId)} · ${areaOf(levelId).name}`),
     banner,
     h('div', { class: 'results-hero' }, prof,
       h('div', { class: 'results-dog', html: dogSVG({ ...dog, costume: summary.unlockedCostume ?? backend.state().inventory.equipped, label: dog?.name ?? 'Your dog' }) })),
@@ -105,10 +117,11 @@ export function renderWin(app, { levelId, score, starsEarned, summary, bonus = 0
     diploma,
     summary.unlockedCostume && !area ? h('p', { class: 'card' }, `New costume earned: ${costumeName(summary.unlockedCostume)}`) : null,
     summary.newBadges.length ? h('ul', { class: 'plain-list badges' }, summary.newBadges.map(b => h('li', {}, `Badge: ${BADGE_NAMES[b] ?? b}`))) : null,
+    summary.milestones?.length ? h('div', { class: 'card milestone-card' }, h('p', { class: 'eyebrow' }, 'Milestone reward!'), milestoneList(summary.milestones)) : null,
     summary.areaCompleted ? areaDone(app, summary.areaCompleted) : null,
     h('div', { class: 'btn-pair' },
       next ? h('button', { class: 'btn', type: 'button', onClick: () => app.go('level', { levelId: next.id }) }, 'Next level') : null,
-      h('button', { class: 'btn secondary', type: 'button', onClick: () => app.go('map') }, 'School map')),
+      h('button', { class: 'btn secondary', type: 'button', onClick: () => app.go('map', mapView) }, 'School map')),
   );
   app.view.replaceChildren(section);
   const layer = createParticleLayer(section, { enabled: () => app.effects() });
@@ -139,13 +152,13 @@ export function renderWin(app, { levelId, score, starsEarned, summary, bonus = 0
 
 export function renderLoss(app, { levelId, summary }) {
   app.view.replaceChildren(h('section', { class: 'results stack' },
-    h('p', { class: 'eyebrow' }, `Level ${levelId} · ${areaOf(levelId).name}`),
+    h('p', { class: 'eyebrow' }, `Level ${levelNumber(levelId)} · ${areaOf(levelId).name}`),
     h('div', { class: 'results-prof', html: professorPawsSVG({ mood: 'sympathy' }) }),
     h('h1', {}, 'Level not passed'),
     h('p', { class: 'muted' }, 'Every pup learns at their own pace. Try again when you are ready.'),
     h('div', { class: 'btn-pair' },
       h('button', { class: 'btn', type: 'button', onClick: () => app.go('level', { levelId }) }, 'Try again'),
-      h('button', { class: 'btn secondary', type: 'button', onClick: () => app.go('map') }, 'School map')),
+      h('button', { class: 'btn secondary', type: 'button', onClick: () => app.go('map', levelId > 100 ? { view: 'local' } : {}) }, 'School map')),
   ));
   app.services.audio?.sfx('lose');
   if (summary.starterPackOffer) showStarterPackOffer(app);

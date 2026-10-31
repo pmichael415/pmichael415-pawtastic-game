@@ -11,15 +11,22 @@ import { PASS, formatUsd } from '../../economy/catalog.js';
 
 const SITE_URL = 'https://pawtasticacademy.com';
 
-function publicRules(paid) {
+function publicRules(paid, accounts) {
   if (!paid) {
     return [
       h('h1', {}, 'Game rules & privacy'),
       h('h2', {}, 'Treats'),
       h('p', {}, "Treats are play money for Graduation Day. They have no cash value and can't be bought, sold, transferred or cashed out. You earn them free from your daily streak and spend them in the game."),
       h('h2', {}, 'Your progress'),
-      h('p', {}, "There's no sign-in, and the game never asks for your name, email or other personal details. Your dog's name and your progress are saved only in this browser on this device. Clearing your browser data erases them."),
+      ...(accounts
+        ? [
+          h('p', {}, "You can play without signing in: your dog's name and progress are then saved only in this browser on this device, and clearing your browser data erases them."),
+          h('p', {}, 'If you choose Save progress to the cloud, you sign in with your email and a one-time code. We then keep your email address and your saved game, so you can pick up on any device. We use your email only for sign-in and for replies to your questions.'),
+        ]
+        : [h('p', {}, "There's no sign-in, and the game never asks for your name, email or other personal details. Your dog's name and your progress are saved only in this browser on this device. Clearing your browser data erases them.")]),
       h('p', {}, 'Our website host counts visits, such as page views, so we know how many people play.'),
+      ...(accounts ? referralTerms() : []),
+      ...(accounts ? competeTerms() : []),
       ...questions(),
     ];
   }
@@ -33,9 +40,32 @@ function publicRules(paid) {
     h('p', {}, 'You choose a monthly spending limit in the Shop, and purchases can never go over $100 a month.'),
     h('h2', {}, 'Your progress and privacy'),
     h('p', {}, "You can play without signing in: your dog's name and progress are then saved only in this browser on this device."),
-    h('p', {}, 'To buy, you sign in with your email and a one-time code. We then keep your email address, your purchases and your saved game, so you can pick up on another device. We use your email only for sign-in codes, receipts and replies to your questions.'),
+    h('p', {}, 'To buy, or to save your progress to the cloud, you sign in with your email and a one-time code. We then keep your email address, your purchases and your saved game, so you can pick up on another device. We use your email only for sign-in codes, receipts and replies to your questions.'),
     h('p', {}, 'Our website host counts visits, such as page views, so we know how many people play.'),
+    ...referralTerms(),
+    ...competeTerms(),
     ...questions(),
+  ];
+}
+
+// Invite a friend: real-world rewards given by PAWtastic's front desk, never anything in the game.
+function referralTerms() {
+  return [
+    h('h2', {}, 'Invite friends'),
+    h('p', {}, 'Signed-in players get a friend code. A person who is new to PAWtastic Academy and shows a friend code at the front desk on their first visit gets $10 off that visit (daycare, boarding or grooming). After that first visit, the player whose code it was gets one free bath for their dog. One $10 discount per new client, and one free bath for each new client.'),
+    h('p', {}, "Front desk staff confirm who is a new client. The discount and the bath have no cash value, can't be exchanged for money or Treats, and sharing never earns anything inside the game. PAWtastic Academy may change or end this offer at any time."),
+    h('p', {}, 'When a friend uses your code, the front desk records their name and their dog\'s name with your code, so we know who earned the bath.'),
+  ];
+}
+
+// The Weekly Challenge and leaderboards. Prizes are real-world services given at the front desk.
+function competeTerms() {
+  return [
+    h('h2', {}, 'Weekly Challenge and leaderboards'),
+    h('p', {}, 'No purchase necessary. Every week (Monday 12:00 am to Sunday 11:59 pm, New York time) everyone plays the same Weekly Challenge board with 25 moves. Boosters and extra moves cannot be used, and tries are free, so buying anything never helps. Your best score of the week counts.'),
+    h('p', {}, "To be ranked you sign in and pick your PAWtastic (Hawthorne or Hillsdale). When the week ends, the top 3 players at each location win: 1st place a free day of daycare, 2nd and 3rd place a free bath, for one dog. Ties go to the player who reached the score first. Scores are checked by our server, which replays every move."),
+    h('p', {}, "Prizes show in the game with a code. Show the code at that location's front desk within 30 days. New clients complete PAWtastic's usual evaluation, vaccination and paperwork requirements first. Prizes have no cash value and can't be transferred or exchanged. PAWtastic Academy may disqualify a player for cheating or abuse, and may change or end the Weekly Challenge at any time."),
+    h('p', {}, "Leaderboards show your dog's name and your location, never your email. The all-time board ranks stars and best scores, for bragging rights only."),
   ];
 }
 
@@ -64,7 +94,7 @@ function customerRules() {
 export function render(app) {
   const bar = topBar(app, { title: 'Rules', back: () => app.go('map') });
   const { backend } = app.services;
-  const body = isPublicSite(backend) ? publicRules(!!backend.payments) : customerRules();
+  const body = isPublicSite(backend) ? publicRules(!!backend.payments, !!app.services.pay?.accounts) : customerRules();
   app.view.append(bar, h('section', { class: 'rules stack card' }, ...body));
   return () => bar.stop();
 }

@@ -14,10 +14,16 @@ export const KIND_NAMES = {
   frisbee: ['Frisbee', 'Frisbees'],
   biscuit: ['Biscuit', 'Biscuits'],
   duck: ['Rubber Duck', 'Rubber Ducks'],
+  pinecone: ['Pinecone', 'Pinecones'],
+  lantern: ['Camp Lantern', 'Camp Lanterns'],
 };
 
 function countMud(grid) {
   return grid.cells.reduce((sum, cell) => sum + (cell ? cell.mud : 0), 0);
+}
+
+function countLeash(grid) {
+  return grid.cells.reduce((sum, cell) => sum + (cell?.leash > 0 ? cell.leash : 0), 0);
 }
 
 export function createGame(level, seed, { grid } = {}) {
@@ -29,10 +35,11 @@ export function createGame(level, seed, { grid } = {}) {
     ensurePlayable(board, rng, level.kinds);
   }
   const mudTotal = countMud(board);
+  const leashTotal = countLeash(board);
   return {
     level, grid: board, rng,
     movesLeft: level.moves, movesMade: 0, score: 0, collected: 0,
-    mudTotal, mudLeft: mudTotal,
+    mudTotal, mudLeft: mudTotal, leashTotal, leashLeft: leashTotal,
     status: 'playing', stars: 0, bonus: 0,
   };
 }
@@ -44,7 +51,7 @@ export function snapshotGame(game) {
     grid: structuredClone(game.grid),
     rngState: game.rng.getState(),
     movesLeft: game.movesLeft, movesMade: game.movesMade, score: game.score, collected: game.collected,
-    mudTotal: game.mudTotal, mudLeft: game.mudLeft, status: game.status,
+    mudTotal: game.mudTotal, mudLeft: game.mudLeft, leashTotal: game.leashTotal, leashLeft: game.leashLeft, status: game.status,
   };
 }
 
@@ -60,15 +67,19 @@ export function restoreGame(level, snap) {
   return {
     level, grid: structuredClone(board), rng,
     movesLeft: snap.movesLeft, movesMade: snap.movesMade, score: snap.score, collected: snap.collected,
-    mudTotal: snap.mudTotal, mudLeft: snap.mudLeft, status: snap.status, stars: 0, bonus: 0,
+    mudTotal: snap.mudTotal, mudLeft: snap.mudLeft,
+    leashTotal: snap.leashTotal ?? countLeash(board), leashLeft: snap.leashLeft ?? countLeash(board),
+    status: snap.status, stars: 0, bonus: 0,
   };
 }
 
 export function goalProgress(game) {
   const { goal } = game.level;
   let current, target;
+  if (goal.type === 'attack') return { current: game.score, target: 0, remaining: 0, done: false };
   if (goal.type === 'score') { current = game.score; target = goal.target; }
   else if (goal.type === 'collect') { current = game.collected; target = goal.count; }
+  else if (goal.type === 'leash') { current = game.leashTotal - game.leashLeft; target = game.leashTotal; }
   else { current = game.mudTotal - game.mudLeft; target = game.mudTotal; }
   const remaining = Math.max(0, target - current);
   return { current, target, remaining, done: remaining === 0 };
@@ -81,6 +92,11 @@ export function starsFor(level, score, won) {
 }
 
 function checkEnd(game) {
+  // Score attack (the Weekly Challenge): play every move; the score at the end is the result.
+  if (game.level.goal.type === 'attack') {
+    if (game.movesLeft === 0) { game.status = 'won'; game.bonus = 0; game.stars = starsFor(game.level, game.score, true); }
+    return;
+  }
   if (goalProgress(game).done) {
     game.status = 'won';
     game.bonus = BONUS_PER_MOVE * game.movesLeft;
@@ -101,6 +117,7 @@ export function trySwap(game, a, b) {
     game.score += step.points;
     if (goalKind) game.collected += step.cleared.filter(t => t.kind === goalKind).length;
     game.mudLeft -= step.mud.length;
+    game.leashLeft -= step.leash?.length ?? 0;
   }
   checkEnd(game);
   let reshuffled = false;
@@ -145,10 +162,12 @@ export function useBooster(game, type, cell) {
 export function remainingText(game) {
   const { remaining } = goalProgress(game);
   const { goal } = game.level;
+  if (goal.type === 'attack') return `${game.movesLeft} ${game.movesLeft === 1 ? 'move' : 'moves'} left`;
   if (goal.type === 'score') return `${remaining.toLocaleString('en-US')} more points`;
   if (goal.type === 'collect') {
     const [one, many] = KIND_NAMES[goal.kind];
     return `${remaining} more ${remaining === 1 ? one : many}`;
   }
+  if (goal.type === 'leash') return `${remaining} more leash ${remaining === 1 ? 'knot' : 'knots'}`;
   return `${remaining} more mud ${remaining === 1 ? 'spot' : 'spots'}`;
 }

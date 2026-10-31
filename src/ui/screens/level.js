@@ -1,20 +1,21 @@
 // Playing a level: HUD, board, boosters, quit, and the end-of-level flow.
 
 import { h } from '../dom.js';
-import { tileSVG, professorPawsSVG } from '../art.js';
+import { tileSVG, leashSVG, professorPawsSVG } from '../art.js';
 import { starIcon, heartIcon, shuffleIcon, mudIcon, closeIcon } from '../icons.js';
 import { createBoardView } from '../board-view.js';
 import { createHint } from '../hint.js';
 import { renderWin, renderLoss } from './results.js';
 import { formatCountdown } from '../topbar.js';
 import { TIPS } from '../tips.js';
-import { getLevel, areaOf, isHardLevel } from '../../engine/levels.js';
+import { getLevel, areaOf, isHardLevel, levelNumber } from '../../engine/levels.js';
 import { createGame, trySwap, addMoves, useBooster, canUseBooster, snapshotGame, restoreGame, goalProgress, remainingText, KIND_NAMES } from '../../engine/game.js';
 import { findValidMove } from '../../engine/shuffle.js';
 import { ITEMS, PACKS, formatUsd } from '../../economy/catalog.js';
 import { confirmPurchase } from '../purchase.js';
 import { withBusy, showFailure } from '../failure.js';
 import { treatPrice, showsDollars } from '../prices.js';
+import { syncProfile } from '../compete.js';
 
 const BOOSTER_INFO = {
   shuffle: { name: 'Shuffle', art: () => shuffleIcon() },
@@ -25,6 +26,7 @@ const BOOSTER_INFO = {
 function goalIcon(goal) {
   if (goal.type === 'collect') return tileSVG(goal.kind, null);
   if (goal.type === 'mud') return mudIcon('Mud');
+  if (goal.type === 'leash') return leashSVG(2);
   return starIcon(true, 'Points');
 }
 
@@ -33,6 +35,7 @@ function goalLabel(game) {
   const p = goalProgress(game);
   if (goal.type === 'collect') return `${Math.min(p.current, p.target)} / ${p.target} ${KIND_NAMES[goal.kind][1]}`;
   if (goal.type === 'mud') return `${p.current} / ${p.target} mud cleaned`;
+  if (goal.type === 'leash') return `${p.current} / ${p.target} leash knots untied`;
   return `${Math.min(p.current, p.target).toLocaleString('en-US')} / ${p.target.toLocaleString('en-US')} points`;
 }
 
@@ -166,7 +169,7 @@ function play(app, levelId, snapshot = null) {
       h('h2', {}, 'Quit this level?'),
       h('p', {}, "You'll use one life."),
       h('div', { class: 'btn-pair' },
-        h('button', { class: 'btn', type: 'button', onClick: () => { sheet.close(); end(false); app.go('map'); } }, 'Quit level'),
+        h('button', { class: 'btn', type: 'button', onClick: () => { sheet.close(); end(false); app.go('map', levelId > 100 ? { view: 'local' } : {}); } }, 'Quit level'),
         h('button', { class: 'btn secondary', type: 'button', onClick: () => sheet.close() }, 'Keep playing')),
     ), { label: 'Quit level' });
   };
@@ -175,7 +178,7 @@ function play(app, levelId, snapshot = null) {
     h('button', { class: 'btn secondary icon-btn', type: 'button', 'aria-label': 'Quit level', onClick: quit, html: closeIcon() }),
     h('div', { class: 'level-title' },
       h('p', { class: 'eyebrow' }, areaOf(levelId).name),
-      h('h2', {}, `Level ${levelId}`, isHardLevel(levelId) ? h('span', { class: 'quiz-tag' }, 'Pop quiz') : null)),
+      h('h2', {}, `Level ${levelNumber(levelId)}`, isHardLevel(levelId) ? h('span', { class: 'quiz-tag' }, 'Pop quiz') : null)),
     movesEl,
   );
   const goalBar = h('div', { class: 'goal-bar card' },
@@ -287,6 +290,7 @@ function play(app, levelId, snapshot = null) {
     if (game.status === 'won') {
       const before = backend.state().progress.unlocked;
       const summary = await end(true);
+      syncProfile(app).catch(() => null); // the all-time leaderboard (signed-in players)
       if (!alive) return;
       const after = backend.state().progress.unlocked;
       if (after > before) app.services.lastWin = { from: levelId, to: after };
