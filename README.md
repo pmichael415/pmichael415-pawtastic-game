@@ -19,7 +19,8 @@ Not in this copy (they were never in the artifact): the automated tests, `src/ne
 - **Public free-play site** (what is live on Lovable). `index.html` carries
   `<meta name="pawtastic-release" content="free-play">`, which turns off demo purchases, the Pup Pass and the Treat Jar.
   Those screens say "Coming soon", so nothing on the public site looks like a real charge or a real prize.
-  Progress is saved in the player's browser.
+  Progress is saved in the player's browser. The sound menu (speaker button) links to a short "Game rules & privacy"
+  page written for this version (`src/ui/screens/rules.js`).
 - **claude.ai demo**: the same code without that line, with simulated purchases and the demo Treat Jar.
 - **Customer version (server mode)**: built with `VITE_BACKEND=server`; players sign in through
   app.pawtasticacademy.com. Not ready yet: see "Not in this copy" above.
