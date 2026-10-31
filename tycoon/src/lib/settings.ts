@@ -14,10 +14,23 @@ export type Settings = {
 };
 
 const KEY = "pawtastic-settings-v1";
-const prefersReduced = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-const smallDevice = () => typeof window !== "undefined" && Math.min(window.screen?.width ?? 1000, window.screen?.height ?? 1000) < 500;
+const prefersReduced = () =>
+  typeof window !== "undefined" &&
+  !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+const smallDevice = () =>
+  typeof window !== "undefined" &&
+  Math.min(window.screen?.width ?? 1000, window.screen?.height ?? 1000) < 500;
 
-export const DEFAULTS: Settings = { view: "overhead", lookSpeed: 1, invertLook: false, reducedMotion: false, lowPower: false, nameTags: true, analytics: true, seenWalkHelp: false };
+export const DEFAULTS: Settings = {
+  view: "overhead",
+  lookSpeed: 1,
+  invertLook: false,
+  reducedMotion: false,
+  lowPower: false,
+  nameTags: true,
+  analytics: true,
+  seenWalkHelp: false,
+};
 
 function read(): Settings {
   const base = { ...DEFAULTS, reducedMotion: prefersReduced(), lowPower: smallDevice() };
@@ -27,7 +40,10 @@ function read(): Settings {
     if (!v || typeof v !== "object") return base;
     return {
       view: v.view === "walk" || v.view === "list" || v.view === "overhead" ? v.view : base.view,
-      lookSpeed: typeof v.lookSpeed === "number" && v.lookSpeed >= 0.5 && v.lookSpeed <= 2 ? v.lookSpeed : base.lookSpeed,
+      lookSpeed:
+        typeof v.lookSpeed === "number" && v.lookSpeed >= 0.5 && v.lookSpeed <= 2
+          ? v.lookSpeed
+          : base.lookSpeed,
       invertLook: v.invertLook === true,
       reducedMotion: typeof v.reducedMotion === "boolean" ? v.reducedMotion : base.reducedMotion,
       lowPower: typeof v.lowPower === "boolean" ? v.lowPower : base.lowPower,
@@ -48,8 +64,15 @@ export function getSettings(): Settings {
 }
 export function setSettings(patch: Partial<Settings>) {
   cache = { ...getSettings(), ...patch };
-  try { localStorage.setItem(KEY, JSON.stringify(cache)); } catch { /* storage blocked */ }
+  try {
+    localStorage.setItem(KEY, JSON.stringify(cache));
+  } catch {
+    /* storage blocked */
+  }
   listeners.forEach((l) => l());
 }
-const subscribe = (l: () => void) => { listeners.add(l); return () => listeners.delete(l); };
+const subscribe = (l: () => void) => {
+  listeners.add(l);
+  return () => listeners.delete(l);
+};
 export const useSettings = () => useSyncExternalStore(subscribe, getSettings, () => DEFAULTS);

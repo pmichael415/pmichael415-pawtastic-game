@@ -40,7 +40,8 @@ describe("payments config fails closed", () => {
     expect(paymentsConfig({}).ready).toBe(false);
     expect(paymentsConfig({ STRIPE_SECRET_KEY: "sk_test_x" }).ready).toBe(false);
     expect(paymentsConfig({ STRIPE_SECRET_KEY: "sk_live_x", PAYMENT_WEBHOOK_SECRET: "whsec" }).ready).toBe(false);
-    expect(paymentsConfig({ STRIPE_SECRET_KEY: "sk_test_x", PAYMENT_WEBHOOK_SECRET: "whsec", APP_ORIGIN: "https://play.example.com" }).ready).toBe(true);
+    expect(paymentsConfig({ STRIPE_SECRET_KEY: "sk_test_x", PAYMENT_WEBHOOK_SECRET: "whsec", APP_ORIGIN: "https://play.example.com" }).ready).toBe(false); // receiving account not confirmed
+    expect(paymentsConfig({ STRIPE_SECRET_KEY: "sk_test_x", PAYMENT_WEBHOOK_SECRET: "whsec", APP_ORIGIN: "https://play.example.com", STRIPE_EXPECTED_ACCOUNT: "acct_1PawGames000" }).ready).toBe(true);
   });
   it("accepts any of multiple v1 signatures", async () => {
     const t = 1_800_000_000, body = "{}";

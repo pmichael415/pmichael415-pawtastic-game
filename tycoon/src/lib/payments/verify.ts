@@ -58,21 +58,49 @@ export function canonicalOrigin(v: string | undefined): string | null {
   }
 }
 
-/** Server-only config check. Fails closed: refuses live keys, partial config and a missing/invalid return origin. */
-export function paymentsConfig(env: { STRIPE_SECRET_KEY?: string | undefined; PAYMENT_WEBHOOK_SECRET?: string | undefined; APP_ORIGIN?: string | undefined }) {
+/** Stripe account ids look like acct_1AbC…; the owner confirms the game's own account id before payments open. */
+export const isAccountId = (v: string | undefined): v is string => !!v && /^acct_[A-Za-z0-9]{8,40}$/.test(v);
+
+/**
+ * Server-only config check. Fails closed: refuses live keys, partial config, a missing/invalid return origin,
+ * and an unconfirmed receiving account (STRIPE_EXPECTED_ACCOUNT, verified against the key at checkout).
+ */
+export function paymentsConfig(env: { STRIPE_SECRET_KEY?: string | undefined; PAYMENT_WEBHOOK_SECRET?: string | undefined; APP_ORIGIN?: string | undefined; STRIPE_EXPECTED_ACCOUNT?: string | undefined }) {
   const key = env.STRIPE_SECRET_KEY ?? "";
   if (!key || !env.PAYMENT_WEBHOOK_SECRET) return { ready: false as const, reason: "Payment provider not configured yet" };
   if (!key.startsWith("sk_test_") && !key.startsWith("rk_test_")) return { ready: false as const, reason: "Only test-mode keys are accepted" };
   const origin = canonicalOrigin(env.APP_ORIGIN);
   if (!origin) return { ready: false as const, reason: "Checkout return address not configured" };
-  return { ready: true as const, key, origin };
+  if (!isAccountId(env.STRIPE_EXPECTED_ACCOUNT)) return { ready: false as const, reason: "Receiving Stripe account not confirmed yet" };
+  return { ready: true as const, key, origin, account: env.STRIPE_EXPECTED_ACCOUNT };
 }
 
 export const serverPaymentsEnv = () => ({
   STRIPE_SECRET_KEY: process.env["STRIPE_SECRET_KEY"],
   PAYMENT_WEBHOOK_SECRET: process.env["PAYMENT_WEBHOOK_SECRET"],
   APP_ORIGIN: process.env["APP_ORIGIN"],
+  STRIPE_EXPECTED_ACCOUNT: process.env["STRIPE_EXPECTED_ACCOUNT"],
 });
+
+/** The key must belong to the confirmed game account (never the customer app's account). */
+export function accountMatches(fetched: unknown, expected: string): boolean {
+  return !!fetched && typeof fetched === "object" && (fetched as { id?: unknown }).id === expected;
+}
+
+/** Events that close a checkout without payment. */
+export const CLOSING_EVENTS: Record<string, "failed" | "expired"> = {
+  "checkout.session.async_payment_failed": "failed",
+  "checkout.session.expired": "expired",
+};
+export const REFUND_EVENT = "charge.refunded";
+/** A full refund of a charge (partial refunds keep the cosmetic and are only acknowledged). */
+export function refundOf(charge: Record<string, unknown>): { paymentIntent: string; full: boolean } | null {
+  const pi = charge["payment_intent"];
+  if (typeof pi !== "string" || !pi) return null;
+  const amount = Number(charge["amount"]);
+  const refunded = Number(charge["amount_refunded"]);
+  return { paymentIntent: pi, full: charge["refunded"] === true || (Number.isFinite(amount) && amount > 0 && refunded >= amount) };
+}
 
 export type SessionRow = { id: string; user_id: string; product_id: string; amount: number; currency: string };
 /**

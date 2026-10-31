@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { GRANTING_EVENTS, paymentsConfig, serverPaymentsEnv, validatePaidEvent, verifySignature } from "@/lib/payments/verify";
+import { CLOSING_EVENTS, GRANTING_EVENTS, REFUND_EVENT, paymentsConfig, refundOf, serverPaymentsEnv, validatePaidEvent, verifySignature } from "@/lib/payments/verify";
 
 // Signed payment webhook (test mode only). Fails closed: missing config -> 503,
 // bad signature -> 400, validation failure -> 400, DB failure -> 500 (provider retries).
@@ -20,9 +20,33 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
         } catch {
           return Response.json({ error: "bad json" }, { status: 400 });
         }
-        if (!(GRANTING_EVENTS as readonly string[]).includes(String(evt.type))) return Response.json({ received: true });
-
         const o = evt.data?.object ?? {};
+        const type = String(evt.type);
+        if (evt.livemode || o["livemode"] === true) return Response.json({ error: "live mode not enabled" }, { status: 400 });
+        const eventId = String(evt.id ?? "");
+        if (!eventId) return Response.json({ error: "missing event id" }, { status: 400 });
+
+        // Failed / expired checkouts: record them (nothing is granted). Idempotent per event.
+        const closing = CLOSING_EVENTS[type];
+        if (closing) {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const { data, error } = await supabaseAdmin.rpc("mark_checkout_closed", { _event_id: eventId, _session_id: String(o["id"] ?? ""), _status: closing });
+          if (error) return Response.json({ error: "temporary failure" }, { status: 500 });
+          return Response.json({ received: true, result: data });
+        }
+
+        // Full refunds switch the cosmetic off for that account. Partial refunds are acknowledged only.
+        if (type === REFUND_EVENT) {
+          const r = refundOf(o);
+          if (!r) return Response.json({ error: "missing payment intent" }, { status: 400 });
+          if (!r.full) return Response.json({ received: true, partial: true });
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const { data, error } = await supabaseAdmin.rpc("revoke_entitlement_for_refund", { _event_id: eventId, _payment_intent: r.paymentIntent });
+          if (error) return Response.json({ error: "temporary failure" }, { status: 500 });
+          return Response.json({ received: true, result: data });
+        }
+
+        if (!(GRANTING_EVENTS as readonly string[]).includes(type)) return Response.json({ received: true });
         const meta = (o["metadata"] ?? {}) as Record<string, string>;
         const paid = {
           eventId: String(evt.id ?? ""),
@@ -48,9 +72,10 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
           _product_id: paid.productId,
           _amount: paid.amount,
           _currency: paid.currency,
+          _payment_intent: typeof o["payment_intent"] === "string" ? (o["payment_intent"] as string) : null,
         });
         if (error) {
-          const permanent = /mismatch|unknown session/.test(error.message);
+          const permanent = /mismatch|unknown session|refunded/.test(error.message);
           return Response.json({ error: permanent ? "session mismatch" : "temporary failure" }, { status: permanent ? 400 : 500 });
         }
         return Response.json({ received: true, result: data });

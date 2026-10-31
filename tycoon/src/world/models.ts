@@ -4,11 +4,18 @@
 import * as THREE from "three";
 
 const matCache = new Map<string, THREE.MeshLambertMaterial>();
-export function mat(color: string, opts: { transparent?: boolean; opacity?: number; emissive?: string } = {}) {
+export function mat(
+  color: string,
+  opts: { transparent?: boolean; opacity?: number; emissive?: string } = {},
+) {
   const key = `${color}|${opts.opacity ?? 1}|${opts.emissive ?? ""}`;
   let m = matCache.get(key);
   if (!m) {
-    m = new THREE.MeshLambertMaterial({ color, transparent: !!opts.transparent || (opts.opacity ?? 1) < 1, opacity: opts.opacity ?? 1 });
+    m = new THREE.MeshLambertMaterial({
+      color,
+      transparent: !!opts.transparent || (opts.opacity ?? 1) < 1,
+      opacity: opts.opacity ?? 1,
+    });
     if (opts.emissive) m.emissive = new THREE.Color(opts.emissive);
     if (m.transparent) m.depthWrite = false;
     matCache.set(key, m);
@@ -31,7 +38,17 @@ export const GEO = {
   plane: new THREE.PlaneGeometry(1, 1),
 };
 
-export function part(geo: THREE.BufferGeometry, color: string, sx: number, sy: number, sz: number, x = 0, y = 0, z = 0, opts?: Parameters<typeof mat>[1]) {
+export function part(
+  geo: THREE.BufferGeometry,
+  color: string,
+  sx: number,
+  sy: number,
+  sz: number,
+  x = 0,
+  y = 0,
+  z = 0,
+  opts?: Parameters<typeof mat>[1],
+) {
   const m = new THREE.Mesh(geo, mat(color, opts));
   m.scale.set(sx, sy, sz);
   m.position.set(x, y, z);
@@ -41,18 +58,82 @@ export function part(geo: THREE.BufferGeometry, color: string, sx: number, sy: n
 // ---------- Dogs ----------
 // Coats are generic colour schemes, chosen by the breed index the engine already stores.
 // Nothing about behaviour or temperament is ever derived from these.
-export type Coat = { body: string; head: string; ear: string; chest: string; ears: "flop" | "up"; muzzle: string };
+export type Coat = {
+  body: string;
+  head: string;
+  ear: string;
+  chest: string;
+  ears: "flop" | "up";
+  muzzle: string;
+};
 export const COATS: Coat[] = [
-  { body: "#d9a441", head: "#d9a441", ear: "#b9822b", chest: "#f2d18b", ears: "flop", muzzle: "#f2d18b" }, // golden
-  { body: "#2e2a2a", head: "#2e2a2a", ear: "#1d1a1a", chest: "#4a4444", ears: "flop", muzzle: "#4a4444" }, // black
-  { body: "#7a4a2b", head: "#7a4a2b", ear: "#5c361e", chest: "#f3eee6", ears: "flop", muzzle: "#c79a73" }, // chocolate tri
-  { body: "#f3efe6", head: "#f3efe6", ear: "#e3d6bd", chest: "#ffffff", ears: "up", muzzle: "#ffffff" }, // cream
-  { body: "#8f8f99", head: "#a5a5ae", ear: "#6c6c75", chest: "#e4e4ea", ears: "up", muzzle: "#e4e4ea" }, // grey
-  { body: "#c46d33", head: "#c46d33", ear: "#9a4f22", chest: "#f6e7d4", ears: "up", muzzle: "#f6e7d4" }, // red & white
-  { body: "#3a2f28", head: "#a8743f", ear: "#3a2f28", chest: "#a8743f", ears: "up", muzzle: "#a8743f" }, // black & tan
-  { body: "#e8e2d6", head: "#e8e2d6", ear: "#6b4a33", chest: "#ffffff", ears: "flop", muzzle: "#ffffff" }, // white w/ brown ears
+  {
+    body: "#d9a441",
+    head: "#d9a441",
+    ear: "#b9822b",
+    chest: "#f2d18b",
+    ears: "flop",
+    muzzle: "#f2d18b",
+  }, // golden
+  {
+    body: "#2e2a2a",
+    head: "#2e2a2a",
+    ear: "#1d1a1a",
+    chest: "#4a4444",
+    ears: "flop",
+    muzzle: "#4a4444",
+  }, // black
+  {
+    body: "#7a4a2b",
+    head: "#7a4a2b",
+    ear: "#5c361e",
+    chest: "#f3eee6",
+    ears: "flop",
+    muzzle: "#c79a73",
+  }, // chocolate tri
+  {
+    body: "#f3efe6",
+    head: "#f3efe6",
+    ear: "#e3d6bd",
+    chest: "#ffffff",
+    ears: "up",
+    muzzle: "#ffffff",
+  }, // cream
+  {
+    body: "#8f8f99",
+    head: "#a5a5ae",
+    ear: "#6c6c75",
+    chest: "#e4e4ea",
+    ears: "up",
+    muzzle: "#e4e4ea",
+  }, // grey
+  {
+    body: "#c46d33",
+    head: "#c46d33",
+    ear: "#9a4f22",
+    chest: "#f6e7d4",
+    ears: "up",
+    muzzle: "#f6e7d4",
+  }, // red & white
+  {
+    body: "#3a2f28",
+    head: "#a8743f",
+    ear: "#3a2f28",
+    chest: "#a8743f",
+    ears: "up",
+    muzzle: "#a8743f",
+  }, // black & tan
+  {
+    body: "#e8e2d6",
+    head: "#e8e2d6",
+    ear: "#6b4a33",
+    chest: "#ffffff",
+    ears: "flop",
+    muzzle: "#ffffff",
+  }, // white w/ brown ears
 ];
-export const coatFor = (breed: number) => COATS[((breed % COATS.length) + COATS.length) % COATS.length]!;
+export const coatFor = (breed: number) =>
+  COATS[((breed % COATS.length) + COATS.length) % COATS.length]!;
 
 export type DogRig = {
   root: THREE.Group; // positioned in the world, rotated to face heading
@@ -81,7 +162,11 @@ function blobShadowTexture() {
 }
 let shadowMat: THREE.MeshBasicMaterial | null = null;
 export function blobShadow(size: number) {
-  shadowMat ??= new THREE.MeshBasicMaterial({ map: blobShadowTexture(), transparent: true, depthWrite: false });
+  shadowMat ??= new THREE.MeshBasicMaterial({
+    map: blobShadowTexture(),
+    transparent: true,
+    depthWrite: false,
+  });
   const m = new THREE.Mesh(GEO.plane, shadowMat);
   m.rotation.x = -Math.PI / 2;
   m.scale.set(size, size, 1);
@@ -141,7 +226,12 @@ export function buildDog(coat: Coat, scale: number): DogRig {
   body.add(tailPivot);
   // legs (pivot at hip so they can swing)
   const legs: THREE.Object3D[] = [];
-  for (const [x, z] of [[-0.12, 0.2], [0.12, 0.2], [-0.12, -0.2], [0.12, -0.2]] as const) {
+  for (const [x, z] of [
+    [-0.12, 0.2],
+    [0.12, 0.2],
+    [-0.12, -0.2],
+    [0.12, -0.2],
+  ] as const) {
     const pivot = new THREE.Group();
     pivot.position.set(x, 0.38, z);
     pivot.add(part(GEO.cylLo, coat.body, 0.09, 0.38, 0.09, 0, -0.19, 0));
@@ -195,7 +285,14 @@ export function buildPerson(shirt: string, seed: number, staff = false): PersonR
 }
 
 // ---------- Text sprites (name tags, room signs) ----------
-export function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+export function roundRect(
+  g: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
   g.beginPath();
   g.moveTo(x + r, y);
   g.arcTo(x + w, y, x + w, y + h, r);
@@ -205,7 +302,11 @@ export function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: 
   g.closePath();
 }
 
-export type Tag = { sprite: THREE.Sprite; set: (text: string, sub?: string, tone?: TagTone) => void; dispose: () => void };
+export type Tag = {
+  sprite: THREE.Sprite;
+  set: (text: string, sub?: string, tone?: TagTone) => void;
+  dispose: () => void;
+};
 export type TagTone = "default" | "waiting" | "alert" | "selected" | "calm";
 const TONES: Record<TagTone, { bg: string; fg: string; sub: string }> = {
   default: { bg: "rgba(255,255,255,0.94)", fg: "#102c49", sub: "#0057A7" },
@@ -318,7 +419,9 @@ export function makeEmojiSprite(emoji: string, size = 0.7) {
   g.fillText(emoji, 48, 52);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+  const s = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }),
+  );
   s.scale.set(size, size, 1);
   s.renderOrder = 11;
   return s;

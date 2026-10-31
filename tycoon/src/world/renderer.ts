@@ -3,12 +3,60 @@
 // reported back to React, which runs the engine action. Both camera modes share this one scene.
 import * as THREE from "three";
 import type { Dog, GameState, GroupId, SiteId } from "@/game/engine";
-import { GROUPS, LOBBY_CAP, groupOf, hasScuffle, lobbyDogs, roomAtRisk, roomCapacity, roomDogs, suiteCount, suiteDog } from "@/game/engine";
 import {
-  AREAS, BATH, BOUNDS, COLLIDERS, CORRIDOR, DESK, ENTRANCE_IN, ENTRANCE_OUT, GROUP_COLORS, LOBBY, LOBBY_PEN, LOBBY_SPOTS, RECOVERY, ROOMS, STREET, SUITES, TUB, WALLS,
-  areaAt, areaForPlace, collide, inRect, randomIn, routeBetween, type Area, type Pt,
+  GROUPS,
+  LOBBY_CAP,
+  groupOf,
+  hasScuffle,
+  lobbyDogs,
+  roomAtRisk,
+  roomCapacity,
+  roomDogs,
+  suiteCount,
+  suiteDog,
+} from "@/game/engine";
+import {
+  AREAS,
+  BATH,
+  BOUNDS,
+  COLLIDERS,
+  CORRIDOR,
+  DESK,
+  ENTRANCE_IN,
+  ENTRANCE_OUT,
+  GROUP_COLORS,
+  LOBBY,
+  LOBBY_PEN,
+  LOBBY_SPOTS,
+  RECOVERY,
+  ROOMS,
+  STREET,
+  SUITES,
+  TUB,
+  WALLS,
+  areaAt,
+  areaForPlace,
+  collide,
+  inRect,
+  randomIn,
+  routeBetween,
+  type Area,
+  type Pt,
 } from "./layout";
-import { GEO, buildDog, buildPerson, coatFor, makeEmojiSprite, makeSign, makeTag, mat, part, type DogRig, type PersonRig, type Tag } from "./models";
+import {
+  GEO,
+  buildDog,
+  buildPerson,
+  coatFor,
+  makeEmojiSprite,
+  makeSign,
+  makeTag,
+  mat,
+  part,
+  type DogRig,
+  type PersonRig,
+  type Tag,
+} from "./models";
 
 export type CameraMode = "overhead" | "walk";
 export type WorldPick =
@@ -18,7 +66,12 @@ export type WorldPick =
   | { kind: "place"; place: "lobby" | "desk" | "bath" | "recovery" };
 export type FocusTarget = (WorldPick & { key: string }) | null;
 export type RoomHint = "fit" | "warn" | "block";
-export type WorldLooks = { bandana?: string | undefined; star: boolean; collar: boolean; deluxe: boolean };
+export type WorldLooks = {
+  bandana?: string | undefined;
+  star: boolean;
+  collar: boolean;
+  deluxe: boolean;
+};
 export type WorldSnapshot = {
   state: GameState;
   site: SiteId;
@@ -128,7 +181,12 @@ export class DaycareWorld {
     this.canvas = canvas;
     this.opts = opts;
     const dpr = Math.min(window.devicePixelRatio || 1, opts.lowPower ? 1.25 : 1.75);
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: dpr < 1.5, powerPreference: "high-performance", alpha: false });
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: dpr < 1.5,
+      powerPreference: "high-performance",
+      alpha: false,
+    });
     this.renderer.setPixelRatio(dpr);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.scene.background = new THREE.Color("#cfe6ff");
@@ -138,7 +196,16 @@ export class DaycareWorld {
     this.scene.add(sun);
     this.scene.add(this.siteGroup);
     this.scene.add(this.dynamic);
-    this.selRing = new THREE.Mesh(GEO.ring, new THREE.MeshBasicMaterial({ color: "#ffd34d", side: THREE.DoubleSide, transparent: true, opacity: 0.95, depthWrite: false }));
+    this.selRing = new THREE.Mesh(
+      GEO.ring,
+      new THREE.MeshBasicMaterial({
+        color: "#ffd34d",
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+      }),
+    );
     this.selRing.rotation.x = -Math.PI / 2;
     this.selRing.position.y = 0.03;
     this.selRing.visible = false;
@@ -148,7 +215,9 @@ export class DaycareWorld {
     this.resize();
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(canvas);
-    this.io = new IntersectionObserver((e) => { this.visible = e.some((x) => x.isIntersecting); });
+    this.io = new IntersectionObserver((e) => {
+      this.visible = e.some((x) => x.isIntersecting);
+    });
     this.io.observe(canvas);
     this.last = performance.now();
     this.raf = requestAnimationFrame(this.frame);
@@ -173,7 +242,10 @@ export class DaycareWorld {
       // Step in at the doorway of whatever area the overhead camera was showing, facing into it.
       // The lobby (and anywhere else) starts at the front door, facing the check-in desk.
       const a = areaAt({ x: this.target.x, z: this.target.z });
-      if (a && (a.kind === "room" || a.kind === "suite" || a.kind === "bath" || a.kind === "recovery")) {
+      if (
+        a &&
+        (a.kind === "room" || a.kind === "suite" || a.kind === "bath" || a.kind === "recovery")
+      ) {
         this.me = { ...a.doorIn };
         this.yaw = a.rect.z1 <= 2.6 ? 0 : Math.PI;
       } else {
@@ -201,8 +273,13 @@ export class DaycareWorld {
     } else {
       const aspect = this.canvas.clientWidth / Math.max(1, this.canvas.clientHeight);
       // phones: start over the lobby & front desk; wide screens: the whole building
-      if (aspect < 1.3) { this.target.set(-1, 0, 6.2); this.distance = 22; }
-      else { this.target.set(0, 0, 3.5); this.distance = 30; }
+      if (aspect < 1.3) {
+        this.target.set(-1, 0, 6.2);
+        this.distance = 22;
+      } else {
+        this.target.set(0, 0, 3.5);
+        this.distance = 30;
+      }
     }
     this.reportCamera();
   }
@@ -211,8 +288,13 @@ export class DaycareWorld {
   jumpTo(key: string) {
     const a = AREAS.find((x) => x.key === key) ?? (key === "playrooms" ? null : LOBBY);
     if (key === "playrooms") {
-      if (this.mode === "walk") { this.me = { x: 0, z: 4 }; this.yaw = 0; }
-      else { this.target.set(0, 0, -1.5); this.distance = 30; }
+      if (this.mode === "walk") {
+        this.me = { x: 0, z: 4 };
+        this.yaw = 0;
+      } else {
+        this.target.set(0, 0, -1.5);
+        this.distance = 30;
+      }
       this.reportCamera();
       return;
     }
@@ -220,7 +302,10 @@ export class DaycareWorld {
     if (this.mode === "walk") {
       this.me = { ...a.doorIn };
       this.yaw = a.rect.z1 <= 2.6 ? 0 : Math.PI; // face into the room
-      if (a.kind === "lobby") { this.me = { ...ENTRANCE_IN }; this.yaw = 0; }
+      if (a.kind === "lobby") {
+        this.me = { ...ENTRANCE_IN };
+        this.yaw = 0;
+      }
     } else {
       this.target.set((a.rect.x0 + a.rect.x1) / 2, 0, (a.rect.z0 + a.rect.z1) / 2);
       this.distance = Math.max(14, Math.min(26, (a.rect.x1 - a.rect.x0) * 2.2));
@@ -229,7 +314,8 @@ export class DaycareWorld {
   }
 
   zoom(factor: number) {
-    if (this.mode === "overhead") this.distance = THREE.MathUtils.clamp(this.distance * factor, 9, 48);
+    if (this.mode === "overhead")
+      this.distance = THREE.MathUtils.clamp(this.distance * factor, 9, 48);
   }
 
   setMove(x: number, y: number) {
@@ -246,21 +332,41 @@ export class DaycareWorld {
 
   look(dx: number, dy: number) {
     this.yaw -= dx * 0.0055 * this.lookSpeed;
-    this.pitch = THREE.MathUtils.clamp(this.pitch - (this.invertLook ? -dy : dy) * 0.0045 * this.lookSpeed, -1.1, 0.6);
+    this.pitch = THREE.MathUtils.clamp(
+      this.pitch - (this.invertLook ? -dy : dy) * 0.0045 * this.lookSpeed,
+      -1.1,
+      0.6,
+    );
   }
 
   /** Little celebratory/feedback effects; also sends a staff member over. */
   effect(kind: "checkin" | "play" | "bath" | "checkout" | "separate" | "assign", dogId: string) {
     const a = this.dogs.get(dogId);
     const pos = a?.pos ?? LOBBY.doorIn;
-    const emoji = { checkin: "✅", play: "💙", bath: "🫧", checkout: "🏠", separate: "🫶", assign: "🐾" }[kind];
-    for (let i = 0; i < (kind === "play" || kind === "bath" ? 3 : 1); i++) this.spawnFx(emoji, pos, i * 0.18);
+    const emoji = {
+      checkin: "✅",
+      play: "💙",
+      bath: "🫧",
+      checkout: "🏠",
+      separate: "🫶",
+      assign: "🐾",
+    }[kind];
+    for (let i = 0; i < (kind === "play" || kind === "bath" ? 3 : 1); i++)
+      this.spawnFx(emoji, pos, i * 0.18);
     if (kind === "bath" && a) {
-      a.path = routeBetween(a.pos, areaAt(a.pos), BATH, { x: TUB.x + (Math.random() - 0.5) * 0.8, z: TUB.z });
+      a.path = routeBetween(a.pos, areaAt(a.pos), BATH, {
+        x: TUB.x + (Math.random() - 0.5) * 0.8,
+        z: TUB.z,
+      });
       a.bathUntil = this.t + 9;
     }
-    const helper = [...this.staff.values()].find((p) => !p.path.length) ?? [...this.staff.values()][0];
-    if (helper && a) helper.path = routeBetween(helper.pos, areaAt(helper.pos), areaAt(a.pos) ?? LOBBY, { x: a.pos.x + 0.9, z: a.pos.z + 0.6 });
+    const helper =
+      [...this.staff.values()].find((p) => !p.path.length) ?? [...this.staff.values()][0];
+    if (helper && a)
+      helper.path = routeBetween(helper.pos, areaAt(helper.pos), areaAt(a.pos) ?? LOBBY, {
+        x: a.pos.x + 0.9,
+        z: a.pos.z + 0.6,
+      });
   }
 
   dispose() {
@@ -290,7 +396,14 @@ export class DaycareWorld {
       this.scene.add(stripe);
     }
     // a few trees for scale
-    for (const [x, z] of [[-20, 15], [20, 15], [-21, -3], [21, 2], [-19, -9], [19, -8]] as const) {
+    for (const [x, z] of [
+      [-20, 15],
+      [20, 15],
+      [-21, -3],
+      [21, 2],
+      [-19, -9],
+      [19, -8],
+    ] as const) {
       this.scene.add(part(GEO.cylLo, "#8a5a33", 0.35, 1.6, 0.35, x, 0.8, z));
       this.scene.add(part(GEO.sphereLo, "#5fb35a", 2.6, 2.4, 2.6, x, 2.4, z));
     }
@@ -304,11 +417,20 @@ export class DaycareWorld {
     this.roomSigns.clear();
     this.suiteSigns = [];
     this.dust.clear();
-    for (const d of this.dogs.values()) { this.scene.remove(d.rig.root, d.tag.sprite); d.tag.dispose(); }
+    for (const d of this.dogs.values()) {
+      this.scene.remove(d.rig.root, d.tag.sprite);
+      d.tag.dispose();
+    }
     this.dogs.clear();
     for (const p of this.people) this.scene.remove(p.rig.root);
     this.people = [];
-    for (const p of this.staff.values()) { this.scene.remove(p.rig.root); if (p.tag) { this.scene.remove(p.tag.sprite); p.tag.dispose(); } }
+    for (const p of this.staff.values()) {
+      this.scene.remove(p.rig.root);
+      if (p.tag) {
+        this.scene.remove(p.tag.sprite);
+        p.tag.dispose();
+      }
+    }
     this.staff.clear();
     this.known.clear();
     this.dynamicKey = "";
@@ -317,25 +439,56 @@ export class DaycareWorld {
     const trim = site === "hillsdale" ? "#2f9e5b" : "#0057A7";
     // floors
     for (const a of AREAS) {
-      const f = part(GEO.plane, a.floor, a.rect.x1 - a.rect.x0, a.rect.z1 - a.rect.z0, 1, (a.rect.x0 + a.rect.x1) / 2, 0.005, (a.rect.z0 + a.rect.z1) / 2);
+      const f = part(
+        GEO.plane,
+        a.floor,
+        a.rect.x1 - a.rect.x0,
+        a.rect.z1 - a.rect.z0,
+        1,
+        (a.rect.x0 + a.rect.x1) / 2,
+        0.005,
+        (a.rect.z0 + a.rect.z1) / 2,
+      );
       f.rotation.x = -Math.PI / 2;
-      if (a.kind === "room") f.userData["pick"] = { kind: "room", group: a.group! } satisfies WorldPick;
-      if (a.kind === "suite") f.userData["pick"] = { kind: "suite", index: a.index! } satisfies WorldPick;
-      if (a.kind === "lobby") f.userData["pick"] = { kind: "place", place: "lobby" } satisfies WorldPick;
-      if (a.kind === "bath") f.userData["pick"] = { kind: "place", place: "bath" } satisfies WorldPick;
-      if (a.kind === "recovery") f.userData["pick"] = { kind: "place", place: "recovery" } satisfies WorldPick;
+      if (a.kind === "room")
+        f.userData["pick"] = { kind: "room", group: a.group! } satisfies WorldPick;
+      if (a.kind === "suite")
+        f.userData["pick"] = { kind: "suite", index: a.index! } satisfies WorldPick;
+      if (a.kind === "lobby")
+        f.userData["pick"] = { kind: "place", place: "lobby" } satisfies WorldPick;
+      if (a.kind === "bath")
+        f.userData["pick"] = { kind: "place", place: "bath" } satisfies WorldPick;
+      if (a.kind === "recovery")
+        f.userData["pick"] = { kind: "place", place: "recovery" } satisfies WorldPick;
       g.add(f);
       if (f.userData["pick"]) this.pickables.push(f);
       if (a.kind === "room") {
         // colour wash used to show fit / warning / blocked while a pup is selected
-        const hint = new THREE.Mesh(GEO.plane, new THREE.MeshBasicMaterial({ color: "#2fbf71", transparent: true, opacity: 0, depthWrite: false }));
+        const hint = new THREE.Mesh(
+          GEO.plane,
+          new THREE.MeshBasicMaterial({
+            color: "#2fbf71",
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+          }),
+        );
         hint.rotation.x = -Math.PI / 2;
         hint.scale.set(a.rect.x1 - a.rect.x0 - 0.3, a.rect.z1 - a.rect.z0 - 0.3, 1);
         hint.position.set((a.rect.x0 + a.rect.x1) / 2, 0.012, (a.rect.z0 + a.rect.z1) / 2);
         g.add(hint);
         this.roomHint.set(a.key, hint);
         // group colour stripe along the doorway
-        const stripe = part(GEO.box, GROUP_COLORS[a.group!].accent, a.rect.x1 - a.rect.x0 - 0.4, 0.02, 0.35, (a.rect.x0 + a.rect.x1) / 2, 0.015, a.rect.z1 - 0.35);
+        const stripe = part(
+          GEO.box,
+          GROUP_COLORS[a.group!].accent,
+          a.rect.x1 - a.rect.x0 - 0.4,
+          0.02,
+          0.35,
+          (a.rect.x0 + a.rect.x1) / 2,
+          0.015,
+          a.rect.z1 - 0.35,
+        );
         g.add(stripe);
         // sign above the door, readable from the hallway and from above
         const sign = makeSign(3.4, 1.05);
@@ -387,7 +540,12 @@ export class DaycareWorld {
     g.add(part(GEO.cylLo, "#ffffff", 0.12, 2.7, 0.12, -1.9, 1.35, 14.8));
     g.add(part(GEO.cylLo, "#ffffff", 0.12, 2.7, 0.12, 1.9, 1.35, 14.8));
     const welcome = makeSign(4, 0.9);
-    welcome.draw({ title: site === "hillsdale" ? "Hillsdale" : "Hawthorne", sub: "PAWtastic daycare · game version", badge: "🐾", color: "#ffffff" });
+    welcome.draw({
+      title: site === "hillsdale" ? "Hillsdale" : "Hawthorne",
+      sub: "PAWtastic daycare · game version",
+      badge: "🐾",
+      color: "#ffffff",
+    });
     welcome.mesh.position.set(0, 3.3, 13.05);
     g.add(welcome.mesh);
     // lobby: front desk, logo wall, waiting pen, benches
@@ -418,14 +576,24 @@ export class DaycareWorld {
     }
     const pen = LOBBY_PEN;
     const rail = "#ffffff";
-    for (const [x0, z0, x1, z1] of [[pen.x0, pen.z0, pen.x1, pen.z0], [pen.x0, pen.z1, pen.x1, pen.z1], [pen.x1, pen.z0, pen.x1, pen.z0 + 2.2], [pen.x1, pen.z0 + 3.6, pen.x1, pen.z1]] as const) {
+    for (const [x0, z0, x1, z1] of [
+      [pen.x0, pen.z0, pen.x1, pen.z0],
+      [pen.x0, pen.z1, pen.x1, pen.z1],
+      [pen.x1, pen.z0, pen.x1, pen.z0 + 2.2],
+      [pen.x1, pen.z0 + 3.6, pen.x1, pen.z1],
+    ] as const) {
       const lx = Math.abs(x1 - x0) || 0.06;
       const lz = Math.abs(z1 - z0) || 0.06;
       g.add(part(GEO.box, rail, lx, 0.06, lz, (x0 + x1) / 2, 0.62, (z0 + z1) / 2));
       g.add(part(GEO.box, trim, lx, 0.05, lz, (x0 + x1) / 2, 0.3, (z0 + z1) / 2));
     }
     const penSign = makeSign(2.6, 0.7);
-    penSign.draw({ title: "Waiting area", sub: `Up to ${LOBBY_CAP} pups`, badge: "🛎️", color: "#ffd34d" });
+    penSign.draw({
+      title: "Waiting area",
+      sub: `Up to ${LOBBY_CAP} pups`,
+      badge: "🛎️",
+      color: "#ffd34d",
+    });
     penSign.mesh.position.set(pen.x0 + 1.6, 1.25, pen.z1 + 0.02);
     g.add(penSign.mesh);
     for (const z of [10.2, 11.8]) {
@@ -437,9 +605,27 @@ export class DaycareWorld {
     g.add(part(GEO.box, "#ffffff", 2.0, 0.7, 1.2, TUB.x, 0.35, TUB.z));
     g.add(part(GEO.box, "#7fd3e8", 1.7, 0.05, 0.9, TUB.x, 0.68, TUB.z));
     g.add(part(GEO.cylLo, "#9aa6b2", 0.08, 1.6, 0.08, TUB.x + 0.9, 1.1, TUB.z - 0.55));
-    for (let i = 0; i < 3; i++) g.add(part(GEO.box, ["#ffd34d", "#ff9fb8", "#9fd8ff"][i]!, 0.5, 0.7, 0.06, 6.6 + i * 0.6, 1.0, 12.85));
+    for (let i = 0; i < 3; i++)
+      g.add(
+        part(
+          GEO.box,
+          ["#ffd34d", "#ff9fb8", "#9fd8ff"][i]!,
+          0.5,
+          0.7,
+          0.06,
+          6.6 + i * 0.6,
+          1.0,
+          12.85,
+        ),
+      );
     // recovery room: soft mats, calm plants
-    for (const [x, z] of [[12.4, 8.2], [14.6, 8.2], [12.4, 11.2], [14.6, 11.2]] as const) g.add(part(GEO.box, "#cbbcf6", 1.6, 0.12, 1.2, x, 0.06, z));
+    for (const [x, z] of [
+      [12.4, 8.2],
+      [14.6, 8.2],
+      [12.4, 11.2],
+      [14.6, 11.2],
+    ] as const)
+      g.add(part(GEO.box, "#cbbcf6", 1.6, 0.12, 1.2, x, 0.06, z));
     this.addPlant(g, 15.4, 6.2);
     this.addPlant(g, 11.6, 12.4);
     // signs for lobby / bath / recovery (facing the hallway)
@@ -450,7 +636,12 @@ export class DaycareWorld {
     ];
     for (const [a, title, sub, badge] of sigs) {
       const s = makeSign(a === LOBBY ? 3.4 : 3.0, 0.95);
-      s.draw({ title, sub, badge, color: a === RECOVERY ? "#cbbcf6" : a === BATH ? "#7fd3e8" : "#ffd34d" });
+      s.draw({
+        title,
+        sub,
+        badge,
+        color: a === RECOVERY ? "#cbbcf6" : a === BATH ? "#7fd3e8" : "#ffd34d",
+      });
       s.mesh.position.set(a.doorIn.x, 2.75, a.rect.z0 - 0.12);
       s.mesh.rotation.y = Math.PI;
       g.add(s.mesh);
@@ -493,13 +684,19 @@ export class DaycareWorld {
         g.add(ramp, part(GEO.box, "#ffb347", 0.9, 0.7, 0.9, cx - 0.2, 0.35, -4.6));
       }
       if (up("yard2")) {
-        const tunnel = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 2.2, 12, 1, true), mat("#4cc3a0"));
+        const tunnel = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.45, 0.45, 2.2, 12, 1, true),
+          mat("#4cc3a0"),
+        );
         tunnel.material.side = THREE.DoubleSide;
         tunnel.rotation.z = Math.PI / 2;
         tunnel.position.set(cx + 1.6, 0.45, -1.8);
         g.add(tunnel);
         for (const dx of [-2.6, -1.4]) {
-          g.add(part(GEO.cylLo, "#ffffff", 0.06, 0.6, 0.06, cx + dx, 0.3, 0.2), part(GEO.cylLo, "#ffffff", 0.06, 0.6, 0.06, cx + dx + 0.9, 0.3, 0.2));
+          g.add(
+            part(GEO.cylLo, "#ffffff", 0.06, 0.6, 0.06, cx + dx, 0.3, 0.2),
+            part(GEO.cylLo, "#ffffff", 0.06, 0.6, 0.06, cx + dx + 0.9, 0.3, 0.2),
+          );
           const bar = part(GEO.cylLo, "#e64a4a", 0.05, 0.95, 0.05, cx + dx + 0.45, 0.45, 0.2);
           bar.rotation.z = Math.PI / 2;
           g.add(bar);
@@ -507,45 +704,103 @@ export class DaycareWorld {
       }
       if (st.decor.includes("balls")) {
         g.add(part(GEO.cyl, "#0057A7", 0.7, 0.55, 0.7, r.rect.x1 - 0.7, 0.28, r.rect.z0 + 0.7));
-        for (let i = 0; i < 4; i++) g.add(part(GEO.sphereLo, "#c8e05a", 0.2, 0.2, 0.2, r.rect.x1 - 0.85 + (i % 2) * 0.25, 0.6, r.rect.z0 + 0.6 + Math.floor(i / 2) * 0.22));
+        for (let i = 0; i < 4; i++)
+          g.add(
+            part(
+              GEO.sphereLo,
+              "#c8e05a",
+              0.2,
+              0.2,
+              0.2,
+              r.rect.x1 - 0.85 + (i % 2) * 0.25,
+              0.6,
+              r.rect.z0 + 0.6 + Math.floor(i / 2) * 0.22,
+            ),
+          );
       }
       if (st.decor.includes("pool") && r.group?.startsWith("large")) {
-        g.add(part(GEO.cyl, "#5ec2f0", 1.8, 0.25, 1.8, cx + 2.3, 0.12, -4.5), part(GEO.cyl, "#bfeaff", 1.6, 0.27, 1.6, cx + 2.3, 0.13, -4.5));
+        g.add(
+          part(GEO.cyl, "#5ec2f0", 1.8, 0.25, 1.8, cx + 2.3, 0.12, -4.5),
+          part(GEO.cyl, "#bfeaff", 1.6, 0.27, 1.6, cx + 2.3, 0.13, -4.5),
+        );
       }
       if (st.decor.includes("plant")) this.addPlant(g, r.rect.x0 + 0.6, r.rect.z1 - 1.2);
       if (s.looks.deluxe) {
         // Deluxe Daycare Decor (paid, cosmetic): cloud beds + lighthouse fort
-        for (const dx of [-2.6, -1.6]) for (const k of [0, 1, 2]) g.add(part(GEO.sphereLo, "#ffffff", 0.7, 0.35, 0.7, cx + dx + k * 0.25, 0.18, r.rect.z0 + 0.8 + (k % 2) * 0.2));
+        for (const dx of [-2.6, -1.6])
+          for (const k of [0, 1, 2])
+            g.add(
+              part(
+                GEO.sphereLo,
+                "#ffffff",
+                0.7,
+                0.35,
+                0.7,
+                cx + dx + k * 0.25,
+                0.18,
+                r.rect.z0 + 0.8 + (k % 2) * 0.2,
+              ),
+            );
         const lx = r.rect.x1 - 1.1;
-        for (let i = 0; i < 4; i++) g.add(part(GEO.cyl, i % 2 ? "#e64a4a" : "#ffffff", 0.9 - i * 0.08, 0.5, 0.9 - i * 0.08, lx, 0.25 + i * 0.5, -1.4));
+        for (let i = 0; i < 4; i++)
+          g.add(
+            part(
+              GEO.cyl,
+              i % 2 ? "#e64a4a" : "#ffffff",
+              0.9 - i * 0.08,
+              0.5,
+              0.9 - i * 0.08,
+              lx,
+              0.25 + i * 0.5,
+              -1.4,
+            ),
+          );
         g.add(part(GEO.cone, "#102c49", 0.8, 0.6, 0.8, lx, 2.3, -1.4));
       }
     }
-    if (st.decor.includes("plant")) { this.addPlant(g, 5.4, 6.2); this.addPlant(g, -5.4, 12.4); }
+    if (st.decor.includes("plant")) {
+      this.addPlant(g, 5.4, 6.2);
+      this.addPlant(g, -5.4, 12.4);
+    }
     if (st.decor.includes("bone")) {
       g.add(part(GEO.capsule, "#f3e3c6", 0.5, 1.4, 0.5, 4.4, 0.35, 7.3));
       g.children[g.children.length - 1]!.rotation.z = Math.PI / 2;
-      for (const dx of [-1.15, 1.15]) for (const dz of [-0.25, 0.25]) g.add(part(GEO.sphereLo, "#f3e3c6", 0.55, 0.55, 0.55, 4.4 + dx, 0.35, 7.3 + dz));
+      for (const dx of [-1.15, 1.15])
+        for (const dz of [-0.25, 0.25])
+          g.add(part(GEO.sphereLo, "#f3e3c6", 0.55, 0.55, 0.55, 4.4 + dx, 0.35, 7.3 + dz));
     }
     if (s.looks.deluxe) {
       // paw-print rug in the lobby
       const rug = part(GEO.cyl, "#0057A7", 3, 0.02, 3, 0.2, 0.02, 11);
       g.add(rug, part(GEO.cyl, "#ffffff", 0.9, 0.025, 0.9, 0.2, 0.025, 11.2));
-      for (const [dx, dz] of [[-0.6, -0.55], [-0.2, -0.85], [0.25, -0.85], [0.65, -0.55]] as const) g.add(part(GEO.cyl, "#ffffff", 0.32, 0.025, 0.32, 0.2 + dx, 0.025, 11.2 + dz));
+      for (const [dx, dz] of [
+        [-0.6, -0.55],
+        [-0.2, -0.85],
+        [0.25, -0.85],
+        [0.65, -0.55],
+      ] as const)
+        g.add(part(GEO.cyl, "#ffffff", 0.32, 0.025, 0.32, 0.2 + dx, 0.025, 11.2 + dz));
     }
     if (up("splash")) {
-      g.add(part(GEO.box, "#ffffff", 1.4, 0.55, 1.0, 9.6, 0.28, 11.6), part(GEO.box, "#9fe6ff", 1.2, 0.05, 0.8, 9.6, 0.56, 11.6));
+      g.add(
+        part(GEO.box, "#ffffff", 1.4, 0.55, 1.0, 9.6, 0.28, 11.6),
+        part(GEO.box, "#9fe6ff", 1.2, 0.05, 0.8, 9.6, 0.56, 11.6),
+      );
     }
     // suites: beds when built, construction tape when not
     const built = suiteCount(st);
     SUITES.forEach((a, i) => {
       const cx = (a.rect.x0 + a.rect.x1) / 2;
       if (i < built) {
-        g.add(part(GEO.box, "#8a5a33", 1.6, 0.25, 1.1, cx, 0.13, 11.6), part(GEO.box, s.looks.deluxe ? "#ffffff" : "#9fc7ff", 1.45, 0.18, 0.95, cx, 0.32, 11.6));
+        g.add(
+          part(GEO.box, "#8a5a33", 1.6, 0.25, 1.1, cx, 0.13, 11.6),
+          part(GEO.box, s.looks.deluxe ? "#ffffff" : "#9fc7ff", 1.45, 0.18, 0.95, cx, 0.32, 11.6),
+        );
         g.add(part(GEO.cyl, "#cfd8e3", 0.4, 0.1, 0.4, cx + 1, 0.05, 7.6));
         g.add(part(GEO.box, "#ffd34d", 1.2, 0.02, 1.6, cx, 0.012, 9.4));
       } else {
-        for (const dx of [-0.8, 0.8]) g.add(part(GEO.cone, "#ff8a00", 0.35, 0.6, 0.35, cx + dx, 0.3, 6.8));
+        for (const dx of [-0.8, 0.8])
+          g.add(part(GEO.cone, "#ff8a00", 0.35, 0.6, 0.35, cx + dx, 0.3, 6.8));
         const tape = part(GEO.box, "#ffd400", 1.8, 0.1, 0.02, cx, 0.55, 6.8);
         g.add(tape);
       }
@@ -561,7 +816,11 @@ export class DaycareWorld {
       const risk = roomAtRisk(st, s.site, gr.id);
       this.roomSigns.get(gr.id)?.draw({
         title: `${gr.emoji} ${gr.name}`,
-        sub: fight ? "SCUFFLE — separate now" : risk ? "⚠ Mismatched pup inside" : `${gr.size === "small" ? "Small" : "Large"} pups · ${gr.temper} play`,
+        sub: fight
+          ? "SCUFFLE — separate now"
+          : risk
+            ? "⚠ Mismatched pup inside"
+            : `${gr.size === "small" ? "Small" : "Large"} pups · ${gr.temper} play`,
         badge: `${n}/${cap}`,
         color: GROUP_COLORS[gr.id].accent,
         alert: fight || risk,
@@ -578,15 +837,36 @@ export class DaycareWorld {
     }
     const built = suiteCount(st);
     this.suiteSigns.forEach((sign, i) => {
-      if (i >= built) { sign.draw({ title: `Suite ${i + 1}`, sub: "Build Boarding Suites (Upgrades)", badge: "🔒", color: "#8c96a3" }); return; }
+      if (i >= built) {
+        sign.draw({
+          title: `Suite ${i + 1}`,
+          sub: "Build Boarding Suites (Upgrades)",
+          badge: "🔒",
+          color: "#8c96a3",
+        });
+        return;
+      }
       const occ = suiteDog(st, s.site, i);
       const hint = s.suiteHints[i];
-      sign.draw({ title: `Suite ${i + 1}`, sub: occ ? `${occ.name} · overnight guest` : hint === "fit" ? "Open — tap to settle here" : "Open", badge: occ ? "🌙" : "OPEN", color: occ ? "#9fc7ff" : "#2fbf71" });
+      sign.draw({
+        title: `Suite ${i + 1}`,
+        sub: occ
+          ? `${occ.name} · overnight guest`
+          : hint === "fit"
+            ? "Open — tap to settle here"
+            : "Open",
+        badge: occ ? "🌙" : "OPEN",
+        color: occ ? "#9fc7ff" : "#2fbf71",
+      });
     });
   }
 
   // ---------- dogs ----------
-  private targetFor(st: GameState, site: SiteId, d: Dog): { area: Area; point: Pt; slot: Pt | null } {
+  private targetFor(
+    st: GameState,
+    site: SiteId,
+    d: Dog,
+  ): { area: Area; point: Pt; slot: Pt | null } {
     const area = areaForPlace(d.place);
     if (d.place.kind === "lobby") {
       const i = lobbyDogs(st, site).findIndex((x) => x.id === d.id);
@@ -604,20 +884,43 @@ export class DaycareWorld {
       let a = this.dogs.get(d.id);
       const tgt = this.targetFor(st, s.site, d);
       if (!a) {
-        const arriving = this.initialized && !fresh && !this.known.has(d.id) && d.place.kind === "lobby";
+        const arriving =
+          this.initialized && !fresh && !this.known.has(d.id) && d.place.kind === "lobby";
         const rig = buildDog(coatFor(d.breed), d.size === "small" ? SMALL : LARGE);
         const tag = makeTag(1.9);
         const start = arriving ? { x: ENTRANCE_OUT.x + 0.7, z: STREET.z - 1.5 } : { ...tgt.point };
-        a = { id: d.id, rig, tag, pos: start, heading: 0, path: [], speed: d.size === "small" ? 1.6 : 1.9, areaKey: tgt.area.key, slot: tgt.slot, idleUntil: 0, phase: Math.random() * 6, leaving: false, bathUntil: 0, size: d.size };
+        a = {
+          id: d.id,
+          rig,
+          tag,
+          pos: start,
+          heading: 0,
+          path: [],
+          speed: d.size === "small" ? 1.6 : 1.9,
+          areaKey: tgt.area.key,
+          slot: tgt.slot,
+          idleUntil: 0,
+          phase: Math.random() * 6,
+          leaving: false,
+          bathUntil: 0,
+          size: d.size,
+        };
         rig.root.userData["pick"] = { kind: "dog", id: d.id } satisfies WorldPick;
         this.scene.add(rig.root, tag.sprite);
         this.pickables.push(rig.root);
         this.dogs.set(d.id, a);
         if (arriving) {
-          a.path = [{ x: ENTRANCE_OUT.x + 0.7, z: ENTRANCE_OUT.z }, { x: 0.7, z: ENTRANCE_IN.z }, tgt.point];
+          a.path = [
+            { x: ENTRANCE_OUT.x + 0.7, z: ENTRANCE_OUT.z },
+            { x: 0.7, z: ENTRANCE_IN.z },
+            tgt.point,
+          ];
           this.spawnCustomer({ x: -0.6, z: STREET.z - 1 }, true);
         }
-      } else if (a.areaKey !== tgt.area.key || (tgt.slot && a.slot && dist(tgt.slot, a.slot) > 0.01)) {
+      } else if (
+        a.areaKey !== tgt.area.key ||
+        (tgt.slot && a.slot && dist(tgt.slot, a.slot) > 0.01)
+      ) {
         a.path = routeBetween(a.pos, areaAt(a.pos), tgt.area, tgt.point);
         a.areaKey = tgt.area.key;
         a.slot = tgt.slot;
@@ -626,27 +929,47 @@ export class DaycareWorld {
       this.known.add(d.id);
       // looks (cosmetics are visual only)
       a.rig.bandana.visible = !!s.looks.bandana || s.looks.star;
-      if (a.rig.bandana.visible) (a.rig.bandana.material as THREE.MeshLambertMaterial) = mat(s.looks.star ? "#1c2f52" : cssToHex(s.looks.bandana!));
+      if (a.rig.bandana.visible)
+        (a.rig.bandana.material as THREE.MeshLambertMaterial) = mat(
+          s.looks.star ? "#1c2f52" : cssToHex(s.looks.bandana!),
+        );
       a.rig.collar.material = mat(s.looks.collar ? "#2f6fd6" : "#0057A7");
       a.rig.collar.scale.setScalar(s.looks.collar ? 0.48 : 0.42);
       // tag
       const fight = d.place.kind === "room" && hasScuffle(st, d.site, d.place.group);
       const mism = d.place.kind === "room" && groupOf(d) !== d.place.group;
-      const tone = s.selected === d.id ? "selected" : !d.checkedIn ? "waiting" : fight ? "alert" : d.place.kind === "recovery" ? "calm" : "default";
+      const tone =
+        s.selected === d.id
+          ? "selected"
+          : !d.checkedIn
+            ? "waiting"
+            : fight
+              ? "alert"
+              : d.place.kind === "recovery"
+                ? "calm"
+                : "default";
       const sub = !d.checkedIn
         ? "Tap → Check in"
-        : fight ? "Scuffle! Separate"
-        : `${d.size === "small" ? "S" : "L"} · ${d.temper} · ${Math.round(d.happiness)}%${mism ? " ⚠" : ""}${d.boarding ? " 🌙" : ""}`;
+        : fight
+          ? "Scuffle! Separate"
+          : `${d.size === "small" ? "S" : "L"} · ${d.temper} · ${Math.round(d.happiness)}%${mism ? " ⚠" : ""}${d.boarding ? " 🌙" : ""}${d.visits > 1 ? " 💙" : ""}`;
       a.tag.set(d.name, sub, tone);
     }
     // dogs that left this site's state: walk out with their family (checkout) or vanish (site switch)
     for (const [id, a] of this.dogs) {
       if (ids.has(id) || a.leaving) continue;
       const stillExists = st.dogs.some((d) => d.id === id);
-      if (stillExists) { this.removeDog(id); continue; }
+      if (stillExists) {
+        this.removeDog(id);
+        continue;
+      }
       a.leaving = true;
       a.tag.set("Going home!", "See you next time", "calm");
-      a.path = [...routeBetween(a.pos, areaAt(a.pos), LOBBY, ENTRANCE_IN), ENTRANCE_OUT, { x: 0.7, z: STREET.z }];
+      a.path = [
+        ...routeBetween(a.pos, areaAt(a.pos), LOBBY, ENTRANCE_IN),
+        ENTRANCE_OUT,
+        { x: 0.7, z: STREET.z },
+      ];
       this.spawnCustomer({ x: ENTRANCE_IN.x - 0.6, z: ENTRANCE_IN.z }, false);
     }
     // selection ring
@@ -667,19 +990,46 @@ export class DaycareWorld {
   // ---------- people ----------
   private spawnCustomer(start: Pt, arriving: boolean) {
     const shirts = ["#e46a96", "#2f9e5b", "#e0a100", "#7a5cc7", "#e2583e", "#3a8fd6"];
-    const rig = buildPerson(shirts[Math.floor(Math.random() * shirts.length)]!, Math.floor(Math.random() * 100));
+    const rig = buildPerson(
+      shirts[Math.floor(Math.random() * shirts.length)]!,
+      Math.floor(Math.random() * 100),
+    );
     rig.root.position.set(start.x, 0, start.z);
     this.scene.add(rig.root);
-    const p: PersonActor = { rig, pos: { ...start }, heading: 0, path: [], speed: 1.4, waitUntil: 0, onArrive: null, remove: false };
+    const p: PersonActor = {
+      rig,
+      pos: { ...start },
+      heading: 0,
+      path: [],
+      speed: 1.4,
+      waitUntil: 0,
+      onArrive: null,
+      remove: false,
+    };
     if (arriving) {
-      p.path = [{ x: -0.6, z: ENTRANCE_OUT.z }, { x: -0.6, z: ENTRANCE_IN.z }, { x: -0.4, z: DESK.z + 1.1 }];
+      p.path = [
+        { x: -0.6, z: ENTRANCE_OUT.z },
+        { x: -0.6, z: ENTRANCE_IN.z },
+        { x: -0.4, z: DESK.z + 1.1 },
+      ];
       p.onArrive = () => {
         p.waitUntil = this.t + 3.5;
-        p.onArrive = () => { p.path = [{ x: -0.6, z: ENTRANCE_IN.z }, { x: -0.6, z: ENTRANCE_OUT.z }, { x: -2.5, z: STREET.z + 1 }]; p.onArrive = () => { p.remove = true; }; };
+        p.onArrive = () => {
+          p.path = [
+            { x: -0.6, z: ENTRANCE_IN.z },
+            { x: -0.6, z: ENTRANCE_OUT.z },
+            { x: -2.5, z: STREET.z + 1 },
+          ];
+          p.onArrive = () => {
+            p.remove = true;
+          };
+        };
       };
     } else {
       p.path = [ENTRANCE_OUT, { x: 1.5, z: STREET.z + 1 }];
-      p.onArrive = () => { p.remove = true; };
+      p.onArrive = () => {
+        p.remove = true;
+      };
     }
     this.people.push(p);
   }
@@ -687,18 +1037,46 @@ export class DaycareWorld {
   private syncStaff(s: WorldSnapshot, fresh: boolean) {
     const want = s.state.staff;
     const ids = new Set(want.map((x) => x.id));
-    for (const [id, p] of this.staff) if (!ids.has(id)) { this.scene.remove(p.rig.root); if (p.tag) { this.scene.remove(p.tag.sprite); p.tag.dispose(); } this.staff.delete(id); }
+    for (const [id, p] of this.staff)
+      if (!ids.has(id)) {
+        this.scene.remove(p.rig.root);
+        if (p.tag) {
+          this.scene.remove(p.tag.sprite);
+          p.tag.dispose();
+        }
+        this.staff.delete(id);
+      }
     want.forEach((m, i) => {
       let p = this.staff.get(m.id);
-      const home = i === 0 ? { x: 0.6, z: DESK.z - 1.1 } : i === 1 ? { x: -1.2, z: DESK.z - 1.1 } : { x: ROOMS[(i - 2) % 4]!.doorOut.x + 1.2, z: CORRIDOR.z0 + 1.6 };
+      const home =
+        i === 0
+          ? { x: 0.6, z: DESK.z - 1.1 }
+          : i === 1
+            ? { x: -1.2, z: DESK.z - 1.1 }
+            : { x: ROOMS[(i - 2) % 4]!.doorOut.x + 1.2, z: CORRIDOR.z0 + 1.6 };
       if (!p) {
         const rig = buildPerson("#0057A7", i * 13 + 5, true);
         const tag = makeTag(1.4);
         rig.root.position.set(home.x, 0, home.z);
         this.scene.add(rig.root, tag.sprite);
-        p = { rig, pos: { ...home }, heading: Math.PI, path: [], speed: 1.6, waitUntil: 0, onArrive: null, remove: false, tag, staffId: m.id, home };
+        p = {
+          rig,
+          pos: { ...home },
+          heading: Math.PI,
+          path: [],
+          speed: 1.6,
+          waitUntil: 0,
+          onArrive: null,
+          remove: false,
+          tag,
+          staffId: m.id,
+          home,
+        };
         this.staff.set(m.id, p);
-        if (!fresh && this.initialized) { p.pos = { ...ENTRANCE_IN }; p.path = [home]; }
+        if (!fresh && this.initialized) {
+          p.pos = { ...ENTRANCE_IN };
+          p.path = [home];
+        }
       }
       p.home = home;
       p.speed = m.energy < 15 ? 0.8 : 1.6;
@@ -728,7 +1106,11 @@ export class DaycareWorld {
     if (this.mode === "overhead") {
       this.target.x = THREE.MathUtils.clamp(this.target.x, BOUNDS.x0 - 2, BOUNDS.x1 + 2);
       this.target.z = THREE.MathUtils.clamp(this.target.z, BOUNDS.z0 - 2, STREET.z);
-      this.camera.position.set(this.target.x, Math.sin(PITCH) * this.distance, this.target.z + Math.cos(PITCH) * this.distance);
+      this.camera.position.set(
+        this.target.x,
+        Math.sin(PITCH) * this.distance,
+        this.target.z + Math.cos(PITCH) * this.distance,
+      );
       this.camera.lookAt(this.target);
       this.camera.fov = 42;
     } else {
@@ -741,11 +1123,18 @@ export class DaycareWorld {
       if (this.keys.has("arrowleft") || this.keys.has("q")) this.yaw += 1.9 * dt;
       if (this.keys.has("arrowright") || this.keys.has("e")) this.yaw -= 1.9 * dt;
       const len = Math.hypot(fx, fy);
-      if (len > 1) { fx /= len; fy /= len; }
+      if (len > 1) {
+        fx /= len;
+        fy /= len;
+      }
       const fwd = { x: -Math.sin(this.yaw), z: -Math.cos(this.yaw) };
       const right = { x: Math.cos(this.yaw), z: -Math.sin(this.yaw) };
       const sp = WALK_SPEED * dt;
-      this.me = collide(this.me, (fwd.x * fy + right.x * fx) * sp, (fwd.z * fy + right.z * fx) * sp);
+      this.me = collide(
+        this.me,
+        (fwd.x * fy + right.x * fx) * sp,
+        (fwd.z * fy + right.z * fx) * sp,
+      );
       const bob = len > 0.05 && !this.opts.reducedMotion ? Math.sin(this.t * 9) * 0.025 : 0;
       this.camera.position.set(this.me.x, EYE + bob, this.me.z);
       this.camera.rotation.set(this.pitch, this.yaw, 0, "YXZ");
@@ -754,13 +1143,22 @@ export class DaycareWorld {
     this.camera.updateProjectionMatrix();
   }
 
-  private stepToward(pos: Pt, target: Pt, speed: number, dt: number): { pos: Pt; arrived: boolean; heading: number | null } {
+  private stepToward(
+    pos: Pt,
+    target: Pt,
+    speed: number,
+    dt: number,
+  ): { pos: Pt; arrived: boolean; heading: number | null } {
     const dx = target.x - pos.x;
     const dz = target.z - pos.z;
     const d = Math.hypot(dx, dz);
     if (d < 0.05) return { pos: { ...target }, arrived: true, heading: null };
     const step = Math.min(d, speed * dt);
-    return { pos: { x: pos.x + (dx / d) * step, z: pos.z + (dz / d) * step }, arrived: step >= d, heading: Math.atan2(dx, dz) };
+    return {
+      pos: { x: pos.x + (dx / d) * step, z: pos.z + (dz / d) * step },
+      arrived: step >= d,
+      heading: Math.atan2(dx, dz),
+    };
   }
 
   private updateDogs(dt: number) {
@@ -774,7 +1172,10 @@ export class DaycareWorld {
         moving = true;
         if (r.arrived) {
           a.path.shift();
-          if (!a.path.length && a.leaving) { this.removeDog(id); continue; }
+          if (!a.path.length && a.leaving) {
+            this.removeDog(id);
+            continue;
+          }
           if (!a.path.length) a.idleUntil = this.t + 1 + Math.random() * 3;
         }
       } else if (a.bathUntil && this.t > a.bathUntil) {
@@ -784,7 +1185,12 @@ export class DaycareWorld {
       } else if (!a.bathUntil && this.t > a.idleUntil && !a.leaving) {
         const area = this.areaByKey(a.areaKey);
         if (a.slot) {
-          a.path = [{ x: a.slot.x + (Math.random() - 0.5) * 0.4, z: a.slot.z + (Math.random() - 0.5) * 0.4 }];
+          a.path = [
+            {
+              x: a.slot.x + (Math.random() - 0.5) * 0.4,
+              z: a.slot.z + (Math.random() - 0.5) * 0.4,
+            },
+          ];
         } else if (inRect(a.pos, area.rect)) {
           a.path = [randomIn(area.rect, area.kind === "suite" ? 0.7 : 0.9)];
         } else {
@@ -794,12 +1200,16 @@ export class DaycareWorld {
       }
       // scuffle jitter
       const dog = st?.dogs.find((d) => d.id === id);
-      const fighting = !!dog && !!st && dog.place.kind === "room" && hasScuffle(st, dog.site, dog.place.group);
-      const jitter = fighting && !this.opts.reducedMotion ? Math.sin(this.t * 40 + a.phase) * 0.06 : 0;
+      const fighting =
+        !!dog && !!st && dog.place.kind === "room" && hasScuffle(st, dog.site, dog.place.group);
+      const jitter =
+        fighting && !this.opts.reducedMotion ? Math.sin(this.t * 40 + a.phase) * 0.06 : 0;
       a.rig.root.position.set(a.pos.x + jitter, 0, a.pos.z);
       a.rig.root.rotation.y = a.heading + (fighting ? Math.sin(this.t * 12 + a.phase) * 0.6 : 0);
       const gait = moving ? Math.sin(this.t * 11 + a.phase) : 0;
-      a.rig.legs.forEach((l, i) => { l.rotation.x = gait * 0.55 * (i % 2 ? 1 : -1) * (i < 2 ? 1 : -1); });
+      a.rig.legs.forEach((l, i) => {
+        l.rotation.x = gait * 0.55 * (i % 2 ? 1 : -1) * (i < 2 ? 1 : -1);
+      });
       a.rig.body.position.y = moving ? Math.abs(gait) * 0.04 : 0;
       const happy = (dog?.happiness ?? 60) / 100;
       a.rig.tail.rotation.y = Math.sin(this.t * (4 + happy * 12) + a.phase) * (0.25 + happy * 0.5);
@@ -818,13 +1228,21 @@ export class DaycareWorld {
     const all = [...this.people, ...this.staff.values()];
     for (const p of all) {
       let moving = false;
-      if (this.t < p.waitUntil) { /* waiting at the desk */ }
-      else if (p.path.length) {
+      if (this.t < p.waitUntil) {
+        /* waiting at the desk */
+      } else if (p.path.length) {
         const r = this.stepToward(p.pos, p.path[0]!, p.speed, dt);
         p.pos = r.pos;
         if (r.heading !== null) p.heading = turn(p.heading, r.heading, dt * 7);
         moving = true;
-        if (r.arrived) { p.path.shift(); if (!p.path.length && p.onArrive) { const f = p.onArrive; p.onArrive = null; f(); } }
+        if (r.arrived) {
+          p.path.shift();
+          if (!p.path.length && p.onArrive) {
+            const f = p.onArrive;
+            p.onArrive = null;
+            f();
+          }
+        }
       } else if (p.onArrive && this.t >= p.waitUntil && p.waitUntil > 0) {
         const f = p.onArrive;
         p.onArrive = null;
@@ -909,7 +1327,8 @@ export class DaycareWorld {
     if (best) next = { kind: "dog", id: best.id, key: `dog:${best.id}` };
     else {
       const a = areaAt(this.me);
-      const nearDesk = Math.abs(this.me.x - DESK.x) < DESK.w / 2 + 1.2 && Math.abs(this.me.z - DESK.z) < 2.4;
+      const nearDesk =
+        Math.abs(this.me.x - DESK.x) < DESK.w / 2 + 1.2 && Math.abs(this.me.z - DESK.z) < 2.4;
       if (nearDesk) next = { kind: "place", place: "desk", key: "desk" };
       else if (a?.kind === "room") next = { kind: "room", group: a.group!, key: a.key };
       else if (a?.kind === "suite") next = { kind: "suite", index: a.index!, key: a.key };
@@ -918,7 +1337,8 @@ export class DaycareWorld {
       else if (a?.kind === "corridor") {
         const door = [...ROOMS, ...SUITES].find((r) => dist(r.doorOut, this.me) < 1.6);
         if (door?.kind === "room") next = { kind: "room", group: door.group!, key: door.key };
-        else if (door?.kind === "suite") next = { kind: "suite", index: door.index!, key: door.key };
+        else if (door?.kind === "suite")
+          next = { kind: "suite", index: door.index!, key: door.key };
       }
     }
     const key = next?.key ?? "";
@@ -946,7 +1366,10 @@ export class DaycareWorld {
   private ray = new THREE.Raycaster();
   private pick(clientX: number, clientY: number) {
     const r = this.canvas.getBoundingClientRect();
-    const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    const ndc = new THREE.Vector2(
+      ((clientX - r.left) / r.width) * 2 - 1,
+      -((clientY - r.top) / r.height) * 2 + 1,
+    );
     this.ray.setFromCamera(ndc, this.camera);
     // Dogs first, by on-screen distance from the finger (forgiving for small, moving pups).
     let bestDog: { id: string; px: number } | null = null;
@@ -973,7 +1396,13 @@ export class DaycareWorld {
 
   private onDown = (e: PointerEvent) => {
     this.canvas.setPointerCapture?.(e.pointerId);
-    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now() });
+    this.pointers.set(e.pointerId, {
+      x: e.clientX,
+      y: e.clientY,
+      sx: e.clientX,
+      sy: e.clientY,
+      t: performance.now(),
+    });
     if (this.pointers.size === 2) {
       const [a, b] = [...this.pointers.values()];
       this.pinch0 = Math.hypot(a!.x - b!.x, a!.y - b!.y);
@@ -994,7 +1423,8 @@ export class DaycareWorld {
     if (this.pointers.size >= 2) {
       const [a, b] = [...this.pointers.values()];
       const d = Math.hypot(a!.x - b!.x, a!.y - b!.y);
-      if (this.pinch0 > 0) this.distance = THREE.MathUtils.clamp((this.dist0 * this.pinch0) / Math.max(20, d), 9, 48);
+      if (this.pinch0 > 0)
+        this.distance = THREE.MathUtils.clamp((this.dist0 * this.pinch0) / Math.max(20, d), 9, 48);
       return;
     }
     const scale = (this.distance * 1.15) / Math.max(200, this.canvas.clientHeight);
@@ -1007,7 +1437,8 @@ export class DaycareWorld {
     if (this.pointers.size < 2) this.pinch0 = 0;
     if (!p) return;
     const moved = Math.hypot(e.clientX - p.sx, e.clientY - p.sy);
-    if (moved < 10 && performance.now() - p.t < 600 && this.pointers.size === 0) this.pick(e.clientX, e.clientY);
+    if (moved < 10 && performance.now() - p.t < 600 && this.pointers.size === 0)
+      this.pick(e.clientX, e.clientY);
   };
   private onWheel = (e: WheelEvent) => {
     if (this.mode !== "overhead") return;
@@ -1018,11 +1449,28 @@ export class DaycareWorld {
     const tag = (e.target as HTMLElement | null)?.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
     const k = e.key.toLowerCase();
-    const walkKeys = ["w", "a", "s", "d", "q", "e", "arrowup", "arrowdown", "arrowleft", "arrowright"];
+    const walkKeys = [
+      "w",
+      "a",
+      "s",
+      "d",
+      "q",
+      "e",
+      "arrowup",
+      "arrowdown",
+      "arrowleft",
+      "arrowright",
+    ];
     if (!walkKeys.includes(k)) return;
     if (this.mode !== "walk" || !this.visible) {
       // overhead: arrow keys pan the camera
-      if (e.type === "keydown" && this.mode === "overhead" && this.visible && k.startsWith("arrow") && document.activeElement === this.canvas) {
+      if (
+        e.type === "keydown" &&
+        this.mode === "overhead" &&
+        this.visible &&
+        k.startsWith("arrow") &&
+        document.activeElement === this.canvas
+      ) {
         e.preventDefault();
         if (k === "arrowup") this.target.z -= 1.5;
         if (k === "arrowdown") this.target.z += 1.5;
@@ -1031,7 +1479,13 @@ export class DaycareWorld {
       }
       return;
     }
-    if (document.activeElement && document.activeElement !== document.body && document.activeElement !== this.canvas && !(document.activeElement as HTMLElement).dataset["walkKeys"]) return;
+    if (
+      document.activeElement &&
+      document.activeElement !== document.body &&
+      document.activeElement !== this.canvas &&
+      !(document.activeElement as HTMLElement).dataset["walkKeys"]
+    )
+      return;
     e.preventDefault();
     if (e.type === "keydown") this.keys.add(k);
     else this.keys.delete(k);
@@ -1077,7 +1531,15 @@ export class DaycareWorld {
       yaw: this.yaw,
       target: { x: this.target.x, z: this.target.z },
       distance: this.distance,
-      dogs: [...this.dogs.values()].map((a) => ({ id: a.id, x: a.pos.x, z: a.pos.z, area: a.areaKey, leaving: a.leaving, dest: a.path.length ? a.path[a.path.length - 1] : null, bathing: a.bathUntil > 0 })),
+      dogs: [...this.dogs.values()].map((a) => ({
+        id: a.id,
+        x: a.pos.x,
+        z: a.pos.z,
+        area: a.areaKey,
+        leaving: a.leaving,
+        dest: a.path.length ? a.path[a.path.length - 1] : null,
+        bathing: a.bathUntil > 0,
+      })),
       people: this.people.length,
       staff: this.staff.size,
       frameMs: this.frameMs,
@@ -1091,7 +1553,11 @@ export class DaycareWorld {
   project(x: number, y: number, z: number) {
     const v = new THREE.Vector3(x, y, z).project(this.camera);
     const r = this.canvas.getBoundingClientRect();
-    return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height, visible: v.z < 1 };
+    return {
+      x: r.left + ((v.x + 1) / 2) * r.width,
+      y: r.top + ((1 - v.y) / 2) * r.height,
+      visible: v.z < 1,
+    };
   }
 }
 
@@ -1117,7 +1583,9 @@ function cssToHex(css: string): string {
     g.fillRect(0, 0, 1, 1);
     const [r, gg, b] = g.getImageData(0, 0, 1, 1).data;
     out = `#${[r, gg, b].map((v) => (v ?? 0).toString(16).padStart(2, "0")).join("")}`;
-  } catch { /* keep default */ }
+  } catch {
+    /* keep default */
+  }
   cssCache.set(css, out);
   return out;
 }

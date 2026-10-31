@@ -69,18 +69,54 @@ export const SUITES: Area[] = Array.from({ length: SUITES_PER_SITE }, (_, i) => 
   };
 });
 
-export const LOBBY: Area = { key: "lobby", kind: "lobby", rect: { x0: -6, z0: 5.5, x1: 6, z1: 13 }, label: "Lobby & check-in", doorIn: { x: 0, z: 6.4 }, doorOut: { x: 0, z: CORRIDOR_Z }, floor: "#f3f6fb" };
-export const BATH: Area = { key: "bath", kind: "bath", rect: { x0: 6, z0: 5.5, x1: 11, z1: 13 }, label: "Bath & exit-bath area", doorIn: { x: 8.5, z: 6.6 }, doorOut: { x: 8.5, z: CORRIDOR_Z }, floor: "#d6f1f4" };
-export const RECOVERY: Area = { key: "recovery", kind: "recovery", rect: { x0: 11, z0: 5.5, x1: 16, z1: 13 }, label: "Staff-only recovery room", doorIn: { x: 13.5, z: 6.6 }, doorOut: { x: 13.5, z: CORRIDOR_Z }, floor: "#ebe5fa" };
-export const CORRIDOR_AREA: Area = { key: "corridor", kind: "corridor", rect: CORRIDOR, label: "Hallway", doorIn: { x: 0, z: CORRIDOR_Z }, doorOut: { x: 0, z: CORRIDOR_Z }, floor: "#e9eef5" };
+export const LOBBY: Area = {
+  key: "lobby",
+  kind: "lobby",
+  rect: { x0: -6, z0: 5.5, x1: 6, z1: 13 },
+  label: "Lobby & check-in",
+  doorIn: { x: 0, z: 6.4 },
+  doorOut: { x: 0, z: CORRIDOR_Z },
+  floor: "#f3f6fb",
+};
+export const BATH: Area = {
+  key: "bath",
+  kind: "bath",
+  rect: { x0: 6, z0: 5.5, x1: 11, z1: 13 },
+  label: "Bath & exit-bath area",
+  doorIn: { x: 8.5, z: 6.6 },
+  doorOut: { x: 8.5, z: CORRIDOR_Z },
+  floor: "#d6f1f4",
+};
+export const RECOVERY: Area = {
+  key: "recovery",
+  kind: "recovery",
+  rect: { x0: 11, z0: 5.5, x1: 16, z1: 13 },
+  label: "Staff-only recovery room",
+  doorIn: { x: 13.5, z: 6.6 },
+  doorOut: { x: 13.5, z: CORRIDOR_Z },
+  floor: "#ebe5fa",
+};
+export const CORRIDOR_AREA: Area = {
+  key: "corridor",
+  kind: "corridor",
+  rect: CORRIDOR,
+  label: "Hallway",
+  doorIn: { x: 0, z: CORRIDOR_Z },
+  doorOut: { x: 0, z: CORRIDOR_Z },
+  floor: "#e9eef5",
+};
 
 export const AREAS: Area[] = [...ROOMS, ...SUITES, LOBBY, BATH, RECOVERY, CORRIDOR_AREA];
 export const areaByKey = (k: string) => AREAS.find((a) => a.key === k);
 
 /** Waiting spots inside the lobby's dog pen (west side of the lobby). */
 export const LOBBY_SPOTS: Pt[] = [
-  { x: -4.6, z: 7.2 }, { x: -3.2, z: 7.6 }, { x: -4.6, z: 9.0 }, { x: -3.2, z: 9.4 },
-  { x: -4.6, z: 10.8 }, { x: -3.2, z: 11.2 },
+  { x: -4.6, z: 7.2 },
+  { x: -3.2, z: 7.6 },
+  { x: -4.6, z: 9.0 },
+  { x: -3.2, z: 9.4 },
+  { x: -4.6, z: 10.8 },
+  { x: -3.2, z: 11.2 },
 ];
 export const LOBBY_PEN: Rect = { x0: -5.6, z0: 6.2, x1: -2.4, z1: 12.2 };
 
@@ -88,7 +124,13 @@ export const LOBBY_PEN: Rect = { x0: -5.6, z0: 6.2, x1: -2.4, z1: 12.2 };
 // Each wall is an axis-aligned box: [x0, z0, x1, z1]. Gaps are doorways.
 export type Wall = { x0: number; z0: number; x1: number; z1: number; exterior: boolean };
 const T = 0.18;
-function hWall(z: number, xa: number, xb: number, gaps: [number, number][], exterior = false): Wall[] {
+function hWall(
+  z: number,
+  xa: number,
+  xb: number,
+  gaps: [number, number][],
+  exterior = false,
+): Wall[] {
   const out: Wall[] = [];
   let cur = xa;
   for (const [g0, g1] of [...gaps].sort((a, b) => a[0] - b[0])) {
@@ -105,19 +147,38 @@ const gap = (cx: number, w: number): [number, number] => [cx - w / 2, cx + w / 2
 
 export const WALLS: Wall[] = [
   ...hWall(-6, -16, 16, [], true),
-  ...hWall(2.5, -16, 16, ROOMS.map((r) => gap(r.doorIn.x, 1.8))),
-  ...hWall(5.5, -16, 16, [...SUITES.map((s) => gap(s.doorIn.x, 1.2)), [-2.2, 2.2], gap(BATH.doorIn.x, 1.6), gap(RECOVERY.doorIn.x, 1.6)]),
+  ...hWall(
+    2.5,
+    -16,
+    16,
+    ROOMS.map((r) => gap(r.doorIn.x, 1.8)),
+  ),
+  ...hWall(5.5, -16, 16, [
+    ...SUITES.map((s) => gap(s.doorIn.x, 1.2)),
+    [-2.2, 2.2],
+    gap(BATH.doorIn.x, 1.6),
+    gap(RECOVERY.doorIn.x, 1.6),
+  ]),
   ...hWall(13, -16, 16, [[-1.5, 1.5]], true),
   vWall(-16, -6, 13, true),
   vWall(16, -6, 13, true),
-  vWall(-8, -6, 2.5), vWall(0, -6, 2.5), vWall(8, -6, 2.5),
+  vWall(-8, -6, 2.5),
+  vWall(0, -6, 2.5),
+  vWall(8, -6, 2.5),
   ...SUITES.slice(1).map((s) => vWall(s.rect.x0, 5.5, 13)),
-  vWall(-6, 5.5, 13), vWall(6, 5.5, 13), vWall(11, 5.5, 13),
+  vWall(-6, 5.5, 13),
+  vWall(6, 5.5, 13),
+  vWall(11, 5.5, 13),
 ];
 
 /** Solid furniture the first-person player can't walk through. */
 export const COLLIDERS: Rect[] = [
-  { x0: DESK.x - DESK.w / 2, z0: DESK.z - DESK.d / 2, x1: DESK.x + DESK.w / 2, z1: DESK.z + DESK.d / 2 },
+  {
+    x0: DESK.x - DESK.w / 2,
+    z0: DESK.z - DESK.d / 2,
+    x1: DESK.x + DESK.w / 2,
+    z1: DESK.z + DESK.d / 2,
+  },
   { x0: TUB.x - 1.1, z0: TUB.z - 0.7, x1: TUB.x + 1.1, z1: TUB.z + 0.7 },
 ];
 
@@ -129,13 +190,17 @@ export function areaAt(p: Pt): Area | null {
   return null;
 }
 export function randomIn(r: Rect, pad: number, rand: () => number = Math.random): Pt {
-  return { x: r.x0 + pad + rand() * (r.x1 - r.x0 - 2 * pad), z: r.z0 + pad + rand() * (r.z1 - r.z0 - 2 * pad) };
+  return {
+    x: r.x0 + pad + rand() * (r.x1 - r.x0 - 2 * pad),
+    z: r.z0 + pad + rand() * (r.z1 - r.z0 - 2 * pad),
+  };
 }
 
 /** Moves a circle of radius `r` from `from` by (dx, dz), sliding along walls and furniture. */
 export function collide(from: Pt, dx: number, dz: number, r = 0.3): Pt {
   const boxes: Rect[] = [...WALLS, ...COLLIDERS];
-  const hit = (p: Pt) => boxes.some((b) => p.x > b.x0 - r && p.x < b.x1 + r && p.z > b.z0 - r && p.z < b.z1 + r);
+  const hit = (p: Pt) =>
+    boxes.some((b) => p.x > b.x0 - r && p.x < b.x1 + r && p.z > b.z0 - r && p.z < b.z1 + r);
   let p = { ...from };
   const nx = { x: p.x + dx, z: p.z };
   if (!hit(nx)) p = nx;

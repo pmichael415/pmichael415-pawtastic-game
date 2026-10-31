@@ -11,14 +11,20 @@ export const Route = createFileRoute("/api/public/events")({
         const text = await request.text();
         if (text.length > 32_000) return new Response(null, { status: 413 });
         let body: unknown;
-        try { body = JSON.parse(text); } catch { return new Response(null, { status: 400 }); }
+        try {
+          body = JSON.parse(text);
+        } catch {
+          return new Response(null, { status: 400 });
+        }
         const rows = parseEventBatch(body);
         if (!rows) return new Response(null, { status: 400 });
         if (!rows.length) return new Response(null, { status: 202 });
         try {
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           await supabaseAdmin.from("game_events" as never).insert(rows as never);
-        } catch { /* table not created yet or backend unavailable: drop silently */ }
+        } catch {
+          /* table not created yet or backend unavailable: drop silently */
+        }
         return new Response(null, { status: 202 });
       },
     },

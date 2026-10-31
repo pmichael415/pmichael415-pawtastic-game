@@ -1,11 +1,16 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-vi.mock("sonner", () => ({ toast: Object.assign(() => {}, { success: () => {}, error: () => {}, warning: () => {} }) }));
+vi.mock("sonner", () => ({
+  toast: Object.assign(() => {}, { success: () => {}, error: () => {}, warning: () => {} }),
+}));
 import { checkIn, createArrival, newGame, nyDateKey, type GameState } from "./engine";
 import { useGame } from "./store";
 
 const KEY = "pawtastic-tycoon-save-v1";
-const seq = (vals: number[]) => { let i = 0; return () => vals[i++ % vals.length]!; };
+const seq = (vals: number[]) => {
+  let i = 0;
+  return () => vals[i++ % vals.length]!;
+};
 function seeded(): GameState {
   let s: GameState = { ...newGame(Date.now(), nyDateKey()), coins: 1000, clockMin: 9 * 60 };
   for (let i = 0; i < 2; i++) {
@@ -29,7 +34,12 @@ describe("useGame store: rapid actions", () => {
       result.current.act((s) => checkIn(s, a!)); // double tap on the same pup is refused
     });
     const s = result.current.state!;
-    expect(s.dogs.filter((d) => d.checkedIn).map((d) => d.id).sort()).toEqual([a, b].sort());
+    expect(
+      s.dogs
+        .filter((d) => d.checkedIn)
+        .map((d) => d.id)
+        .sort(),
+    ).toEqual([a, b].sort());
     expect(s.coins).toBe(1040);
     expect(s.stats.admitted).toBe(2);
     unmount();

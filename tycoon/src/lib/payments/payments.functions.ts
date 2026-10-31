@@ -2,7 +2,22 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { PAID_PRODUCTS } from "@/lib/catalog";
-import { paymentsConfig, reconcileSession, serverPaymentsEnv } from "./verify";
+import { accountMatches, paymentsConfig, reconcileSession, serverPaymentsEnv } from "./verify";
+
+// Cache the "this key belongs to the confirmed game account" check briefly per server instance.
+let accountOk: { key: string; account: string; until: number } | null = null;
+async function keyMatchesAccount(key: string, account: string): Promise<boolean> {
+  if (accountOk && accountOk.key === key && accountOk.account === account && accountOk.until > Date.now()) return true;
+  try {
+    const res = await fetch("https://api.stripe.com/v1/account", { headers: { Authorization: `Bearer ${key}` } });
+    const body = await res.json();
+    const ok = res.ok && accountMatches(body, account);
+    accountOk = ok ? { key, account, until: Date.now() + 10 * 60_000 } : null;
+    return ok;
+  } catch {
+    return false;
+  }
+}
 
 /** Public: is test checkout configured? Never reveals secrets. */
 export const getPaymentsStatus = createServerFn({ method: "GET" }).handler(async () => {
@@ -14,7 +29,7 @@ export const getPaymentsStatus = createServerFn({ method: "GET" }).handler(async
 export const listEntitlements = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase.from("entitlements").select("product_id, granted_at").eq("user_id", context.userId);
+    const { data, error } = await context.supabase.from("entitlements").select("product_id, granted_at").eq("user_id", context.userId).is("revoked_at" as never, null);
     if (error) throw new Error("Could not load purchases");
     return data ?? [];
   });
@@ -27,6 +42,7 @@ export const createCheckout = createServerFn({ method: "POST" })
     const cfg = paymentsConfig(serverPaymentsEnv());
     if (!cfg.ready) return { ok: false as const, error: cfg.reason };
     const product = PAID_PRODUCTS.find((p) => p.id === data.productId)!;
+    if (!(await keyMatchesAccount(cfg.key, cfg.account))) return { ok: false as const, error: "Purchases are paused: the payment key doesn't match the confirmed PAWtastic Games account." };
 
     const { data: owned, error: ownErr } = await context.supabase.from("entitlements").select("id").eq("user_id", context.userId).eq("product_id", product.id).maybeSingle();
     if (ownErr) return { ok: false as const, error: "Couldn't confirm your purchases — try again" };

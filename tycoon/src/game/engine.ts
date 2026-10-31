@@ -78,7 +78,13 @@ export type Dog = {
   place: Place;
   /** false = customer just dropped off; staff must check in before rooms, play or baths. Admission fee is paid once at check-in. */
   checkedIn: boolean;
+  /** 1 for a first visit; higher for returning regulars (from the guest book). */
+  visits: number;
 };
+
+/** A pup that has visited before. Returning customers bring the same pup with the same traits. */
+export type Regular = { name: string; breed: number; size: Size; temper: Temper; visits: number; friendship: number; lastDay: number };
+export type DayReport = { day: number; admitted: number; checkouts: number; plays: number; baths: number; earned: number; scuffles: number; avgHappy: number; bestPup: string | null };
 
 export type Staff = { id: string; name: string; energy: number };
 
@@ -105,7 +111,7 @@ export function hireCost(count: number) {
   return 250 * count; // 2nd staff 250, 3rd 500, ...
 }
 
-export type Stats = { admitted: number; baths: number; plays: number; earned: number; checkouts: number; cleans: number; boarders: number; shares: number; runs: number };
+export type Stats = { admitted: number; baths: number; plays: number; earned: number; checkouts: number; cleans: number; boarders: number; shares: number; runs: number; scuffles: number };
 
 export type GameState = {
   v: number;
@@ -134,9 +140,17 @@ export type GameState = {
   gameDay: number;
   reputation: number; // REP_MIN..100
   scuffles: { site: SiteId; group: GroupId }[];
+  guestBook: Regular[];
+  /** Stats at the start of the current game day (for the end-of-day report). */
+  dayBase: Stats;
+  /** Report for the game day that just ended (shown once by the UI, then cleared). */
+  report: DayReport | null;
+  weekKey: string;
+  weekBase: Stats;
+  weekClaimed: boolean;
 };
 
-export const emptyStats = (): Stats => ({ admitted: 0, baths: 0, plays: 0, earned: 0, checkouts: 0, cleans: 0, boarders: 0, shares: 0, runs: 0 });
+export const emptyStats = (): Stats => ({ admitted: 0, baths: 0, plays: 0, earned: 0, checkouts: 0, cleans: 0, boarders: 0, shares: 0, runs: 0, scuffles: 0 });
 
 export function newGame(now: number, day: string): GameState {
   return {
@@ -165,8 +179,35 @@ export function newGame(now: number, day: string): GameState {
     gameDay: 1,
     reputation: 80,
     scuffles: [],
+    guestBook: [],
+    dayBase: emptyStats(),
+    report: null,
+    weekKey: "",
+    weekBase: emptyStats(),
+    weekClaimed: false,
   };
 }
+
+// ---------- Personalities, favourites & friendship (flavour only — never tied to temperament or breed behaviour) ----------
+export type Favorite = "fetch" | "tug" | "zoomies" | "cuddles" | "splash";
+const FAVORITES: Favorite[] = ["fetch", "tug", "zoomies", "cuddles", "splash"];
+export const FAVORITE_LABEL: Record<Favorite, string> = { fetch: "fetch 🎾", tug: "tug-of-war 🪢", zoomies: "zoomies 💨", cuddles: "cuddles 🤗", splash: "bath time 🫧" };
+const TRAITS = ["Curious explorer", "Gentle greeter", "Ball-obsessed", "Social butterfly", "Shy at first", "Nap champion", "Treat detective", "Water lover", "Tail-wag tornado", "Sock thief"];
+/** Same pup → same personality, so returning regulars feel familiar. */
+export function personalityOf(d: { name: string; breed: number }): { trait: string; favorite: Favorite } {
+  const h = seedFrom(`${d.name}|${d.breed}`);
+  return { trait: TRAITS[h % TRAITS.length]!, favorite: FAVORITES[(h >>> 8) % FAVORITES.length]! };
+}
+export const FRIENDSHIP_LEVELS = [
+  { min: 0, label: "New friend", bonus: 0 },
+  { min: 25, label: "Pal", bonus: 25 },
+  { min: 50, label: "Buddy", bonus: 50 },
+  { min: 80, label: "Best friend", bonus: 100 },
+] as const;
+export const friendshipLevel = (f: number) => [...FRIENDSHIP_LEVELS].reverse().find((l) => f >= l.min)!;
+export const REGULAR_CHANCE = 0.35;
+const GUESTBOOK_MAX = 40;
+export const regularOf = (s: GameState, d: { name: string; breed: number }) => s.guestBook.find((g) => g.name === d.name && g.breed === d.breed) ?? null;
 
 export function sites(s: GameState): SiteId[] {
   return s.upgrades.includes("hillsdale") ? ["hawthorne", "hillsdale"] : ["hawthorne"];
@@ -235,7 +276,7 @@ function pickStaff(s: GameState, cost: number): number {
   return best;
 }
 
-function useStaff(s: GameState, cost: number): GameState | null {
+function spendStaff(s: GameState, cost: number): GameState | null {
   const i = pickStaff(s, cost);
   if (i < 0) return null;
   return { ...s, staff: s.staff.map((st, j) => (j === i ? { ...st, energy: st.energy - cost } : st)) };
@@ -247,13 +288,17 @@ export function createArrival(s: GameState, rand: () => number, boarding = false
   if (!lobbyStatus(s.clockMin).open) return { ok: false, error: `Lobby closed for the midday break — drop-offs resume at 14:00 (game clock).` };
   if (lobbyDogs(s, site).length >= LOBBY_CAP) return { ok: false, error: "The lobby is full — move waiting pups to a playroom or suite first." };
   if (boarding && !s.upgrades.includes("boarding")) return { ok: false, error: "Unlock Boarding Suites first." };
-  const breed = Math.floor(rand() * BREEDS.length);
+  // Returning customers: sometimes a familiar pup comes back with the same name and traits.
+  const away = (s.guestBook ?? []).filter((g) => !s.dogs.some((d) => d.name === g.name && d.breed === g.breed));
+  const reg = away.length && rand() < REGULAR_CHANCE ? away[Math.floor(rand() * away.length)]! : null;
+  const breed = reg ? reg.breed : Math.floor(rand() * BREEDS.length);
   const dog: Dog = {
     id: "d" + s.seq,
-    name: NAMES[Math.floor(rand() * NAMES.length)]!,
+    name: reg ? reg.name : NAMES[Math.floor(rand() * NAMES.length)]!,
     breed,
-    size: BREEDS[breed]!.size,
-    temper: rand() < 0.5 ? "gentle" : "active",
+    size: reg ? reg.size : BREEDS[breed]!.size,
+    temper: reg ? reg.temper : rand() < 0.5 ? "gentle" : "active",
+    visits: reg ? reg.visits + 1 : 1,
     site,
     place: { kind: "lobby" },
     checkedIn: false,
@@ -265,7 +310,8 @@ export function createArrival(s: GameState, rand: () => number, boarding = false
     x: 0.2 + rand() * 0.6,
     y: 0.25 + rand() * 0.5,
   };
-  return { ok: true, state: { ...s, seq: s.seq + 1, dogs: [...s.dogs, dog] }, msg: `${dog.name} was dropped off — check them in at the lobby desk.` };
+  const hello = reg ? `${dog.name} is back for visit #${dog.visits} (${friendshipLevel(reg.friendship).label})! Check them in at the desk.` : `${dog.name} was dropped off — check them in at the lobby desk.`;
+  return { ok: true, state: { ...s, seq: s.seq + 1, dogs: [...s.dogs, dog] }, msg: hello };
 }
 
 /**
@@ -372,11 +418,14 @@ export function playtime(s: GameState, dogId: string): Result {
   if (dog.place.kind === "recovery") return { ok: false, error: `${dog.name} is calming down in recovery — move them to a matching playroom first.` };
   if (inActiveScuffle(s, dog)) return { ok: false, error: `Separate the scuffle in ${dog.name}'s room first.` };
   if (dog.place.kind === "lobby") return { ok: false, error: `${dog.name} is still in the lobby — assign a playroom${dog.boarding ? " or suite" : ""} first.` };
-  const st = useStaff(s, 10);
+  const st = spendStaff(s, 10);
   if (!st) return { ok: false, error: "Staff are tired — let them rest a moment." };
-  const dogs = st.dogs.map((d) => (d.id === dogId ? { ...d, happiness: clamp(d.happiness + 25), clean: clamp(d.clean - 10), played: d.played + 1 } : d));
+  const fav = personalityOf(dog).favorite;
+  const loves = fav === "fetch" || fav === "tug" || fav === "zoomies" || fav === "cuddles";
+  const gain = fav === "cuddles" ? 30 : loves ? 35 : 25;
+  const dogs = st.dogs.map((d) => (d.id === dogId ? { ...d, happiness: clamp(d.happiness + gain), clean: clamp(d.clean - 10), played: d.played + 1 } : d));
   const [out, amt] = earn({ ...st, dogs, cleanliness: clamp(st.cleanliness - 4), stats: { ...st.stats, plays: st.stats.plays + 1 } }, 15);
-  return { ok: true, state: out, earned: amt, msg: `${dog.name} had a blast!` };
+  return { ok: true, state: out, earned: amt, msg: loves ? `${dog.name} loved it — ${FAVORITE_LABEL[fav]} is their favorite!` : `${dog.name} had a blast!` };
 }
 
 export function bath(s: GameState, dogId: string): Result {
@@ -384,17 +433,18 @@ export function bath(s: GameState, dogId: string): Result {
   if (!dog) return { ok: false, error: "That pup already went home." };
   if (!dog.checkedIn) return { ok: false, error: `Check ${dog.name} in first.` };
   if (inActiveScuffle(s, dog)) return { ok: false, error: `Separate the scuffle in ${dog.name}'s room first.` };
-  const st = useStaff(s, 15);
+  const st = spendStaff(s, 15);
   if (!st) return { ok: false, error: "Staff are tired — let them rest a moment." };
-  const dogs = st.dogs.map((d) => (d.id === dogId ? { ...d, clean: 100, happiness: clamp(d.happiness + 5), bathed: true } : d));
+  const splashFan = personalityOf(dog).favorite === "splash";
+  const dogs = st.dogs.map((d) => (d.id === dogId ? { ...d, clean: 100, happiness: clamp(d.happiness + (splashFan ? 15 : 5)), bathed: true } : d));
   const bonus = s.upgrades.includes("splash") ? 10 : 0;
   const [out, amt] = earn({ ...st, dogs, stats: { ...st.stats, baths: st.stats.baths + 1 } }, 25 + bonus);
-  return { ok: true, state: out, earned: amt, msg: `${dog.name} is squeaky clean!` };
+  return { ok: true, state: out, earned: amt, msg: splashFan ? `${dog.name} adores bath time — splashy and happy! 🫧` : `${dog.name} is squeaky clean!` };
 }
 
 export function cleanRoom(s: GameState): Result {
   if (s.cleanliness >= 100) return { ok: false, error: "Already sparkling!" };
-  const st = useStaff(s, 10);
+  const st = spendStaff(s, 10);
   if (!st) return { ok: false, error: "Staff are tired — let them rest a moment." };
   return { ok: true, state: { ...st, cleanliness: clamp(st.cleanliness + 35), stats: { ...st.stats, cleans: st.stats.cleans + 1 } }, msg: "Floors mopped!" };
 }
@@ -409,14 +459,24 @@ export function checkout(s: GameState, dogId: string, exitBath: boolean): Result
   let st: GameState = s;
   let base = Math.round(10 + dog.happiness * 0.4) + (dog.boarding ? 60 : 0);
   if (exitBath) {
-    const used = useStaff(s, 15);
+    const used = spendStaff(s, 15);
     if (!used) return { ok: false, error: "Staff are tired — let them rest a moment." };
     st = { ...used, stats: { ...used.stats, baths: used.stats.baths + 1 } };
     base += 30 + (s.upgrades.includes("splash") ? 10 : 0);
   }
   st = { ...st, dogs: st.dogs.filter((d) => d.id !== dogId), stats: { ...st.stats, checkouts: st.stats.checkouts + 1 } };
-  const [out, amt] = earn(st, base);
-  return { ok: true, state: out, earned: amt, msg: `${dog.name} went home happy!` };
+  const [paid, amt] = earn(st, base);
+  // Guest book: happy, well-cared-for visits build friendship. Milestones pay a one-time bonus.
+  const prev = regularOf(s, dog);
+  const gain = Math.round(dog.happiness / 10) + (dog.bathed || exitBath ? 2 : 0) + (dog.played > 0 ? 2 : 0);
+  const friendship = Math.min(100, (prev?.friendship ?? 0) + gain);
+  const entry: Regular = { name: dog.name, breed: dog.breed, size: dog.size, temper: dog.temper, visits: Math.max(dog.visits ?? 1, (prev?.visits ?? 0) + 1), friendship, lastDay: s.gameDay };
+  const book = [entry, ...(s.guestBook ?? []).filter((g) => !(g.name === dog.name && g.breed === dog.breed))].slice(0, GUESTBOOK_MAX);
+  const before = friendshipLevel(prev?.friendship ?? 0);
+  const after = friendshipLevel(friendship);
+  const milestone = after.min > before.min ? after : null;
+  const out: GameState = { ...paid, guestBook: book, coins: paid.coins + (milestone?.bonus ?? 0) };
+  return { ok: true, state: out, earned: amt + (milestone?.bonus ?? 0), msg: milestone ? `${dog.name} went home happy — you're now ${milestone.label}s! 💙 +${milestone.bonus} bonus` : `${dog.name} went home happy!` };
 }
 
 export function buyUpgrade(s: GameState, id: string): Result {
@@ -450,8 +510,9 @@ export function tick(s: GameState, seconds: number, rand: () => number = Math.ra
   const dirtFactor = s.cleanliness < 40 ? 1.6 : 1;
   // scuffles: only rooms with a mismatched pup can start one
   let scuffles = [...(s.scuffles ?? [])];
+  let started = 0;
   for (const site of sites(s)) for (const g of GROUPS) {
-    if (roomAtRisk(s, site, g.id) && !hasScuffle({ ...s, scuffles }, site, g.id) && rand() < SCUFFLE_CHANCE_PER_SEC * seconds) scuffles.push({ site, group: g.id });
+    if (roomAtRisk(s, site, g.id) && !hasScuffle({ ...s, scuffles }, site, g.id) && rand() < SCUFFLE_CHANCE_PER_SEC * seconds) { scuffles.push({ site, group: g.id }); started++; }
   }
   scuffles = scuffles.filter((x) => roomAtRisk(s, x.site, x.group)); // resolves once the mismatch leaves
   const inScuffle = (d: Dog) => d.place.kind === "room" && scuffles.some((x) => x.site === d.site && x.group === (d.place as { group: GroupId }).group);
@@ -468,6 +529,7 @@ export function tick(s: GameState, seconds: number, rand: () => number = Math.ra
     reputation,
     cleanliness: clamp(s.cleanliness - 0.08 * s.dogs.length * seconds),
     staff: s.staff.map((st) => ({ ...st, energy: clamp(st.energy + 2 * seconds) })),
+    stats: started ? { ...s.stats, scuffles: (s.stats.scuffles ?? 0) + started } : s.stats,
   };
   // clock + random customer drop-offs during open lobby hours
   // Fractional seconds accumulate; arrival rolls happen once per whole game minute crossed.
@@ -480,7 +542,11 @@ export function tick(s: GameState, seconds: number, rand: () => number = Math.ra
     const whole = Math.abs(clock - Math.round(clock)) < 1e-9;
     if (whole) clock = Math.round(clock);
     let day = out.gameDay;
-    if (clock >= DAY_CLOSE) { clock = DAY_OPEN; day += 1; }
+    if (clock >= DAY_CLOSE) {
+      clock = DAY_OPEN;
+      day += 1;
+      out = { ...out, report: dayReport(out), dayBase: { ...out.stats } };
+    }
     out = { ...out, clockMin: clock, gameDay: day };
     if (!whole) continue;
     if (lobbyStatus(clock).open && rand() < ARRIVAL_CHANCE_PER_MIN * (out.reputation / 80)) {
@@ -501,6 +567,68 @@ export function welcomeBack(s: GameState, now: number): { state: GameState; bonu
     state: { ...s, lastSeen: now, coins: s.coins + bonus, staff: s.staff.map((st) => ({ ...st, energy: 100 })) },
     bonus,
   };
+}
+
+export function dayReport(s: GameState): DayReport {
+  const b = s.dayBase ?? emptyStats();
+  const d = (k: keyof Stats) => Math.max(0, s.stats[k] - (b[k] ?? 0));
+  const best = [...s.dogs].sort((a, c) => c.happiness - a.happiness)[0];
+  return {
+    day: s.gameDay,
+    admitted: d("admitted"), checkouts: d("checkouts"), plays: d("plays"), baths: d("baths"), earned: d("earned"), scuffles: d("scuffles"),
+    avgHappy: s.dogs.length ? Math.round(s.dogs.reduce((a, x) => a + x.happiness, 0) / s.dogs.length) : 100,
+    bestPup: best ? best.name : null,
+  };
+}
+
+// ---------- Weekly rotating challenge ----------
+export type Weekly = { id: string; label: string; stat: keyof Stats; target: number; reward: number };
+const WEEKLY_POOL: Omit<Weekly, "id">[] = [
+  { label: "Check in 25 pups this week", stat: "admitted", target: 25, reward: 250 },
+  { label: "Give 15 baths this week", stat: "baths", target: 15, reward: 220 },
+  { label: "Host 40 playtimes this week", stat: "plays", target: 40, reward: 250 },
+  { label: "Send 20 pups home happy this week", stat: "checkouts", target: 20, reward: 260 },
+  { label: "Earn 2,000 coins this week", stat: "earned", target: 2000, reward: 300 },
+];
+/** ISO week (Monday start) of the New York calendar date, e.g. "2026-W45". */
+export function weekKey(ms: number = Date.now()): string {
+  const [y, m, d] = nyDateKey(ms).split("-").map(Number) as [number, number, number];
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const dow = (date.getUTCDay() + 6) % 7; // Mon=0
+  date.setUTCDate(date.getUTCDate() - dow + 3); // Thursday of this week
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+  const week = 1 + Math.round(((date.getTime() - yearStart.getTime()) / 86400000 - 3 + ((yearStart.getUTCDay() + 6) % 7)) / 7);
+  return `${date.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+export function weeklyChallenge(wk: string): Weekly {
+  const r = mulberry(seedFrom("weekly-" + wk));
+  const c = WEEKLY_POOL[Math.floor(r() * WEEKLY_POOL.length)]!;
+  return { ...c, id: wk };
+}
+export function rollWeek(s: GameState, wk: string): GameState {
+  if (s.weekKey === wk) return s;
+  return { ...s, weekKey: wk, weekBase: { ...s.stats }, weekClaimed: false };
+}
+export const weeklyProgress = (s: GameState, c: Weekly) => Math.min(c.target, Math.max(0, s.stats[c.stat] - (s.weekBase?.[c.stat] ?? 0)));
+export function claimWeekly(s: GameState, wk: string): Result {
+  if (s.weekKey !== wk) return { ok: false, error: "This week's challenge hasn't started yet." };
+  if (s.weekClaimed) return { ok: false, error: "Already claimed this week — a new challenge starts Monday." };
+  const c = weeklyChallenge(wk);
+  if (weeklyProgress(s, c) < c.target) return { ok: false, error: `Not finished yet (${weeklyProgress(s, c)}/${c.target}).` };
+  return { ok: true, state: { ...s, coins: s.coins + c.reward, weekClaimed: true }, msg: `Weekly challenge complete! +${c.reward} coins` };
+}
+
+/** One clear long-term goal with progress (0..1), for the hub and the daycare. */
+export function nextGoal(s: GameState): { label: string; detail: string; progress: number } {
+  if (s.tutorial >= 0) return { label: "Finish the first-day tutorial", detail: `Step ${s.tutorial + 1} of 6`, progress: s.tutorial / 6 };
+  for (const u of UPGRADES) {
+    if (s.upgrades.includes(u.id) || (u.requires && !s.upgrades.includes(u.requires))) continue;
+    return { label: `Build: ${u.name}`, detail: `${Math.min(s.coins, u.cost)}/${u.cost} coins · ${u.desc}`, progress: Math.min(1, s.coins / u.cost) };
+  }
+  const ach = ACHIEVEMENTS.find((a) => !s.achievements.includes(a.id));
+  if (ach) return { label: `Earn: ${ach.label}`, detail: "Achievement", progress: 0 };
+  const best = (s.guestBook ?? []).filter((g) => g.friendship >= 80).length;
+  return { label: "Become best friends with 5 regulars", detail: `${best}/5 best friends`, progress: Math.min(1, best / 5) };
 }
 
 // ---------- Missions & achievements ----------
@@ -701,6 +829,17 @@ export function parseSave(raw: unknown): GameState | null {
     reputation: v >= 3 ? num(raw['reputation'], 80, REP_MIN, 100) : 80,
   };
   if (st.equipped && !st.cosmetics.includes(st.equipped)) st.equipped = null;
+  st.dayBase = isObj(raw['dayBase']) ? statsOf(raw['dayBase']) : { ...st.stats };
+  st.weekKey = typeof raw['weekKey'] === "string" ? raw['weekKey'].slice(0, 10) : "";
+  st.weekBase = isObj(raw['weekBase']) ? statsOf(raw['weekBase']) : { ...st.stats };
+  st.weekClaimed = raw['weekClaimed'] === true;
+  st.guestBook = (Array.isArray(raw['guestBook']) ? raw['guestBook'].filter(isObj) : [])
+    .filter((g) => typeof g['name'] === "string" && g['name'] && typeof g['breed'] === "number" && Number.isInteger(g['breed']) && g['breed'] >= 0 && g['breed'] < BREEDS.length && (g['size'] === "small" || g['size'] === "large") && (g['temper'] === "gentle" || g['temper'] === "active"))
+    .slice(0, GUESTBOOK_MAX)
+    .map((g) => ({ name: (g['name'] as string).slice(0, 24), breed: g['breed'] as number, size: g['size'] as Size, temper: g['temper'] as Temper, visits: Math.floor(num(g['visits'], 1, 1, 9999)), friendship: Math.round(num(g['friendship'], 0, 0, 100)), lastDay: Math.floor(num(g['lastDay'], 1, 1)) }));
+  const rep = raw['report'];
+  const repKeys: (keyof DayReport)[] = ["day", "admitted", "checkouts", "plays", "baths", "earned", "scuffles", "avgHappy"];
+  st.report = isObj(rep) && repKeys.every((k) => typeof rep[k] === "number" && Number.isFinite(rep[k])) ? { ...(Object.fromEntries(repKeys.map((k) => [k, Math.max(0, Math.floor(rep[k] as number))])) as Omit<DayReport, "bestPup">), bestPup: typeof rep['bestPup'] === "string" ? rep['bestPup'].slice(0, 24) : null } : null;
   const staffRaw = Array.isArray(raw['staff']) ? raw['staff'].filter(isObj) : [];
   st.staff = staffRaw.slice(0, MAX_STAFF).map((x, i) => ({ id: typeof x['id'] === "string" ? x['id'] : `s_m${i}`, name: typeof x['name'] === "string" ? x['name'].slice(0, 24) : STAFF_NAMES[i] ?? "Pal", energy: num(x['energy'], 100, 0, 100) }));
   if (!st.staff.length) st.staff = base.staff;
@@ -737,6 +876,7 @@ export function parseSave(raw: unknown): GameState | null {
       x: num(d['x'], 0.5, 0, 1),
       y: num(d['y'], 0.5, 0, 1),
       checkedIn: v >= 4 ? d["checkedIn"] !== false : true, // pre-v4 dogs were already admitted & paid
+      visits: Math.floor(num(d["visits"], 1, 1, 9999)),
     });
   });
   // Normalize occupancy: invalid or overflowing placements go to recovery (never lose a dog).

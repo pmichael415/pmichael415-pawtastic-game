@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { applyRun, newGame, parseSave, recessCoinsLeft, recessMaxScore, RECESS_DAILY_COIN_CAP, RECESS_RUN_COIN_CAP } from "./engine";
+import {
+  applyRun,
+  newGame,
+  parseSave,
+  recessCoinsLeft,
+  recessMaxScore,
+  RECESS_DAILY_COIN_CAP,
+  RECESS_RUN_COIN_CAP,
+} from "./engine";
 
 const fresh = () => newGame(0, "2026-10-31");
 

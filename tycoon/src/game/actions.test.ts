@@ -1,11 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { admitDog, assignRoom, buyUpgrade, createArrival, newGame, BREAK_START, type GameState } from "./engine";
+import {
+  admitDog,
+  assignRoom,
+  buyUpgrade,
+  createArrival,
+  newGame,
+  BREAK_START,
+  type GameState,
+} from "./engine";
 import { bestRoom, describePlace, primaryAction, roomOptions } from "./actions";
 
-const seq = (vals: number[]) => { let i = 0; return () => vals[i++ % vals.length]!; };
+const seq = (vals: number[]) => {
+  let i = 0;
+  return () => vals[i++ % vals.length]!;
+};
 const smallGentle = seq([0.2, 0, 0.1, 0.5, 0.5, 0.5, 0.5]);
 const largeActive = seq([0, 0, 0.9, 0.5, 0.5, 0.5, 0.5]);
-const must = (r: { ok: boolean; state?: GameState; error?: string }) => { if (!r.ok) throw new Error(r.error); return r.state!; };
+const must = (r: { ok: boolean; state?: GameState; error?: string }) => {
+  if (!r.ok) throw new Error(r.error);
+  return r.state!;
+};
 const rich = (): GameState => ({ ...newGame(0, "d"), coins: 5000, clockMin: 9 * 60 });
 
 describe("primary action per pup", () => {
@@ -30,7 +44,10 @@ describe("primary action per pup", () => {
 
   it("when the matching room is full it explains why instead of mis-grouping", () => {
     let s = rich();
-    for (let i = 0; i < 2; i++) { s = must(admitDog(s, smallGentle)); s = must(assignRoom(s, s.dogs[i]!.id, "small-gentle")); }
+    for (let i = 0; i < 2; i++) {
+      s = must(admitDog(s, smallGentle));
+      s = must(assignRoom(s, s.dogs[i]!.id, "small-gentle"));
+    }
     s = must(admitDog(s, smallGentle));
     const a = primaryAction(s, s.dogs[2]!);
     expect(a.id).toBe("none");
@@ -61,7 +78,12 @@ describe("primary action per pup", () => {
   it("room options rate every playroom by BOTH size and temperament", () => {
     const s = must(admitDog(rich(), largeActive));
     const opts = Object.fromEntries(roomOptions(s, s.dogs[0]!).map((o) => [o.group, o.status]));
-    expect(opts).toEqual({ "small-gentle": "warn", "small-active": "warn", "large-gentle": "warn", "large-active": "fit" });
+    expect(opts).toEqual({
+      "small-gentle": "warn",
+      "small-active": "warn",
+      "large-gentle": "warn",
+      "large-active": "fit",
+    });
   });
 
   it("describes location and check-in status in plain words", () => {

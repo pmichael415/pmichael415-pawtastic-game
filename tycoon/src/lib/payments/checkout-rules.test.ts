@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { canonicalOrigin, GRANTING_EVENTS, paymentsConfig, reconcileSession } from "./verify";
 
-const base = { STRIPE_SECRET_KEY: "sk_test_x", PAYMENT_WEBHOOK_SECRET: "whsec_x" };
+const base = { STRIPE_SECRET_KEY: "sk_test_x", PAYMENT_WEBHOOK_SECRET: "whsec_x", STRIPE_EXPECTED_ACCOUNT: "acct_1PawGames000" };
 describe("payment readiness requires a canonical HTTPS origin", () => {
   it("missing or invalid APP_ORIGIN keeps Buy locked", () => {
     for (const o of [undefined, "", "http://play.example.com", "https://play.example.com/shop", "https://play.example.com?x=1", "https://u:p@play.example.com", "not a url"]) {

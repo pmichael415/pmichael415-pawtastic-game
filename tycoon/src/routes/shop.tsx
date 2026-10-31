@@ -13,6 +13,7 @@ import { updateSave } from "@/game/store";
 import { DogSprite } from "@/game/sprites";
 import { GameHeader } from "@/components/game/GameHeader";
 import { PAID_PRODUCTS, formatPrice } from "@/lib/catalog";
+import { track } from "@/lib/analytics";
 
 export const Route = createFileRoute("/shop")({
   head: () => ({
@@ -41,12 +42,14 @@ function Shop() {
     setBusy(true);
     try {
       const n = await ent.refresh();
+      track("restore_result", { ok: n !== null, count: n ?? 0 });
       if (n === null) toast.error("Couldn't check purchases — try again");
       else toast.success(n ? `Restored ${n} pack(s)` : "No purchases found on this account");
     } finally { setBusy(false); }
   };
   const buy = async (productId: "blue-ribbon-style" | "deluxe-daycare-decor") => {
     setBusy(true);
+    track("checkout_start", { product: productId });
     try {
       const r = await createCheckout({ data: { productId } });
       if (r.ok) window.location.href = r.url;
@@ -84,8 +87,8 @@ function Shop() {
                   <div className="font-display font-bold text-secondary">{c.name}</div>
                   <div className="text-xs font-bold text-muted-foreground">{owned ? "Owned" : `Score ${c.unlockScore} in Recess Rush`}</div>
                 </div>
-                <Button variant="outline" size="sm" onPointerEnter={() => setPreview(c.id)} onClick={() => setPreview(c.id)}>Preview</Button>
-                <Button size="sm" disabled={!owned} onClick={() => { equip(s.equipped === c.id ? null : c.id); setPreview(null); }}>
+                <Button variant="outline" size="sm" className="min-h-11" onPointerEnter={() => setPreview(c.id)} onClick={() => setPreview(c.id)}>Preview</Button>
+                <Button size="sm" className="min-h-11" disabled={!owned} onClick={() => { equip(s.equipped === c.id ? null : c.id); setPreview(null); }}>
                   {!owned ? <Lock /> : s.equipped === c.id ? "Unequip" : "Equip"}
                 </Button>
               </div>
@@ -113,16 +116,19 @@ function Shop() {
                   return (
                     <div key={it.id} className="flex items-center gap-2 rounded-xl bg-muted px-2 py-1.5">
                       <span className="flex-1 text-xs font-bold text-secondary">{it.name}</span>
-                      <Button size="sm" variant="ghost" onPointerEnter={() => setPaidPreview(it.id)} onPointerLeave={() => setPaidPreview(null)} onClick={() => setPaidPreview(paidPreview === it.id ? null : it.id)}>Preview</Button>
+                      <Button size="sm" variant="ghost" className="min-h-11" onPointerEnter={() => setPaidPreview(it.id)} onPointerLeave={() => setPaidPreview(null)} onClick={() => { track("shop_preview", { item: it.id }); setPaidPreview(paidPreview === it.id ? null : it.id); }}>Preview</Button>
                       {mine ? (
-                        <Button size="sm" variant={on ? "secondary" : "default"} onClick={() => ent.toggle(it.id, !on)}>{on ? "Unequip" : "Equip"}</Button>
+                        <Button size="sm" className="min-h-11" variant={on ? "secondary" : "default"} onClick={() => ent.toggle(it.id, !on)}>{on ? "Unequip" : "Equip"}</Button>
                       ) : (
-                        <Button size="sm" variant="outline" disabled aria-label={`${it.name} locked`}><Lock className="h-3 w-3" /></Button>
+                        <Button size="sm" className="min-h-11" variant="outline" disabled aria-label={`${it.name} locked`}><Lock className="h-3 w-3" /></Button>
                       )}
                     </div>
                   );
                 })}
               </div>
+              <Button asChild variant="secondary" className="mt-2 min-h-11 w-full" onClick={() => track("shop_preview", { item: `${p.id}-3d` })}>
+                <Link to="/daycare" search={{ preview: p.id === "deluxe-daycare-decor" ? "deluxe" : "ribbon" }}>👀 Preview in my 3D daycare</Link>
+              </Button>
               {ent.status === "ready" && ent.owned.has(p.id) ? (
                 <p className="mt-2 text-center text-sm font-bold text-success">✓ Owned on your account (server-verified)</p>
               ) : ent.status === "loading" && user ? (
@@ -132,7 +138,10 @@ function Shop() {
               ) : pay.ready && user ? (
                 <Button className="mt-3 w-full" size="lg" disabled={busy} onClick={() => buy(p.id)}>Buy (test mode) {formatPrice(p)}</Button>
               ) : (
-                <Button className="mt-3 w-full" size="lg" disabled><Lock /> {pay.ready ? "Sign in to buy" : "Purchases coming soon"}</Button>
+                <>
+                  <Button className="mt-3 w-full" size="lg" disabled><Lock /> {pay.ready ? "Sign in to buy" : "Purchases coming soon"}</Button>
+                  {!pay.ready && pay.reason && <p className="mt-1 text-center text-[11px] font-bold text-muted-foreground">Locked: {pay.reason}. Nothing can be charged.</p>}
+                </>
               )}
             </article>
           ))}

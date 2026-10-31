@@ -123,10 +123,19 @@ export type Database = {
           _amount: number
           _currency: string
           _event_id: string
+          _payment_intent?: string | null
           _product_id: string
           _session_id: string
           _user_id: string
         }
+        Returns: string
+      }
+      mark_checkout_closed: {
+        Args: { _event_id: string; _session_id: string; _status: string }
+        Returns: string
+      }
+      revoke_entitlement_for_refund: {
+        Args: { _event_id: string; _payment_intent: string }
         Returns: string
       }
       save_player_progress: {

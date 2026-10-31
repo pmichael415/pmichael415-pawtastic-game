@@ -7,7 +7,7 @@
 // synchronously, so rapid actions always build on each other and double check-ins are refused by the engine.
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { checkAchievements, newGame, nyDateKey, parseSave, rollMissionDay, tick, welcomeBack, type GameState, type Result } from "./engine";
+import { checkAchievements, newGame, nyDateKey, parseSave, rollMissionDay, rollWeek, tick, weekKey, welcomeBack, type GameState, type Result } from "./engine";
 
 const KEY = "pawtastic-tycoon-save-v1";
 export const todayKey = () => nyDateKey();
@@ -63,7 +63,7 @@ function startClock() {
     const sec = Math.min(1, Math.max(0, (now - lastTick) / 1000));
     lastTick = now;
     if (!snap.state || snap.paused || sec <= 0) return;
-    commit(rollMissionDay(tick(snap.state, sec), todayKey()));
+    commit(rollWeek(rollMissionDay(tick(snap.state, sec), todayKey()), weekKey()));
   }, TICK_MS);
 }
 function stopClock() {
@@ -75,7 +75,7 @@ function stopClock() {
 function activate(): number {
   users++;
   if (users > 1 && snap.state) return 0;
-  const { state, bonus } = welcomeBack(rollMissionDay(load(), todayKey()), Date.now());
+  const { state, bonus } = welcomeBack(rollWeek(rollMissionDay(load(), todayKey()), weekKey()), Date.now());
   commit(state, false);
   startClock();
   return bonus;

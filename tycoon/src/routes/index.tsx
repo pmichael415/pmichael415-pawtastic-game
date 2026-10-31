@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ArrowRight, Building2, ExternalLink, Gamepad2, MapPin, Share2, ShoppingBag, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ACHIEVEMENTS, FREE_COSMETICS, daycareScore, dailyMissions, fmtClock, lobbyDogs, missionProgress, recessCoinsLeft, type GameState } from "@/game/engine";
+import { ACHIEVEMENTS, FREE_COSMETICS, daycareScore, dailyMissions, fmtClock, lobbyDogs, missionProgress, nextGoal, recessCoinsLeft, type GameState } from "@/game/engine";
 import { peekSave, todayKey } from "@/game/store";
 import { GameHeader } from "@/components/game/GameHeader";
 import { useSession } from "@/lib/auth";
@@ -80,6 +80,7 @@ function Hub() {
 
       <section className="rounded-3xl bg-card p-4 shadow-soft">
         <h2 className="flex items-center gap-2 font-display text-lg font-bold text-secondary"><Trophy className="h-5 w-5 text-accent" /> Today</h2>
+        <p className="text-sm font-extrabold text-secondary">🎯 Next goal: {nextGoal(s).label} <span className="text-muted-foreground">· {nextGoal(s).detail}</span></p>
         <p className="text-sm font-bold text-muted-foreground">Daily missions: {doneMissions}/{missions.length} done. New missions every day at midnight (New York time) — nothing is lost if you skip a day.</p>
         <p className="mt-1 text-sm font-bold text-muted-foreground">Bandanas earned (shared by both games): {earned.length ? earned.map((c) => c.name).join(", ") : "none yet — score 150 in Recess Rush"}.</p>
         <div className="mt-2 grid grid-cols-2 gap-2">

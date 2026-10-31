@@ -28,19 +28,34 @@ type Queued = { name: EventName; props: Props; at: number };
 const ID_KEY = "pawtastic-anon-id";
 const FIRST_KEY = "pawtastic-first-seen";
 const LAST_KEY = "pawtastic-last-seen-day";
-let queue: Queued[] = [];
+const queue: Queued[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
 let sessionId = "";
 const sent: Queued[] = []; // kept in memory for QA (window.__pawtasticEvents)
 
-const nyDay = (ms = Date.now()) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
-const uuid = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`);
+const nyDay = (ms = Date.now()) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(ms));
+const uuid = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
 
 export function device() {
   let id = localStorage.getItem(ID_KEY);
-  if (!id) { id = uuid(); localStorage.setItem(ID_KEY, id); }
+  if (!id) {
+    id = uuid();
+    localStorage.setItem(ID_KEY, id);
+  }
   let first = localStorage.getItem(FIRST_KEY);
-  if (!first) { first = nyDay(); localStorage.setItem(FIRST_KEY, first); }
+  if (!first) {
+    first = nyDay();
+    localStorage.setItem(FIRST_KEY, first);
+  }
   return { id, cohort: first };
 }
 
@@ -63,7 +78,9 @@ export function track(name: EventName, props: Props = {}) {
     sent.push(ev);
     (window as unknown as { __pawtasticEvents?: Queued[] }).__pawtasticEvents = sent;
     if (!timer) timer = setTimeout(flush, 8000);
-  } catch { /* never break the game for analytics */ }
+  } catch {
+    /* never break the game for analytics */
+  }
 }
 
 export function flush() {
@@ -73,11 +90,26 @@ export function flush() {
   const batch = queue.splice(0, 50);
   try {
     const d = device();
-    const body = JSON.stringify({ device: d.id, cohort: d.cohort, session: sessionId, build: BUILD_ID, events: batch });
+    const body = JSON.stringify({
+      device: d.id,
+      cohort: d.cohort,
+      session: sessionId,
+      build: BUILD_ID,
+      events: batch,
+    });
     const url = "/api/public/events";
-    if (navigator.sendBeacon) navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
-    else void fetch(url, { method: "POST", body, headers: { "content-type": "application/json" }, keepalive: true }).catch(() => {});
-  } catch { /* dropped */ }
+    if (navigator.sendBeacon)
+      navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
+    else
+      void fetch(url, {
+        method: "POST",
+        body,
+        headers: { "content-type": "application/json" },
+        keepalive: true,
+      }).catch(() => {});
+  } catch {
+    /* dropped */
+  }
 }
 
 /** Call once per page load: records the session and whether this device is new or returning. */
@@ -90,10 +122,27 @@ export function startSession(where: string) {
     const last = localStorage.getItem(LAST_KEY);
     const daysSinceFirst = Math.round((Date.parse(today) - Date.parse(d.cohort)) / 86400000);
     localStorage.setItem(LAST_KEY, today);
-    track("session_start", { where, first_visit: !last, returning_same_day: last === today, days_since_first: daysSinceFirst, mobile: matchMedia("(pointer: coarse)").matches });
+    track("session_start", {
+      where,
+      first_visit: !last,
+      returning_same_day: last === today,
+      days_since_first: daysSinceFirst,
+      mobile: matchMedia("(pointer: coarse)").matches,
+    });
     window.addEventListener("pagehide", flush);
-    document.addEventListener("visibilitychange", () => { if (document.hidden) flush(); });
-    window.addEventListener("error", (e) => track("client_error", { message: String(e.message).slice(0, 120), where: location.pathname }));
-    window.addEventListener("unhandledrejection", (e) => track("client_error", { message: String((e as PromiseRejectionEvent).reason).slice(0, 120), where: location.pathname }));
-  } catch { /* ignore */ }
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) flush();
+    });
+    window.addEventListener("error", (e) =>
+      track("client_error", { message: String(e.message).slice(0, 120), where: location.pathname }),
+    );
+    window.addEventListener("unhandledrejection", (e) =>
+      track("client_error", {
+        message: String((e as PromiseRejectionEvent).reason).slice(0, 120),
+        where: location.pathname,
+      }),
+    );
+  } catch {
+    /* ignore */
+  }
 }
