@@ -107,7 +107,7 @@ function Hub() {
         <h2 className="flex items-center gap-2 font-display text-lg font-bold text-secondary"><Trophy className="h-5 w-5 text-accent" /> Today</h2>
         <p className="text-sm font-extrabold text-secondary">🎯 Next goal: {nextGoal(s).label} <span className="text-muted-foreground">· {nextGoal(s).detail}</span></p>
         <p className="text-sm font-bold text-muted-foreground">Daily missions: {doneMissions}/{missions.length} done. New missions every day at midnight (New York time) — nothing is lost if you skip a day.</p>
-        <p className="mt-1 text-sm font-bold text-muted-foreground">Bandanas earned (shared by both games): {earned.length ? earned.map((c) => c.name).join(", ") : "none yet — score 150 in Recess Rush"}.</p>
+        <p className="mt-1 text-sm font-bold text-muted-foreground">Bandanas earned (shared across all three games): {earned.length ? earned.map((c) => c.name).join(", ") : "none yet — score 150 in Recess Rush"}.</p>
         <div className="mt-2 grid grid-cols-2 gap-2">
           <Button asChild variant="secondary" className="h-11"><Link to="/shop"><ShoppingBag /> Style shop</Link></Button>
           <Button asChild variant="outline" className="h-11"><Link to="/account">Account & saves</Link></Button>
