@@ -5,3 +5,4 @@ tycoon/.env
 tycoon/src/assets/daycare-room.jpg
 tycoon/public/favicon.png
 tycoon/qa/out/
+tycoon/review/dist/

@@ -80,6 +80,7 @@ BEGIN
   ON CONFLICT (event_id) DO NOTHING;
   IF NOT FOUND THEN RETURN 'duplicate'; END IF;
   UPDATE public.checkout_sessions SET status = _status WHERE id = _session_id AND status = 'open';
+  IF NOT FOUND THEN RETURN 'ignored'; END IF; -- already paid/refunded/closed, or unknown: nothing changes
   RETURN _status;
 END;
 $$;

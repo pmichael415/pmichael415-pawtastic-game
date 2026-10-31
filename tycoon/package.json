@@ -11,7 +11,10 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:review": "vite build --config review/vite.config.ts",
+    "qa:daycare": "node qa/e2e-daycare.cjs",
+    "qa:hub": "node qa/e2e-hub.cjs"
   },
   "overrides": {
     "rolldown": "1.2.1"

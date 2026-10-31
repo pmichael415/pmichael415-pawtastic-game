@@ -237,7 +237,7 @@ describe("refunds and failed payments", () => {
         )
       ).status,
     ).toBe("failed");
-    expect((await c("evt_f2", "cs_4", "expired")).r).toBe("expired");
+    expect((await c("evt_f2", "cs_4", "expired")).r).toBe("ignored");
     expect(
       (
         await one<{ status: string }>(

@@ -1,3 +1,14 @@
+# PAWtastic Games
+
+This repository holds two PAWtastic Academy games:
+
+- **`tycoon/` — PAWtastic Games: Daycare Tycoon + Recess Rush** (TanStack Start + three.js). A copy of the
+  Lovable project "PAWtastic Daycare Tycoon", developed and tested here. Start with `tycoon/STATUS.md`
+  (what works, what doesn't) and `tycoon/SYNC-TO-LOVABLE.md` (how changes reach the Lovable project).
+  Run it: `cd tycoon && bun install && bunx vite dev`. Tests: `bunx vitest run`, browser QA:
+  `node qa/e2e-daycare.cjs` and `node qa/e2e-hub.cjs` against the dev server.
+- **The rest of this folder — Graduation Day**, the match-3 game described below.
+
 # PAWtastic Academy: Graduation Day
 
 **Play it:** https://pawtastic-graduation.lovable.app

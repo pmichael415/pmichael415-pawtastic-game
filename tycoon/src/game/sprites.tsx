@@ -1,7 +1,8 @@
+import logoUrl from "@/assets/pawtastic-logo.png";
 import { BREEDS, FREE_COSMETICS } from "./engine";
 
-/** The real PAWtastic Academy logo (verified copy, also used by Graduation Day). */
-export const LOGO_URL = "/brand/pawtastic-logo.png";
+/** The real PAWtastic Academy logo (verified copy, also used by Graduation Day), bundled by Vite. */
+export const LOGO_URL: string = logoUrl;
 
 export function Logo({ className = "h-10 w-auto" }: { className?: string }) {
   return (

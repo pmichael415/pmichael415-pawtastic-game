@@ -15,6 +15,20 @@
       "when": 1793454256800,
       "tag": "0001_save_revisions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793469000000,
+      "tag": "0002_game_measurement",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793470000000,
+      "tag": "0003_payment_refunds_hardening",
+      "breakpoints": true
     }
   ]
 }

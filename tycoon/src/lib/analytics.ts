@@ -72,6 +72,7 @@ export function track(name: EventName, props: Props = {}) {
   if (typeof window === "undefined") return;
   try {
     if (!getSettings().analytics) return;
+    if (import.meta.env["VITE_REVIEW_BUILD"]) return; // private review builds send nothing
     if (!EVENT_NAMES.includes(name)) return;
     const ev = { name, props: clean(props), at: Date.now() };
     queue.push(ev);
