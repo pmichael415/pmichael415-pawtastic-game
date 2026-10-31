@@ -1,1 +1,6 @@
 node_modules/
+# Tycoon: Lovable manages its own .env (publishable keys); keep it out of this public repo
+tycoon/.env
+# local-only stand-ins for Lovable binaries the connector cannot export
+tycoon/src/assets/daycare-room.jpg
+tycoon/public/favicon.png
