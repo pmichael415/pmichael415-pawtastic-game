@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { useSession } from "@/lib/auth";
-import { Logo } from "@/game/sprites";
+import { GameHeader } from "@/components/game/GameHeader";
 import { chooseCloud, chooseDevice, fetchCloud, readLocal, saveNow, SaveConflictError, setStatus, summary, unlink, useLink, useSyncStatus, type CloudSave } from "@/game/cloud";
 import type { GameState } from "@/game/engine";
 
@@ -27,10 +27,7 @@ function Account() {
   const { user, ready } = useSession();
   return (
     <main className="space-y-4 px-3 pt-3">
-      <header className="flex items-center gap-2">
-        <Logo className="h-10 w-auto" />
-        <h1 className="font-display text-2xl font-bold text-secondary">Account</h1>
-      </header>
+      <GameHeader title="Account" subtitle="Profile, cloud saves & purchases" />
       {!ready ? <p className="font-bold text-muted-foreground">Checking sign-in…</p> : user ? <SignedIn userId={user.id} email={user.email ?? ""} /> : <SignInForm />}
       <p className="text-center text-[11px] font-bold text-muted-foreground">Accounts are optional — guest play always works. Game coins have no cash value.</p>
     </main>

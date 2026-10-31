@@ -122,6 +122,9 @@ export type GameState = {
   missionBase: Stats; // stats snapshot at start of mission day
   missionsClaimed: string[];
   recessBest: number;
+  /** New York date of the last rewarded Recess Rush run, and coins earned from runs that day (daily cap). */
+  recessDay: string;
+  recessCoinsToday: number;
   cosmetics: string[]; // free earned cosmetics
   equipped: string | null;
   lastSeen: number;
@@ -151,6 +154,8 @@ export function newGame(now: number, day: string): GameState {
     missionBase: emptyStats(),
     missionsClaimed: [],
     recessBest: 0,
+    recessDay: day,
+    recessCoinsToday: 0,
     cosmetics: [],
     equipped: null,
     lastSeen: now,
@@ -263,12 +268,15 @@ export function createArrival(s: GameState, rand: () => number, boarding = false
   return { ok: true, state: { ...s, seq: s.seq + 1, dogs: [...s.dogs, dog] }, msg: `${dog.name} was dropped off — check them in at the lobby desk.` };
 }
 
-/** Staff check-in: credits the admission fee exactly once. Paused during the midday closure. */
+/**
+ * Staff check-in: credits the admission fee exactly once.
+ * The 12:00–14:00 closure stops NEW customer drop-offs (createArrival/admitDog); pups already inside the
+ * building can still be checked in, so nobody is left stuck at the desk through the break.
+ */
 export function checkIn(s: GameState, dogId: string): Result {
   const dog = s.dogs.find((d) => d.id === dogId);
   if (!dog) return { ok: false, error: "That pup already went home." };
   if (dog.checkedIn) return { ok: false, error: `${dog.name} is already checked in.` };
-  if (!lobbyStatus(s.clockMin).open) return { ok: false, error: "Check-in desk is closed 12:00–14:00 (game clock). Waiting pups are comfy in the lobby." };
   const next = {
     ...s,
     dogs: s.dogs.map((d) => (d.id === dogId ? { ...d, checkedIn: true } : d)),
@@ -576,16 +584,61 @@ export const FREE_COSMETICS: Cosmetic[] = [
   { id: "bandana-gold", name: "Golden Bandana", color: "oklch(0.82 0.16 85)", unlockScore: 800 },
 ];
 
-/** Apply a finished Recess Rush run. Coins capped so arcade can't outpace tycoon. */
-export function applyRun(s: GameState, score: number): { state: GameState; coins: number; newCosmetics: Cosmetic[] } {
-  const safe = Math.max(0, Math.min(5000, Math.floor(score)));
-  const coins = Math.min(120, Math.floor(safe / 10));
+// ---------- Recess Rush course + reward rules (shared by the game and its reward validation) ----------
+export const RECESS_DURATION = 60;
+export const RECESS_RUN_COIN_CAP = 120;
+export const RECESS_DAILY_COIN_CAP = 300;
+export const RECESS_TREAT_POINTS = 10;
+export const RECESS_TIME_POINTS_PER_SEC = 2;
+/** Seconds between items at time t (gets busier as the run goes on). */
+export const recessSpawnInterval = (t: number) => Math.max(0.32, 0.75 - t * 0.006);
+/** Item kind for a spawn roll: 60% treat, 33% puddle, 7% shield ball. */
+export const recessItemKind = (r: number): "treat" | "puddle" | "shield" => (r < 0.6 ? "treat" : r < 0.93 ? "puddle" : "shield");
+
+/**
+ * Highest score a perfect run on this seeded course could reach: every treat collected plus the time bonus,
+ * with a little slack for frame timing. Scores above this are impossible and are not rewarded.
+ */
+export function recessMaxScore(seed: string): number {
+  const rand = mulberry(seedFrom("recess-" + seed));
+  let t = 0;
+  let treats = 0;
+  while (t < RECESS_DURATION) {
+    const kind = recessItemKind(rand());
+    rand(); // lane
+    if (kind === "treat") treats++;
+    t += recessSpawnInterval(t);
+  }
+  return (treats + 3) * RECESS_TREAT_POINTS + RECESS_DURATION * RECESS_TIME_POINTS_PER_SEC + 5;
+}
+
+export function recessCoinsLeft(s: GameState, day: string): number {
+  const used = s.recessDay === day ? s.recessCoinsToday : 0;
+  return Math.max(0, RECESS_DAILY_COIN_CAP - used);
+}
+
+/**
+ * Apply a finished Recess Rush run. Coins are capped per run and per New York day, and a score the course
+ * can't produce earns nothing, so the arcade can't be used to mint unlimited daycare coins. (The score is still
+ * reported by this device; paid items can never be earned with coins.)
+ */
+export function applyRun(s: GameState, score: number, opts: { seed?: string; day?: string } = {}): { state: GameState; coins: number; newCosmetics: Cosmetic[]; capped: boolean; rejected?: string } {
+  const day = opts.day ?? s.recessDay ?? "";
+  const safe = Math.max(0, Math.min(5000, Math.floor(Number.isFinite(score) ? score : 0)));
+  if (opts.seed !== undefined && safe > recessMaxScore(opts.seed)) {
+    return { state: { ...s, stats: { ...s.stats, runs: s.stats.runs + 1 } }, coins: 0, newCosmetics: [], capped: false, rejected: "That score is not possible on this course, so it wasn't counted." };
+  }
+  const left = recessCoinsLeft(s, day);
+  const want = Math.min(RECESS_RUN_COIN_CAP, Math.floor(safe / 10));
+  const coins = Math.min(want, left);
   const best = Math.max(s.recessBest, safe);
   const newCosmetics = FREE_COSMETICS.filter((c) => best >= c.unlockScore && !s.cosmetics.includes(c.id));
+  const usedBefore = s.recessDay === day ? s.recessCoinsToday : 0;
   return {
-    state: { ...s, coins: s.coins + coins, recessBest: best, cosmetics: [...s.cosmetics, ...newCosmetics.map((c) => c.id)], stats: { ...s.stats, runs: s.stats.runs + 1 } },
+    state: { ...s, coins: s.coins + coins, recessBest: best, recessDay: day, recessCoinsToday: usedBefore + coins, cosmetics: [...s.cosmetics, ...newCosmetics.map((c) => c.id)], stats: { ...s.stats, runs: s.stats.runs + 1 } },
     coins,
     newCosmetics,
+    capped: coins < want,
   };
 }
 
@@ -635,7 +688,9 @@ export function parseSave(raw: unknown): GameState | null {
     missionBase: statsOf(raw['missionBase']),
     achievements: strArr(raw['achievements']),
     missionsClaimed: strArr(raw['missionsClaimed']),
-    recessBest: Math.floor(num(raw['recessBest'], 0, 0)),
+    recessBest: Math.floor(num(raw['recessBest'], 0, 0, 5000)),
+    recessDay: typeof raw['recessDay'] === "string" ? raw['recessDay'].slice(0, 10) : base.recessDay,
+    recessCoinsToday: Math.floor(num(raw['recessCoinsToday'], 0, 0, RECESS_DAILY_COIN_CAP)),
     // Whitelist: only free, earnable cosmetics live in saves. Paid items are gated by server entitlements.
     cosmetics: [...new Set(strArr(raw['cosmetics']).filter((c) => FREE_COSMETICS.some((f) => f.id === c)))],
     equipped: typeof raw['equipped'] === "string" ? raw['equipped'] : null,

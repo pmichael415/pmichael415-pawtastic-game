@@ -11,9 +11,12 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
+import { Route as DaycareRouteImport } from './routes/daycare'
+import { Route as HelpRouteImport } from './routes/help'
 import { Route as RecessRouteImport } from './routes/recess'
 import { Route as ShopRouteImport } from './routes/shop'
 import { Route as VisitRouteImport } from './routes/visit'
+import { Route as ApiPublicEventsRouteImport } from './routes/api/public/events'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -24,6 +27,16 @@ const IndexRoute = IndexRouteImport.update({
 const AccountRoute = AccountRouteImport.update({
   id: '/account',
   path: '/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DaycareRoute = DaycareRouteImport.update({
+  id: '/daycare',
+  path: '/daycare',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpRoute = HelpRouteImport.update({
+  id: '/help',
+  path: '/help',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RecessRoute = RecessRouteImport.update({
@@ -41,6 +54,11 @@ const VisitRoute = VisitRouteImport.update({
   path: '/visit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicEventsRoute = ApiPublicEventsRouteImport.update({
+  id: '/api/public/events',
+  path: '/api/public/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicPaymentsWebhookRoute =
   ApiPublicPaymentsWebhookRouteImport.update({
     id: '/api/public/payments/webhook',
@@ -51,26 +69,35 @@ const ApiPublicPaymentsWebhookRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/daycare': typeof DaycareRoute
+  '/help': typeof HelpRoute
   '/recess': typeof RecessRoute
   '/shop': typeof ShopRoute
   '/visit': typeof VisitRoute
+  '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/daycare': typeof DaycareRoute
+  '/help': typeof HelpRoute
   '/recess': typeof RecessRoute
   '/shop': typeof ShopRoute
   '/visit': typeof VisitRoute
+  '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/daycare': typeof DaycareRoute
+  '/help': typeof HelpRoute
   '/recess': typeof RecessRoute
   '/shop': typeof ShopRoute
   '/visit': typeof VisitRoute
+  '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRouteTypes {
@@ -78,34 +105,46 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/account'
+    | '/daycare'
+    | '/help'
     | '/recess'
     | '/shop'
     | '/visit'
+    | '/api/public/events'
     | '/api/public/payments/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/account'
+    | '/daycare'
+    | '/help'
     | '/recess'
     | '/shop'
     | '/visit'
+    | '/api/public/events'
     | '/api/public/payments/webhook'
   id:
     | '__root__'
     | '/'
     | '/account'
+    | '/daycare'
+    | '/help'
     | '/recess'
     | '/shop'
     | '/visit'
+    | '/api/public/events'
     | '/api/public/payments/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
+  DaycareRoute: typeof DaycareRoute
+  HelpRoute: typeof HelpRoute
   RecessRoute: typeof RecessRoute
   ShopRoute: typeof ShopRoute
   VisitRoute: typeof VisitRoute
+  ApiPublicEventsRoute: typeof ApiPublicEventsRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
 }
 
@@ -123,6 +162,20 @@ declare module '@tanstack/react-router' {
       path: '/account'
       fullPath: '/account'
       preLoaderRoute: typeof AccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/daycare': {
+      id: '/daycare'
+      path: '/daycare'
+      fullPath: '/daycare'
+      preLoaderRoute: typeof DaycareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help': {
+      id: '/help'
+      path: '/help'
+      fullPath: '/help'
+      preLoaderRoute: typeof HelpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/recess': {
@@ -146,6 +199,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VisitRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/events': {
+      id: '/api/public/events'
+      path: '/api/public/events'
+      fullPath: '/api/public/events'
+      preLoaderRoute: typeof ApiPublicEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/payments/webhook': {
       id: '/api/public/payments/webhook'
       path: '/api/public/payments/webhook'
@@ -159,9 +219,12 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
+  DaycareRoute: DaycareRoute,
+  HelpRoute: HelpRoute,
   RecessRoute: RecessRoute,
   ShopRoute: ShopRoute,
   VisitRoute: VisitRoute,
+  ApiPublicEventsRoute: ApiPublicEventsRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
 }
 export const routeTree = rootRouteImport

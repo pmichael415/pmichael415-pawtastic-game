@@ -41,10 +41,28 @@ describe("arrival → staff check-in → assignment", () => {
     expect(assignRoom(s1, id, "small-gentle").ok).toBe(true);
   });
 
-  it("check-in desk is closed 12:00–14:00", () => {
+  it("12:00–14:00 stops new drop-offs, but pups already inside can still be checked in", () => {
     const s0 = must(createArrival(rich(), smallGentle));
-    expect(checkIn({ ...s0, clockMin: BREAK_START }, s0.dogs[0]!.id).ok).toBe(false);
+    const closed = { ...s0, clockMin: BREAK_START };
+    expect(createArrival(closed, smallGentle).ok).toBe(false);
+    expect(admitDog(closed, smallGentle).ok).toBe(false);
+    const r = checkIn(closed, s0.dogs[0]!.id);
+    expect(r.ok).toBe(true);
+    expect(r.ok && r.state.coins).toBe(5020);
     expect(checkIn({ ...s0, clockMin: 14 * 60 }, s0.dogs[0]!.id).ok).toBe(true);
+  });
+
+  it("two quick check-ins of different pups both stick and each pays once", () => {
+    let s = must(createArrival(rich(), smallGentle));
+    s = must(createArrival(s, largeActive));
+    const [a, b] = [s.dogs[0]!.id, s.dogs[1]!.id];
+    s = must(checkIn(s, a));
+    s = must(checkIn(s, b));
+    expect(s.dogs.every((d) => d.checkedIn)).toBe(true);
+    expect(s.coins).toBe(5040);
+    expect(s.stats.admitted).toBe(2);
+    expect(checkIn(s, a).ok).toBe(false);
+    expect(checkIn(s, b).ok).toBe(false);
   });
 
   it("suites require check-in too", () => {

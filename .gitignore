@@ -4,3 +4,4 @@ tycoon/.env
 # local-only stand-ins for Lovable binaries the connector cannot export
 tycoon/src/assets/daycare-room.jpg
 tycoon/public/favicon.png
+tycoon/qa/out/

@@ -1,12 +1,12 @@
-import logo from "@/assets/pawtastic-logo.png.asset.json";
 import { BREEDS, FREE_COSMETICS } from "./engine";
 
-export const LOGO_URL = logo.url;
+/** The real PAWtastic Academy logo (verified copy, also used by Graduation Day). */
+export const LOGO_URL = "/brand/pawtastic-logo.png";
 
 export function Logo({ className = "h-10 w-auto" }: { className?: string }) {
   return (
-    <span className="inline-flex shrink-0 rounded-2xl bg-secondary p-1 shadow-soft">
-      <img src={logo.url} alt="PAWtastic Academy" className={className} width={115} height={108} />
+    <span className="inline-flex shrink-0 overflow-hidden rounded-2xl shadow-soft">
+      <img src={LOGO_URL} alt="PAWtastic Academy" className={className} width={360} height={360} />
     </span>
   );
 }

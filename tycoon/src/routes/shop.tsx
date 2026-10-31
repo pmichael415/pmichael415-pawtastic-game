@@ -10,7 +10,8 @@ import { NAVY_STAR, PAID_ITEMS, type PaidItemId } from "@/lib/paidVisuals";
 import { Button } from "@/components/ui/button";
 import { FREE_COSMETICS, type GameState } from "@/game/engine";
 import { updateSave } from "@/game/store";
-import { DogSprite, Logo } from "@/game/sprites";
+import { DogSprite } from "@/game/sprites";
+import { GameHeader } from "@/components/game/GameHeader";
 import { PAID_PRODUCTS, formatPrice } from "@/lib/catalog";
 
 export const Route = createFileRoute("/shop")({
@@ -61,10 +62,7 @@ function Shop() {
 
   return (
     <main className="space-y-4 px-3 pt-3">
-      <header className="flex items-center gap-2">
-        <Logo className="h-10 w-auto" />
-        <h1 className="font-display text-2xl font-bold text-secondary">Style Shop</h1>
-      </header>
+      <GameHeader title="Style Shop" subtitle="Cosmetics only" />
 
       <section className="flex items-center gap-4 rounded-3xl bg-card p-4 shadow-soft">
         <div className="grid h-24 w-24 place-items-center rounded-2xl bg-sky"><DogSprite breed={0} size={80} bandana={color} star={showStar} collar={showCollar} /></div>

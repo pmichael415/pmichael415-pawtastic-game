@@ -4,11 +4,13 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Pause, Play, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { applyRun, checkAchievements, FREE_COSMETICS, mulberry, seedFrom } from "@/game/engine";
-import { todayKey, updateSave } from "@/game/store";
+import { applyRun, checkAchievements, FREE_COSMETICS, mulberry, recessCoinsLeft, recessItemKind, recessSpawnInterval, seedFrom, RECESS_DAILY_COIN_CAP, RECESS_RUN_COIN_CAP } from "@/game/engine";
+import { peekSave, todayKey, updateSave } from "@/game/store";
 import { useEntitlements } from "@/lib/entitlements";
-import { LOGO_URL, Logo } from "@/game/sprites";
+import { LOGO_URL } from "@/game/sprites";
 import { shareCard } from "@/game/share";
+import { GameHeader } from "@/components/game/GameHeader";
+import { track } from "@/lib/analytics";
 
 const search = z.object({
   seed: z.string().regex(/^[\w-]{1,32}$/).optional().catch(undefined),
@@ -39,12 +41,14 @@ function Recess() {
   const [phase, setPhase] = useState<"ready" | "run" | "paused" | "over">("ready");
   const [hud, setHud] = useState({ score: 0, time: DUR, lives: 3, shield: false });
   const [best, setBest] = useState(0);
+  const [left, setLeft] = useState(RECESS_DAILY_COIN_CAP);
+  const [result, setResult] = useState<string | null>(null);
   const { visuals } = useEntitlements();
   const trailRef = useRef(false);
   trailRef.current = visuals["sparkle-trail"];
   const g = useRef({ lane: 1, items: [] as Item[], t: 0, spawn: 0, score: 0, lives: 3, shield: false, rand: mulberry(1), flash: 0 });
 
-  useEffect(() => setBest(updateSave((s) => s).recessBest), []);
+  useEffect(() => { const s = peekSave(); setBest(s.recessBest); setLeft(recessCoinsLeft(s, todayKey())); }, []);
 
   const start = () => {
     g.current = { lane: 1, items: [], t: 0, spawn: 0, score: 0, lives: 3, shield: false, rand: mulberry(seedFrom("recess-" + runSeed)), flash: 0 };
@@ -66,15 +70,22 @@ function Recess() {
 
   const finish = (score: number) => {
     setPhase("over");
-    let coins = 0, cos: string[] = [];
+    let coins = 0, cos: string[] = [], capped = false, rejected: string | undefined;
+    const day = todayKey();
     const s = updateSave((st) => {
-      const r = applyRun(st, score);
+      const r = applyRun(st, score, { seed: runSeed, day });
       coins = r.coins;
+      capped = r.capped;
+      rejected = r.rejected;
       cos = r.newCosmetics.map((c) => c.name);
       return checkAchievements(r.state).state;
     });
     setBest(s.recessBest);
-    toast.success(`+${coins} Tycoon coins earned!`);
+    setLeft(recessCoinsLeft(s, day));
+    track("recess_run", { score, coins, capped, rejected: !!rejected });
+    const msg = rejected ?? (coins > 0 ? `+${coins} daycare coins${capped ? " (daily coin limit reached)" : ""}` : "Daily coin limit reached — runs still count for your best score and bandanas.");
+    setResult(msg);
+    if (rejected) toast.error(rejected); else toast.success(msg);
     cos.forEach((c) => toast.success(`🎀 Unlocked ${c} for your pups!`));
   };
 
@@ -90,9 +101,9 @@ function Recess() {
       const speed = 220 + st.t * 4;
       st.spawn -= dt;
       if (st.spawn <= 0) {
-        const r = st.rand();
-        st.items.push({ lane: Math.floor(st.rand() * 3), y: -30, kind: r < 0.6 ? "treat" : r < 0.93 ? "puddle" : "shield" });
-        st.spawn = Math.max(0.32, 0.75 - st.t * 0.006);
+        const kind = recessItemKind(st.rand());
+        st.items.push({ lane: Math.floor(st.rand() * 3), y: -30, kind });
+        st.spawn = recessSpawnInterval(st.t);
       }
       const dogY = H - 80;
       st.items = st.items.filter((it) => {
@@ -160,14 +171,9 @@ function Recess() {
 
   return (
     <main className="px-3 pt-3">
-      <header className="flex items-center gap-2">
-        <Logo className="h-10 w-auto" />
-        <div className="flex-1">
-          <h1 className="font-display text-xl font-bold leading-none text-secondary">Recess Rush</h1>
-          <p className="text-[11px] font-bold text-muted-foreground">{seed ? `Challenge course “${seed}”` : "Today's daily course"} · best {best} (this device)</p>
-        </div>
-        {phase === "run" && <Button size="icon" variant="secondary" aria-label="Pause" onClick={() => setPhase("paused")}><Pause /></Button>}
-      </header>
+      <GameHeader title="Recess Rush" subtitle={`${seed ? `Challenge “${seed}”` : "Today's course"} · best ${best}`}>
+        {phase === "run" && <Button size="icon" variant="secondary" className="h-11 w-11" aria-label="Pause" onClick={() => setPhase("paused")}><Pause /></Button>}
+      </GameHeader>
       {challenge != null && <p className="mt-2 rounded-2xl bg-accent p-2 text-center text-sm font-extrabold text-accent-foreground">A friend challenged you to beat {challenge}!</p>}
 
       <div className="mt-2 flex justify-between rounded-2xl bg-card px-4 py-2 font-display text-lg font-bold text-secondary shadow-soft">
@@ -188,10 +194,12 @@ function Recess() {
               {phase === "over" && (<>
                 <h2 className="font-display text-3xl font-bold text-primary">{hud.score} pts</h2>
                 <p className="text-sm font-bold text-muted-foreground">Best on this device: {best}</p>
+                {result && <p className="mt-1 text-sm font-extrabold text-secondary">{result}</p>}
                 <div className="mt-4 grid gap-2">
                   <Button size="lg" onClick={start}><Play /> Run again</Button>
                   <Button size="lg" variant="secondary" onClick={share}><Share2 /> Share & challenge</Button>
-                  <Button size="lg" variant="outline" asChild><Link to="/">Back to Tycoon</Link></Button>
+                  <Button size="lg" variant="outline" asChild><Link to="/daycare">Back to my daycare</Link></Button>
+                  <Button size="lg" variant="ghost" asChild><Link to="/">PAWtastic Games home</Link></Button>
                 </div>
               </>)}
             </div>
@@ -209,7 +217,7 @@ function Recess() {
         <ul className="mt-1 text-sm font-bold text-muted-foreground">
           {FREE_COSMETICS.map((c) => <li key={c.id}>{best >= c.unlockScore ? "✅" : "🔒"} {c.name} — score {c.unlockScore}</li>)}
         </ul>
-        <p className="mt-2 text-[11px] font-bold text-muted-foreground">Scores are device-only and not verified — there is no public leaderboard yet. Each run gives up to 120 Tycoon coins.</p>
+        <p className="mt-2 text-[11px] font-bold text-muted-foreground">Each run gives up to {RECESS_RUN_COIN_CAP} daycare coins, up to {RECESS_DAILY_COIN_CAP} a day ({left} left today). Scores the course can't produce aren't counted. Scores stay on this device — there's no public leaderboard.</p>
       </section>
     </main>
   );
