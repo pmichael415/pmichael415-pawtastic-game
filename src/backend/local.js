@@ -8,6 +8,9 @@ export const DEMO_FEATURES = { purchases: true, jar: true, pass: true, account: 
 // The public free-play site: nothing for sale, no Pup Pass, no Treat Jar (they show "Coming soon").
 export const FREE_PLAY_FEATURES = { purchases: false, jar: false, pass: false, account: false, stats: false };
 
+// True on the public free-play site: local mode with nothing for sale.
+export const isPublicFreePlay = backend => backend?.kind === 'local' && !backend.features.purchases;
+
 export function createLocalBackend({ wallet, features = DEMO_FEATURES }) {
   return {
     kind: 'local',
