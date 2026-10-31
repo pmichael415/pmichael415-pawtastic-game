@@ -23,7 +23,8 @@ No project files changed; 0.7 credits used. Next step needs the owner: link the 
 On the public site with payments on, "Get 55 Treats for $2.99" used the old claude.ai demo path: a "Demo — no
 real charge" sheet, then 55 Treats added in the browser with no payment and no Stripe page. Fixed in the
 Graduation source at the repo root (`src/ui/screens/level.js`, `src/backend/local.js`, `src/ui/styles.css`) and
-rebuilt `dist/index.html`; it is not on the live site until it is copied to the linked repo and published.
+rebuilt `dist/index.html`. Pushed to the linked repo `pmichael415/pawtastic-graduation` (commit `9e025b9`,
+`public/play/index.html` only); it reaches players when the owner publishes the PAWtastic Graduation project in Lovable.
 
  (Team Hawthorne vs Team Hillsdale)
 
