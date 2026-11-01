@@ -46,6 +46,11 @@ with a 0.2 s animation). Production build OK.
   sending `payment_method_types` (current API): payment methods come from the Dashboard settings, and delayed methods
   are safe because the webhook grants only once `payment_status` is "paid". Test-only, account check and webhook
   verification unchanged.
+- **First test purchase verified end to end (1 Nov, 17:00 UTC, test mode):** checkout `cs_test_a1op…` for the Blue Ribbon
+  Style Pack ($2.99) was created and paid; the signed webhook (`evt_1UX28q…`) granted the pack 90 s later; the Shop shows
+  "Owned on your account (server-verified)" and Restore says "Restored 1 pack(s)". This ran on the pinned-version build
+  (c8c125b). The build without `payment_method_types` (1e876a7) is published; one fresh checkout (Deluxe Daycare Decor)
+  will confirm it. No cloud saves yet: none of the signed-in sessions has played a game.
 
 ## Update — Weekly Challenge prizes change every week, with the owner's approval (1 Nov)
 
