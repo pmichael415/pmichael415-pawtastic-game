@@ -13,12 +13,12 @@ import { funAppeal } from "@/tycoon/effects";
 import { level } from "@/tycoon/progress";
 import { hireStaff } from "@/tycoon/run";
 import { fac } from "@/tycoon/state";
-import { TROPHIES } from "@/tycoon/trophies";
 import type { ActOpts, ActResult } from "@/tycoon/store";
+import { TrophyShelf } from "./TrophyShelf";
 import type { DayLedger, ExpenseKey, Facility, IncomeKey, Prices, Supplies, TResult, TycoonState, Wage } from "@/tycoon/types";
 
 type Act = (fn: (s: TycoonState) => TResult, opts?: ActOpts) => ActResult;
-const TABS = ["Summary", "Prices", "Staff", "Upkeep", "Marketing", "Trophies"] as const;
+const TABS = ["Summary", "Prices", "Staff", "Upkeep", "Marketing"] as const;
 type Tab = (typeof TABS)[number];
 
 const INCOME: [IncomeKey, string][] = [["daycare", "Daycare"], ["boarding", "Boarding"], ["baths", "Baths"], ["exitBaths", "Exit baths"], ["tips", "Tips"], ["bonus", "Bonuses"]];
@@ -332,26 +332,6 @@ function MarketingTab({ state, f, act }: { state: TycoonState; f: Facility; act:
   );
 }
 
-function TrophiesTab({ state }: { state: TycoonState }) {
-  return (
-    <ul className="grid grid-cols-2 gap-2">
-      {TROPHIES.map((t) => {
-        const won = state.trophies.includes(t.id);
-        return (
-          <li key={t.id} className={`rounded-xl border p-2 text-sm ${won ? "border-accent bg-accent/30" : "border-border opacity-60"}`}>
-            <p className="font-semibold text-secondary">
-              <span aria-hidden>{won ? "🏆 " : "🔒 "}</span>
-              <span>{t.name}</span>
-              <span className="sr-only">{won ? " (won)" : " (not yet)"}</span>
-            </p>
-            <p className="text-xs text-muted-foreground">+{t.reward} coins</p>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
 export function FinancesSheet({ open, state, act, onClose }: { open: boolean; state: TycoonState; act: Act; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("Summary");
   const f = fac(state);
@@ -372,12 +352,16 @@ export function FinancesSheet({ open, state, act, onClose }: { open: boolean; st
           ))}
         </div>
         <div role="tabpanel" aria-label={tab} className="mt-2">
-          {tab === "Summary" && <Summary f={f} />}
+          {tab === "Summary" && (
+            <>
+              <Summary f={f} />
+              <TrophyShelf state={state} />
+            </>
+          )}
           {tab === "Prices" && <PricesTab f={f} act={act} />}
           {tab === "Staff" && <StaffTab f={f} act={act} />}
           {tab === "Upkeep" && <UpkeepTab f={f} act={act} />}
           {tab === "Marketing" && <MarketingTab state={state} f={f} act={act} />}
-          {tab === "Trophies" && <TrophiesTab state={state} />}
         </div>
       </SheetContent>
     </Sheet>

@@ -96,9 +96,10 @@ describe("finances", () => {
   it("the trophy shelf lists every trophy", () => {
     load({ ...newTycoon(Date.now()), trophies: ["first_dog"] });
     const { unmount } = render(<Harness show="finances" />);
-    tab("Trophies");
-    expect(screen.getByText("First happy pup")).toBeTruthy();
-    expect(screen.getByText("Fully booked")).toBeTruthy();
+    const shelf = screen.getByRole("region", { name: "Trophy shelf" });
+    expect(within(shelf).getByText("First happy pup")).toBeTruthy();
+    expect(within(shelf).getByText("Trophy shelf · 1/9")).toBeTruthy();
+    expect(within(shelf).getByText("Fully booked")).toBeTruthy();
     unmount();
   });
 });

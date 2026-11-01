@@ -11,6 +11,8 @@ export type Settings = {
   nameTags: boolean;
   analytics: boolean;
   seenWalkHelp: boolean;
+  sound: boolean;
+  music: boolean;
 };
 
 const KEY = "pawtastic-settings-v1";
@@ -30,6 +32,8 @@ export const DEFAULTS: Settings = {
   nameTags: true,
   analytics: true,
   seenWalkHelp: false,
+  sound: true,
+  music: true,
 };
 
 function read(): Settings {
@@ -50,6 +54,8 @@ function read(): Settings {
       nameTags: v.nameTags !== false,
       analytics: v.analytics !== false,
       seenWalkHelp: v.seenWalkHelp === true,
+      sound: v.sound !== false,
+      music: v.music !== false,
     };
   } catch {
     return base;

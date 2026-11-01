@@ -141,6 +141,8 @@ export function SettingsSheet() {
           {(
             [
               ["invertLook", "Invert up/down look"],
+              ["sound", "Sound effects"],
+              ["music", "Music"],
               ["reducedMotion", "Reduce motion (less bobbing & shaking)"],
               ["lowPower", "Battery saver graphics"],
               ["analytics", "Share anonymous gameplay stats (no name, email or location)"],

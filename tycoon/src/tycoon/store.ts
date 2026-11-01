@@ -182,7 +182,7 @@ export function useTycoon() {
     if (opts.event) track(opts.event.name, opts.event.props);
     for (const t of r.unlocked ?? []) {
       track("tycoon_trophy", { id: t.id });
-      toast.success(`🏆 ${t.name} · +${t.reward} coins`);
+      toast.success(`Trophy: ${t.name} · +${t.reward} coins`);
     }
     if (r.msg && !opts.quiet) toast(r.msg);
     return r;

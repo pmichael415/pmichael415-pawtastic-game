@@ -1,5 +1,7 @@
 // The end-of-day wrap-up: who came and went, income, expenses and profit, a "New record!" banner and one money tip.
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useEffect } from "react";
+import { sound } from "@/tycoon/sound";
 import { fac, withFac } from "@/tycoon/state";
 import type { TycoonState } from "@/tycoon/types";
 
@@ -7,6 +9,10 @@ export function DayReport({ state, set, onFinances }: { state: TycoonState; set:
   const f = fac(state);
   const r = f.report;
   const dismiss = () => set((s) => withFac(s, { ...fac(s), report: null }));
+  const day = r?.day;
+  useEffect(() => {
+    if (day) sound.play("drumroll");
+  }, [day]);
   return (
     <AlertDialog open={!!r} onOpenChange={(o) => !o && dismiss()}>
       <AlertDialogContent>

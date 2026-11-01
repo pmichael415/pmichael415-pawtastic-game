@@ -146,3 +146,12 @@
 
 @keyframes shake { 0%,100% { transform: translateX(0) rotate(0) } 25% { transform: translateX(-3px) rotate(-1deg) } 75% { transform: translateX(3px) rotate(1deg) } }
 @utility animate-shake { animation: shake 0.3s ease-in-out infinite; }
+
+/* Daycare Tycoon (new): level-up confetti and unlock cards */
+@keyframes tycoon-fall {
+  to { transform: translateY(110vh) rotate(540deg); opacity: 0.6; }
+}
+@keyframes tycoon-flip {
+  from { transform: rotateY(90deg); opacity: 0; }
+  to { transform: rotateY(0); opacity: 1; }
+}
