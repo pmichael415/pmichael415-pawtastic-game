@@ -14,6 +14,11 @@ import {
 } from "./catalog";
 import { containsTile, doorInRange, inGrid, isCornerDoor, isOwned, roomTiles, thingTiles, tileKey } from "./grid";
 import type { Facility, Placed, Room } from "./types";
+import { DOOR_PRICE, FLOORS, SELL_RATE, WALL_COLORS } from "./catalog";
+import { roomPrice } from "./grid";
+import { fac, withFac } from "./state";
+import type { Door, ExpenseKey, FloorStyle, RoomType, TResult, TycoonState } from "./types";
+import type { GroupId } from "@/game/engine";
 
 const roomLabel = (r: Room) => (r.type ? ROOM_TYPE_NAMES[r.type] : "room");
 
@@ -86,4 +91,113 @@ export function validThingAt(f: Facility, thing: Placed, ignoreUid: string | nul
   for (const o of others.filter((o) => o.room === null))
     if (thingTiles(o).some((t) => keys.has(tileKey(t.c, t.r)))) return o.uid === "entrance" ? "Overlaps the entrance." : `Overlaps the ${thingName(o.kind)}.`;
   return null;
+}
+
+// ---------- actions ----------
+
+/** Takes coins for building (Task 7 replaces this with the business ledger version). */
+export function spend(s: TycoonState, amount: number, _key: ExpenseKey): TResult {
+  if (amount <= 0) return { ok: true, state: s };
+  if (s.coins < amount) return { ok: false, error: `Need ${amount - s.coins} more coins.` };
+  return { ok: true, state: { ...s, coins: s.coins - amount } };
+}
+
+const dogsIn = (f: Facility, roomUid: string) => f.dogs.some((d) => d.place.kind !== "lobby" && d.place.room === roomUid);
+const findRoom = (f: Facility, uid: string) => f.rooms.find((r) => r.uid === uid) ?? null;
+const sameDoor = (a: Door, b: Door) => a.side === b.side && a.i === b.i;
+const refund = (spent: number) => Math.floor(SELL_RATE * spent);
+
+export function drawRoom(s: TycoonState, c: number, r: number, w: number, d: number): TResult {
+  const f = fac(s);
+  const room: Room = { uid: "r" + s.seq, c, r, w, d, type: null, group: null, doors: [], floor: "wood", wall: WALL_COLORS[0]!, spent: 0, closed: false };
+  const why = validRoomAt(f, room);
+  if (why) return { ok: false, error: why };
+  const price = roomPrice(w, d);
+  const paid = spend(s, price, "building");
+  if (!paid.ok) return paid;
+  const nf = fac(paid.state);
+  return { ok: true, state: withFac({ ...paid.state, seq: s.seq + 1 }, { ...nf, rooms: [...nf.rooms, { ...room, spent: price }] }), msg: "Room built! Now pick what it's for." };
+}
+
+function updateRoom(s: TycoonState, room: Room): TycoonState {
+  const f = fac(s);
+  return withFac(s, { ...f, rooms: f.rooms.map((r) => (r.uid === room.uid ? room : r)) });
+}
+
+export function addDoor(s: TycoonState, roomUid: string, door: Door): TResult {
+  const f = fac(s);
+  const room = findRoom(f, roomUid);
+  if (!room) return { ok: false, error: "That room is gone." };
+  if (room.doors.some((d) => sameDoor(d, door))) return { ok: false, error: "There's already a door there." };
+  if (room.doors.length >= 4) return { ok: false, error: "A room can have up to 4 doors." };
+  const trial = { ...room, doors: [...room.doors, door] };
+  const why = validRoomAt(f, trial);
+  if (why) return { ok: false, error: why };
+  const paid = spend(s, DOOR_PRICE, "building");
+  if (!paid.ok) return paid;
+  return { ok: true, state: updateRoom(paid.state, { ...trial, spent: room.spent + DOOR_PRICE }), msg: "Door added." };
+}
+
+export function removeDoor(s: TycoonState, roomUid: string, door: Door): TResult {
+  const f = fac(s);
+  const room = findRoom(f, roomUid);
+  if (!room || !room.doors.some((d) => sameDoor(d, door))) return { ok: false, error: "There's no door there." };
+  const back = refund(DOOR_PRICE);
+  const next = { ...room, doors: room.doors.filter((d) => !sameDoor(d, door)), spent: Math.max(0, room.spent - DOOR_PRICE) };
+  return { ok: true, state: { ...updateRoom(s, next), coins: s.coins + back }, msg: `Door removed (+${back}).` };
+}
+
+export function setRoomType(s: TycoonState, roomUid: string, type: RoomType, group?: GroupId): TResult {
+  const f = fac(s);
+  const room = findRoom(f, roomUid);
+  if (!room) return { ok: false, error: "That room is gone." };
+  if (dogsIn(f, roomUid)) return { ok: false, error: "Move the dogs out first." };
+  if (type === "playroom" && !group) return { ok: false, error: "Pick a group for this playroom." };
+  const next: Room = { ...room, type, group: type === "playroom" ? group! : null };
+  const why = validRoomAt(f, next);
+  if (why) return { ok: false, error: why };
+  const misfit = f.items.find((i) => {
+    if (i.room !== roomUid) return false;
+    const fd = furnitureDef(i.kind);
+    return !!fd && fd.allowed !== "any" && !fd.allowed.includes(type);
+  });
+  if (misfit) return { ok: false, error: `Remove the ${thingName(misfit.kind)} first.` };
+  return { ok: true, state: updateRoom(s, next), msg: `It's a ${ROOM_TYPE_NAMES[type]} now.` };
+}
+
+export function paintRoom(s: TycoonState, roomUid: string, floor: FloorStyle, wall: string): TResult {
+  const room = findRoom(fac(s), roomUid);
+  if (!room) return { ok: false, error: "That room is gone." };
+  if (!FLOORS.includes(floor) || !WALL_COLORS.includes(wall)) return { ok: false, error: "Pick one of the offered floors and colours." };
+  return { ok: true, state: updateRoom(s, { ...room, floor, wall }), msg: "Fresh paint!" };
+}
+
+export function moveRoom(s: TycoonState, roomUid: string, c: number, r: number): TResult {
+  const f = fac(s);
+  const room = findRoom(f, roomUid);
+  if (!room) return { ok: false, error: "That room is gone." };
+  if (dogsIn(f, roomUid)) return { ok: false, error: "Move the dogs out first." };
+  const dc = c - room.c;
+  const dr = r - room.r;
+  const moved = { ...room, c, r };
+  const why = validRoomAt(f, moved, roomUid);
+  if (why) return { ok: false, error: why };
+  const items = f.items.map((i) => (i.room === roomUid ? { ...i, c: i.c + dc, r: i.r + dr } : i));
+  return { ok: true, state: withFac(s, { ...f, rooms: f.rooms.map((x) => (x.uid === roomUid ? moved : x)), items }), msg: "Room moved." };
+}
+
+export function sellRoom(s: TycoonState, roomUid: string): TResult {
+  const f = fac(s);
+  const room = findRoom(f, roomUid);
+  if (!room) return { ok: false, error: "That room is gone." };
+  if (dogsIn(f, roomUid)) return { ok: false, error: "Move the dogs out first." };
+  const contents = f.items.filter((i) => i.room === roomUid);
+  const back = refund(room.spent + contents.reduce((a, i) => a + i.spent, 0));
+  const next = {
+    ...f,
+    rooms: f.rooms.filter((x) => x.uid !== roomUid),
+    items: f.items.filter((i) => i.room !== roomUid),
+    scuffles: f.scuffles.filter((x) => x.room !== roomUid),
+  };
+  return { ok: true, state: { ...withFac(s, next), coins: s.coins + back }, msg: `Sold for ${back} coins.` };
 }
