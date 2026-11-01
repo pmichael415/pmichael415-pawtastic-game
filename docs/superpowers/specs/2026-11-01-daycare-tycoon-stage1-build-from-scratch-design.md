@@ -1,6 +1,6 @@
 # PAWtastic Daycare Tycoon (new engine): stage 1, build from scratch and run the business. Design
 
-Date: 1 Nov 2026 · Owner: Phil (PAWtastic Academy) · Status: awaiting owner review
+Date: 1 Nov 2026 · Owner: Phil (PAWtastic Academy) · Status: **approved by the owner (1 Nov)**, game-feel section added at his request
 Replaces: `2026-11-01-daycare-tycoon-stage1-campus-design.md` (the campus around a fixed building), which is withdrawn.
 
 ## 1. Where this fits
@@ -127,6 +127,29 @@ Appeal 6 — worth it while you have room for more dogs").
 Free, one per facility, from level 1. Tapping it outside build mode opens a card with each location's "Book a free
 evaluation" link and the PAWtastic app link. Taps record `booking_click`, `app_click` or `directions_click` with
 `from: "tycoon-sign"`.
+
+### Game feel (owner, 1 Nov: "make it addicting and insane")
+Big, satisfying moments, all within §2:
+- **Building:** a bouncy drop-in with a dust puff and a "thunk" sound. Upgrades get a sparkle burst and the model grows.
+  Selling shows a coin shower.
+- **Money:** coins fly from the dog to the coin counter, and the counter rolls up. Dogs that check out happy leave a
+  floating "+52". The day's profit ticks up in the wrap-up with a drum roll, and a **"New record!"** banner appears when
+  it beats the best day.
+- **Level-ups:** a full-screen celebration (confetti, a fanfare, new unlocks shown as cards that flip over) and the
+  `25 × N` coin reward.
+- **Milestones**, as one-time trophies with a small coin reward each:
+  - first dog, 10, 50 and 250 dogs served
+  - first 1,000-coin profit day
+  - first boarding night, first fully booked day
+  - every room type built, every parcel of land owned
+  - 4 stars or better in a day (from stage 2)
+  
+  A **Trophy shelf** in the Finances screen shows them. Trophies reward playing, never spending.
+- **Busy-day buzz:** when the lobby has 3 or more dogs waiting, music picks up and a "Rush hour!" badge shows. Clearing
+  the lobby fast gives a **"Smooth operator!"** bonus of +10% on those check-ins, at most once per game day.
+- **Sound:** sound effects and music, with separate on/off switches in Settings. Reduced motion turns off confetti,
+  screen shake and coin flight, and shows plain toasts instead.
+- **Not used:** fake urgency, countdowns to buy, streak penalties and loss-aversion prompts.
 
 ## 4. Rules (engine, pure functions in `src/tycoon/`)
 
@@ -316,6 +339,7 @@ New events (migration **0008** extends the `game_events` check; apply it before 
 - `tycoon_price { service, price }`
 - `tycoon_marketing { campaign }`
 - `tycoon_day { day, income, expenses }` (one per game day, for balancing)
+- `tycoon_trophy { id }`
 
 ## 7. Testing
 - **Engine unit tests:**
@@ -356,6 +380,9 @@ New events (migration **0008** extends the `game_events` check; apply it before 
   - the Finances screen: change a price and see the demand hint, close an item and see its upkeep drop on the next day's
     report, start Flyers, and the profit chart after 3 days
   - the below-zero banner
+  - a level-up celebration with reduced motion off and on
+  - a trophy unlocking once
+  - the "Smooth operator" bonus no more than once per game day
   - frame rate with 150 things
   - no page errors
 - **Existing suites stay green**, and today's Daycare Tycoon is untouched.
