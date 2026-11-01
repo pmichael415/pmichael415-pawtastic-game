@@ -1,6 +1,7 @@
 # PAWtastic Daycare Tycoon: stage 1, campus builder. Design
 
-Date: 1 Nov 2026 · Owner: Phil (PAWtastic Academy) · Status: awaiting owner review
+Date: 1 Nov 2026 · Owner: Phil (PAWtastic Academy) · Status: **withdrawn** (1 Nov). The owner chose to build from scratch on a new engine; see
+`2026-11-01-daycare-tycoon-stage1-build-from-scratch-design.md`
 
 ## 1. Where this fits
 
