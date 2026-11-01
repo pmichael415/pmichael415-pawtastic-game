@@ -4,7 +4,7 @@
 
 | What | State |
 |---|---|
-| Lovable project **PAWtastic Daycare Tycoon** (preview behind Lovable login, not published) | Still on the **old** code (Lovable commit `c3a69bd`). Not updated by this work yet — see `SYNC-TO-LOVABLE.md`. |
+| Lovable project **PAWtastic Daycare Tycoon** (preview behind Lovable login, not published) | Linked to GitHub `pmichael415/pawtastic-daycare-tycoon` (branch `main`). The new code was pushed there on 1 Nov (`bb84f32`, the 100 files in `SYNC-MANIFEST.txt`); not published. |
 | GitHub `pmichael415/pmichael415-pawtastic-game`, branch `claude/pawtastic-games-unified`, folder `tycoon/` | The new code. |
 | Private review build (claude.ai artifact, owner-only) | Guest play of the new code. Sign-in, cloud saves and purchases are switched off there. |
 | Live game database (Lovable Cloud / Supabase) | Unchanged. New migrations were only dry-run inside a rolled-back transaction. |
