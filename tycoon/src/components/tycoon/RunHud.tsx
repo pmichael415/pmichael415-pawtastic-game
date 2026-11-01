@@ -45,11 +45,13 @@ export function RunHud({
   act,
   paused,
   setPaused,
+  onFinances,
 }: {
   state: TycoonState;
   act: (fn: (s: TycoonState) => TResult, opts?: ActOpts) => ActResult;
   paused: boolean;
   setPaused: (p: boolean) => void;
+  onFinances?: () => void;
 }) {
   const f = fac(state);
   const lv = levelOf(state.xp);
@@ -64,10 +66,10 @@ export function RunHud({
   return (
     <section aria-label="Daycare status" className="sticky top-1 z-20 rounded-2xl border border-border bg-card p-3 shadow-soft">
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5" aria-label={`${state.coins} coins`}>
+        <button type="button" onClick={onFinances} disabled={!onFinances} className="-m-1 flex min-h-11 items-center gap-1.5 rounded-xl p-1 hover:bg-muted" aria-label={`Finances · ${state.coins} coins`}>
           <Coins className="h-5 w-5 text-accent-foreground" aria-hidden />
           <RollingNumber value={state.coins} className={`font-display text-xl font-bold tabular-nums ${state.coins < 0 ? "text-destructive" : "text-secondary"}`} />
-        </div>
+        </button>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between text-xs font-semibold text-secondary">
             <span>Lv {lv}</span>

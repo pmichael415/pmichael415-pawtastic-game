@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { BREEDS, groupName, groupOf, traitLabel } from "@/game/engine";
+import { bathPay, checkoutPay } from "@/tycoon/business";
 import { caps } from "@/tycoon/connect";
 import { assignBed, assignRoom, bath, checkIn, checkout, inActiveScuffle, playtime, roomDogs, toCalm } from "@/tycoon/run";
 import { ROOM_TYPE_NAMES } from "@/tycoon/catalog";
@@ -89,8 +90,8 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
           </Button>
         )}
         {dog.checkedIn && c.bath && (
-          <Button variant="secondary" className={btn} onClick={() => act((s) => bath(s, dog.id))}>
-            Bath
+          <Button variant="secondary" className={btn} aria-label="Bath" onClick={() => act((s) => bath(s, dog.id))}>
+            Bath <span className="ml-1 text-xs opacity-80">+{bathPay(f)}</span>
           </Button>
         )}
         {dog.checkedIn && dog.place.kind !== "calm" && (placed || scuffle) && (
@@ -99,13 +100,19 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
           </Button>
         )}
         {dog.checkedIn && (
-          <Button variant="outline" className={btn} onClick={() => act((s) => checkout(s, dog.id, false))}>
-            {placed ? "Check out" : "Send home (no charge)"}
+          <Button variant="outline" className={btn} aria-label={placed ? "Check out" : "Send home (no charge)"} onClick={() => act((s) => checkout(s, dog.id, false))}>
+            {placed ? (
+              <>
+                Check out <span className="ml-1 text-xs text-primary">+{checkoutPay(f, dog, false).total}</span>
+              </>
+            ) : (
+              "Send home (no charge)"
+            )}
           </Button>
         )}
         {dog.checkedIn && placed && c.bath && (
-          <Button variant="outline" className={btn} onClick={() => act((s) => checkout(s, dog.id, true))}>
-            Exit bath + check out
+          <Button variant="outline" className={btn} aria-label="Exit bath + check out" onClick={() => act((s) => checkout(s, dog.id, true))}>
+            Exit bath + check out <span className="ml-1 text-xs text-primary">+{checkoutPay(f, dog, true).total}</span>
           </Button>
         )}
       </div>

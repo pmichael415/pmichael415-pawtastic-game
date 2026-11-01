@@ -10,6 +10,10 @@ import { useTycoon, type ActOpts, type ActResult } from "@/tycoon/store";
 import type { TPick } from "@/tycoon/render/world";
 import type { TResult, TycoonState } from "@/tycoon/types";
 import { BuildToolbar, useBuild, type FxFn } from "./BuildToolbar";
+import { DayReport } from "./DayReport";
+import { FinancesSheet } from "./FinancesSheet";
+import { MoneyBanner } from "./MoneyBanner";
+import { SignCard } from "./SignCard";
 import { DogPanel } from "./DogPanel";
 import { EditPanel } from "./EditPanel";
 import { GuideCard } from "./GuideCard";
@@ -39,6 +43,8 @@ function Play({ state, act, set, paused, setPaused }: { state: TycoonState; act:
   const [sel, setSel] = useState<Sel>(null);
   const [askSell, setAskSell] = useState(false);
   const [painting, setPainting] = useState<string | null>(null);
+  const [finances, setFinances] = useState(false);
+  const [sign, setSign] = useState<string | null>(null);
   const stage = useRef<TycoonStageHandle>(null);
   const fx: FxFn = (k, at) => stage.current?.fx(k, at);
   const b = useBuild(state, act, fx);
@@ -53,6 +59,10 @@ function Play({ state, act, set, paused, setPaused }: { state: TycoonState; act:
     }
     setAskSell(building && b.ui.tool === "sell");
     if (!p || p.kind === "tile" || p.kind === "edge") return setSel(null);
+    if (!building && p.kind === "thing" && f.items.find((i) => i.uid === p.uid)?.kind === "sign") {
+      setSel(null);
+      return setSign(p.uid);
+    }
     setSel(p.kind === "dog" ? { kind: "dog", id: p.id } : { kind: p.kind, id: p.uid });
   };
 
@@ -61,7 +71,8 @@ function Play({ state, act, set, paused, setPaused }: { state: TycoonState; act:
 
   return (
     <div className="space-y-3">
-      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} />
+      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} />
+      <MoneyBanner state={state} />
       <GuideCard state={state} act={act} set={set} />
       {show3d && (
         <Button
@@ -138,6 +149,17 @@ function Play({ state, act, set, paused, setPaused }: { state: TycoonState; act:
         }}
       />
       <ListView state={state} act={act} compact={show3d} />
+      <FinancesSheet open={finances} state={state} act={act} onClose={() => setFinances(false)} />
+      <DayReport state={state} set={set} onFinances={() => setFinances(true)} />
+      <SignCard
+        open={!!sign}
+        onClose={() => setSign(null)}
+        onEdit={() => {
+          const uid = sign;
+          setSign(null);
+          if (uid) setSel({ kind: "thing", id: uid });
+        }}
+      />
     </div>
   );
 }
