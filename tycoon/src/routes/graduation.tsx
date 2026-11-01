@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { GameHeader } from "@/components/game/GameHeader";
+import { GraduationWeeklyCard } from "@/components/game/GraduationWeeklyCard";
 import {
   readGraduationFromStorage,
   GRADUATION_LEVELS,
@@ -57,6 +58,7 @@ function Graduation() {
       style={{ height: "calc(100svh - 4rem - env(safe-area-inset-bottom))" }}
     >
       <GameHeader title="Graduation Day" subtitle={sub} />
+      {!import.meta.env["VITE_REVIEW_BUILD"] && <GraduationWeeklyCard from="graduation" slim />}
       <p className="mt-1.5 px-1 text-[11px] font-medium text-muted-foreground">
         Free play here. Treats stay in Graduation Day; achievements and bandanas are shared with
         your daycare.

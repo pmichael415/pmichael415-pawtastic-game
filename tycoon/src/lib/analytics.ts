@@ -41,6 +41,8 @@ export const EVENT_NAMES = [
   "tycoon_marketing",
   "tycoon_day",
   "tycoon_trophy",
+  "tycoon_weekly",
+  "graduation_weekly_open",
 ] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 type Props = Record<string, string | number | boolean | null>;

@@ -24,6 +24,7 @@ import { SignCard } from "./SignCard";
 import { DogPanel } from "./DogPanel";
 import { EditPanel } from "./EditPanel";
 import { GuideCard } from "./GuideCard";
+import { WeeklyCard } from "./WeeklyCard";
 import { LevelUp } from "./LevelUp";
 import { ListView } from "./ListView";
 import { PaintSheet } from "./PaintSheet";
@@ -156,6 +157,7 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
       <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} />
       <MoneyBanner state={state} />
       <GuideCard state={state} act={act} set={set} />
+      <WeeklyCard state={state} act={act} />
       {show3d && (
         <Button
           variant={building ? "default" : "outline"}

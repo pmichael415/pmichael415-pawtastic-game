@@ -126,6 +126,10 @@ export type Facility = {
   rush: { day: number; peak: number; since: number | null; awarded: boolean };
 };
 
+export type WeeklyStat = "checkouts" | "plays" | "admitted" | "baths" | "boarders";
+/** This week's challenge: the goal, stats when the week started, and whether its reward was claimed. */
+export type TWeekly = { week: string; goal: string; base: Record<WeeklyStat, number>; baseDay: number; claimed: boolean };
+
 export type TycoonState = {
   v: 1;
   coins: number;
@@ -138,6 +142,7 @@ export type TycoonState = {
   trophies: string[];
   bestProfit: number;
   pendingLevel: number | null;
+  weekly: TWeekly | null;
 };
 
 export type TResult = { ok: true; state: TycoonState; msg?: string; earned?: number } | { ok: false; error: string };

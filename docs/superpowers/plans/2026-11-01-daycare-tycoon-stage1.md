@@ -866,3 +866,37 @@ expect(drawRoom((a as Ok).state, 14, 16, 3, 3).ok).toBe(true); // shares the x=1
   yes.
 - [ ] **Step 5: Update `STATUS.md` and `AGENTS.md`** with the new engine's rules (the fairness constraints, the preview
   status, the save key), commit and push.
+
+---
+
+## Addendum (owner, 1 Nov, after Task 17)
+
+The owner chose: **first-person walk view → stage 2**, together with dogs walking between rooms (not in this
+preview); **a weekly challenge in the new Daycare before release**; and **a hub card for Graduation Day's Weekly
+Challenge** that opens Graduation Day's own site (its scores and real prizes only count there).
+
+### Task 19: Weekly challenge in the new Daycare
+
+**Files:** Create `src/tycoon/weekly.ts`, `src/tycoon/weekly.test.ts`, `src/components/tycoon/WeeklyCard.tsx`.
+Modify `types.ts`/`state.ts` (`weekly` in the save, validated on load), `store.ts` (roll on activation and once a
+minute), `TycoonPlay.tsx`, `src/routes/index.tsx` (this week's goal on the preview link), `analytics.ts` + migration
+0008 (`tycoon_weekly`, not yet applied).
+
+- One goal per New York week (Monday start, `weekKey`), chosen from a pool by the week key, among goals open at the
+  player's level when the week starts, and kept for the whole week: serve pups, host playtimes, check pups in, a
+  300-coin profit day (building doesn't count against it), give baths, reach Fun or Appeal, host boarders.
+- Progress counts from the week's start (stats snapshot); Fun/Appeal use the current value.
+- Reward in game coins (bonus income), claimed once. Missing a week costs nothing; a finished but unclaimed goal pays
+  automatically when the next week starts.
+- Tests: the same week gives the same goal; progress from the week's start; claim pays once and refuses early or twice;
+  the roll keeps the goal mid-week and pays a finished, unclaimed goal; level gating; hostile saves load safely.
+
+### Task 20: Graduation Day's Weekly Challenge card in the hub
+
+**Files:** Create `src/components/game/GraduationWeeklyCard.tsx` (+ test). Modify `src/routes/index.tsx`,
+`src/routes/graduation.tsx`, `analytics.ts` + migration 0008 (`graduation_weekly_open`).
+
+- A card on the hub and on the hub's Graduation page: "Play this week's Weekly Challenge on Graduation Day's own
+  site", explaining that scores count there for the leaderboard and real prizes, with a 44px link to
+  `https://pawtastic-graduation.lovable.app` (new tab). No prize details are copied into the hub (the lineup changes
+  weekly with the owner's approval). The click is recorded as a click.

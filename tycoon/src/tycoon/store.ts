@@ -9,6 +9,8 @@ import { buyLand, placeFirstFree } from "./build";
 import { createArrival, tick, welcomeBack } from "./run";
 import { fac, newTycoon, parseTycoon, withFac } from "./state";
 import { checkTrophies, type Trophy } from "./trophies";
+import { rollWeekly } from "./weekly";
+import { weekKey } from "@/game/engine";
 import type { TResult, TycoonState } from "./types";
 
 export const KEY = "pawtastic-daycare-next-v1";
@@ -81,6 +83,19 @@ function commit(next: TycoonState | null, opts: { paused?: boolean; checkGuide?:
 }
 
 let speed = 1; // DEV-only fast-forward for browser checks (window.__tycoonSpeed)
+let lastWeekCheck = 0;
+let weeklyPaidListener: ((n: number) => void) | null = null;
+
+/** Starts a new week's challenge when the New York week changes (checked at most once a minute). */
+function checkWeek(force = false) {
+  const now = Date.now();
+  if (!snap.state || (!force && now - lastWeekCheck < 60_000)) return 0;
+  lastWeekCheck = now;
+  const r = rollWeekly(snap.state, weekKey(now));
+  if (r.state !== snap.state) commit(r.state);
+  if (r.paid) weeklyPaidListener?.(r.paid);
+  return r.paid;
+}
 
 function startClock() {
   if (timer) return;
@@ -92,6 +107,7 @@ function startClock() {
     lastTick = now;
     if (!snap.state || snap.paused || sec <= 0) return;
     commit(tick(snap.state, sec * speed));
+    checkWeek();
   }, TICK_MS);
 }
 function stopClock() {
@@ -99,15 +115,16 @@ function stopClock() {
   timer = null;
 }
 
-/** Load once per activation and welcome the player back. Returns the welcome bonus. */
-function activate(): number {
+/** Load once per activation and welcome the player back. Returns the welcome bonus and any weekly reward paid. */
+function activate(): { bonus: number; weekly: number } {
   users++;
   setOnLevel((n) => track("tycoon_level", { level: n }));
-  if (users > 1 && snap.state) return 0;
+  if (users > 1 && snap.state) return { bonus: 0, weekly: 0 };
   const { state, bonus } = welcomeBack(load(), Date.now());
   commit(state, { paused: false });
+  const weekly = checkWeek(true);
   startClock();
-  return bonus;
+  return { bonus, weekly };
 }
 function deactivate() {
   users = Math.max(0, users - 1);
@@ -160,8 +177,10 @@ export function useTycoon() {
   const current = useSyncExternalStore(tycoonStore.subscribe, tycoonStore.getSnapshot, () => SERVER_SNAPSHOT);
 
   useEffect(() => {
-    const bonus = activate();
+    weeklyPaidListener = (n) => toast.success(`Last week's challenge was finished — +${n} coins`);
+    const { bonus, weekly } = activate();
     if (bonus > 0) toast.success(`Welcome back! Your team kept everyone safe and comfy. +${bonus} coins`);
+    if (weekly > 0) toast.success(`Last week's challenge was finished — +${weekly} coins`);
     const onHide = () => {
       if (document.hidden) tycoonStore.setPaused(true);
       if (snap.state) persist(snap.state);
@@ -238,4 +257,15 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
       }
       return st;
     });
+}
+
+/** The saved game without loading it into the clock (for the hub). Never sets anything aside or writes. */
+export function peekTycoon(): TycoonState | null {
+  if (snap.state) return snap.state;
+  try {
+    const raw = localStorage.getItem(KEY);
+    return raw ? parseTycoon(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
 }

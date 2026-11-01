@@ -8,6 +8,7 @@ import { KEY, useTycoon, tycoonStore } from "./store";
 import { fac, newTycoon, parseTycoon, withFac } from "./state";
 import { setOpen } from "./run";
 import { guidedBuild } from "./testkit";
+import { weekKey } from "@/game/engine";
 import type { TycoonState } from "./types";
 
 type Ev = { name: string; props: Record<string, unknown> };
@@ -35,6 +36,20 @@ describe("the tycoon store", () => {
     expect(named("tycoon_build").at(-1)?.props).toEqual({ kind: "room", action: "place" });
     const again = renderHook(() => useTycoon());
     expect(fac(again.result.current.state!).rooms).toHaveLength(1);
+    again.unmount();
+  });
+
+  it("starts this week's challenge on load, and pays last week's finished one", () => {
+    const { result, unmount } = renderHook(() => useTycoon());
+    expect(result.current.state!.weekly?.week).toBe(weekKey());
+    unmount();
+    tycoonStore._reset(null);
+    const s = newTycoon(Date.now());
+    const lastWeek = { ...s, weekly: { week: "2020-W01", goal: "serve", base: { checkouts: 0, plays: 0, admitted: 0, baths: 0, boarders: 0 }, baseDay: 1, claimed: false } };
+    localStorage.setItem(KEY, JSON.stringify(withFac(lastWeek, { ...fac(lastWeek), stats: { ...fac(lastWeek).stats, checkouts: 30 } })));
+    const again = renderHook(() => useTycoon());
+    expect(again.result.current.state!.weekly?.week).toBe(weekKey());
+    expect(again.result.current.state!.coins).toBe(3000 + 300);
     again.unmount();
   });
 

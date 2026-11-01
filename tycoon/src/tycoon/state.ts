@@ -3,6 +3,8 @@ import { BREEDS, GUESTBOOK_MAX, emptyStats, type GroupId, type Regular, type Sta
 import { ENTRANCE, FLOORS, MAX_DOORS, MAX_ROOMS, PARCELS, PRICE_DEFAULTS, PRICE_RANGES, START_COINS, WALL_COLORS } from "./catalog";
 import { roomContaining, validRoomAt, validThingAt } from "./build";
 import { thingTiles } from "./grid";
+import { WEEKLY_GOALS, WEEKLY_STATS } from "./weekly";
+import type { TWeekly, WeeklyStat } from "./types";
 import type { CampaignId, DayLedger, Door, Facility, ParcelId, Placed, Prices, Room, RoomType, TDog, TPlace, TycoonState } from "./types";
 
 export const SAVE_VERSION = 1 as const;
@@ -49,6 +51,7 @@ export function newTycoon(now: number): TycoonState {
     trophies: [],
     bestProfit: 0,
     pendingLevel: null,
+    weekly: null,
   };
 }
 
@@ -252,5 +255,23 @@ export function parseTycoon(raw: unknown): TycoonState | null {
     trophies: Array.isArray(raw["trophies"]) ? [...new Set((raw["trophies"] as unknown[]).filter((t): t is string => typeof t === "string"))] : [],
     bestProfit: num(raw["bestProfit"], 0),
     pendingLevel: typeof raw["pendingLevel"] === "number" ? raw["pendingLevel"] : null,
+    weekly: parseWeekly(raw["weekly"]),
   };
+}
+
+/** This week's challenge, or null (a fresh one starts) if anything about it looks wrong. */
+function parseWeekly(x: unknown): TWeekly | null {
+  if (!isObj(x) || typeof x["week"] !== "string" || !/^\d{4}-W\d{2}$/.test(x["week"])) return null;
+  if (typeof x["goal"] !== "string" || !WEEKLY_GOALS.some((g) => g.id === x["goal"])) return null;
+  const b = x["base"];
+  if (!isObj(b)) return null;
+  const base = {} as Record<WeeklyStat, number>;
+  for (const k of WEEKLY_STATS) {
+    const v = b[k];
+    if (typeof v !== "number" || !Number.isInteger(v) || v < 0) return null;
+    base[k] = v;
+  }
+  const day = x["baseDay"];
+  if (typeof day !== "number" || !Number.isInteger(day) || day < 1 || typeof x["claimed"] !== "boolean") return null;
+  return { week: x["week"], goal: x["goal"], base, baseDay: day, claimed: x["claimed"] };
 }

@@ -3,9 +3,12 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ArrowRight, Building2, CalendarCheck, Cloud, CloudOff, ExternalLink, Gamepad2, GraduationCap, MapPin, Share2, ShoppingBag, Smartphone, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ACHIEVEMENTS, FREE_COSMETICS, REFERRAL_COINS_EACH, REFERRAL_MAX_REWARDED, daycareScore, dailyMissions, fmtClock, lobbyDogs, missionProgress, nextGoal, recessCoinsLeft, type GameState } from "@/game/engine";
+import { ACHIEVEMENTS, FREE_COSMETICS, REFERRAL_COINS_EACH, REFERRAL_MAX_REWARDED, daycareScore, dailyMissions, fmtClock, lobbyDogs, missionProgress, nextGoal, recessCoinsLeft, weekKey, type GameState } from "@/game/engine";
 import { peekSave, todayKey } from "@/game/store";
 import { GameHeader } from "@/components/game/GameHeader";
+import { GraduationWeeklyCard } from "@/components/game/GraduationWeeklyCard";
+import { peekTycoon } from "@/tycoon/store";
+import { goalFor, rollWeekly, weeklyStatus, type WeeklyStatus } from "@/tycoon/weekly";
 import { openShare } from "@/components/game/ShareSheet";
 import { TeamCard } from "@/components/game/TeamCard";
 import { maybeAskForTeam } from "@/components/game/TeamPicker";
@@ -18,6 +21,15 @@ import { referredBy } from "@/lib/referral";
 import { GRADUATION_LEVELS, readGraduationFromStorage, type GraduationProgress } from "@/lib/graduation";
 import { syncGraduation } from "@/game/linkSync";
 import { overall, useStatuses } from "@/game/cloud";
+
+/** This week's goal in the new Daycare (progress 0 for a new player or a new week). */
+function tycoonWeekly(): WeeklyStatus {
+  const wk = weekKey();
+  const saved = peekTycoon();
+  const st = saved ? weeklyStatus(rollWeekly(saved, wk).state) : null;
+  const goal = goalFor(wk, 1);
+  return st ?? { goal, progress: 0, target: goal.target, done: false, claimed: false };
+}
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -35,11 +47,13 @@ function Hub() {
   const [s, setS] = useState<GameState | null>(null);
   const { user } = useSession();
   const [g, setG] = useState<GraduationProgress | null>(null);
+  const [tw, setTw] = useState<WeeklyStatus | null>(null);
   useEffect(() => {
     const r = syncGraduation(); // Graduation Day milestones → shared achievements & bandanas
     r.newCosmetics.forEach((c) => toast.success(`🎓 ${c.name} unlocked for your daycare pups!`));
     setS(peekSave());
     setG(readGraduationFromStorage());
+    setTw(tycoonWeekly());
     track("hub_open", {});
     maybeAskForTeam();
   }, []);
@@ -79,8 +93,13 @@ function Hub() {
         to="/daycare"
         cta={started ? "Continue your daycare" : "Open your daycare"}
       />
-      <Link to="/daycare-next" className="-mt-1 flex min-h-11 items-center justify-center rounded-xl px-4 text-center text-sm font-semibold text-primary underline-offset-2 hover:underline">
-        Try the new Daycare (preview): build your own from an empty lot →
+      <Link to="/daycare-next" className="-mt-1 flex min-h-11 flex-col items-center justify-center rounded-xl px-4 py-1 text-center text-sm font-semibold text-primary underline-offset-2 hover:underline">
+        <span>Try the new Daycare (preview): build your own from an empty lot →</span>
+        {tw && (
+          <span className="text-[11px] font-medium text-muted-foreground">
+            This week: {tw.goal.label} · {tw.progress}/{tw.target} · +{tw.goal.reward} coins
+          </span>
+        )}
       </Link>
       <GameCard
         icon={Gamepad2}
@@ -102,6 +121,7 @@ function Hub() {
         to="/graduation"
         cta={g && g.cleared ? "Continue Graduation Day" : "Play Graduation Day"}
       />
+      <GraduationWeeklyCard from="home" />
 
       <CloudCard signedIn={!!user} />
 
