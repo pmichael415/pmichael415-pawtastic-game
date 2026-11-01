@@ -95,6 +95,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
+    "http_ece": "1.2.1",
     "jsdom": "^20.0.3",
     "nitro": "3.0.260603-beta",
     "postgres": "^4.0.0",
