@@ -34,6 +34,19 @@ with a 0.2 s animation). Production build OK.
   header. Directions now search "…, NJ" (the logo confirms the state). Note: both logos say
   "Daycare · Boarding · Grooming"; the game's own text keeps to daycare, boarding, baths and exit baths.
 
+## Update — Weekly Challenge prizes change every week, with the owner's approval (1 Nov)
+
+- Graduation Day's Weekly Challenge (its own site) now awards each week's **approved lineup** (`game_week_prizes`,
+  migration 0008 on the Graduation project, applied and recorded together with the already-applied 0007). A draft is
+  never shown or awarded; without an approved lineup the standard prizes apply. The game, emails and staff page show
+  each prize in its own words. Week of 2 Nov approved by the owner: 1st two free days of daycare, 2nd two free baths,
+  3rd a free bath (top 3 at each location).
+- A scheduled task runs every Thursday 2:37 pm New York time in this conversation: it drafts the next week's lineup
+  (daycare, boarding, baths and exit baths only) and asks the owner before approving.
+- Pushed to the Graduation project's repo (`9dddec9`); goes live when the owner publishes it.
+- **Next (planned, not built):** real prizes in the hub need server-checked scores (e.g. a weekly Recess Rush run the
+  server replays), plus a hub leaderboard and redemption.
+
 ## Update — every game on the same Stripe account (1 Nov)
 
 - The owner chose one Stripe account for all games: the games account Graduation Day already uses (Pawtastic Academy
