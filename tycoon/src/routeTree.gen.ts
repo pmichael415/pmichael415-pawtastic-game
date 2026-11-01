@@ -21,6 +21,10 @@ import { Route as VisitRouteImport } from './routes/visit'
 import { Route as ApiPublicEventsRouteImport } from './routes/api/public/events'
 import { Route as ApiPublicReferralsRouteImport } from './routes/api/public/referrals'
 import { Route as ApiPublicTeamStandingsRouteImport } from './routes/api/public/team-standings'
+import { Route as ApiPublicNotificationsKeyRouteImport } from './routes/api/public/notifications/key'
+import { Route as ApiPublicNotificationsRunRouteImport } from './routes/api/public/notifications/run'
+import { Route as ApiPublicNotificationsSubscribeRouteImport } from './routes/api/public/notifications/subscribe'
+import { Route as ApiPublicNotificationsUnsubscribeRouteImport } from './routes/api/public/notifications/unsubscribe'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -83,6 +87,30 @@ const ApiPublicTeamStandingsRoute = ApiPublicTeamStandingsRouteImport.update({
   path: '/api/public/team-standings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicNotificationsKeyRoute =
+  ApiPublicNotificationsKeyRouteImport.update({
+    id: '/api/public/notifications/key',
+    path: '/api/public/notifications/key',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicNotificationsRunRoute =
+  ApiPublicNotificationsRunRouteImport.update({
+    id: '/api/public/notifications/run',
+    path: '/api/public/notifications/run',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicNotificationsSubscribeRoute =
+  ApiPublicNotificationsSubscribeRouteImport.update({
+    id: '/api/public/notifications/subscribe',
+    path: '/api/public/notifications/subscribe',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicNotificationsUnsubscribeRoute =
+  ApiPublicNotificationsUnsubscribeRouteImport.update({
+    id: '/api/public/notifications/unsubscribe',
+    path: '/api/public/notifications/unsubscribe',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicPaymentsWebhookRoute =
   ApiPublicPaymentsWebhookRouteImport.update({
     id: '/api/public/payments/webhook',
@@ -103,6 +131,10 @@ export interface FileRoutesByFullPath {
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/referrals': typeof ApiPublicReferralsRoute
   '/api/public/team-standings': typeof ApiPublicTeamStandingsRoute
+  '/api/public/notifications/key': typeof ApiPublicNotificationsKeyRoute
+  '/api/public/notifications/run': typeof ApiPublicNotificationsRunRoute
+  '/api/public/notifications/subscribe': typeof ApiPublicNotificationsSubscribeRoute
+  '/api/public/notifications/unsubscribe': typeof ApiPublicNotificationsUnsubscribeRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesByTo {
@@ -118,6 +150,10 @@ export interface FileRoutesByTo {
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/referrals': typeof ApiPublicReferralsRoute
   '/api/public/team-standings': typeof ApiPublicTeamStandingsRoute
+  '/api/public/notifications/key': typeof ApiPublicNotificationsKeyRoute
+  '/api/public/notifications/run': typeof ApiPublicNotificationsRunRoute
+  '/api/public/notifications/subscribe': typeof ApiPublicNotificationsSubscribeRoute
+  '/api/public/notifications/unsubscribe': typeof ApiPublicNotificationsUnsubscribeRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesById {
@@ -134,6 +170,10 @@ export interface FileRoutesById {
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/referrals': typeof ApiPublicReferralsRoute
   '/api/public/team-standings': typeof ApiPublicTeamStandingsRoute
+  '/api/public/notifications/key': typeof ApiPublicNotificationsKeyRoute
+  '/api/public/notifications/run': typeof ApiPublicNotificationsRunRoute
+  '/api/public/notifications/subscribe': typeof ApiPublicNotificationsSubscribeRoute
+  '/api/public/notifications/unsubscribe': typeof ApiPublicNotificationsUnsubscribeRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRouteTypes {
@@ -151,6 +191,10 @@ export interface FileRouteTypes {
     | '/api/public/events'
     | '/api/public/referrals'
     | '/api/public/team-standings'
+    | '/api/public/notifications/key'
+    | '/api/public/notifications/run'
+    | '/api/public/notifications/subscribe'
+    | '/api/public/notifications/unsubscribe'
     | '/api/public/payments/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -166,6 +210,10 @@ export interface FileRouteTypes {
     | '/api/public/events'
     | '/api/public/referrals'
     | '/api/public/team-standings'
+    | '/api/public/notifications/key'
+    | '/api/public/notifications/run'
+    | '/api/public/notifications/subscribe'
+    | '/api/public/notifications/unsubscribe'
     | '/api/public/payments/webhook'
   id:
     | '__root__'
@@ -181,6 +229,10 @@ export interface FileRouteTypes {
     | '/api/public/events'
     | '/api/public/referrals'
     | '/api/public/team-standings'
+    | '/api/public/notifications/key'
+    | '/api/public/notifications/run'
+    | '/api/public/notifications/subscribe'
+    | '/api/public/notifications/unsubscribe'
     | '/api/public/payments/webhook'
   fileRoutesById: FileRoutesById
 }
@@ -197,6 +249,10 @@ export interface RootRouteChildren {
   ApiPublicEventsRoute: typeof ApiPublicEventsRoute
   ApiPublicReferralsRoute: typeof ApiPublicReferralsRoute
   ApiPublicTeamStandingsRoute: typeof ApiPublicTeamStandingsRoute
+  ApiPublicNotificationsKeyRoute: typeof ApiPublicNotificationsKeyRoute
+  ApiPublicNotificationsRunRoute: typeof ApiPublicNotificationsRunRoute
+  ApiPublicNotificationsSubscribeRoute: typeof ApiPublicNotificationsSubscribeRoute
+  ApiPublicNotificationsUnsubscribeRoute: typeof ApiPublicNotificationsUnsubscribeRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
 }
 
@@ -286,6 +342,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTeamStandingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/notifications/key': {
+      id: '/api/public/notifications/key'
+      path: '/api/public/notifications/key'
+      fullPath: '/api/public/notifications/key'
+      preLoaderRoute: typeof ApiPublicNotificationsKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/notifications/run': {
+      id: '/api/public/notifications/run'
+      path: '/api/public/notifications/run'
+      fullPath: '/api/public/notifications/run'
+      preLoaderRoute: typeof ApiPublicNotificationsRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/notifications/subscribe': {
+      id: '/api/public/notifications/subscribe'
+      path: '/api/public/notifications/subscribe'
+      fullPath: '/api/public/notifications/subscribe'
+      preLoaderRoute: typeof ApiPublicNotificationsSubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/notifications/unsubscribe': {
+      id: '/api/public/notifications/unsubscribe'
+      path: '/api/public/notifications/unsubscribe'
+      fullPath: '/api/public/notifications/unsubscribe'
+      preLoaderRoute: typeof ApiPublicNotificationsUnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/payments/webhook': {
       id: '/api/public/payments/webhook'
       path: '/api/public/payments/webhook'
@@ -309,6 +393,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicEventsRoute: ApiPublicEventsRoute,
   ApiPublicReferralsRoute: ApiPublicReferralsRoute,
   ApiPublicTeamStandingsRoute: ApiPublicTeamStandingsRoute,
+  ApiPublicNotificationsKeyRoute: ApiPublicNotificationsKeyRoute,
+  ApiPublicNotificationsRunRoute: ApiPublicNotificationsRunRoute,
+  ApiPublicNotificationsSubscribeRoute: ApiPublicNotificationsSubscribeRoute,
+  ApiPublicNotificationsUnsubscribeRoute:
+    ApiPublicNotificationsUnsubscribeRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
 }
 export const routeTree = rootRouteImport

@@ -12,7 +12,7 @@ export type EmailTransport = (m: {
 }) => Promise<"sent" | "suppressed">;
 
 export function emailUpdatesEnabled(
-  env: { NOTIFY_EMAIL_ENABLED?: string; NOTIFY_MAILING_ADDRESS?: string },
+  env: { NOTIFY_EMAIL_ENABLED?: string | undefined; NOTIFY_MAILING_ADDRESS?: string | undefined },
   transport: EmailTransport | null,
 ): boolean {
   return env.NOTIFY_EMAIL_ENABLED === "true" && !!env.NOTIFY_MAILING_ADDRESS?.trim() && transport !== null;

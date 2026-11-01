@@ -4,33 +4,14 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createECDH, randomBytes } from "node:crypto";
 import * as ece from "http_ece";
 import type { PGlite } from "@electric-sql/pglite";
-import { pgHelpers, setupDb } from "@/test/pg";
+import { pgHelpers, pgRpc as basePgRpc, setupDb } from "@/test/pg";
 import { b64url } from "./webpush";
 import { getNotifyKeys, runSender, type NotifyRpc } from "./sender.server";
 
 const U1 = "00000000-0000-0000-0000-000000000001";
-const SETOF = new Set(["notify_start_next", "notify_claim_push", "notify_claim_email", "notify_get_keys"]);
 let db: PGlite;
 let h: ReturnType<typeof pgHelpers>;
-
-/** supabase-js-like rpc over PGlite, run as the service role. */
-function pgRpc(fail?: (name: string) => boolean): NotifyRpc {
-  return {
-    async rpc(name: string, args: Record<string, unknown>) {
-      if (fail?.(name)) return { data: null, error: new Error(`simulated failure in ${name}`) };
-      const keys = Object.keys(args);
-      const vals = keys.map((k) => (args[k] !== null && typeof args[k] === "object" ? JSON.stringify(args[k]) : args[k]));
-      const sql = `SELECT * FROM public.${name}(${keys.map((k, i) => `${k} => $${i + 1}`).join(", ")})`;
-      try {
-        const r = await h.as("service_role", null, () => db.query<Record<string, unknown>>(sql, vals));
-        const data = SETOF.has(name) ? r.rows : (Object.values(r.rows[0] ?? {})[0] ?? null);
-        return { data, error: null };
-      } catch (e) {
-        return { data: null, error: e };
-      }
-    },
-  };
-}
+const pgRpc = (fail?: (name: string) => boolean): NotifyRpc => basePgRpc(db, fail);
 
 type Phone = { endpoint: string; ecdh: ReturnType<typeof createECDH>; auth: Buffer; id: string };
 async function phone(name: string, user: string | null = null): Promise<Phone> {

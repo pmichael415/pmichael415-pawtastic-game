@@ -53,3 +53,25 @@ export function pgHelpers(db: PGlite) {
   };
   return { one, rows, as, fails };
 }
+
+const SETOF = new Set(["notify_start_next", "notify_claim_push", "notify_claim_email", "notify_get_keys"]);
+
+/** A supabase-js-like `rpc` over PGlite, run as the service role (scalar functions return their value, set-returning ones their rows). */
+export function pgRpc(db: PGlite, fail?: (name: string) => boolean) {
+  const h = pgHelpers(db);
+  return {
+    async rpc(name: string, args: Record<string, unknown>) {
+      if (fail?.(name)) return { data: null, error: new Error(`simulated failure in ${name}`) };
+      const keys = Object.keys(args);
+      const vals = keys.map((k) => (args[k] !== null && typeof args[k] === "object" ? JSON.stringify(args[k]) : args[k]));
+      const sql = `SELECT * FROM public.${name}(${keys.map((k, i) => `${k} => $${i + 1}`).join(", ")})`;
+      try {
+        const r = await h.as("service_role", null, () => db.query<Record<string, unknown>>(sql, vals));
+        const data = SETOF.has(name) ? r.rows : (Object.values(r.rows[0] ?? {})[0] ?? null);
+        return { data, error: null };
+      } catch (e) {
+        return { data: null, error: e };
+      }
+    },
+  };
+}
