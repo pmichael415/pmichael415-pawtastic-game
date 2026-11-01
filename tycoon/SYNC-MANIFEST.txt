@@ -2,7 +2,7 @@
 # Source: github.com/pmichael415/pmichael415-pawtastic-game, folder tycoon/. Base: Lovable c3a69bd.
 # Format: <sha256>  <path>. Deleted files: none. Never sync: .env, public/favicon.png, src/assets/daycare-room.jpg
 c75d31f3d77c0c129d77b51e253a5a8db81f6074fc4e2ebbedf1ed28fe288c03  AGENTS.md
-89feabee27bbf69990b504a2b8e5f1a1b315e089b4861e4c186e4a84608e2ad8  STATUS.md
+755c4735a68524aa36e3dd06ba8af86f10d9c4aa85187a4c1c2269a5547e2317  STATUS.md
 d975249d373b6da51138fe7bdb83d1e59304ffb74d269bd572e3cce50643d3b7  SYNC-TO-LOVABLE.md
 e3f4db45b90ed1824d14658037a12675d16f2354136f35f7630db916b1cb34e2  bun.lock
 250fac3cfb7bbd982014bd81d8d9c320486e4bacbc74e31296f02e8667725046  drizzle/migrations/0002_game_measurement.sql

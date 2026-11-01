@@ -49,8 +49,10 @@ with a 0.2 s animation). Production build OK.
 - **First test purchase verified end to end (1 Nov, 17:00 UTC, test mode):** checkout `cs_test_a1op…` for the Blue Ribbon
   Style Pack ($2.99) was created and paid; the signed webhook (`evt_1UX28q…`) granted the pack 90 s later; the Shop shows
   "Owned on your account (server-verified)" and Restore says "Restored 1 pack(s)". This ran on the pinned-version build
-  (c8c125b). The build without `payment_method_types` (1e876a7) is published; one fresh checkout (Deluxe Daycare Decor)
-  will confirm it. No cloud saves yet: none of the signed-in sessions has played a game.
+  (c8c125b). **Confirmed on the published build without `payment_method_types` (1e876a7):** Deluxe Daycare Decor
+  ($6.99, `cs_test_a1EaG3…`, 17:09 UTC) paid; webhook `evt_1UX2I4…` returned 200 "granted" 2 min later; both packs are
+  active on the same account; Restore says "Restored 2 pack(s)". Hub payments remain test-mode only.
+  Still untested: a refund (revokes the pack) and cloud saves (none of the signed-in sessions has played a game yet).
 
 ## Update — Weekly Challenge prizes change every week, with the owner's approval (1 Nov)
 
