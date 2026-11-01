@@ -79,7 +79,7 @@ function Hub() {
         to="/daycare"
         cta={started ? "Continue your daycare" : "Open your daycare"}
       />
-      <Link to="/daycare-next" className="-mt-1 block rounded-xl px-4 py-2 text-center text-sm font-semibold text-primary underline-offset-2 hover:underline">
+      <Link to="/daycare-next" className="-mt-1 flex min-h-11 items-center justify-center rounded-xl px-4 text-center text-sm font-semibold text-primary underline-offset-2 hover:underline">
         Try the new Daycare (preview): build your own from an empty lot →
       </Link>
       <GameCard

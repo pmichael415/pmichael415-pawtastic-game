@@ -1,13 +1,14 @@
 // The new Daycare Tycoon in 3D. It never owns rules or state: every snapshot is drawn from the same TycoonState the
 // list view uses, and taps are reported back as picks (a dog, a room, a thing, a tile or a wall edge).
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { buildDog, buildPerson, coatFor, makeEmojiSprite, makeSign, makeTag, mat, part, GEO, type DogRig, type PersonRig, type Tag } from "@/world/models";
 import { COLS, ENTRANCE, PARCELS, ROWS, TILE } from "../catalog";
-import { caps, connectedRooms, roomStatus } from "../connect";
-import { roomTiles, thingTiles, tileAtWorld, tileCenter } from "../grid";
+import { connectedRooms, roomStatus } from "../connect";
+import { containsTile, roomTiles, thingTiles, tileAtWorld, tileCenter } from "../grid";
 import { fac } from "../state";
 import { inActiveScuffle } from "../run";
-import { isActive } from "../paid";
+import { isActive, ownedPaid } from "../paid";
 import type { Door, Facility, Rot, Side, TDog, ThingKind, TycoonState } from "../types";
 import { buildPath, buildRoom, buildThing, doorEdgeKeys, ghostMaterial, WALL_H } from "./models";
 
@@ -38,6 +39,49 @@ const LOT = { x0: -36, x1: -36 + TILE * COLS, z0: -36, z1: -36 + TILE * ROWS };
 type DogActor = { id: string; rig: DogRig; tag: Tag; pos: { x: number; z: number }; to: { x: number; z: number }; heading: number; phase: number; size: number };
 type StaffActor = { rig: PersonRig; pos: { x: number; z: number }; to: { x: number; z: number } };
 type Fx = { sprite: THREE.Sprite; born: number; life: number; from: THREE.Vector3; rise: number; drift: number };
+
+/**
+ * Merges every mesh under `parts` into one mesh per material inside `target` (a few draw calls instead of hundreds).
+ * Sprites (name tags) are kept as they are, and the parts' dispose hooks move to the target.
+ */
+function bake(parts: THREE.Object3D[], target: THREE.Group) {
+  const holder = new THREE.Group();
+  for (const p of parts) holder.add(p);
+  holder.updateMatrixWorld(true);
+  const buckets = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  const sprites: THREE.Object3D[] = [];
+  const disposers: (() => void)[] = [];
+  holder.traverse((o) => {
+    const d = o.userData["dispose"] as (() => void) | undefined;
+    if (d) disposers.push(d);
+    if ((o as THREE.Sprite).isSprite) return void sprites.push(o);
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const g = m.geometry.clone();
+    g.applyMatrix4(m.matrixWorld);
+    const list = buckets.get(m.material as THREE.Material) ?? [];
+    list.push(g);
+    buckets.set(m.material as THREE.Material, list);
+  });
+  for (const [material, geos] of buckets) {
+    const merged = mergeGeometries(geos);
+    geos.forEach((g) => g.dispose());
+    if (!merged) continue;
+    const mesh = new THREE.Mesh(merged, material);
+    mesh.userData["dispose"] = () => merged.dispose();
+    target.add(mesh);
+  }
+  for (const sp of sprites) {
+    const at = new THREE.Vector3();
+    sp.getWorldPosition(at);
+    sp.removeFromParent();
+    sp.position.copy(at);
+    target.add(sp);
+  }
+  const keeper = new THREE.Object3D();
+  keeper.userData["dispose"] = () => disposers.forEach((d) => d());
+  target.add(keeper);
+}
 
 const clear = (g: THREE.Group) => {
   g.traverse((o) => (o.userData["dispose"] as (() => void) | undefined)?.());
@@ -219,15 +263,16 @@ export class TycoonWorld {
 
   // ---------- dynamic groups (rebuilt only when their key changes) ----------
   private syncRooms(f: Facility) {
-    const connected = connectedRooms(f);
-    const statuses = f.rooms.map((r) => roomStatus(f, r, connected));
-    const key = JSON.stringify([f.rooms, statuses.map((s) => s.reason)]);
+    // Statuses depend on rooms, items and owned packs; only recompute (and rebuild) when those change.
+    const key = JSON.stringify([f.rooms, f.items.map((i) => [i.uid, i.kind, i.c, i.r, i.rot, i.closed]), [...ownedPaid()]]);
     if (key === this.keys.rooms) return;
     this.keys.rooms = key;
+    const connected = connectedRooms(f);
+    const statuses = f.rooms.map((r) => roomStatus(f, r, connected));
     clear(this.rooms);
     const drawn = new Set<string>();
     const doors = doorEdgeKeys(f.rooms);
-    f.rooms.forEach((room, i) => this.rooms.add(buildRoom(room, statuses[i]!, drawn, doors)));
+    bake(f.rooms.map((room, i) => buildRoom(room, statuses[i]!, drawn, doors)), this.rooms);
   }
 
   private syncThings(f: Facility) {
@@ -236,12 +281,12 @@ export class TycoonWorld {
     if (key === this.keys.things) return;
     this.keys.things = key;
     clear(this.things);
+    const parts: THREE.Object3D[] = [];
     for (const it of items) {
       const g = buildThing(it.kind, it.level);
       const at = thingCenter(it.kind, it.c, it.r, it.rot);
       g.position.set(at.x, it.room ? 0.06 : 0, at.z);
       g.rotation.y = -it.rot * (Math.PI / 2);
-      g.userData["pick"] = { kind: "thing", uid: it.uid };
       const inactive = !isActive(it.kind);
       if (it.closed || inactive) g.traverse((o) => ((o as THREE.Mesh).isMesh ? ((o as THREE.Mesh).material = inactive ? mat("#a7adb5", { opacity: 0.7 }) : ghostMaterial(false)) : null));
       if (inactive) {
@@ -251,8 +296,9 @@ export class TycoonWorld {
         g.add(tag.sprite);
         g.userData["dispose"] = () => tag.dispose();
       }
-      this.things.add(g);
+      parts.push(g);
     }
+    bake(parts, this.things);
   }
 
   private syncPaths(f: Facility) {
@@ -261,11 +307,7 @@ export class TycoonWorld {
     if (key === this.keys.paths) return;
     this.keys.paths = key;
     clear(this.paths);
-    for (const p of paths) {
-      const g = buildPath(p.c, p.r);
-      g.userData["pick"] = { kind: "thing", uid: p.uid };
-      this.paths.add(g);
-    }
+    bake(paths.map((p) => buildPath(p.c, p.r)), this.paths);
   }
 
   private syncOverlay(f: Facility, on: boolean) {
@@ -375,7 +417,7 @@ export class TycoonWorld {
   /** Where each pup stands: spread over its room's squares, its bed, or the lobby (by the entrance if none). */
   private slots(f: Facility): Map<string, { x: number; z: number }> {
     const out = new Map<string, { x: number; z: number }>();
-    const lobby = caps(f).lobby ?? f.rooms.find((r) => r.type === "lobby") ?? null;
+    const lobby = f.rooms.find((r) => r.type === "lobby") ?? null;
     const groups = new Map<string, TDog[]>();
     for (const d of f.dogs) {
       const k = d.place.kind === "lobby" ? "lobby" : d.place.kind === "bed" ? `bed:${d.place.bed}` : `room:${d.place.room}`;
@@ -566,16 +608,20 @@ export class TycoonWorld {
         if (px < 38 && (!best || px < best.px)) best = { id, px };
       }
       if (best) return this.opts.onPick({ kind: "dog", id: best.id });
-      for (const h of this.ray.intersectObjects([this.things, this.paths, this.rooms], true)) {
-        let o: THREE.Object3D | null = h.object;
-        while (o && !o.userData["pick"]) o = o.parent;
-        if (o && !(o as THREE.Sprite).isSprite) return this.opts.onPick(o.userData["pick"] as TPick);
-      }
     }
     const hit = this.ray.ray.intersectPlane(this.ground, new THREE.Vector3());
     if (!hit) return this.opts.onPick(null);
     const tile = tileAtWorld(hit.x, hit.z);
     if (!tile) return this.opts.onPick(null);
+    if (mode === "objects" && this.snap) {
+      // What stands on the tapped square: furniture or an outdoor item (paths last), else the room around it.
+      const f = fac(this.snap.state);
+      const on = f.items.filter((i) => thingTiles(i).some((t) => t.c === tile.c && t.r === tile.r));
+      const thing = on.find((i) => i.kind !== "path") ?? on[0];
+      if (thing) return this.opts.onPick({ kind: "thing", uid: thing.uid });
+      const room = f.rooms.find((r) => containsTile(r, tile));
+      if (room) return this.opts.onPick({ kind: "room", uid: room.uid });
+    }
     if (mode === "edges") {
       const fx = (hit.x + 36) / TILE - tile.c;
       const fz = (hit.z + 36) / TILE - tile.r;

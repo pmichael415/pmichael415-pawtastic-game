@@ -1,6 +1,7 @@
 // The level-up celebration: confetti (not with reduced motion), "Level N!", the new unlocks flipping in as cards, and
 // the 25 × N coin reward. Continue clears it.
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { useSettings } from "@/lib/settings";
 import { levelReward, unlocksAt } from "@/tycoon/progress";
@@ -17,8 +18,9 @@ export function LevelUp({ state, set }: { state: TycoonState; set: (fn: (s: Tyco
   }, [n]);
   if (!n) return null;
   const unlocks = unlocksAt(n);
-  return (
-    <div role="dialog" aria-modal="true" aria-labelledby="tycoon-levelup-title" className="fixed inset-0 z-50 grid place-items-center bg-secondary/70 p-4">
+  // Portalled above everything: a level-up can happen while a sheet (land, catalog) is open.
+  const overlay = (
+    <div role="dialog" aria-modal="true" aria-labelledby="tycoon-levelup-title" className="fixed inset-0 z-[70] grid place-items-center bg-secondary/70 p-4">
       {!reducedMotion && (
         <div data-testid="confetti" aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
           {Array.from({ length: 36 }, (_, i) => (
@@ -54,4 +56,5 @@ export function LevelUp({ state, set }: { state: TycoonState; set: (fn: (s: Tyco
       </div>
     </div>
   );
+  return typeof document === "undefined" ? overlay : createPortal(overlay, document.body);
 }

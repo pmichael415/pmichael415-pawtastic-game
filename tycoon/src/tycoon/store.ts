@@ -5,8 +5,9 @@ import { toast } from "sonner";
 import { track, type EventName } from "@/lib/analytics";
 import { guideProgress, guideVisible } from "./guide";
 import { setOnLevel } from "./progress";
-import { tick, welcomeBack } from "./run";
-import { fac, newTycoon, parseTycoon } from "./state";
+import { buyLand, placeFirstFree } from "./build";
+import { createArrival, tick, welcomeBack } from "./run";
+import { fac, newTycoon, parseTycoon, withFac } from "./state";
 import { checkTrophies, type Trophy } from "./trophies";
 import type { TResult, TycoonState } from "./types";
 
@@ -79,6 +80,8 @@ function commit(next: TycoonState | null, opts: { paused?: boolean; checkGuide?:
   emit();
 }
 
+let speed = 1; // DEV-only fast-forward for browser checks (window.__tycoonSpeed)
+
 function startClock() {
   if (timer) return;
   lastTick = Date.now();
@@ -88,7 +91,7 @@ function startClock() {
     const sec = Math.min(1, Math.max(0, (now - lastTick) / 1000));
     lastTick = now;
     if (!snap.state || snap.paused || sec <= 0) return;
-    commit(tick(snap.state, sec));
+    commit(tick(snap.state, sec * speed));
   }, TICK_MS);
 }
 function stopClock() {
@@ -192,4 +195,47 @@ export function useTycoon() {
   const setPaused = useCallback((p: boolean | ((p: boolean) => boolean)) => tycoonStore.setPaused(typeof p === "function" ? p(snap.paused) : p), []);
 
   return { state: current.state, act, set, paused: current.paused, setPaused };
+}
+
+// ---------- DEV-only test hooks for qa/e2e-tycoon.cjs (never in production builds) ----------
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  const w = window as unknown as Record<string, unknown>;
+  Object.defineProperty(w, "__tycoonSpeed", {
+    configurable: true,
+    get: () => speed,
+    set: (v: unknown) => {
+      speed = Math.max(1, Math.min(64, Number(v) || 1));
+    },
+  });
+  w["__tycoonState"] = () => snap.state;
+  w["__tycoonSet"] = (patch: Partial<TycoonState> | ((s: TycoonState) => TycoonState)) =>
+    tycoonStore.set((st) => (typeof patch === "function" ? patch(st) : { ...st, ...patch }));
+  /** A drop-off of a given size and temperament, at once. */
+  w["__tycoonArrive"] = (size: "small" | "large" = "small", temper: "gentle" | "active" = "gentle") =>
+    tycoonStore.set((st) => {
+      const r = createArrival(st, Math.random);
+      if (!r.ok) return st;
+      const f = fac(r.state);
+      return withFac(r.state, { ...f, dogs: f.dogs.map((d, i) => (i === f.dogs.length - 1 ? { ...d, size, temper } : d)) });
+    });
+  /** 12 rooms and 200 things on all the land (frame-rate check). */
+  w["__tycoonStress"] = () =>
+    tycoonStore.set((st0) => {
+      let st: TycoonState = { ...st0, xp: 50 * 15 * 14, coins: 1_000_000 };
+      for (const p of ["west", "east", "north", "northwest", "northeast"] as const) {
+        const r = buyLand(st, p);
+        if (r.ok) st = r.state;
+      }
+      const groups = ["small-gentle", "small-active", "large-gentle", "large-active"] as const;
+      for (let i = 0; fac(st).rooms.length < 12 && i < 40; i++) {
+        const r = placeFirstFree(st, i === 0 ? { room: "lobby" } : { room: "playroom", group: groups[i % 4]! });
+        if (r.ok) st = r.state;
+      }
+      const kinds = ["dog_bed", "play_mat", "toy_bin", "plant", "rug", "play_yard", "shade_tree", "flowers", "park_bench", "lights", "fence"] as const;
+      for (let i = 0; fac(st).items.length < 200 && i < 600; i++) {
+        const r = placeFirstFree(st, kinds[i % kinds.length]!);
+        if (r.ok) st = r.state;
+      }
+      return st;
+    });
 }

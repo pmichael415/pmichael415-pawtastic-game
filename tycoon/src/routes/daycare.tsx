@@ -576,9 +576,6 @@ function Daycare() {
       style={{ paddingBottom: sheetOpen ? "min(62svh, 560px)" : undefined }}
     >
       <GameHeader title="Daycare" subtitle={`${siteName} · rep ${Math.round(state.reputation)}`} />
-      <Link to="/daycare-next" className="mt-1 block text-center text-xs font-semibold text-primary underline-offset-2 hover:underline">
-        Try the new Daycare (preview) — build your own from scratch
-      </Link>
 
       {preview && (
         <div
@@ -1281,6 +1278,9 @@ function Daycare() {
       </AlertDialog>
 
       <footer className="mt-6 space-y-3 pb-4 text-center text-[11px] font-medium text-muted-foreground">
+        <Link to="/daycare-next" className="flex min-h-11 items-center justify-center text-sm font-semibold text-primary underline-offset-2 hover:underline">
+          Try the new Daycare (preview) — build your own from scratch
+        </Link>
         <p>
           Game coins are free virtual currency with no cash value. They can't be exchanged for
           money, discounts or daycare credit and aren't connected to PAWtastic customer rewards.
