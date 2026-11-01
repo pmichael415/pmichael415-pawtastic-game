@@ -31,6 +31,16 @@ export const EVENT_NAMES = [
   "notify_optin",
   "notify_open",
   "email_optin",
+  // Daycare Tycoon (new engine, preview) — migration 0008
+  "tycoon_build",
+  "tycoon_land",
+  "tycoon_level",
+  "tycoon_guide",
+  "tycoon_open",
+  "tycoon_price",
+  "tycoon_marketing",
+  "tycoon_day",
+  "tycoon_trophy",
 ] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 type Props = Record<string, string | number | boolean | null>;

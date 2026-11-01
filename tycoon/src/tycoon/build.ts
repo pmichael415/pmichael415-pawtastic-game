@@ -12,9 +12,10 @@ import {
   outdoorDef,
   thingName,
 } from "./catalog";
-import { containsTile, doorInRange, inGrid, isCornerDoor, isOwned, roomTiles, thingTiles, tileKey } from "./grid";
+import { containsTile, doorInRange, doorInside, doorOutside, inGrid, isCornerDoor, isOwned, roomTiles, thingTiles, tileKey } from "./grid";
+import { reach, roomStatus } from "./connect";
 import type { Facility, Placed, Room } from "./types";
-import { DOOR_PRICE, FLOORS, PARCELS, SELL_RATE, WALL_COLORS, upgradePrice } from "./catalog";
+import { COLS, DOOR_PRICE, FLOORS, PARCELS, ROWS, SELL_RATE, WALL_COLORS, upgradePrice } from "./catalog";
 import { roomPrice } from "./grid";
 import { fac, withFac } from "./state";
 import { buildXp, gainXp, level } from "./progress";
@@ -315,4 +316,175 @@ export function setClosed(s: TycoonState, uid: string, closed: boolean): TResult
   if (findRoom(f, uid)) return { ok: true, state: withFac(s, { ...f, rooms: f.rooms.map((r) => (r.uid === uid ? { ...r, closed } : r)) }), msg };
   if (findThing(f, uid)) return { ok: true, state: withFac(s, { ...f, items: f.items.map((i) => (i.uid === uid ? { ...i, closed } : i)) }), msg };
   return { ok: false, error: "That's gone." };
+}
+
+// ---------- "Place in first free spot" (the list view's builder) ----------
+
+/** Default room sizes for the list view. Calm and Staff rooms are 3 × 2 so they can have a door of their own. */
+export const DEFAULT_ROOM_SIZE: Record<RoomType, { w: number; d: number }> = {
+  lobby: { w: 4, d: 3 },
+  playroom: { w: 3, d: 3 },
+  calm: { w: 3, d: 2 },
+  bath: { w: 3, d: 2 },
+  boarding: { w: 3, d: 3 },
+  staff: { w: 3, d: 2 },
+};
+export type FirstFree = ThingKind | { room: RoomType; group?: GroupId };
+
+const SIDES = ["S", "E", "W", "N"] as const;
+
+/** The cheapest door for a room at this spot and the new path tiles it needs to reach the entrance, or null. */
+function cheapestDoor(f: Facility, room: Room, reached: { rooms: Set<string>; tiles: Set<string> }): { door: Door; paths: { c: number; r: number }[] } | null {
+  const blocked = new Set<string>();
+  for (const x of f.rooms) for (const t of roomTiles(x)) blocked.add(tileKey(t.c, t.r));
+  for (const t of roomTiles(room)) blocked.add(tileKey(t.c, t.r));
+  for (const i of f.items) if (i.kind !== "path") for (const t of thingTiles(i)) blocked.add(tileKey(t.c, t.r));
+  const free = (c: number, r: number) => inGrid(c, r) && isOwned(f.land, c, r) && !blocked.has(tileKey(c, r));
+  let best: { door: Door; paths: { c: number; r: number }[] } | null = null;
+  for (const side of SIDES) {
+    const len = side === "N" || side === "S" ? room.w : room.d;
+    for (let i = 1; i < len - 1; i++) {
+      const door: Door = { side, i };
+      const out = doorOutside(room, door);
+      const k = tileKey(out.c, out.r);
+      const into = f.rooms.find((x) => containsTile(x, out));
+      if (into) {
+        if (reached.rooms.has(into.uid)) return { door, paths: [] };
+        continue;
+      }
+      if (reached.tiles.has(k)) return { door, paths: [] };
+      if (!free(out.c, out.r)) continue;
+      // Breadth-first over free owned squares to the nearest reached path square.
+      const prev = new Map<string, string | null>([[k, null]]);
+      const queue = [out];
+      let goal: string | null = null;
+      while (queue.length && !goal) {
+        const t = queue.shift()!;
+        for (const sd of SIDES) {
+          const n = { c: t.c + (sd === "E" ? 1 : sd === "W" ? -1 : 0), r: t.r + (sd === "S" ? 1 : sd === "N" ? -1 : 0) };
+          const nk = tileKey(n.c, n.r);
+          if (prev.has(nk)) continue;
+          if (reached.tiles.has(nk)) {
+            prev.set(nk, tileKey(t.c, t.r));
+            goal = tileKey(t.c, t.r);
+            break;
+          }
+          if (!free(n.c, n.r)) continue;
+          prev.set(nk, tileKey(t.c, t.r));
+          queue.push(n);
+        }
+      }
+      if (!goal) continue;
+      const paths: { c: number; r: number }[] = [];
+      for (let at: string | null = goal; at; at = prev.get(at) ?? null) {
+        const [c, r] = at.split(",").map(Number);
+        paths.push({ c: c!, r: r! });
+      }
+      if (!best || paths.length < best.paths.length) best = { door, paths: paths.reverse() };
+    }
+  }
+  return best;
+}
+
+function firstFreeRoom(s: TycoonState, type: RoomType, group?: GroupId): TResult {
+  if (type === "playroom" && !group) return { ok: false, error: "Pick a group for this playroom." };
+  const f = fac(s);
+  const size = DEFAULT_ROOM_SIZE[type];
+  const reached = reach(f);
+  const shapes = size.w === size.d ? [size] : [size, { w: size.d, d: size.w }];
+  let firstWhy: string | null = null;
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      for (const sh of shapes) {
+        const draft: Room = { uid: "r" + s.seq, c, r, w: sh.w, d: sh.d, type, group: group ?? null, doors: [], floor: "wood", wall: WALL_COLORS[0]!, spent: 0, closed: false };
+        const why = validRoomAt(f, draft);
+        if (why) {
+          if (why.startsWith("Only one")) return { ok: false, error: why };
+          firstWhy ??= why;
+          continue;
+        }
+        const plan = cheapestDoor(f, draft, reached);
+        if (!plan) continue;
+        const total = roomPrice(sh.w, sh.d) + DOOR_PRICE + plan.paths.length * outdoorDef("path")!.price;
+        if (s.coins < total) return { ok: false, error: s.coins < 0 ? "Paused until your coins are back above zero." : `Need ${total - s.coins} more coins.` };
+        let t = drawRoom(s, c, r, sh.w, sh.d);
+        if (!t.ok) return t;
+        const uid = "r" + s.seq;
+        t = setRoomType(t.state, uid, type, group);
+        if (!t.ok) return t;
+        t = addDoor(t.state, uid, plan.door);
+        if (!t.ok) return t;
+        if (plan.paths.length) {
+          t = paintPaths(t.state, plan.paths);
+          if (!t.ok) return t;
+        }
+        return { ok: true, state: t.state, msg: `${ROOM_TYPE_NAMES[type]} built and connected!` };
+      }
+  return { ok: false, error: firstWhy && firstWhy !== "Buy this land first." ? firstWhy : "There's no free spot for this room — buy more land or make space." };
+}
+
+function firstFreeThing(s: TycoonState, kind: ThingKind): TResult {
+  const f = fac(s);
+  const fd = furnitureDef(kind);
+  const od = outdoorDef(kind);
+  if (!fd && !od) return { ok: false, error: "Unknown item." };
+  if ((fd ?? od)!.unlock > level(s)) return { ok: false, error: `Unlocks at level ${(fd ?? od)!.unlock}.` };
+  const rots: Rot[] = [0, 1];
+  if (fd) {
+    const allows = (r: Room) => (fd.allowed === "any" ? true : !!r.type && fd.allowed.includes(r.type));
+    const reached = reach(f);
+    const rooms = f.rooms.filter(allows);
+    if (!rooms.length) return { ok: false, error: fd.allowed === "any" ? "Build a room first." : `Build a ${fd.allowed.map((t) => ROOM_TYPE_NAMES[t]).join(" or ")} first.` };
+    // First a room that needs this item to start working, then working rooms, then the rest.
+    const fixes: Record<string, string> = {
+      front_counter: "Needs a Front Desk Counter",
+      dog_bed: "Needs a dog bed or play mat",
+      play_mat: "Needs a dog bed or play mat",
+      deluxe_bed: "Needs a dog bed or play mat",
+      bath_tub: "Needs a bath tub",
+      deluxe_tub: "Needs a bath tub",
+      boarding_bed: "Needs a boarding bed",
+      staff_couch: "Needs a staff couch",
+    };
+    const rank = (r: Room) => {
+      const st = roomStatus(f, r, reached.rooms);
+      if (fixes[kind] && st.reason === fixes[kind]) return 0;
+      if (st.working) return 1;
+      return (r.type ? 2 : 4) + (reached.rooms.has(r.uid) ? 0 : 1);
+    };
+    rooms.sort((a, b) => rank(a) - rank(b));
+    let firstWhy: string | null = null;
+    for (const keepDoorways of [true, false])
+      for (const room of rooms) {
+        const doorways = new Set(room.doors.map((d) => tileKey(doorInside(room, d).c, doorInside(room, d).r)));
+        for (let r = room.r; r < room.r + room.d; r++)
+          for (let c = room.c; c < room.c + room.w; c++)
+            for (const rot of rots) {
+              const draft: Placed = { uid: "t" + s.seq, kind, c, r, rot, level: 1, spent: fd.price, room: room.uid, closed: false };
+              if (keepDoorways && thingTiles(draft).some((t) => doorways.has(tileKey(t.c, t.r)))) continue;
+              const why = validThingAt(f, draft);
+              if (why) {
+                if (why.startsWith("Only one") || why.startsWith("This daycare is full")) return { ok: false, error: why };
+                firstWhy ??= why;
+                continue;
+              }
+              return placeThing(s, kind, c, r, rot);
+            }
+      }
+    return { ok: false, error: `No room has space for a ${fd.name}${firstWhy && !firstWhy.startsWith("Overlaps") && !firstWhy.startsWith("Furniture") ? ` (${firstWhy})` : ""}.` };
+  }
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      for (const rot of rots) {
+        const draft: Placed = { uid: "t" + s.seq, kind, c, r, rot, level: 1, spent: od!.price, room: null, closed: false };
+        const why = validThingAt(f, draft);
+        if (why && (why.startsWith("Only one") || why.startsWith("This daycare is full"))) return { ok: false, error: why };
+        if (!why) return placeThing(s, kind, c, r, rot);
+      }
+  return { ok: false, error: "There's no free spot on your land — buy more land or make space." };
+}
+
+/** Builds a room (typed, with a door and paths to the entrance) or places a thing at the first free spot. */
+export function placeFirstFree(s: TycoonState, what: FirstFree): TResult {
+  return typeof what === "string" ? firstFreeThing(s, what) : firstFreeRoom(s, what.room, what.group);
 }

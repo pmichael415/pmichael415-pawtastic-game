@@ -67,7 +67,7 @@ function Hub() {
       <GameHeader title="PAWtastic Games" subtitle={`Hi, ${name}`} back={false} />
 
       <section aria-label="PAWtastic Academy" className="rounded-2xl border border-border bg-card px-4 pt-4 pb-3 text-center shadow-soft">
-        <img src={SITTING_DOG_LOGO_URL} alt="PAWtastic Academy: daycare, boarding and grooming" width={496} height={640} className="mx-auto h-44 w-auto" />
+        <img src={SITTING_DOG_LOGO_URL} alt="PAWtastic Academy: daycare, boarding and baths" width={496} height={640} className="mx-auto h-44 w-auto" />
         <p className="mt-2 text-sm text-muted-foreground">Free dog games from PAWtastic Academy in Hillsdale and Hawthorne, NJ.</p>
       </section>
 
@@ -79,6 +79,9 @@ function Hub() {
         to="/daycare"
         cta={started ? "Continue your daycare" : "Open your daycare"}
       />
+      <Link to="/daycare-next" className="-mt-1 block rounded-xl px-4 py-2 text-center text-sm font-semibold text-primary underline-offset-2 hover:underline">
+        Try the new Daycare (preview): build your own from an empty lot →
+      </Link>
       <GameCard
         icon={Gamepad2}
         eyebrow="Arcade"

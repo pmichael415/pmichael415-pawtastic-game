@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as DaycareRouteImport } from './routes/daycare'
+import { Route as DaycareNextRouteImport } from './routes/daycare-next'
 import { Route as GraduationRouteImport } from './routes/graduation'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -42,6 +43,11 @@ const AccountRoute = AccountRouteImport.update({
 const DaycareRoute = DaycareRouteImport.update({
   id: '/daycare',
   path: '/daycare',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DaycareNextRoute = DaycareNextRouteImport.update({
+  id: '/daycare-next',
+  path: '/daycare-next',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GraduationRoute = GraduationRouteImport.update({
@@ -135,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/daycare': typeof DaycareRoute
+  '/daycare-next': typeof DaycareNextRoute
   '/graduation': typeof GraduationRoute
   '/help': typeof HelpRoute
   '/privacy': typeof PrivacyRoute
@@ -156,6 +163,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/daycare': typeof DaycareRoute
+  '/daycare-next': typeof DaycareNextRoute
   '/graduation': typeof GraduationRoute
   '/help': typeof HelpRoute
   '/privacy': typeof PrivacyRoute
@@ -178,6 +186,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/daycare': typeof DaycareRoute
+  '/daycare-next': typeof DaycareNextRoute
   '/graduation': typeof GraduationRoute
   '/help': typeof HelpRoute
   '/privacy': typeof PrivacyRoute
@@ -201,6 +210,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/daycare'
+    | '/daycare-next'
     | '/graduation'
     | '/help'
     | '/privacy'
@@ -222,6 +232,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/daycare'
+    | '/daycare-next'
     | '/graduation'
     | '/help'
     | '/privacy'
@@ -243,6 +254,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/daycare'
+    | '/daycare-next'
     | '/graduation'
     | '/help'
     | '/privacy'
@@ -265,6 +277,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
   DaycareRoute: typeof DaycareRoute
+  DaycareNextRoute: typeof DaycareNextRoute
   GraduationRoute: typeof GraduationRoute
   HelpRoute: typeof HelpRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -304,6 +317,13 @@ declare module '@tanstack/react-router' {
       path: '/daycare'
       fullPath: '/daycare'
       preLoaderRoute: typeof DaycareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/daycare-next': {
+      id: '/daycare-next'
+      path: '/daycare-next'
+      fullPath: '/daycare-next'
+      preLoaderRoute: typeof DaycareNextRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/graduation': {
@@ -425,6 +445,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
   DaycareRoute: DaycareRoute,
+  DaycareNextRoute: DaycareNextRoute,
   GraduationRoute: GraduationRoute,
   HelpRoute: HelpRoute,
   PrivacyRoute: PrivacyRoute,

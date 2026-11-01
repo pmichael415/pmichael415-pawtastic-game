@@ -10,6 +10,11 @@ import type { Facility, Placed, Room } from "./types";
  * Connections ignore open/closed: closing something doesn't knock down its walls.
  */
 export function connectedRooms(f: Facility): Set<string> {
+  return reach(f).rooms;
+}
+
+/** Rooms and path tiles reachable from the entrance (tile keys "c,r"). */
+export function reach(f: Facility): { rooms: Set<string>; tiles: Set<string> } {
   const paths = new Set(f.items.filter((i) => i.kind === "path").map((i) => tileKey(i.c, i.r)));
   const roomAtTile = new Map<string, Room>();
   for (const room of f.rooms) for (const t of roomTiles(room)) roomAtTile.set(tileKey(t.c, t.r), room);
@@ -58,7 +63,7 @@ export function connectedRooms(f: Facility): Set<string> {
     // Neighbours' doors that open into this room.
     for (const t2 of roomTiles(room)) for (const other of doorsOnto.get(tileKey(t2.c, t2.r)) ?? []) visitRoom(other);
   }
-  return reached;
+  return { rooms: reached, tiles: seenTiles };
 }
 
 export type RoomStatus = { connected: boolean; working: boolean; reason: string | null };

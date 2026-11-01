@@ -576,6 +576,9 @@ function Daycare() {
       style={{ paddingBottom: sheetOpen ? "min(62svh, 560px)" : undefined }}
     >
       <GameHeader title="Daycare" subtitle={`${siteName} · rep ${Math.round(state.reputation)}`} />
+      <Link to="/daycare-next" className="mt-1 block text-center text-xs font-semibold text-primary underline-offset-2 hover:underline">
+        Try the new Daycare (preview) — build your own from scratch
+      </Link>
 
       {preview && (
         <div
