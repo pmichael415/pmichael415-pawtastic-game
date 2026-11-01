@@ -51,10 +51,13 @@ creates/links a repository the owner chooses.
 
 ## Graduation Day inside the hub
 
-`public/graduation/index.html` is a copy of the Graduation Day build served by the PAWtastic Graduation
-project (`public/play/index.html`), minus its install-manifest link. When Graduation Day changes, refresh it
-with `scripts/update-graduation.sh <built index.html>` and sync that one file. The Graduation project itself
-is not changed by any of this.
+`public/graduation/index.html` is the Graduation Day build the PAWtastic Graduation project serves at
+`public/play/index.html` (currently sha256 `18d4200c…`, identical to this repo's `dist/index.html`), with two changes
+made by `scripts/update-graduation.sh`: the install-manifest link is dropped, and one style rule hides the parts that
+need Graduation Day's own server or would mislead inside the hub (the "Add to Home Screen" card, the Weekly
+Challenge prize card and "Invite friends"). Its music is in `public/graduation/static/audio/` (copied from the
+Graduation project). When Graduation Day changes, run `scripts/update-graduation.sh <built index.html>` and sync.
+The Graduation project itself is not changed by any of this.
 
 ## Database migrations (already dry-run on the live game database)
 

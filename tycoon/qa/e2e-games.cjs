@@ -35,9 +35,22 @@ const check = (n, ok, d = '') => { ok ? pass++ : fail++; out.push(`${ok ? 'PASS'
   const fb = await page.locator('iframe[title="Graduation Day match-3 game"]').boundingBox();
   const vh = page.viewportSize().height;
   check('the game fills the screen above the bottom navigation', fb && fb.height > 420 && fb.y + fb.height <= vh - 60, JSON.stringify(fb));
+  // The current Graduation Day build: enrol and reach the map inside the hub
+  await frame.locator('input[type=text]').fill('Biscuit');
+  await frame.getByText('Start school').click();
+  for (let i = 0; i < 8; i++) { await page.waitForTimeout(600); const b = frame.locator('.sheet button:text-is("Collect"), .sheet button:text-is("Let\'s go"), .sheet button:text-is("OK")'); if ((await b.count()) === 0) break; await b.first().click({ force: true }); }
+  await frame.getByText('Orientation').first().waitFor({ timeout: 10000 });
+  check('a new player can enrol and reach the Graduation Day map inside the hub', true);
+  const shown = async (sel) => (await frame.locator(sel).count()) > 0 && (await frame.locator(sel).first().isVisible());
+  check('inside the hub: no Home Screen card, no Weekly Challenge prize card, no Graduation-only Invite button',
+    !(await shown('.install-card')) && !(await shown('.weekly-card')) && !(await shown('.invite-btn')));
+  const music = await page.evaluate(async () => { const r = await fetch('/graduation/static/audio/map-theme.mp3', { method: 'HEAD' }); return r.status + ' ' + r.headers.get('content-type'); });
+  check("Graduation Day's music is served inside the hub", /^200 audio\//.test(music), music);
 
   // Graduation progress → shared achievements & daycare bandana (no coin conversion)
   const levels = Object.fromEntries(Array.from({ length: 8 }, (_, i) => [String(i + 1), { stars: 2, score: 500 }]));
+  // Location-adventure levels (101+, 201+) are separate from the main road and must not count toward 40.
+  Object.assign(levels, { 101: { stars: 3, score: 900 }, 102: { stars: 3, score: 900 }, 201: { stars: 1, score: 300 } });
   await fresh('/', { 'pawtastic-gd-wallet-v1': JSON.stringify({ progress: { unlocked: 9, levels, badges: [] }, dog: { name: 'Nugget' } }) });
   check('hub shows Graduation Day progress', await page.getByText('8/40').isVisible() && await page.getByText(/Nugget is on level 9 · 16★/).isVisible());
   let s = await save();

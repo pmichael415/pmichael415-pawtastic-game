@@ -34,6 +34,17 @@ with a 0.2 s animation). Production build OK.
   header. Directions now search "…, NJ" (the logo confirms the state). Note: both logos say
   "Daycare · Boarding · Grooming"; the game's own text keeps to daycare, boarding, baths and exit baths.
 
+## Update — current Graduation Day inside the hub (1 Nov)
+
+- The hub now embeds the same Graduation Day build that is live (Summer Camp levels 41–80, location adventures,
+  milestone rewards), with its music. Free play here: no purchases, cloud saves or sign-in inside the hub.
+- Hidden inside the hub only: the "Add to Home Screen" card, the Weekly Challenge prize card (its scores can't reach
+  the leaderboard from the hub, so no hub player could win — prizes stay on the Graduation Day site) and
+  "Invite friends" (needs Graduation Day sign-in; the hub has its own Invite).
+- The hub still counts levels 1–40 for "Levels cleared" and the Honor Roll / Valedictorian bandanas; Summer Camp and
+  location levels don't change those numbers (tested).
+- Not done: Graduation Day asks for "your PAWtastic" separately from the hub's team pick.
+
 ## Lovable sync attempt (31 Oct, 20:32 UTC) — stopped, nothing changed
 
 One agent message asked Lovable to copy commit `795d8e1` into the Daycare project. Its agent downloaded the
