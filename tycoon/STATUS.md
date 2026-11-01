@@ -40,6 +40,14 @@ Plan: `docs/superpowers/plans/2026-11-01-notifications-and-ad-prep.md` (spec app
 - Ad prep: campaign tags (utm_*) and first touch are recorded on sessions and booking/app/directions clicks.
 - New `/privacy` page (linked from Settings, Account and Visit), link previews (og-image) and an installable hub
   (manifest + icons). **Owner review needed:** the privacy page text must be OK'd before this is published.
+- Phone notifications: opt-in "Notify me" card after a good moment (end of a Daycare day, end of a Recess Rush run),
+  Settings switch, iPhone Add to Home Screen steps, background script (`public/sw.js`), encrypted Web Push signed with
+  server-created keys, and a sender run every 15 minutes by the database scheduler. Only owner-approved messages; at most
+  2 per person per week; nothing 8 pm–9 am New York time; never the same message twice. See AGENTS.md "Sending a
+  notification".
+- Email updates (18+, unsubscribe link without sign-in, business address in the footer) are built but **off** until the
+  owner's gates: Lovable confirms opt-in update emails are allowed, the footer mailing address, and email set up for the hub.
+- Tests: unit 276+, notifications browser checks 20/20 (qa/e2e-notify.cjs); hub, teams, daycare and cloud suites green.
 
 ## Update — a refused test checkout now says why (1 Nov)
 

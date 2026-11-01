@@ -72,3 +72,14 @@ game database inside a transaction that was rolled back (nothing persisted). All
 duplicate event, refund revocation, closed checkout, least-privilege grants, the restore policy and the
 measurement views. The existing webhook code keeps working after 0003 (the new function parameter is
 optional).
+
+## Notifications release order (migration 0007)
+
+1. Apply `drizzle/migrations/0007_notifications.sql` on the Daycare database **before** publishing: the new event names
+   (notify_prompt, notify_optin, notify_open, email_optin) are rejected by the old `game_events` check, which would drop
+   whole event batches.
+2. Publish.
+3. Apply `drizzle/manual/notify_schedule.sql` (pg_cron + pg_net, every 15 minutes). It waits until the notification
+   keys exist; the server creates them the first time anyone taps "Notify me".
+4. Email updates stay off until `NOTIFY_EMAIL_ENABLED=true`, `NOTIFY_MAILING_ADDRESS` and an email service
+   (`src/lib/notify/email-transport.server.ts`) are set up — owner gates.
