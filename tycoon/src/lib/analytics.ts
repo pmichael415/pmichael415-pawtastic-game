@@ -27,6 +27,10 @@ export const EVENT_NAMES = [
   "referral_open",
   "team_pick",
   "team_points",
+  "notify_prompt",
+  "notify_optin",
+  "notify_open",
+  "email_optin",
 ] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 type Props = Record<string, string | number | boolean | null>;

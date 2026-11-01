@@ -4,7 +4,8 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { PGlite } from "@electric-sql/pglite";
+import type { PGlite } from "@electric-sql/pglite";
+import { setupDb } from "./pg";
 
 const dir = path.resolve(__dirname, "../../drizzle/migrations");
 const files = readdirSync(dir)
@@ -39,19 +40,7 @@ const fails = async (p: Promise<unknown>) => {
 };
 
 beforeAll(async () => {
-  db = new PGlite();
-  await db.exec(`
-    CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN BYPASSRLS;
-    CREATE SCHEMA auth;
-    CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-    GRANT USAGE ON SCHEMA auth, public TO anon, authenticated, service_role;
-    GRANT EXECUTE ON FUNCTION auth.uid() TO anon, authenticated, service_role;
-    -- Supabase's defaults: API roles get everything on new public objects; RLS + revokes do the protecting.
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
-  `);
-  for (const f of files) await db.exec(readFileSync(path.join(dir, f), "utf8"));
+  db = await setupDb();
   await db.exec(`
     INSERT INTO public.checkout_sessions(id, user_id, product_id, amount, currency) VALUES
       ('cs_1', '${U1}', 'blue-ribbon-style', 299, 'usd'),
@@ -70,6 +59,7 @@ describe("migrations", () => {
       "0004_referrals.sql",
       "0005_teams.sql",
       "0006_game_saves.sql",
+      "0007_notifications.sql",
     ]);
   });
 });

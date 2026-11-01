@@ -166,6 +166,56 @@ export type Database = {
         Args: { _data: Json; _expected_revision: number; _game: string }
         Returns: number
       }
+      notify_subscribe: {
+        Args: { _endpoint: string; _p256dh: string; _auth: string; _device: string; _user: string | null }
+        Returns: string
+      }
+      notify_unsubscribe: { Args: { _endpoint: string }; Returns: boolean }
+      notify_start_next: {
+        Args: { _now: string }
+        Returns: {
+          id: string
+          kind: string
+          title: string
+          body: string
+          path: string
+          channels: string[]
+          email_subject: string | null
+          email_body: string | null
+          audience_user: string | null
+          send_at: string
+          approved_at: string | null
+          approved_by: string | null
+          status: string
+          created_at: string
+          sending_started_at: string | null
+          sent_at: string | null
+        }[]
+      }
+      notify_claim_push: {
+        Args: { _message: string; _week: string; _limit: number }
+        Returns: { subscription_id: string; endpoint: string; p256dh: string; auth: string }[]
+      }
+      notify_claim_email: {
+        Args: { _message: string; _week: string; _limit: number }
+        Returns: { user_id: string; email: string; unsub_token: string }[]
+      }
+      notify_mark: {
+        Args: { _message: string; _channel: string; _target: string; _status: string; _error: string | null }
+        Returns: undefined
+      }
+      notify_push_result: { Args: { _subscription: string; _ok: boolean; _gone: boolean }; Returns: undefined }
+      notify_finish: { Args: { _message: string; _now: string }; Returns: undefined }
+      notify_get_keys: {
+        Args: Record<PropertyKey, never>
+        Returns: { vapid_public: string; vapid_private_jwk: Json; run_secret: string }[]
+      }
+      notify_init_keys: { Args: { _public: string; _private: Json; _secret: string }; Returns: undefined }
+      notify_set_email_optin: {
+        Args: { _user: string; _email: string; _on: boolean; _adult: boolean }
+        Returns: undefined
+      }
+      notify_email_unsubscribe: { Args: { _token: string }; Returns: boolean }
       save_player_progress: {
         Args: { _data: Json; _expected_revision: number }
         Returns: number
