@@ -1,5 +1,5 @@
 // PAWtastic Daycare Tycoon (new engine) — state types. Everything here is plain data: saves are JSON.
-import type { GroupId } from "@/game/engine";
+import type { Dog, GroupId, Regular, Staff, Stats } from "@/game/engine";
 
 export type RoomType = "lobby" | "playroom" | "calm" | "bath" | "boarding" | "staff";
 export type Side = "N" | "E" | "S" | "W";
@@ -69,3 +69,73 @@ export type Placed = {
   room: string | null;
   closed: boolean;
 };
+
+// ---- running state (spec §4.5–§4.8) ----
+
+export type TPlace =
+  | { kind: "lobby" }
+  | { kind: "room"; room: string }
+  | { kind: "calm"; room: string }
+  | { kind: "bed"; room: string; bed: string };
+
+export type TDog = Omit<Dog, "site" | "place" | "x" | "y"> & { place: TPlace };
+
+export type Prices = { daycare: number; boarding: number; bath: number; exitBath: number };
+export type Wage = "lean" | "standard" | "generous";
+export type Supplies = "basic" | "premium";
+export type CampaignId = "flyers" | "online" | "openhouse";
+export type IncomeKey = "daycare" | "boarding" | "baths" | "exitBaths" | "tips" | "bonus";
+export type ExpenseKey = "wages" | "upkeep" | "supplies" | "marketing" | "building";
+
+export type DayLedger = { day: number; income: Record<IncomeKey, number>; expenses: Record<ExpenseKey, number>; checkIns: number };
+export type TReport = {
+  day: number;
+  income: number;
+  expenses: number;
+  profit: number;
+  record: boolean;
+  tip: string;
+  admitted: number;
+  checkouts: number;
+  avgHappy: number;
+};
+
+export type Facility = {
+  name: string;
+  land: ParcelId[];
+  rooms: Room[];
+  items: Placed[];
+  dogs: TDog[];
+  staff: Staff[];
+  clockMin: number;
+  day: number;
+  reputation: number;
+  cleanliness: number;
+  stats: Stats;
+  guestBook: Regular[];
+  open: boolean;
+  prices: Prices;
+  wage: Wage;
+  supplies: Supplies;
+  campaign: { id: CampaignId; untilDay: number } | null;
+  ledger: DayLedger[];
+  scuffles: { room: string }[];
+  report: TReport | null;
+  rush: { day: number; peak: number; since: number | null; awarded: boolean };
+};
+
+export type TycoonState = {
+  v: 1;
+  coins: number;
+  xp: number;
+  seq: number;
+  lastSeen: number;
+  guide: { done: boolean; skipped: boolean; painted: boolean };
+  active: string;
+  facilities: Record<string, Facility>;
+  trophies: string[];
+  bestProfit: number;
+  pendingLevel: number | null;
+};
+
+export type TResult = { ok: true; state: TycoonState; msg?: string; earned?: number } | { ok: false; error: string };

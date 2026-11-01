@@ -62,7 +62,7 @@ export const BREEDS: Breed[] = [
   { name: "Corgi", size: "small", coat: "oklch(0.72 0.14 55)", ear: "oklch(0.62 0.15 45)" },
   { name: "Poodle", size: "small", coat: "oklch(0.96 0.01 80)", ear: "oklch(0.88 0.02 80)" },
 ];
-const NAMES = ["Biscuit", "Luna", "Milo", "Pepper", "Bear", "Daisy", "Rocky", "Nala", "Ziggy", "Maple", "Otis", "Willow", "Scout", "Hazel", "Duke", "Pip"];
+export const NAMES = ["Biscuit", "Luna", "Milo", "Pepper", "Bear", "Daisy", "Rocky", "Nala", "Ziggy", "Maple", "Otis", "Willow", "Scout", "Hazel", "Duke", "Pip"];
 
 export type Dog = {
   id: string;
@@ -226,7 +226,7 @@ export const FRIENDSHIP_LEVELS = [
 ] as const;
 export const friendshipLevel = (f: number) => [...FRIENDSHIP_LEVELS].reverse().find((l) => f >= l.min)!;
 export const REGULAR_CHANCE = 0.35;
-const GUESTBOOK_MAX = 40;
+export const GUESTBOOK_MAX = 40;
 export const regularOf = (s: GameState, d: { name: string; breed: number }) => s.guestBook.find((g) => g.name === d.name && g.breed === d.breed) ?? null;
 
 export function sites(s: GameState): SiteId[] {

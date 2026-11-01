@@ -1,5 +1,5 @@
 // PAWtastic Daycare Tycoon — every constant and catalog (spec §4). Game coins only; never real prices.
-import type { FloorStyle, FurnitureId, OutdoorId, ParcelId, RoomType } from "./types";
+import type { FloorStyle, FurnitureId, OutdoorId, ParcelId, Prices, RoomType } from "./types";
 
 export const TILE = 2;
 export const COLS = 36;
@@ -124,3 +124,7 @@ export const WALL_COLORS = ["#F4EDE4", "#FFFFFF", "#DCEBFA", "#E3F2E1", "#FBE7C6
 export function upgradePrice(base: number, toLevel: 2 | 3): number {
   return Math.round((base * (toLevel === 2 ? 1.8 : 3.2)) / 10) * 10;
 }
+
+/** Game-coin prices (spec §4.7). Never real PAWtastic prices. */
+export const PRICE_DEFAULTS: Prices = { daycare: 40, boarding: 90, bath: 25, exitBath: 30 };
+export const PRICE_RANGES: Record<keyof Prices, [number, number]> = { daycare: [20, 80], boarding: [50, 160], bath: [10, 50], exitBath: [10, 60] };
