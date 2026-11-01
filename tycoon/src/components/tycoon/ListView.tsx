@@ -120,7 +120,8 @@ function RoomCard({ f, room, act }: { f: Facility; room: Room; act: Act }) {
   );
 }
 
-export function ListView({ state, act }: { state: TycoonState; act: Act }) {
+/** The full list view, or (compact, beside the 3D view) just the front desk and the pups in each room. */
+export function ListView({ state, act, compact = false }: { state: TycoonState; act: Act; compact?: boolean }) {
   const f = fac(state);
   const lv = level(state);
   const connected = connectedRooms(f);
@@ -154,9 +155,24 @@ export function ListView({ state, act }: { state: TycoonState; act: Act }) {
         </div>
       </section>
 
-      {f.rooms.map((room) => (
-        <RoomCard key={room.uid} f={f} room={room} act={act} />
-      ))}
+      {compact
+        ? f.rooms
+            .filter((room) => f.dogs.some((d) => d.place.kind !== "lobby" && (d.place as { room: string }).room === room.uid))
+            .map((room) => (
+              <section key={room.uid} aria-label={roomTitle(room)} className="rounded-2xl border border-border bg-card p-3 shadow-soft">
+                <h3 className="font-semibold text-secondary">{roomTitle(room)}</h3>
+                <div className="mt-2 space-y-2">
+                  {f.dogs
+                    .filter((d) => d.place.kind !== "lobby" && (d.place as { room: string }).room === room.uid)
+                    .map((d) => (
+                      <DogPanel key={d.id} f={f} dog={d} act={act} />
+                    ))}
+                </div>
+              </section>
+            ))
+        : f.rooms.map((room) => <RoomCard key={room.uid} f={f} room={room} act={act} />)}
+      {compact ? null : (
+      <>
       {f.rooms.length > 0 && connected.size < f.rooms.length && (
         <p className="px-1 text-xs text-muted-foreground">Rooms marked "Not connected" need a door and a path back to the entrance.</p>
       )}
@@ -217,6 +233,8 @@ export function ListView({ state, act }: { state: TycoonState; act: Act }) {
             })}
         </ul>
       </section>
+      </>
+      )}
     </div>
   );
 }

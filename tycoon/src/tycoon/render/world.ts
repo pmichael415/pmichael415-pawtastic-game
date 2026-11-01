@@ -19,7 +19,8 @@ export type TPick =
 export type Ghost =
   | { kind: "room"; c: number; r: number; w: number; d: number; ok: boolean; label: string }
   | { kind: "door"; room: string; door: Door; ok: boolean }
-  | { kind: "thing"; thing: ThingKind; c: number; r: number; rot: Rot; ok: boolean };
+  | { kind: "thing"; thing: ThingKind; c: number; r: number; rot: Rot; ok: boolean }
+  | { kind: "paths"; tiles: { c: number; r: number }[]; ok: boolean };
 export type WorldLooks = { bandana?: string; deluxe?: boolean };
 /** objects: dogs, things, rooms, then tiles (no tool); tiles: ground squares only; edges: wall edges (door tool). */
 export type PickMode = "objects" | "tiles" | "edges";
@@ -323,6 +324,16 @@ export class TycoonWorld {
       tag.sprite.position.set(x0 + W / 2, WALL_H + 1.4, z0 + D / 2);
       this.ghost.add(tag.sprite);
       this.ghost.userData["dispose"] = () => tag.dispose();
+      return;
+    }
+    if (gh.kind === "paths") {
+      for (const t of gh.tiles) {
+        const at = tileCenter(t.c, t.r);
+        const tile = new THREE.Mesh(GEO.box, m);
+        tile.scale.set(TILE - 0.1, 0.08, TILE - 0.1);
+        tile.position.set(at.x, 0.06, at.z);
+        this.ghost.add(tile);
+      }
       return;
     }
     if (gh.kind === "door") {

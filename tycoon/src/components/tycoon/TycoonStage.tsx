@@ -92,7 +92,7 @@ export const TycoonStage = forwardRef<TycoonStageHandle, Props>(function TycoonS
         style={{ height: "clamp(300px, 52svh, 540px)" }}
       />
       {status === "loading" && <div className="absolute inset-0 grid place-items-center bg-sky font-display text-lg font-bold text-secondary">Building your daycare…</div>}
-      <div className="absolute right-2 top-2 flex flex-col gap-2">
+      <div className="absolute bottom-2 right-2 flex flex-col gap-2">
         <Button size="icon" variant="secondary" className="h-11 w-11 shadow-soft" aria-label="Zoom in" onClick={() => worldRef.current?.zoom(0.8)}>
           <Plus className="h-5 w-5" />
         </Button>
