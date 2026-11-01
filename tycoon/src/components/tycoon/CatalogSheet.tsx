@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { FURNITURE, OUTDOOR, ROOM_TYPE_NAMES } from "@/tycoon/catalog";
 import type { ThingKind } from "@/tycoon/types";
+import type { PaidItemId } from "@/lib/paidVisuals";
 
-type Entry = { id: ThingKind; name: string; price: number; size: string; does: string; where: string; unlock: number };
+type Entry = { id: ThingKind; name: string; price: number; size: string; does: string; where: string; unlock: number; paid?: PaidItemId };
 
 const FURNITURE_ENTRIES: Entry[] = FURNITURE.map((f) => ({
   id: f.id,
@@ -14,6 +15,7 @@ const FURNITURE_ENTRIES: Entry[] = FURNITURE.map((f) => ({
   does: [f.required ? "required" : "", f.spots ? `+${f.spots} dog spot` : "", f.waiting ? `+${f.waiting} waiting spots` : "", f.boarder ? "+1 boarder" : "", f.tub ? (f.tub === "deluxe" ? "baths, +10 bath pay" : "enables baths") : "", f.staffBoost ? "staff rest +50%" : "", f.fun ? `Fun +${f.fun}` : "", f.appeal ? `Appeal +${f.appeal}` : ""].filter(Boolean).join(" · "),
   where: f.allowed === "any" ? "any room" : f.allowed.map((t) => ROOM_TYPE_NAMES[t]).join(", "),
   unlock: f.unlock,
+  ...(f.paid ? { paid: f.paid } : {}),
 }));
 const OUTDOOR_ENTRIES: Entry[] = OUTDOOR.filter((o) => o.id !== "path").map((o) => ({
   id: o.id,
@@ -25,7 +27,7 @@ const OUTDOOR_ENTRIES: Entry[] = OUTDOOR.filter((o) => o.id !== "path").map((o) 
   unlock: o.unlock,
 }));
 
-export function CatalogSheet({ open, tab, level, coins, onPick, onClose }: { open: boolean; tab: "furniture" | "outdoor"; level: number; coins: number; onPick: (k: ThingKind) => void; onClose: () => void }) {
+export function CatalogSheet({ open, tab, level, coins, owned, onPick, onClose }: { open: boolean; tab: "furniture" | "outdoor"; level: number; coins: number; owned: ReadonlySet<PaidItemId>; onPick: (k: ThingKind) => void; onClose: () => void }) {
   const entries = tab === "furniture" ? FURNITURE_ENTRIES : OUTDOOR_ENTRIES;
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -37,15 +39,21 @@ export function CatalogSheet({ open, tab, level, coins, onPick, onClose }: { ope
         <ul className="mt-2 divide-y divide-border">
           {entries.map((e) => {
             const locked = e.unlock > level;
+            const packLocked = !!e.paid && !owned.has(e.paid);
             return (
               <li key={e.id} className="flex items-center gap-2 py-2">
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-secondary">{e.name}</p>
+                  <p className="font-semibold text-secondary">
+                    {e.name}
+                    {e.paid && !packLocked ? <span className="ml-1 rounded-full bg-accent px-1.5 text-[10px] font-bold text-accent-foreground">Owned</span> : null}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {e.price ? `${e.price} coins` : "free"} · {e.size} · {e.does} · {e.where}
                   </p>
                 </div>
-                {locked ? (
+                {packLocked ? (
+                  <span className="max-w-[9rem] shrink-0 text-right text-xs font-semibold text-muted-foreground">Part of the Deluxe Daycare Decor pack</span>
+                ) : locked ? (
                   <span className="shrink-0 text-xs font-semibold text-muted-foreground">Unlocks at level {e.unlock}</span>
                 ) : (
                   <Button size="sm" className="h-10 shrink-0" aria-label={e.name} variant={coins >= e.price ? "default" : "outline"} onClick={() => onPick(e.id)}>

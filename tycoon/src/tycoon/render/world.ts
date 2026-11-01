@@ -1,12 +1,13 @@
 // The new Daycare Tycoon in 3D. It never owns rules or state: every snapshot is drawn from the same TycoonState the
 // list view uses, and taps are reported back as picks (a dog, a room, a thing, a tile or a wall edge).
 import * as THREE from "three";
-import { buildDog, buildPerson, coatFor, makeEmojiSprite, makeSign, makeTag, part, GEO, type DogRig, type PersonRig, type Tag } from "@/world/models";
+import { buildDog, buildPerson, coatFor, makeEmojiSprite, makeSign, makeTag, mat, part, GEO, type DogRig, type PersonRig, type Tag } from "@/world/models";
 import { COLS, ENTRANCE, PARCELS, ROWS, TILE } from "../catalog";
 import { caps, connectedRooms, roomStatus } from "../connect";
 import { roomTiles, thingTiles, tileAtWorld, tileCenter } from "../grid";
 import { fac } from "../state";
 import { inActiveScuffle } from "../run";
+import { isActive } from "../paid";
 import type { Door, Facility, Rot, Side, TDog, ThingKind, TycoonState } from "../types";
 import { buildPath, buildRoom, buildThing, doorEdgeKeys, ghostMaterial, WALL_H } from "./models";
 
@@ -231,7 +232,7 @@ export class TycoonWorld {
 
   private syncThings(f: Facility) {
     const items = f.items.filter((i) => i.kind !== "path");
-    const key = JSON.stringify(items.map((i) => [i.uid, i.kind, i.c, i.r, i.rot, i.level, i.closed]));
+    const key = JSON.stringify(items.map((i) => [i.uid, i.kind, i.c, i.r, i.rot, i.level, i.closed, isActive(i.kind)]));
     if (key === this.keys.things) return;
     this.keys.things = key;
     clear(this.things);
@@ -241,7 +242,15 @@ export class TycoonWorld {
       g.position.set(at.x, it.room ? 0.06 : 0, at.z);
       g.rotation.y = -it.rot * (Math.PI / 2);
       g.userData["pick"] = { kind: "thing", uid: it.uid };
-      if (it.closed) g.traverse((o) => ((o as THREE.Mesh).isMesh ? ((o as THREE.Mesh).material = ghostMaterial(false)) : null));
+      const inactive = !isActive(it.kind);
+      if (it.closed || inactive) g.traverse((o) => ((o as THREE.Mesh).isMesh ? ((o as THREE.Mesh).material = inactive ? mat("#a7adb5", { opacity: 0.7 }) : ghostMaterial(false)) : null));
+      if (inactive) {
+        const tag = makeTag(2.2);
+        tag.set("Pack no longer active", "", "calm");
+        tag.sprite.position.set(0, 2, 0);
+        g.add(tag.sprite);
+        g.userData["dispose"] = () => tag.dispose();
+      }
       this.things.add(g);
     }
   }
@@ -411,6 +420,8 @@ export class TycoonWorld {
         this.dogs.set(d.id, a);
       }
       a.to = to;
+      a.rig.bandana.visible = !!this.snap?.looks.bandana;
+      if (this.snap?.looks.bandana) (a.rig.bandana as THREE.Mesh).material = mat(this.snap.looks.bandana);
       const tone = selected === d.id ? "selected" : inActiveScuffle(f, d) ? "alert" : !d.checkedIn ? "waiting" : d.place.kind === "calm" ? "calm" : "default";
       a.tag.set(d.name, !d.checkedIn ? "check in" : `${Math.round(d.happiness)}% happy`, tone);
     }

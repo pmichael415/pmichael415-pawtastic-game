@@ -3,6 +3,8 @@ import type { GroupId } from "@/game/engine";
 import { ENTRANCE, furnitureDef } from "./catalog";
 import { doorOutside, roomTiles, stepFrom, tileKey } from "./grid";
 import type { Facility, Placed, Room } from "./types";
+import type { PaidItemId } from "@/lib/paidVisuals";
+import { isActive, ownedPaid } from "./paid";
 
 /**
  * Rooms reachable from the entrance. Walkable: path tiles (4-way) and room floors. A room joins a path tile through
@@ -68,16 +70,17 @@ export function reach(f: Facility): { rooms: Set<string>; tiles: Set<string> } {
 
 export type RoomStatus = { connected: boolean; working: boolean; reason: string | null };
 
-/** Open furniture inside a room. */
-const openIn = (f: Facility, room: Room): Placed[] => f.items.filter((i) => i.room === room.uid && !i.closed);
+/** Open furniture inside a room (paid pack items count only while their pack is owned). */
+const openIn = (f: Facility, room: Room, owned: ReadonlySet<PaidItemId> = ownedPaid()): Placed[] =>
+  f.items.filter((i) => i.room === room.uid && !i.closed && isActive(i.kind, owned));
 const count = (items: Placed[], ...kinds: string[]) => items.filter((i) => kinds.includes(i.kind)).length;
 const spotsOf = (room: Room, items: Placed[]) =>
-  Math.min(Math.floor((room.w * room.d) / 2), count(items, "dog_bed", "play_mat", "deluxe_bed"));
+  Math.min(Math.floor((room.w * room.d) / 2), count(items, "dog_bed", "play_mat", "deluxe_bed", "cloud_bed"));
 
 /** Whether a room works, and the first reason it doesn't. Pass `connected` to reuse one search for many rooms. */
-export function roomStatus(f: Facility, room: Room, connected: Set<string> = connectedRooms(f)): RoomStatus {
+export function roomStatus(f: Facility, room: Room, connected: Set<string> = connectedRooms(f), owned: ReadonlySet<PaidItemId> = ownedPaid()): RoomStatus {
   const isConnected = connected.has(room.uid);
-  const items = openIn(f, room);
+  const items = openIn(f, room, owned);
   const why = (): string | null => {
     if (room.closed) return "Closed";
     if (!isConnected) return "Not connected";
@@ -113,12 +116,12 @@ export type Caps = {
 };
 
 /** What the working rooms provide. Closed furniture and non-working rooms count for nothing. */
-export function caps(f: Facility): Caps {
+export function caps(f: Facility, owned: ReadonlySet<PaidItemId> = ownedPaid()): Caps {
   const connected = connectedRooms(f);
-  const working = f.rooms.filter((r) => roomStatus(f, r, connected).working);
+  const working = f.rooms.filter((r) => roomStatus(f, r, connected, owned).working);
   const out: Caps = { lobby: null, waiting: 0, playrooms: [], calm: [], bath: null, beds: [], staffBoost: 0 };
   for (const room of working) {
-    const items = openIn(f, room);
+    const items = openIn(f, room, owned);
     switch (room.type) {
       case "lobby":
         out.lobby = room;

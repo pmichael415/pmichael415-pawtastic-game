@@ -8,6 +8,7 @@ import { ROOM_TYPE_NAMES, SELL_RATE, furnitureDef, outdoorDef, upgradePrice } fr
 import { moveThing, sellRoom, sellThing, setClosed, setRoomType, upgradeThing } from "@/tycoon/build";
 import { upkeepOf } from "@/tycoon/business";
 import { roomStatus } from "@/tycoon/connect";
+import { isActive } from "@/tycoon/paid";
 import { fac } from "@/tycoon/state";
 import type { ActOpts, ActResult } from "@/tycoon/store";
 import type { Placed, Room, RoomType, Rot, TResult, TycoonState } from "@/tycoon/types";
@@ -166,6 +167,7 @@ export function EditPanel({
             {t.closed ? " · closed" : ""}
           </p>
           {eff.next && <p className="text-xs text-primary">Next level: {eff.next}</p>}
+          {!isActive(t.kind) && <p className="mt-1 text-sm font-semibold text-destructive">Pack no longer active — it counts for nothing, and you can sell it.</p>}
         </div>
         {close}
       </div>

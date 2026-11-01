@@ -7,6 +7,7 @@ import { DOOR_PRICE, ROOM_TYPE_NAMES, SELL_RATE, furnitureDef, outdoorDef, thing
 import { addDoor, drawRoom, moveRoom, moveThing, paintPaths, placeThing, removeDoor, roomContaining, setRoomType, validRoomAt, validThingAt } from "@/tycoon/build";
 import { OPPOSITE, containsTile, roomPrice, stepFrom, thingTiles, type Tile } from "@/tycoon/grid";
 import { level } from "@/tycoon/progress";
+import { PAID_GONE, PAID_LOCK, isActive, ownedPaid } from "@/tycoon/paid";
 import { fac } from "@/tycoon/state";
 import type { Ghost, PickMode, TPick } from "@/tycoon/render/world";
 import type { ActOpts, ActResult } from "@/tycoon/store";
@@ -100,6 +101,7 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
       const draft: Placed = { uid: ui.moving ?? "ghost", kind: ui.item, c: ui.at.c, r: ui.at.r, rot: ui.rot, level: 1, spent: 0, room: null, closed: false };
       const room = furnitureDef(ui.item) ? roomContaining(f, thingTiles(draft))?.uid ?? null : null;
       reason =
+        (!isActive(ui.item) ? (ui.moving ? PAID_GONE : PAID_LOCK) : null) ??
         (!ui.moving && def && def.unlock > level(state) ? `Unlocks at level ${def.unlock}.` : null) ??
         validThingAt(f, { ...draft, room }, ui.moving) ??
         (ui.moving ? null : short(state, def?.price ?? 0));
@@ -355,6 +357,7 @@ export function BuildToolbar({ b, state, act }: { b: Build; state: TycoonState; 
         tab={ui.tool === "outdoor" ? "outdoor" : "furniture"}
         level={level(state)}
         coins={state.coins}
+        owned={ownedPaid()}
         onPick={(kind) => b.patch({ item: kind, at: null, rot: 0 })}
         onClose={() => b.setTool(null)}
       />

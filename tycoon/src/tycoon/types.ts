@@ -24,7 +24,9 @@ export type FurnitureId =
   | "hurdles"
   | "deluxe_bed"
   | "staff_couch"
-  | "deluxe_tub";
+  | "deluxe_tub"
+  | "cloud_bed"
+  | "lighthouse_fort";
 export type OutdoorId =
   | "play_yard"
   | "ball_pit"

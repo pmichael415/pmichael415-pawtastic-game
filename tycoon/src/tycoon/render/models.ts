@@ -192,6 +192,18 @@ const MAKERS: Record<ThingKind, Make> = {
     tub(g, W, "#c9a227");
     add(g, part(GEO.sphereLo, "#ffffff", 0.35, 0.25, 0.35, -0.3, 0.85, 0.1), part(GEO.sphereLo, "#ffffff", 0.25, 0.2, 0.25, 0.1, 0.84, -0.1));
   },
+  cloud_bed: (g) => {
+    add(g, part(GEO.cyl, "#dfe9f5", 1.55, 0.3, 1.45, 0, 0.15, 0));
+    for (const [x, z, r] of [[-0.35, -0.2, 0.7], [0.3, -0.25, 0.65], [0, 0.3, 0.75], [-0.4, 0.35, 0.5], [0.45, 0.3, 0.5]] as const) add(g, part(GEO.sphereLo, "#ffffff", r, 0.4, r, x, 0.42, z));
+  },
+  lighthouse_fort: (g, W, D) => {
+    add(g, part(GEO.box, "#9fe6ff", W - 0.3, 0.06, D - 0.3, 0, 0.04, 0));
+    for (let i = 0; i < 4; i++) add(g, part(GEO.cylLo, i % 2 ? "#ffffff" : "#e4433a", 1.1 - i * 0.12, 0.55, 1.1 - i * 0.12, 0.5, 0.3 + i * 0.55, -0.5));
+    add(g, part(GEO.cyl, "#ffd34d", 0.6, 0.35, 0.6, 0.5, 2.6, -0.5, { emissive: "#664400" }), part(GEO.cone, "#e4433a", 0.8, 0.5, 0.8, 0.5, 3.0, -0.5));
+    const slide = part(GEO.box, "#4cc3a0", 0.5, 0.08, 1.8, -0.6, 0.6, 0.3);
+    slide.rotation.x = 0.55;
+    add(g, slide);
+  },
   play_yard: (g, W, D, lv) => {
     add(g, part(GEO.box, "#7cc46a", W - 0.2, 0.05, D - 0.2, 0, 0.03, 0));
     for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) add(g, part(GEO.cylLo, "#ffffff", 0.08, 0.6, 0.08, x * (W / 2 - 0.2), 0.3, z * (D / 2 - 0.2)));

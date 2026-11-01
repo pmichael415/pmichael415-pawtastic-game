@@ -1,9 +1,12 @@
 // The playable new Daycare Tycoon: status bar, guide, 3D stage with build mode and edit panels, and the list view.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Box, Hammer, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { setSettings, useSettings } from "@/lib/settings";
+import { useEntitlementsMaybe } from "@/lib/entitlements";
+import { PAID_ITEMS, type PaidItemId } from "@/lib/paidVisuals";
+import { setOwnedPaid } from "@/tycoon/paid";
 import { paintRoom } from "@/tycoon/build";
 import { markPainted } from "@/tycoon/guide";
 import { fac } from "@/tycoon/state";
@@ -30,8 +33,19 @@ import { TycoonStage, type TycoonStageHandle } from "./TycoonStage";
 type Act = (fn: (s: TycoonState) => TResult, opts?: ActOpts) => ActResult;
 type Sel = { kind: "room" | "thing" | "dog"; id: string } | null;
 
+/** Owned paid visuals from fresh server entitlements (never from the save). Empty for guests and on errors. */
+function useOwnedPaid(): ReadonlySet<PaidItemId> {
+  const ent = useEntitlementsMaybe();
+  const key = ent && ent.status === "ready" ? PAID_ITEMS.filter((i) => ent.owned.has(i.pack)).map((i) => i.id).join(",") : "";
+  return useMemo(() => new Set(key ? (key.split(",") as PaidItemId[]) : []), [key]);
+}
+
 export function TycoonPlay() {
   const { state, act, set, paused, setPaused } = useTycoon();
+  const owned = useOwnedPaid();
+  // The engine reads ownership from memory while this page runs; it fails closed when the page goes away.
+  setOwnedPaid(owned);
+  useEffect(() => () => setOwnedPaid(new Set()), []);
   if (!state)
     return (
       <div className="grid min-h-[40svh] place-items-center text-muted-foreground">
@@ -115,6 +129,9 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
     };
   }, [settings.music]);
   const show3d = settings.view !== "list" && !no3d;
+  const ent = useEntitlementsMaybe();
+  const star = !!ent?.visuals["navy-star-bandana"];
+  const looks = useMemo(() => (star ? { bandana: "#1c2f52" } : {}), [star]);
 
   const onPick = (p: TPick | null) => {
     if (building && b.onPick(p)) return;
@@ -160,6 +177,7 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
           state={state}
           selected={sel?.id ?? null}
           ghost={building ? b.ghost : null}
+          looks={looks}
           overlay={building}
           pickMode={building ? b.pickMode : "objects"}
           onPick={onPick}

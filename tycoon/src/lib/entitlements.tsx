@@ -55,3 +55,8 @@ export function useEntitlements(): Ctx {
   if (!c) throw new Error("EntitlementsProvider missing");
   return c;
 }
+
+/** Like useEntitlements, but null outside the provider (for screens that also render in tests). */
+export function useEntitlementsMaybe(): Ctx | null {
+  return useContext(EntCtx);
+}

@@ -1,4 +1,5 @@
 // PAWtastic Daycare Tycoon — every constant and catalog (spec §4). Game coins only; never real prices.
+import type { PaidItemId } from "@/lib/paidVisuals";
 import type { CampaignId, FloorStyle, FurnitureId, OutdoorId, ParcelId, Prices, RoomType } from "./types";
 
 export const TILE = 2;
@@ -56,6 +57,8 @@ export type FurnitureDef = {
   appeal?: number;
   maxPerFacility?: number;
   required?: boolean;
+  /** Only from a fresh server entitlement for this paid visual; never stored as owned. */
+  paid?: PaidItemId;
 };
 export const FURNITURE: FurnitureDef[] = [
   { id: "front_counter", name: "Front Desk Counter", w: 2, d: 1, allowed: ["lobby"], unlock: 1, price: 300, maxPerFacility: 1, required: true },
@@ -73,6 +76,9 @@ export const FURNITURE: FurnitureDef[] = [
   { id: "deluxe_bed", name: "Deluxe Dog Bed", w: 1, d: 1, allowed: ["playroom"], unlock: 5, price: 150, spots: 1, fun: 2 },
   { id: "staff_couch", name: "Staff Couch", w: 2, d: 1, allowed: ["staff"], unlock: 5, price: 180, staffBoost: 0.5 },
   { id: "deluxe_tub", name: "Deluxe Bath Tub", w: 2, d: 1, allowed: ["bath"], unlock: 7, price: 900, tub: "deluxe" },
+  // Deluxe Daycare Decor pack (paid, owners only): playroom furniture, price 0.
+  { id: "cloud_bed", name: "Cloud Bed", w: 1, d: 1, allowed: ["playroom"], unlock: 1, price: 0, spots: 1, fun: 2, paid: "deluxe-decor" },
+  { id: "lighthouse_fort", name: "Lighthouse Fort", w: 2, d: 2, allowed: ["playroom"], unlock: 1, price: 0, fun: 5, paid: "deluxe-decor" },
 ];
 
 export type OutdoorTab = "play" | "comfort" | "scenery" | "paths";

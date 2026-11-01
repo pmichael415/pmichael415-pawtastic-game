@@ -20,6 +20,8 @@ import { roomPrice } from "./grid";
 import { fac, withFac } from "./state";
 import { buildXp, gainXp, level } from "./progress";
 import { spend } from "./business";
+import { PAID_GONE, PAID_LOCK, isActive, ownedPaid } from "./paid";
+import type { PaidItemId } from "@/lib/paidVisuals";
 import type { Door, FloorStyle, ParcelId, Rot, RoomType, TResult, ThingKind, TycoonState } from "./types";
 import type { GroupId } from "@/game/engine";
 
@@ -215,9 +217,10 @@ const roomOf = (f: Facility, thing: Placed) => (isFurniture(thing.kind) ? (roomC
 /** Furniture whose room holds dogs is "in use". Outdoor items never hold dogs in stage 1. */
 const inUse = (f: Facility, thing: Placed) => thing.room !== null && dogsIn(f, thing.room);
 
-export function placeThing(s: TycoonState, kind: ThingKind, c: number, r: number, rot: Rot): TResult {
+export function placeThing(s: TycoonState, kind: ThingKind, c: number, r: number, rot: Rot, owned: ReadonlySet<PaidItemId> = ownedPaid()): TResult {
   const def = defOf(kind);
   if (!def) return { ok: false, error: "Unknown item." };
+  if (!isActive(kind, owned)) return { ok: false, error: PAID_LOCK };
   if (def.unlock > level(s)) return { ok: false, error: `Unlocks at level ${def.unlock}.` };
   const f = fac(s);
   const draft: Placed = { uid: "t" + s.seq, kind, c, r, rot, level: 1, spent: def.price, room: null, closed: false };
@@ -230,11 +233,12 @@ export function placeThing(s: TycoonState, kind: ThingKind, c: number, r: number
   return { ok: true, state: withFac({ ...paid.state, seq: s.seq + 1 }, { ...nf, items: [...nf.items, thing] }), msg: `${def.name} placed!` };
 }
 
-export function moveThing(s: TycoonState, uid: string, c: number, r: number, rot: Rot): TResult {
+export function moveThing(s: TycoonState, uid: string, c: number, r: number, rot: Rot, owned: ReadonlySet<PaidItemId> = ownedPaid()): TResult {
   if (uid === "entrance") return { ok: false, error: "The entrance stays." };
   const f = fac(s);
   const thing = findThing(f, uid);
   if (!thing) return { ok: false, error: "That's gone." };
+  if (!isActive(thing.kind, owned)) return { ok: false, error: PAID_GONE };
   if (inUse(f, thing)) return { ok: false, error: "Move the dogs out first." };
   const draft = { ...thing, c, r, rot };
   const moved = { ...draft, room: roomOf(f, draft) };
@@ -429,6 +433,7 @@ function firstFreeThing(s: TycoonState, kind: ThingKind): TResult {
   const od = outdoorDef(kind);
   if (!fd && !od) return { ok: false, error: "Unknown item." };
   if ((fd ?? od)!.unlock > level(s)) return { ok: false, error: `Unlocks at level ${(fd ?? od)!.unlock}.` };
+  if (!isActive(kind)) return { ok: false, error: PAID_LOCK };
   const rots: Rot[] = [0, 1];
   if (fd) {
     const allows = (r: Room) => (fd.allowed === "any" ? true : !!r.type && fd.allowed.includes(r.type));

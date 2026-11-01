@@ -37,7 +37,7 @@ function buildEntries(): BuildEntry[] {
   rooms.push(roomEntry("lobby"));
   for (const g of GROUPS) rooms.push(roomEntry("playroom", g.id));
   rooms.push(roomEntry("calm"), roomEntry("bath"), roomEntry("boarding"), roomEntry("staff"));
-  const furniture = FURNITURE.map<BuildEntry>((x) => ({
+  const furniture = FURNITURE.filter((x) => !x.paid).map<BuildEntry>((x) => ({
     key: x.id,
     name: x.name,
     what: x.id,

@@ -2,18 +2,20 @@
 import { furnitureDef, outdoorDef } from "./catalog";
 import { connectedRooms, roomStatus } from "./connect";
 import type { Facility } from "./types";
+import type { PaidItemId } from "@/lib/paidVisuals";
+import { isActive, ownedPaid } from "./paid";
 
 export const FUN_CAP = 60;
 export const APPEAL_CAP = 50;
 
 /** Fun and Appeal from open outdoor items (by level) and open furniture in working rooms, capped. */
-export function funAppeal(f: Facility): { fun: number; appeal: number } {
+export function funAppeal(f: Facility, owned: ReadonlySet<PaidItemId> = ownedPaid()): { fun: number; appeal: number } {
   let fun = 0;
   let appeal = 0;
   const connected = connectedRooms(f);
-  const working = new Set(f.rooms.filter((r) => roomStatus(f, r, connected).working).map((r) => r.uid));
+  const working = new Set(f.rooms.filter((r) => roomStatus(f, r, connected, owned).working).map((r) => r.uid));
   for (const it of f.items) {
-    if (it.closed) continue;
+    if (it.closed || !isActive(it.kind, owned)) continue;
     if (it.room === null) {
       const od = outdoorDef(it.kind);
       fun += od?.fun?.[it.level - 1] ?? 0;
