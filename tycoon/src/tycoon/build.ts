@@ -14,10 +14,10 @@ import {
 } from "./catalog";
 import { containsTile, doorInRange, inGrid, isCornerDoor, isOwned, roomTiles, thingTiles, tileKey } from "./grid";
 import type { Facility, Placed, Room } from "./types";
-import { DOOR_PRICE, FLOORS, SELL_RATE, WALL_COLORS } from "./catalog";
+import { DOOR_PRICE, FLOORS, PARCELS, SELL_RATE, WALL_COLORS, upgradePrice } from "./catalog";
 import { roomPrice } from "./grid";
 import { fac, withFac } from "./state";
-import type { Door, ExpenseKey, FloorStyle, RoomType, TResult, TycoonState } from "./types";
+import type { Door, ExpenseKey, FloorStyle, ParcelId, Rot, RoomType, TResult, ThingKind, TycoonState } from "./types";
 import type { GroupId } from "@/game/engine";
 
 const roomLabel = (r: Room) => (r.type ? ROOM_TYPE_NAMES[r.type] : "room");
@@ -102,7 +102,11 @@ export function spend(s: TycoonState, amount: number, _key: ExpenseKey): TResult
   return { ok: true, state: { ...s, coins: s.coins - amount } };
 }
 
-const dogsIn = (f: Facility, roomUid: string) => f.dogs.some((d) => d.place.kind !== "lobby" && d.place.room === roomUid);
+/** True if any dog is in this room (dogs waiting in the lobby count as being in the Lobby). */
+const dogsIn = (f: Facility, roomUid: string) => {
+  const isLobby = f.rooms.some((r) => r.uid === roomUid && r.type === "lobby");
+  return f.dogs.some((d) => (d.place.kind === "lobby" ? isLobby : d.place.room === roomUid));
+};
 const findRoom = (f: Facility, uid: string) => f.rooms.find((r) => r.uid === uid) ?? null;
 const sameDoor = (a: Door, b: Door) => a.side === b.side && a.i === b.i;
 const refund = (spent: number) => Math.floor(SELL_RATE * spent);
@@ -200,4 +204,122 @@ export function sellRoom(s: TycoonState, roomUid: string): TResult {
     scuffles: f.scuffles.filter((x) => x.room !== roomUid),
   };
   return { ok: true, state: { ...withFac(s, next), coins: s.coins + back }, msg: `Sold for ${back} coins.` };
+}
+
+// ---------- furniture, outdoor items, paths, land ----------
+
+/** Player level from XP: level N starts at 50 × N × (N − 1). Task 6 replaces this with progress.level. */
+function level(s: TycoonState): number {
+  let n = 1;
+  while (50 * (n + 1) * n <= s.xp) n++;
+  return n;
+}
+
+const findThing = (f: Facility, uid: string) => f.items.find((i) => i.uid === uid) ?? null;
+const defOf = (kind: string) => furnitureDef(kind) ?? outdoorDef(kind);
+const roomOf = (f: Facility, thing: Placed) => (isFurniture(thing.kind) ? (roomContaining(f, thingTiles(thing))?.uid ?? null) : null);
+/** Furniture whose room holds dogs is "in use". Outdoor items never hold dogs in stage 1. */
+const inUse = (f: Facility, thing: Placed) => thing.room !== null && dogsIn(f, thing.room);
+
+export function placeThing(s: TycoonState, kind: ThingKind, c: number, r: number, rot: Rot): TResult {
+  const def = defOf(kind);
+  if (!def) return { ok: false, error: "Unknown item." };
+  if (def.unlock > level(s)) return { ok: false, error: `Unlocks at level ${def.unlock}.` };
+  const f = fac(s);
+  const draft: Placed = { uid: "t" + s.seq, kind, c, r, rot, level: 1, spent: def.price, room: null, closed: false };
+  const thing = { ...draft, room: roomOf(f, draft) };
+  const why = validThingAt(f, thing);
+  if (why) return { ok: false, error: why };
+  const paid = spend(s, def.price, "building");
+  if (!paid.ok) return paid;
+  const nf = fac(paid.state);
+  return { ok: true, state: withFac({ ...paid.state, seq: s.seq + 1 }, { ...nf, items: [...nf.items, thing] }), msg: `${def.name} placed!` };
+}
+
+export function moveThing(s: TycoonState, uid: string, c: number, r: number, rot: Rot): TResult {
+  if (uid === "entrance") return { ok: false, error: "The entrance stays." };
+  const f = fac(s);
+  const thing = findThing(f, uid);
+  if (!thing) return { ok: false, error: "That's gone." };
+  if (inUse(f, thing)) return { ok: false, error: "Move the dogs out first." };
+  const draft = { ...thing, c, r, rot };
+  const moved = { ...draft, room: roomOf(f, draft) };
+  const why = validThingAt(f, moved);
+  if (why) return { ok: false, error: why };
+  return { ok: true, state: withFac(s, { ...f, items: f.items.map((i) => (i.uid === uid ? moved : i)) }), msg: "Moved." };
+}
+
+export function upgradeThing(s: TycoonState, uid: string): TResult {
+  const f = fac(s);
+  const thing = findThing(f, uid);
+  if (!thing) return { ok: false, error: "That's gone." };
+  const od = outdoorDef(thing.kind);
+  if (!od || od.levels === 1) return { ok: false, error: "This can't be upgraded." };
+  if (thing.level >= 3) return { ok: false, error: "Already at the top level." };
+  const to = (thing.level + 1) as 2 | 3;
+  const price = upgradePrice(od.price, to);
+  const paid = spend(s, price, "building");
+  if (!paid.ok) return paid;
+  const nf = fac(paid.state);
+  const next = { ...thing, level: to, spent: thing.spent + price };
+  return { ok: true, state: withFac(paid.state, { ...nf, items: nf.items.map((i) => (i.uid === uid ? next : i)) }), msg: `${od.name} is level ${to}!` };
+}
+
+export function sellThing(s: TycoonState, uid: string): TResult {
+  if (uid === "entrance") return { ok: false, error: "The entrance stays." };
+  const f = fac(s);
+  const thing = findThing(f, uid);
+  if (!thing) return { ok: false, error: "That's gone." };
+  if (inUse(f, thing)) return { ok: false, error: "Move the dogs out first." };
+  const back = refund(thing.spent);
+  return { ok: true, state: { ...withFac(s, { ...f, items: f.items.filter((i) => i.uid !== uid) }), coins: s.coins + back }, msg: `Sold for ${back} coins.` };
+}
+
+/** Paves every free, owned square in `tiles` (as many as the coins cover). */
+export function paintPaths(s: TycoonState, tiles: { c: number; r: number }[]): TResult {
+  const price = outdoorDef("path")!.price;
+  let f = fac(s);
+  let seq = s.seq;
+  let paved = 0;
+  let blocked = false;
+  const seen = new Set<string>();
+  for (const t of tiles) {
+    const k = tileKey(t.c, t.r);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    const path: Placed = { uid: "t" + seq, kind: "path", c: t.c, r: t.r, rot: 0, level: 1, spent: price, room: null, closed: false };
+    if (validThingAt(f, path)) continue;
+    if (s.coins < (paved + 1) * price) {
+      blocked = true;
+      break;
+    }
+    f = { ...f, items: [...f.items, path] };
+    seq++;
+    paved++;
+  }
+  if (paved === 0) return blocked ? { ok: false, error: `Need ${price - s.coins} more coins.` } : { ok: false, error: "There's no free square to pave there." };
+  const paid = spend({ ...s, seq }, paved * price, "building");
+  if (!paid.ok) return paid;
+  return { ok: true, state: withFac(paid.state, { ...fac(paid.state), items: f.items }), msg: `Paved ${paved} square${paved === 1 ? "" : "s"}.` };
+}
+
+export function buyLand(s: TycoonState, parcel: ParcelId): TResult {
+  const p = PARCELS.find((x) => x.id === parcel);
+  if (!p) return { ok: false, error: "Unknown land." };
+  if (fac(s).land.includes(parcel)) return { ok: false, error: "You already own this land." };
+  if (p.level > level(s)) return { ok: false, error: `Unlocks at level ${p.level}.` };
+  const paid = spend(s, p.price, "building");
+  if (!paid.ok) return paid;
+  const nf = fac(paid.state);
+  return { ok: true, state: withFac(paid.state, { ...nf, land: [...nf.land, parcel] }), msg: `The ${p.name} is yours!` };
+}
+
+/** Opens or closes a room or a thing. Closed things cost nothing and do nothing. */
+export function setClosed(s: TycoonState, uid: string, closed: boolean): TResult {
+  if (uid === "entrance") return { ok: false, error: "The entrance stays open." };
+  const f = fac(s);
+  const msg = closed ? "Closed — it costs nothing and does nothing." : "Open again.";
+  if (findRoom(f, uid)) return { ok: true, state: withFac(s, { ...f, rooms: f.rooms.map((r) => (r.uid === uid ? { ...r, closed } : r)) }), msg };
+  if (findThing(f, uid)) return { ok: true, state: withFac(s, { ...f, items: f.items.map((i) => (i.uid === uid ? { ...i, closed } : i)) }), msg };
+  return { ok: false, error: "That's gone." };
 }
