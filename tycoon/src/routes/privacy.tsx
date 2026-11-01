@@ -21,10 +21,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 /** The page text (owner-reviewed before publishing). Kept free of router hooks so it can be tested on its own. */
-export function PrivacyContent() {
+export function PrivacyContent({ heading = true }: { heading?: boolean }) {
   return (
     <div className="space-y-3">
-      <h1 className="font-display text-2xl font-bold text-secondary">Privacy</h1>
+      {heading && <h1 className="font-display text-2xl font-bold text-secondary">Privacy</h1>}
       <Section title="What we record">
         <ul className="list-disc space-y-1 pl-5">
           <li>A random device ID and game events (like starting a session, finishing a run or tapping a booking link), so we can see what players enjoy. These include which ad or link brought you here, if any.</li>
@@ -59,7 +59,7 @@ function PrivacyPage() {
   return (
     <main className="space-y-3 px-3 pt-3 pb-6">
       <GameHeader title="Privacy" subtitle="PAWtastic Games" />
-      <PrivacyContent />
+      <PrivacyContent heading={false} />
       <p className="text-center text-sm font-bold">
         <Link to="/" className="underline">
           Back to PAWtastic Games
