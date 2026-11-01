@@ -7,9 +7,9 @@ describe("visiting PAWtastic", () => {
     const h = new URL(directionsUrl(hawthorne!));
     expect(h.origin + h.pathname).toBe("https://www.google.com/maps/search/");
     expect(h.searchParams.get("api")).toBe("1");
-    expect(h.searchParams.get("query")).toBe("PAWtastic Academy, 100 Braen Ave, Hawthorne");
+    expect(h.searchParams.get("query")).toBe("PAWtastic Academy, 100 Braen Ave, Hawthorne, NJ");
     expect(new URL(directionsUrl(hillsdale!)).searchParams.get("query")).toBe(
-      "PAWtastic Academy, 550 Piermont Ave, Hillsdale",
+      "PAWtastic Academy, 550 Piermont Ave, Hillsdale, NJ",
     );
   });
 

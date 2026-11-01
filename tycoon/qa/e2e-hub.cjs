@@ -86,7 +86,7 @@ const check = (n, ok, d = '') => { ok ? pass++ : fail++; out.push(`${ok ? 'PASS'
 
   // Visit: directions per location and the PAWtastic customer app (plain links only)
   const dirs = await page.locator('a', { hasText: 'Directions' }).evaluateAll((as) => as.map((a) => a.href));
-  check('each location has directions to its own address', dirs.length === 2 && dirs.some((h) => new URL(h).searchParams.get('query') === 'PAWtastic Academy, 100 Braen Ave, Hawthorne') && dirs.some((h) => new URL(h).searchParams.get('query') === 'PAWtastic Academy, 550 Piermont Ave, Hillsdale'), dirs.join(' | '));
+  check('each location has directions to its own address', dirs.length === 2 && dirs.some((h) => new URL(h).searchParams.get('query') === 'PAWtastic Academy, 100 Braen Ave, Hawthorne, NJ') && dirs.some((h) => new URL(h).searchParams.get('query') === 'PAWtastic Academy, 550 Piermont Ave, Hillsdale, NJ'), dirs.join(' | '));
   const app = page.getByRole('link', { name: /Open the PAWtastic app/ });
   check('the PAWtastic app link opens app.pawtasticacademy.com in a new tab', (await app.getAttribute('href')) === 'https://app.pawtasticacademy.com/' && (await app.getAttribute('target')) === '_blank');
   const ab = await app.boundingBox();
@@ -99,10 +99,14 @@ const check = (n, ok, d = '') => { ok ? pass++ : fail++; out.push(`${ok ? 'PASS'
   await p3.close();
   const ev2 = await page.evaluate(() => (window.__pawtasticEvents || []).filter((e) => e.name === 'app_click' || e.name === 'directions_click').map((e) => e.name + ':' + (e.props.from || e.props.location)));
   check('app and directions clicks are measured (as clicks only)', ev2.includes('app_click:visit') && ev2.some((x) => x.startsWith('directions_click:')), JSON.stringify(ev2));
+  // Both PAWtastic Academy logos load (not broken images)
+  const loaded = (alt) => page.locator(`img[alt^="${alt}"]`).first().evaluate((im) => im.complete && im.naturalWidth > 0).catch(() => false);
+  check('Visit shows the grad-cap logo (Hillsdale and Hawthorne, NJ)', await loaded('PAWtastic Academy, Hillsdale and Hawthorne'));
   // Home: Visit us · Book an eval · Get the app
   await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1200);
   const visitCard = page.getByRole('region', { name: 'Visit the real PAWtastic' });
+  check('home shows the sitting-dog logo', await loaded('PAWtastic Academy: daycare'));
   check('home offers Visit us, Book an eval and Get the app', (await visitCard.getByRole('link', { name: /Visit us/ }).isVisible()) && (await visitCard.getByRole('link', { name: /Book an eval/ }).isVisible()) && (await visitCard.getByRole('link', { name: /Get the app/ }).getAttribute('href')) === 'https://app.pawtasticacademy.com/');
 
   // Saves: old v1 save migrates; corrupted save is kept aside, not destroyed

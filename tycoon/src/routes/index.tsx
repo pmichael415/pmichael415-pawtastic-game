@@ -11,7 +11,7 @@ import { TeamCard } from "@/components/game/TeamCard";
 import { maybeAskForTeam } from "@/components/game/TeamPicker";
 import { useSession } from "@/lib/auth";
 import { shareCard } from "@/game/share";
-import { LOGO_URL } from "@/game/sprites";
+import { LOGO_URL, SITTING_DOG_LOGO_URL } from "@/game/sprites";
 import { track } from "@/lib/analytics";
 import { CUSTOMER_APP_URL, LOCATIONS, bookingUrl } from "@/lib/locations";
 import { referredBy } from "@/lib/referral";
@@ -42,7 +42,15 @@ function Hub() {
     track("hub_open", {});
     maybeAskForTeam();
   }, []);
-  if (!s) return <div className="grid min-h-dvh place-items-center font-display text-2xl text-primary">Loading PAWtastic Games…</div>;
+  if (!s)
+    return (
+      <div className="grid min-h-dvh place-items-center bg-card">
+        <div className="text-center">
+          <img src={SITTING_DOG_LOGO_URL} alt="PAWtastic Academy" width={496} height={640} className="mx-auto h-60 w-auto" />
+          <p className="mt-3 text-sm font-medium text-muted-foreground">Loading PAWtastic Games…</p>
+        </div>
+      </div>
+    );
   const name = (user?.user_metadata?.["display_name"] as string | undefined) || (user ? "Player" : "Guest");
   const started = s.stats.admitted > 0 || s.dogs.length > 0;
   const waiting = lobbyDogs(s, s.site).filter((d) => !d.checkedIn).length;
@@ -56,6 +64,11 @@ function Hub() {
   return (
     <main className="space-y-3 px-3 pt-3 pb-6">
       <GameHeader title="PAWtastic Games" subtitle={`Hi, ${name}`} back={false} />
+
+      <section aria-label="PAWtastic Academy" className="rounded-2xl border border-border bg-card px-4 pt-4 pb-3 text-center shadow-soft">
+        <img src={SITTING_DOG_LOGO_URL} alt="PAWtastic Academy: daycare, boarding and grooming" width={496} height={640} className="mx-auto h-44 w-auto" />
+        <p className="mt-2 text-sm text-muted-foreground">Free dog games from PAWtastic Academy in Hillsdale and Hawthorne, NJ.</p>
+      </section>
 
       <GameCard
         icon={Building2}

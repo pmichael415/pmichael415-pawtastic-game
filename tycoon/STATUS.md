@@ -26,6 +26,14 @@ Tests: 150 unit/integration; iPhone-size browser suites hub 31/31, daycare 36/36
 (two old test timing assumptions fixed: a second customer can arrive between double taps; the team box closes
 with a 0.2 s animation). Production build OK.
 
+## Update — both PAWtastic Academy logos (1 Nov)
+
+- The owner's two logos are in the app, unaltered apart from trimming empty white margin (originals kept in
+  `/brand` at the repo root): the sitting dog in a grad cap on the home page and the loading screen, and the
+  dog's head in a grad cap ("Hillsdale and Hawthorne, NJ") on the Visit page. The small blue logo stays in each
+  header. Directions now search "…, NJ" (the logo confirms the state). Note: both logos say
+  "Daycare · Boarding · Grooming"; the game's own text keeps to daycare, boarding, baths and exit baths.
+
 ## Lovable sync attempt (31 Oct, 20:32 UTC) — stopped, nothing changed
 
 One agent message asked Lovable to copy commit `795d8e1` into the Daycare project. Its agent downloaded the

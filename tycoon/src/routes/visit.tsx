@@ -7,6 +7,7 @@ import { track } from "@/lib/analytics";
 import { referredBy } from "@/lib/referral";
 import { useEffect, useState } from "react";
 import { peekSave } from "@/game/store";
+import { GRAD_CAP_LOGO_URL } from "@/game/sprites";
 
 export const Route = createFileRoute("/visit")({
   head: () => ({
@@ -27,9 +28,9 @@ function Visit() {
   return (
     <main className="space-y-3 px-3 pt-3 pb-6">
       <GameHeader title="Visit PAWtastic" subtitle="Hawthorne & Hillsdale" />
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-        <p className="eyebrow">PAWtastic Academy</p>
-        <h2 className="mt-0.5 text-2xl font-bold leading-tight text-secondary">Bring your real pup!</h2>
+      <section className="rounded-2xl border border-border bg-card p-4 text-center shadow-soft">
+        <img src={GRAD_CAP_LOGO_URL} alt="PAWtastic Academy, Hillsdale and Hawthorne, NJ" width={370} height={392} className="mx-auto h-40 w-auto" />
+        <h2 className="mt-2 text-2xl font-bold leading-tight text-secondary">Bring your real pup!</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Dog daycare, boarding, baths and exit baths. Visit us, book a free evaluation, or get the PAWtastic app.
         </p>

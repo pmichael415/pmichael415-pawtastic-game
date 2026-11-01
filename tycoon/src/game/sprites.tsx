@@ -1,8 +1,13 @@
 import logoUrl from "@/assets/pawtastic-logo.png";
+import sittingDogLogoUrl from "@/assets/brand/pawtastic-academy-sitting-dog.jpg";
+import gradCapLogoUrl from "@/assets/brand/pawtastic-academy-grad-cap.png";
 import { BREEDS, FREE_COSMETICS } from "./engine";
 
 /** The real PAWtastic Academy logo (verified copy, also used by Graduation Day), bundled by Vite. */
 export const LOGO_URL: string = logoUrl;
+/** The owner's two full logos (originals in /brand at the repo root; here trimmed of empty margin only). */
+export const SITTING_DOG_LOGO_URL: string = sittingDogLogoUrl; // sitting golden retriever in a grad cap
+export const GRAD_CAP_LOGO_URL: string = gradCapLogoUrl; // dog's head in a grad cap, "Hillsdale and Hawthorne, NJ"
 
 export function Logo({ className = "h-10 w-auto" }: { className?: string }) {
   return (

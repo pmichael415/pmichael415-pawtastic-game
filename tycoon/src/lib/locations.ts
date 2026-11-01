@@ -18,7 +18,7 @@ export function bookingUrl(l: Location) {
 export function directionsUrl(l: Location) {
   const u = new URL("https://www.google.com/maps/search/");
   u.searchParams.set("api", "1");
-  u.searchParams.set("query", `PAWtastic Academy, ${l.address}, ${l.name}`);
+  u.searchParams.set("query", `PAWtastic Academy, ${l.address}, ${l.name}, NJ`);
   return u.toString();
 }
 

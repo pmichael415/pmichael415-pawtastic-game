@@ -1,7 +1,7 @@
 # PAWtastic Games — files to sync into the Lovable project (relative to the project root)
 # Source: github.com/pmichael415/pmichael415-pawtastic-game, folder tycoon/. Base: Lovable c3a69bd.
 # Format: <sha256>  <path>. Deleted files: none. Never sync: .env, public/favicon.png, src/assets/daycare-room.jpg
-e37e718c255dde8633f0c355b1048e12bb7850786882c112bd25b61b3ea3f6e9  STATUS.md
+a126e92d5d0dff9601bd25d5e7424cf5e50ca16fb905865f166752fe546626fc  STATUS.md
 6481ee838497edd7f9443e69220d332669959ef7abc86d734bea7fd89f9ccbdf  SYNC-TO-LOVABLE.md
 e3f4db45b90ed1824d14658037a12675d16f2354136f35f7630db916b1cb34e2  bun.lock
 250fac3cfb7bbd982014bd81d8d9c320486e4bacbc74e31296f02e8667725046  drizzle/migrations/0002_game_measurement.sql
@@ -20,7 +20,7 @@ b4c39c09d656a6824d7e6d3e215009aca79e00b26de81bdead141d8bf71b5b8c  drizzle/migrat
 8edf49e7a2486983ba9b3ae91c45832c830c75f3278580b13d5ccc1e20b010ec  qa/busy-shots.cjs
 832ee3f06987b70376b2c531e6657ecb62fea9d2912e7b46ecbc8ddfea836f85  qa/e2e-daycare.cjs
 752cc9f24655e41bcb53b05b94efa335396357c9baf84a525f1f74aecc80a385  qa/e2e-games.cjs
-602a41e73428829972ad88d96055d5cd89d5a96e43bd48911f8568b82a77d491  qa/e2e-hub.cjs
+0d646219350d843bfc89f69648c122b60d426b78ec1465c3c4a6a23fbcb074fa  qa/e2e-hub.cjs
 f780b8319047341d5db6e51e7a9d7da2fe945c93f033710b4f286442429fd53b  qa/e2e-teams.cjs
 cc9b9e5a93667a17702128c6b80028ee2f1c9f2354c4a1fa13702bc562fc58cd  qa/overview-sheet.cjs
 9e9846a8c4a3c2ae4e4e599171770d829cb0e93fec8fc88e166751c9ffce666b  qa/overview-shots.cjs
@@ -57,7 +57,7 @@ e2345b39e7723934d0d3dd198f6cca6e5248602c0126707ee2e05f74c1a9abf6  src/game/linkS
 d92fab8cb9e8fb2052c306f33adc19c8ca916202b6928f3aa0af265ff4dce167  src/game/progression.test.ts
 0b2cc3f73561a896ab081970a8361f4674889450962aba46b147ffaa127a1191  src/game/recess.test.ts
 4a0add4cc67360184fc93da19a80c88963b79a466c931e93535d52233fecaa63  src/game/share.ts
-f151baafce90ac888a32aaf88489165fbda4fb032a72a351e0a6d2f2e3bf3b11  src/game/sprites.tsx
+8b7fd43c74d614ac87e8978b7f1055121d1132d27937fc9cae372b1facc293e2  src/game/sprites.tsx
 60056c0fed72430a3d086330b6c24b4cfa25d819bf8d221ff933f0770bc09546  src/game/store.test.tsx
 36680567d2d288a00da8aab1d0c38dc75688395650a55c926fb1f9499c6e6c28  src/game/store.ts
 d102c44295f5e5944ab0a153c703983633f3c38ec23d5ee841fd65660d879765  src/game/teams.test.ts
@@ -65,8 +65,8 @@ dd2c0aca9c40d4c21e2aead8ba85273c80b7a2dd5fd7482bc8348eb5baf1627a  src/integratio
 abc98f7abf8e577de4e8d04fd1c1ccab260b039e48b9da9009b47b13c916a8f5  src/lib/analytics.ts
 8b06c1c1016dbf814754c20bf0992f900dc1888c2691ac981fb165d90fb80d1a  src/lib/eventsIngest.ts
 1beee1bc952c0c53547b4c790d742a675c4253bf7244547cee51b0cf2cfbe30a  src/lib/graduation.ts
-a750bd35829da2ede5dae17b1cd0d197fb8823bbd5ede446ef40fcb7b9e7c179  src/lib/locations.test.ts
-96672cb97079caaa868f1febf575367cea4cd313c8230f0193a980dfffebc62d  src/lib/locations.ts
+3c6515d9ba1805e983ec6886995fb7d04e5a09a3b93753e07f5e14204486bdf3  src/lib/locations.test.ts
+3d2e4dba2a94339a5150ce68a1dc461dffb37a561430ce2a4440adf641ac9c2c  src/lib/locations.ts
 2869dd1455fa7583b334bf847fb37580b0d9711a25e64022da524d5a90ebb71b  src/lib/payments/account-refund.test.ts
 1067847cf169ba57f5d4a703afd9cb7ce48ded34da0eecbd4abded0e9edeba6e  src/lib/payments/checkout-rules.test.ts
 09ebbe7e561af68357cd9ff68320218cd398e60c7e9391a905aae315cd09f775  src/lib/payments/payments.functions.ts
@@ -87,10 +87,10 @@ f84c9138513e517440fe4886b507ec4ef9d9c87973ca60ae82384a291ddae9c3  src/routes/acc
 418b03fb5eb9f78303546981df58adfac1f6504fcaa7fe1af8d74737b29105f5  src/routes/daycare.tsx
 5cc4b6d340626a86470486d91c5bb49c1135cfaccbcdee05d250eb27dc4294af  src/routes/graduation.tsx
 cb56addd897624971ea77af3c65952863ab5029a24f904a4131e15ee2342bab6  src/routes/help.tsx
-2b29943e47c8e5869594cc9b436d60f579f8d5bc04823e2d37857d2b538e5fe0  src/routes/index.tsx
+7ccb43667286232f59a2c0fbb986e4a0d8608c7838cb665d86e9322e1ec0a1ef  src/routes/index.tsx
 df4a92bbb0a9e8bccdbe600830654c04481ec2d25808d97fb2a3b1088b847f4e  src/routes/recess.tsx
 d8d2c0d1d66b53f1d9cb14550ddfc06f4b3ee52b0743ab6ee92e9ffd6ca7bd78  src/routes/shop.tsx
-a04f435e754bd2531ad701d68d9c79daed996b3b391f73fd8252bad7a885e26f  src/routes/visit.tsx
+e5d2db3ea022b8a8e1617f0eb3ccf570f589e2b7d5bd45c0df9a36d9dabcfe2c  src/routes/visit.tsx
 9d542e2f35fb59bc0de7e0825fd750bc3c4b7ba1fefb6f7e8ac2dfce9932374f  src/styles.css
 e5ea700d697bced4a85ca7eb2a123569266658b65efaa007f94d212119edc377  src/test/account-switch.test.tsx
 f69a9fa4e46f506a3e4ee6a893496b7e1f9e6c6bee25d3462840f38fda4ed1cd  src/test/migrations.test.ts
