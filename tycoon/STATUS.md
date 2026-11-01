@@ -34,6 +34,13 @@ with a 0.2 s animation). Production build OK.
   header. Directions now search "…, NJ" (the logo confirms the state). Note: both logos say
   "Daycare · Boarding · Grooming"; the game's own text keeps to daycare, boarding, baths and exit baths.
 
+## Update — a refused test checkout now says why (1 Nov)
+
+- The owner's first hub test purchase showed "Checkout could not be started": the settings and account check passed,
+  but Stripe refused to create the checkout page and the reason was thrown away. The Shop now shows Stripe's error
+  code and message (anything shaped like a key is masked), the server logs it, and it is recorded as a `client_error`
+  event (`where: "/shop checkout"`) so it can be read from `game_events`. Hub payments stay test-mode only.
+
 ## Update — Weekly Challenge prizes change every week, with the owner's approval (1 Nov)
 
 - Graduation Day's Weekly Challenge (its own site) now awards each week's **approved lineup** (`game_week_prizes`,
