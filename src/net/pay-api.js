@@ -47,7 +47,7 @@ export const isEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(s ?? '')
  */
 export async function openPayments({
   fetchImpl = globalThis.fetch?.bind(globalThis), base = '', loc = globalThis.location, hist = globalThis.history,
-  store = createLocalStorage(SESSION_KEY), now = () => Date.now(), timeoutMs = 3500, redirectPath = '/play/index.html',
+  store = createLocalStorage(SESSION_KEY), now = () => Date.now(), timeoutMs = 3500, configTimeoutMs = 8000, redirectPath = '/play/index.html',
 } = {}) {
   if (typeof fetchImpl !== 'function') return null;
   const nowS = () => Math.floor(now() / 1000);
@@ -72,10 +72,12 @@ export async function openPayments({
   }
 
   // The site's settings. Anything but a well-formed answer means "no server here".
+  // Given up to 8 s: the server checks Stripe before it answers, and a phone on a weak signal that
+  // gave up too soon would run the whole visit without the Shop, sign-in or cloud saves.
   let config = null;
   {
     const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-    const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), configTimeoutMs) : null;
     try {
       const res = await fetchImpl(base + CONFIG_PATH, { headers: { accept: 'application/json' }, signal: ctrl?.signal, credentials: 'same-origin' });
       const data = res.ok ? await res.json() : null;

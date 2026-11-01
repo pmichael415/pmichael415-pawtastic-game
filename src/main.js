@@ -8,6 +8,7 @@ import { createRng } from './engine/rng.js';
 import { createWallet } from './economy/wallet.js';
 import { createLocalBackend, DEMO_FEATURES, FREE_PLAY_FEATURES, PAID_FEATURES } from './backend/local.js';
 import { openPayments } from './net/pay-api.js';
+import { startPlayerCount, DEVICE_KEY } from './net/player-count.js';
 import { afterOpen, readCheckoutReturn } from './ui/payments.js';
 import { initInstall } from './ui/install.js';
 import { captureReferral, confirmFriendCode, referralNews } from './ui/referral.js';
@@ -116,6 +117,8 @@ async function bootLocal() {
   if (pay) afterOpen(app, checkoutReturn).catch(() => {});
   // Invite a friend: confirm an invite link's code, and tell the player about free baths they earned.
   if (pay?.accounts) { confirmFriendCode(app).catch(() => {}); referralNews(app).catch(() => {}); offerAppCode(app).catch(() => {}); competeOnOpen(app).catch(() => {}); }
+  // Player counter for PAWtastic's weekly numbers: a random id, once a day, in the background.
+  if (pay) startPlayerCount({ store: createLocalStorage(DEVICE_KEY) });
 }
 
 async function bootServerMode() {

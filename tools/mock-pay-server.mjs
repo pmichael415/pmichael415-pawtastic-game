@@ -96,6 +96,7 @@ function record(session) {
   if (session.product === 'pass') db.subs.set(session.userId, { status: 'active', periodEnd: addDays(today(), 30), cancelAtPeriodEnd: false });
 }
 const reportsBy = new Map();
+const devices = []; // player counter hellos
 
 createServer(async (req, res) => {
   try {
@@ -103,7 +104,12 @@ createServer(async (req, res) => {
     const origin = `http://${req.headers.host}`;
     const path = url.pathname;
 
-    if (path === '/api/public/game/config') return send(res, 200, { payments: PAYMENTS, mode: 'test', authUrl: origin, authKey: PUBLISHABLE });
+    if (path === '/api/public/game/config') {
+      // MOCK_CONFIG_DELAY_MS: a slow server (the real one checks Stripe first), for tools/e2e-slow-config.cjs.
+      const delay = Number(process.env.MOCK_CONFIG_DELAY_MS || 0);
+      if (delay) await new Promise(r => setTimeout(r, delay));
+      return send(res, 200, { payments: PAYMENTS, mode: 'test', authUrl: origin, authKey: PUBLISHABLE });
+    }
 
     // Fake GoTrue (Lovable Cloud auth). Like the real one, it needs the publishable key as `apikey` and
     // refuses a publishable (non-JWT) key in the Authorization header.
@@ -131,6 +137,15 @@ createServer(async (req, res) => {
     }
     if (path === '/auth/v1/logout') { db.tokens.delete((req.headers.authorization || '').replace(/^Bearer /, '')); res.writeHead(204); return res.end(); }
 
+    // Player counter: one row per device per day. MOCK_HELLO_FAIL=1 makes it fail, to show the game doesn't care.
+    if (path === '/api/public/game/hello' && req.method === 'POST') {
+      if (process.env.MOCK_HELLO_FAIL === '1') return send(res, 500, { error: 'server-error' });
+      const b = await bodyOf(req);
+      if (!b || Object.keys(b).join() !== 'device' || !/^[A-Za-z0-9_-]{16,64}$/.test(b.device ?? '')) return send(res, 400, { error: 'invalid-request' });
+      const day = new Date().toISOString().slice(0, 10);
+      if (!devices.some(d => d.day === day && d.device === b.device)) devices.push({ day, device: b.device, auth: req.headers.authorization ?? null, cookie: req.headers.cookie ?? null });
+      return send(res, 200, { ok: true });
+    }
     if (path === '/api/public/game/report' && req.method === 'POST') {
       const user = authed(req);
       const key = user?.id ?? req.socket.remoteAddress;
@@ -331,7 +346,7 @@ createServer(async (req, res) => {
     }
     // Ends the week early for tests: this week's top 3 at each location win their prizes.
     if (path === '/mock/award-week' && req.method === 'POST') { awardWeek(weekKey(Date.now())); return send(res, 200, { prizes }); }
-    if (path === '/mock/state') return send(res, 200, { players: Object.fromEntries(players), weekly, prizes, purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent, codes: Object.fromEntries(db.codes), referrals: db.referrals, appCodes });
+    if (path === '/mock/state') return send(res, 200, { devices, players: Object.fromEntries(players), weekly, prizes, purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent, codes: Object.fromEntries(db.codes), referrals: db.referrals, appCodes });
     if (path === '/mock/refund' && req.method === 'POST') {
       const { email, product } = await bodyOf(req);
       const user = userFor(email);
