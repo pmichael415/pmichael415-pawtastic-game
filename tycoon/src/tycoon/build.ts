@@ -18,7 +18,8 @@ import { DOOR_PRICE, FLOORS, PARCELS, SELL_RATE, WALL_COLORS, upgradePrice } fro
 import { roomPrice } from "./grid";
 import { fac, withFac } from "./state";
 import { buildXp, gainXp, level } from "./progress";
-import type { Door, ExpenseKey, FloorStyle, ParcelId, Rot, RoomType, TResult, ThingKind, TycoonState } from "./types";
+import { spend } from "./business";
+import type { Door, FloorStyle, ParcelId, Rot, RoomType, TResult, ThingKind, TycoonState } from "./types";
 import type { GroupId } from "@/game/engine";
 
 const roomLabel = (r: Room) => (r.type ? ROOM_TYPE_NAMES[r.type] : "room");
@@ -96,14 +97,6 @@ export function validThingAt(f: Facility, thing: Placed, ignoreUid: string | nul
 
 // ---------- actions ----------
 
-/** Takes coins for building (Task 7 replaces this with the business ledger version). */
-export function spend(s: TycoonState, amount: number, _key: ExpenseKey): TResult {
-  if (amount <= 0) return { ok: true, state: s };
-  if (s.coins < amount) return { ok: false, error: `Need ${amount - s.coins} more coins.` };
-  return { ok: true, state: { ...s, coins: s.coins - amount } };
-}
-
-/** True if any dog is in this room (dogs waiting in the lobby count as being in the Lobby). */
 /** Pays for building (rooms, doors, things, upgrades, land) and earns XP for it. */
 function build(s: TycoonState, amount: number): TResult {
   const paid = spend(s, amount, "building");

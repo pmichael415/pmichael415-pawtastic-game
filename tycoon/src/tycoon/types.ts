@@ -87,7 +87,7 @@ export type CampaignId = "flyers" | "online" | "openhouse";
 export type IncomeKey = "daycare" | "boarding" | "baths" | "exitBaths" | "tips" | "bonus";
 export type ExpenseKey = "wages" | "upkeep" | "supplies" | "marketing" | "building";
 
-export type DayLedger = { day: number; income: Record<IncomeKey, number>; expenses: Record<ExpenseKey, number>; checkIns: number };
+export type DayLedger = { day: number; income: Record<IncomeKey, number>; expenses: Record<ExpenseKey, number>; checkIns: number; checkouts: number };
 export type TReport = {
   day: number;
   income: number;

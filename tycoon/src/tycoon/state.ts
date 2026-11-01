@@ -166,6 +166,7 @@ function parseLedger(x: unknown): DayLedger[] {
       income: { daycare: num(inc["daycare"], 0), boarding: num(inc["boarding"], 0), baths: num(inc["baths"], 0), exitBaths: num(inc["exitBaths"], 0), tips: num(inc["tips"], 0), bonus: num(inc["bonus"], 0) },
       expenses: { wages: num(exp["wages"], 0), upkeep: num(exp["upkeep"], 0), supplies: num(exp["supplies"], 0), marketing: num(exp["marketing"], 0), building: num(exp["building"], 0) },
       checkIns: Math.max(0, int(e["checkIns"], 0)),
+      checkouts: Math.max(0, int(e["checkouts"], 0)),
     });
   }
   return out;
