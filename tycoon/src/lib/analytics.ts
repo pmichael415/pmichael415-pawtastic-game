@@ -4,6 +4,7 @@
 // A booking-link click is only a click — it is never reported as a booking or a customer.
 import { getSettings } from "./settings";
 import { captureReferral, referredBy } from "./referral";
+import { attributionProps, captureFirstTouch } from "./campaign";
 
 export const BUILD_ID = "2026-10-31.games-hub-1";
 export const EVENT_NAMES = [
@@ -74,13 +75,17 @@ function clean(props: Props): Props {
   return out;
 }
 
+// Clicks toward the business carry the campaign that first brought this device (still only clicks).
+const ATTRIBUTED = new Set<EventName>(["booking_click", "app_click", "directions_click"]);
+
 export function track(name: EventName, props: Props = {}) {
   if (typeof window === "undefined") return;
   try {
     if (!getSettings().analytics) return;
     if (import.meta.env["VITE_REVIEW_BUILD"]) return; // private review builds send nothing
     if (!EVENT_NAMES.includes(name)) return;
-    const ev = { name, props: clean(props), at: Date.now() };
+    const all = ATTRIBUTED.has(name) ? { ...props, ...attributionProps() } : props;
+    const ev = { name, props: clean(all), at: Date.now() };
     queue.push(ev);
     sent.push(ev);
     (window as unknown as { __pawtasticEvents?: Queued[] }).__pawtasticEvents = sent;
@@ -133,9 +138,18 @@ export function startSession(where: string) {
     const newRef = captureReferral(location.search);
     if (newRef) track("referral_open", { ref: newRef, first_visit: !last });
     const ref = referredBy();
+    // Ad attribution: this visit's utm tags, and the first campaign that ever brought this device.
+    const visit = captureFirstTouch(location.search);
+    const utm: Props = {};
+    if (visit?.source) utm["utm_source"] = visit.source;
+    if (visit?.medium) utm["utm_medium"] = visit.medium;
+    if (visit?.campaign) utm["utm_campaign"] = visit.campaign;
+    if (visit?.content) utm["utm_content"] = visit.content;
     track("session_start", {
       where,
       ...(ref ? { ref } : {}),
+      ...utm,
+      ...attributionProps(),
       first_visit: !last,
       returning_same_day: last === today,
       days_since_first: daysSinceFirst,
