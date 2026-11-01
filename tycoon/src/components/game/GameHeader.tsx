@@ -22,6 +22,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
+import { NotifySettings } from "./NotifySettings";
 import { Slider } from "@/components/ui/slider";
 import { setSettings, useSettings, type ViewMode } from "@/lib/settings";
 
@@ -154,6 +155,7 @@ export function SettingsSheet() {
           <p className="text-xs text-muted-foreground">
             Battery saver and reduced motion apply the next time the 3D view opens.
           </p>
+          <NotifySettings />
           <button
             type="button"
             onClick={openTeamPicker}

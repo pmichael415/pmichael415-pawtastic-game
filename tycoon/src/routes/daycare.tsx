@@ -95,6 +95,7 @@ import { GameHeader } from "@/components/game/GameHeader";
 import type { FocusTarget, RoomHint, WorldPick } from "@/world/renderer";
 import { setSettings, useSettings } from "@/lib/settings";
 import { useShareContext } from "@/components/game/ShareSheet";
+import { goodMoment } from "@/lib/notify/prompt";
 import { TEAM_COLORS, maybeAskForTeam, openTeamPicker } from "@/components/game/TeamPicker";
 import { addTeamPoints } from "@/lib/team";
 import { myReferralCode } from "@/lib/referral";
@@ -159,6 +160,13 @@ function Daycare() {
   const { preview } = Route.useSearch();
   const navigate = Route.useNavigate();
   const { state, act, set, paused, setPaused } = useGame();
+  // When a day's wrap-up closes (any way), it's a good moment to maybe offer notifications.
+  const hadReport = useRef(false);
+  useEffect(() => {
+    const has = !!state?.report;
+    if (hadReport.current && !has) goodMoment();
+    hadReport.current = has;
+  }, [state?.report]);
   const settings = useSettings();
   // A preview is a short look, not an unlock: it ends on its own.
   useEffect(() => {

@@ -14,6 +14,7 @@ import { useSession } from "@/lib/auth";
 import { useCloudSync } from "@/game/cloud";
 import { EntitlementsProvider } from "@/lib/entitlements";
 import { PUBLIC_ORIGIN } from "@/lib/site";
+import { NotifyCard } from "@/components/game/NotifyCard";
 import { Toaster } from "@/components/ui/sonner";
 import { startSession } from "@/lib/analytics";
 import { ShareSheet } from "@/components/game/ShareSheet";
@@ -133,6 +134,7 @@ function RootComponent() {
       <div className="mx-auto min-h-dvh max-w-xl bg-background pb-24">
         <Outlet />
       </div>
+      <NotifyCard />
       <nav aria-label="Game tabs" className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
         <ul className="mx-auto grid max-w-xl grid-cols-5">
           {TABS.map((t) => (

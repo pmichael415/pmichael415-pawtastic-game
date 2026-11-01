@@ -13,6 +13,7 @@ import { GameHeader } from "@/components/game/GameHeader";
 import { track } from "@/lib/analytics";
 import { myReferralCode } from "@/lib/referral";
 import { addTeamPoints } from "@/lib/team";
+import { goodMoment } from "@/lib/notify/prompt";
 import { useShareContext } from "@/components/game/ShareSheet";
 
 const search = z.object({
@@ -90,7 +91,10 @@ function Recess() {
     setBest(s.recessBest);
     setLeft(recessCoinsLeft(s, day));
     track("recess_run", { score, coins, capped, rejected: !!rejected });
-    if (!rejected) addTeamPoints(s.team, Math.max(1, Math.floor(score / 50)), "recess");
+    if (!rejected) {
+      addTeamPoints(s.team, Math.max(1, Math.floor(score / 50)), "recess");
+      setTimeout(() => goodMoment(), 1500); // after the result toasts: maybe offer notifications
+    }
     const msg = rejected ?? (coins > 0 ? `+${coins} daycare coins${capped ? " (daily coin limit reached)" : ""}` : "Daily coin limit reached — runs still count for your best score and bandanas.");
     setResult(msg);
     if (rejected) toast.error(rejected); else toast.success(msg);

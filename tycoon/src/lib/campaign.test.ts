@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { attributionProps, captureFirstTouch, cleanTag, firstTouch, readCampaign } from "./campaign";
 import { startSession, track } from "./analytics";
 
@@ -59,5 +59,23 @@ describe("analytics carries campaign tags", () => {
     track("recess_run", { score: 1 });
     expect(last("recess_run")?.props).not.toHaveProperty("ft_source");
     window.history.replaceState({}, "", "/");
+  });
+});
+
+describe("opening the game from a notification or email", () => {
+  beforeEach(() => localStorage.clear());
+  const visit = async (url: string) => {
+    vi.resetModules(); // a fresh page load: startSession runs once per load
+    window.history.replaceState({}, "", url);
+    (await import("./analytics")).startSession("page");
+    window.history.replaceState({}, "", "/");
+  };
+  it("records notify_open with the channel and message", async () => {
+    await visit("/recess?utm_source=notification&utm_medium=push&utm_campaign=1b2c3d4e-0000-4000-8000-000000000001");
+    expect(last("notify_open")?.props).toEqual({ channel: "push", message: "1b2c3d4e-0000-4000-8000-000000000001" });
+  });
+  it("an ad visit is not a notification open", async () => {
+    await visit("/?utm_source=facebook&utm_campaign=x");
+    expect(events().some((e) => e.name === "notify_open")).toBe(false);
   });
 });

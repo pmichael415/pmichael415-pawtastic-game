@@ -149,6 +149,9 @@ export function startSession(where: string) {
     if (visit?.medium) utm["utm_medium"] = visit.medium;
     if (visit?.campaign) utm["utm_campaign"] = visit.campaign;
     if (visit?.content) utm["utm_content"] = visit.content;
+    // Opened from one of our notifications or emails: count the open for that message.
+    if ((visit?.source === "notification" || visit?.source === "email") && visit.campaign)
+      track("notify_open", { channel: visit.medium ?? visit.source, message: visit.campaign });
     track("session_start", {
       where,
       ...(ref ? { ref } : {}),
