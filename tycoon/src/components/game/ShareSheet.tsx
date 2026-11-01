@@ -68,7 +68,7 @@ export function ShareButton() {
       type="button"
       aria-label="Share and invite friends"
       onClick={openShare}
-      className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-soft"
+      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground"
     >
       <Share2 className="h-5 w-5" />
     </button>
@@ -183,7 +183,7 @@ export function ShareSheet() {
         <div className="space-y-4 px-4 pb-6 text-secondary">
           <section aria-label="Invite friends">
             <h3 className="font-display text-base font-bold">Invite friends to play</h3>
-            <p className="text-xs font-bold text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Your personal link. When a friend who's new to PAWtastic Games finishes their
               first-day tutorial, you get +{REFERRAL_COINS_EACH} daycare coins (up to{" "}
               {REFERRAL_MAX_REWARDED} friends) and the Best Buddy Bandana. Game coins have no cash
@@ -214,7 +214,7 @@ export function ShareSheet() {
               </Button>
             </div>
             <p
-              className="mt-2 rounded-xl bg-muted p-2 text-xs font-extrabold"
+              className="mt-2 rounded-xl bg-muted p-2 text-xs font-bold"
               data-testid="referral-stats"
             >
               {stats === "loading"
@@ -242,7 +242,7 @@ export function ShareSheet() {
 
           <section aria-label="Recommend PAWtastic Academy">
             <h3 className="font-display text-base font-bold">Recommend PAWtastic to a dog owner</h3>
-            <p className="text-xs font-bold text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Shares PAWtastic Academy's free evaluation form. Only daycare, boarding and baths are
               mentioned — no prices or promotions.
             </p>
@@ -264,12 +264,12 @@ export function ShareSheet() {
             </div>
           </section>
           {import.meta.env["VITE_REVIEW_BUILD"] && (
-            <p className="rounded-xl bg-accent p-2 text-xs font-extrabold text-accent-foreground">
+            <p className="rounded-xl bg-accent p-2 text-xs font-bold text-accent-foreground">
               Private review build: invite links point here until the game is published, and friend
               counts are off.
             </p>
           )}
-          <p className="text-[11px] font-bold text-muted-foreground">
+          <p className="text-[11px] font-medium text-muted-foreground">
             Your link contains a random code, not your name or contact details. Friends who open it
             are counted anonymously.
           </p>

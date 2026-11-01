@@ -68,7 +68,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { name: "theme-color", content: "#0057A7" },
+      { name: "theme-color", content: "#FAF8F5" },
       { title: "PAWtastic Games" },
       { name: "description", content: "Free dog games from PAWtastic Academy: Daycare Tycoon and Recess Rush." },
       { property: "og:type", content: "website" },
@@ -78,9 +78,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/png", href: "/favicon.png" },
       { rel: "apple-touch-icon", href: "/brand/pawtastic-logo.png" },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;700;800&display=swap" },
     ],
   }),
   shellComponent: RootShell,
@@ -120,20 +117,20 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <EntitlementsProvider>
-      <div className="mx-auto min-h-dvh max-w-xl bg-sky-gradient pb-24">
+      <div className="mx-auto min-h-dvh max-w-xl bg-background pb-24">
         <Outlet />
       </div>
-      <nav aria-label="Game tabs" className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-secondary bg-card pb-[env(safe-area-inset-bottom)]">
+      <nav aria-label="Game tabs" className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
         <ul className="mx-auto grid max-w-xl grid-cols-5">
           {TABS.map((t) => (
             <li key={t.to}>
               <Link
                 to={t.to}
-                className="flex h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-bold text-muted-foreground"
+                className="flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted-foreground"
                 activeProps={{ className: "text-primary" }}
                 activeOptions={{ exact: true }}
               >
-                <t.icon className="h-6 w-6" aria-hidden />
+                <t.icon className="h-[22px] w-[22px]" strokeWidth={1.75} aria-hidden />
                 {t.label}
               </Link>
             </li>

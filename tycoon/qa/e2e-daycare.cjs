@@ -42,9 +42,12 @@ function check(name, ok, detail = '') { (ok ? pass++ : fail++); results.push(`${
   check('Check in button is at least 44px tall', sb && sb.height >= 44, `${sb?.height}px`);
   // 2) Rapid double tap: one check-in, one fee
   const before = await read();
+  // The second tap goes to the same pup's buttons (a new customer can arrive in between; checking
+  // them in would be a different, correctly paid check-in, not a double charge).
+  const firstId = (await strip.getAttribute('data-testid')).replace('quick-checkin-', '');
   await strip.tap();
   await page.waitForTimeout(60);
-  await page.locator('[data-testid^="quick-checkin-"], [data-testid^="checkin-"]').first().tap({ timeout: 500 }).catch(() => {});
+  await page.locator(`[data-testid="quick-checkin-${firstId}"], [data-testid="checkin-${firstId}"]`).first().tap({ timeout: 500 }).catch(() => {});
   await page.waitForTimeout(400);
   let s = await read();
   check('double tap on Check in pays the fee once', s.coins - before.coins === 20 && s.stats.admitted === 1, `coins ${before.coins}→${s.coins}, admitted ${s.stats.admitted}`);

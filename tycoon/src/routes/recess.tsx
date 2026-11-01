@@ -185,27 +185,27 @@ function Recess() {
       <GameHeader title="Recess Rush" subtitle={`${seed ? `Challenge “${seed}”` : "Today's course"} · best ${best}`}>
         {phase === "run" && <Button size="icon" variant="secondary" className="h-11 w-11" aria-label="Pause" onClick={() => setPhase("paused")}><Pause /></Button>}
       </GameHeader>
-      {challenge != null && <p className="mt-2 rounded-2xl bg-accent p-2 text-center text-sm font-extrabold text-accent-foreground">A friend challenged you to beat {challenge}!</p>}
+      {challenge != null && <p className="mt-2 rounded-2xl bg-accent p-2 text-center text-sm font-bold text-accent-foreground">A friend challenged you to beat {challenge}!</p>}
 
-      <div className="mt-2 flex justify-between rounded-2xl bg-card px-4 py-2 font-display text-lg font-bold text-secondary shadow-soft">
+      <div className="mt-2 flex justify-between rounded-2xl border border-border bg-card px-4 py-2 font-display text-lg font-bold text-secondary shadow-soft">
         <span>🦴 {hud.score}</span><span>⏱ {hud.time}s</span><span>{"❤️".repeat(Math.max(0, hud.lives))}{hud.shield ? " 🔵" : ""}</span>
       </div>
 
-      <div className="relative mt-2 touch-none select-none overflow-hidden rounded-3xl border-4 border-secondary shadow-pop" onPointerDown={onDown} onPointerUp={onUp}>
+      <div className="relative mt-2 touch-none select-none overflow-hidden rounded-2xl border border-border shadow-soft" onPointerDown={onDown} onPointerUp={onUp}>
         <canvas ref={canvas} width={W} height={H} className="block aspect-[9/14] w-full bg-sky" aria-label="Recess Rush play field" />
         {phase !== "run" && (
           <div className="absolute inset-0 grid place-items-center bg-secondary/70 p-6 text-center">
-            <div className="rounded-3xl bg-card p-5 shadow-soft">
+            <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
               {phase === "ready" && (<>
                 <h2 className="font-display text-2xl font-bold text-secondary">60 seconds of zoomies!</h2>
-                <p className="mt-2 text-sm font-bold text-muted-foreground">Swipe or tap left/right. 🦴 treats +10 · puddles cost a heart · 🔵 shield ball blocks one puddle.</p>
+                <p className="mt-2 text-sm text-muted-foreground">Swipe or tap left/right. 🦴 treats +10 · puddles cost a heart · 🔵 shield ball blocks one puddle.</p>
                 <Button size="lg" className="mt-4 h-14 w-full font-display text-lg" onClick={start}><Play /> Start run</Button>
               </>)}
               {phase === "paused" && <Button size="lg" className="h-14 font-display text-lg" onClick={() => setPhase("run")}><Play /> Resume</Button>}
               {phase === "over" && (<>
                 <h2 className="font-display text-3xl font-bold text-primary">{hud.score} pts</h2>
-                <p className="text-sm font-bold text-muted-foreground">Best on this device: {best}</p>
-                {result && <p className="mt-1 text-sm font-extrabold text-secondary">{result}</p>}
+                <p className="text-sm text-muted-foreground">Best on this device: {best}</p>
+                {result && <p className="mt-1 text-sm font-bold text-secondary">{result}</p>}
                 <div className="mt-4 grid gap-2">
                   <Button size="lg" onClick={start}><Play /> Run again</Button>
                   <Button size="lg" variant="secondary" onClick={share}><Share2 /> Share & challenge</Button>
@@ -223,12 +223,12 @@ function Recess() {
         <Button size="lg" variant="secondary" className="h-16" aria-label="Move right" onPointerDown={(e) => { e.stopPropagation(); move(1); }}><ChevronRight className="!size-9" /></Button>
       </div>
 
-      <section className="mt-4 rounded-2xl bg-card p-3 shadow-soft">
+      <section className="mt-4 rounded-2xl border border-border bg-card p-3 shadow-soft">
         <h2 className="font-display font-bold text-secondary">Free bandanas (shared with Tycoon)</h2>
-        <ul className="mt-1 text-sm font-bold text-muted-foreground">
+        <ul className="mt-1 text-sm text-muted-foreground">
           {FREE_COSMETICS.filter((c) => Number.isFinite(c.unlockScore)).map((c) => <li key={c.id}>{best >= c.unlockScore ? "✅" : "🔒"} {c.name} — score {c.unlockScore}</li>)}
         </ul>
-        <p className="mt-2 text-[11px] font-bold text-muted-foreground">Each run gives up to {RECESS_RUN_COIN_CAP} daycare coins, up to {RECESS_DAILY_COIN_CAP} a day ({left} left today). Scores the course can't produce aren't counted. Scores stay on this device — there's no public leaderboard.</p>
+        <p className="mt-2 text-[11px] font-medium text-muted-foreground">Each run gives up to {RECESS_RUN_COIN_CAP} daycare coins, up to {RECESS_DAILY_COIN_CAP} a day ({left} left today). Scores the course can't produce aren't counted. Scores stay on this device — there's no public leaderboard.</p>
       </section>
     </main>
   );

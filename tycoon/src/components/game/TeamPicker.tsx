@@ -126,7 +126,7 @@ export function TeamPicker() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <h3 className={`font-display text-lg font-bold ${c.text}`}>Team {l.name}</h3>
-                    <p className="flex items-center gap-1 text-[11px] font-bold text-muted-foreground">
+                    <p className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
                       <MapPin className="h-3 w-3" /> PAWtastic {l.name} · {l.address}
                     </p>
                   </div>
@@ -145,7 +145,7 @@ export function TeamPicker() {
             );
           })}
         </div>
-        <p className="text-[11px] font-bold text-muted-foreground">
+        <p className="text-[11px] font-medium text-muted-foreground">
           Team stories are fictional game adventures, not descriptions of the real locations.
           Picking a team doesn't sign you up for anything.
         </p>

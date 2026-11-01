@@ -10,6 +10,22 @@
 | Live game database (Lovable Cloud / Supabase) | Unchanged. New migrations were only dry-run inside a rolled-back transaction. |
 | Customer app (app.pawtasticacademy.com), its database and Stripe | Not touched. |
 
+## Update — Graduation Day look, and Visit / book / get the app (1 Nov)
+
+- **Same look as Graduation Day:** warm off-white page, white cards with a thin line and soft shadow, brand blue
+  #0068D6, warm dark text, gold for rewards, 12px corners, and the same DM Sans font files (bundled, no Google
+  Fonts). Flat header and bottom bar; home page game cards with small uppercase labels. Game rules, wording,
+  saves and payments unchanged.
+- **Visit PAWtastic:** each location (your team's first) has Book free evaluation (the verified forms) and
+  Directions (Google Maps search for the address); a "Get the PAWtastic app" card links to
+  https://app.pawtasticacademy.com with an Add to Home Screen tip. The home page has Visit us · Book an eval ·
+  Get the app. Plain links only — nothing is shared with the customer app. Clicks are measured as clicks
+  (`app_click`, `directions_click`, added to migration 0002, which has not been applied anywhere yet).
+
+Tests: 150 unit/integration; iPhone-size browser suites hub 31/31, daycare 36/36, games 32/32, teams 27/27
+(two old test timing assumptions fixed: a second customer can arrive between double taps; the team box closes
+with a 0.2 s animation). Production build OK.
+
 ## Lovable sync attempt (31 Oct, 20:32 UTC) — stopped, nothing changed
 
 One agent message asked Lovable to copy commit `795d8e1` into the Daycare project. Its agent downloaded the

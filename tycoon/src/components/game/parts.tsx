@@ -16,7 +16,7 @@ export function Meter({
 }) {
   return (
     <div className="min-w-0">
-      <div className="flex justify-between text-[11px] font-extrabold text-secondary">
+      <div className="flex justify-between text-[11px] font-bold text-secondary">
         <span>{label}</span>
         <span>{Math.round(value)}%</span>
       </div>
@@ -47,10 +47,10 @@ export function Row({
   children?: ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl bg-card p-3 shadow-soft">
+    <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 shadow-soft">
       <div className="min-w-0 flex-1">
         <div className="font-display font-bold text-secondary">{title}</div>
-        <div className="text-xs font-bold text-muted-foreground">{sub}</div>
+        <div className="text-xs text-muted-foreground">{sub}</div>
       </div>
       {children}
     </div>
@@ -124,12 +124,12 @@ export const DogChip = memo(function DogChip({
         collar={looks.collar}
         moving={moving}
       />
-      <span className="whitespace-nowrap rounded-full bg-card px-1.5 text-[10px] font-extrabold text-secondary">
+      <span className="whitespace-nowrap rounded-full bg-card px-1.5 text-[10px] font-bold text-secondary">
         {d.boarding && "🌙"}
         {d.name}
         {d.happiness < 35 ? " 😢" : d.clean < 35 ? " 🟤" : ""}
       </span>
-      <span className="text-[9px] font-extrabold text-muted-foreground">
+      <span className="text-[9px] font-bold text-muted-foreground">
         {d.size === "small" ? "S" : "L"} · {d.temper === "gentle" ? "🧸 gentle" : "⚡ active"}
       </span>
     </button>

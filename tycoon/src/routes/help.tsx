@@ -17,9 +17,9 @@ export const Route = createFileRoute("/help")({
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-3xl bg-card p-4 shadow-soft">
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-soft">
       <h2 className="font-display text-lg font-bold text-secondary">{title}</h2>
-      <div className="mt-1 space-y-2 text-sm font-bold text-muted-foreground">{children}</div>
+      <div className="mt-1 space-y-2 text-sm text-muted-foreground">{children}</div>
     </section>
   );
 }

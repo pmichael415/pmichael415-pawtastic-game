@@ -90,7 +90,7 @@ export function GameHeader({
         <Link
           to="/"
           aria-label="Back to PAWtastic Games home"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-card text-secondary shadow-soft"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border bg-card text-secondary"
         >
           <ChevronLeft className="h-6 w-6" />
         </Link>
@@ -100,7 +100,7 @@ export function GameHeader({
         <h1 className="truncate font-display text-lg font-bold leading-tight text-secondary">
           {title}
         </h1>
-        <p className="truncate text-[11px] font-bold text-muted-foreground">
+        <p className="truncate text-[11px] font-medium text-muted-foreground">
           {subtitle ? `${subtitle} · ` : ""}
           <SaveStatus />
         </p>
@@ -125,7 +125,7 @@ export function SettingsSheet() {
         <button
           type="button"
           aria-label="Settings"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-card text-secondary shadow-soft"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border bg-card text-secondary"
         >
           <Gear className="h-5 w-5" />
         </button>
@@ -139,7 +139,7 @@ export function SettingsSheet() {
         </SheetHeader>
         <div className="space-y-4 px-4 pb-6 text-secondary">
           <fieldset>
-            <legend className="text-sm font-extrabold">Daycare camera</legend>
+            <legend className="text-sm font-bold">Daycare camera</legend>
             <div className="mt-1 grid grid-cols-3 gap-1">
               {views.map((x) => (
                 <button
@@ -147,14 +147,14 @@ export function SettingsSheet() {
                   type="button"
                   onClick={() => setSettings({ view: x.v })}
                   aria-pressed={s.view === x.v}
-                  className={`min-h-11 rounded-xl px-2 text-sm font-extrabold ${s.view === x.v ? "bg-secondary text-secondary-foreground" : "bg-muted"}`}
+                  className={`min-h-11 rounded-xl px-2 text-sm font-bold ${s.view === x.v ? "bg-primary text-primary-foreground" : "bg-muted"}`}
                 >
                   {x.label}
                 </button>
               ))}
             </div>
           </fieldset>
-          <label className="block text-sm font-extrabold">
+          <label className="block text-sm font-bold">
             Look sensitivity ({s.lookSpeed.toFixed(1)}×)
             <Slider
               className="mt-3"
@@ -176,32 +176,32 @@ export function SettingsSheet() {
           ).map(([k, label]) => (
             <label
               key={k}
-              className="flex min-h-11 items-center justify-between gap-3 text-sm font-extrabold"
+              className="flex min-h-11 items-center justify-between gap-3 text-sm font-bold"
             >
               {label}
               <Switch checked={s[k]} onCheckedChange={(v) => setSettings({ [k]: v })} />
             </label>
           ))}
-          <p className="text-xs font-bold text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Battery saver and reduced motion apply the next time the 3D view opens.
           </p>
           <button
             type="button"
             onClick={openTeamPicker}
-            className="grid min-h-11 w-full place-items-center rounded-xl bg-muted text-sm font-extrabold"
+            className="grid min-h-11 w-full place-items-center rounded-xl bg-muted text-sm font-bold"
           >
             Your team: pick or switch (once a week)
           </button>
           <div className="grid grid-cols-2 gap-2">
             <Link
               to="/help"
-              className="grid min-h-11 place-items-center rounded-xl bg-muted text-sm font-extrabold"
+              className="grid min-h-11 place-items-center rounded-xl bg-muted text-sm font-bold"
             >
               How to play
             </Link>
             <Link
               to="/account"
-              className="grid min-h-11 place-items-center rounded-xl bg-muted text-sm font-extrabold"
+              className="grid min-h-11 place-items-center rounded-xl bg-muted text-sm font-bold"
             >
               Account & saves
             </Link>

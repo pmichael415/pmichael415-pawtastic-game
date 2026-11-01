@@ -47,7 +47,8 @@ const check = (n, ok, d = "") => {
     JSON.stringify(joinHb),
   );
   await page.getByRole("button", { name: "Not sure yet" }).tap();
-  await page.waitForTimeout(300);
+  // wait for the close animation rather than a fixed time
+  await dialog().waitFor({ state: "hidden", timeout: 3000 }).catch(() => {});
   check('"Not sure yet" closes it', !(await dialog().isVisible()));
   await page.getByRole("link", { name: "Recess Rush" }).first().tap();
   await page.waitForTimeout(600);

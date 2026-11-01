@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS public.game_events (
   cohort_day date NOT NULL,
   session_id text NOT NULL CHECK (char_length(session_id) BETWEEN 8 AND 64),
   build text NOT NULL CHECK (char_length(build) <= 40),
-  name text NOT NULL CHECK (name IN ('session_start','tutorial_step','tutorial_complete','checkin_success','first_care_cycle','camera_mode','client_error','shop_preview','checkout_start','restore_result','booking_click','recess_run','share','hub_open','referral_open','team_pick','team_points')),
+  name text NOT NULL CHECK (name IN ('session_start','tutorial_step','tutorial_complete','checkin_success','first_care_cycle','camera_mode','client_error','shop_preview','checkout_start','restore_result','booking_click','recess_run','share','hub_open','referral_open','team_pick','team_points','app_click','directions_click')),
   props jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (pg_column_size(props) < 4096)
 );
 CREATE INDEX IF NOT EXISTS game_events_name_time ON public.game_events (name, received_at);
@@ -43,7 +43,9 @@ SELECT (received_at AT TIME ZONE 'America/New_York')::date AS day,
        count(DISTINCT device_id) FILTER (WHERE name = 'session_start' AND props->>'first_visit' = 'true' AND props ? 'ref') AS first_time_players_from_referrals,
        count(*) FILTER (WHERE name = 'booking_click' AND props ? 'ref') AS booking_link_clicks_by_referred_players,
        count(DISTINCT device_id) FILTER (WHERE name = 'team_pick' AND props->>'team' = 'hawthorne') AS players_picked_team_hawthorne,
-       count(DISTINCT device_id) FILTER (WHERE name = 'team_pick' AND props->>'team' = 'hillsdale') AS players_picked_team_hillsdale
+       count(DISTINCT device_id) FILTER (WHERE name = 'team_pick' AND props->>'team' = 'hillsdale') AS players_picked_team_hillsdale,
+       count(*) FILTER (WHERE name = 'app_click') AS customer_app_link_clicks,
+       count(*) FILTER (WHERE name = 'directions_click') AS directions_clicks
 FROM public.game_events
 GROUP BY 1, 2;
 

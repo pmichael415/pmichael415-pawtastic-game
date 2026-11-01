@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ExternalLink, MapPin } from "lucide-react";
+import { CalendarCheck, ExternalLink, MapPin, Navigation, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { LOCATIONS, bookingUrl } from "@/lib/locations";
+import { CUSTOMER_APP_URL, LOCATIONS, bookingUrl, directionsUrl } from "@/lib/locations";
 import { GameHeader } from "@/components/game/GameHeader";
 import { track } from "@/lib/analytics";
 import { referredBy } from "@/lib/referral";
@@ -23,22 +23,52 @@ export const Route = createFileRoute("/visit")({
 function Visit() {
   const [team, setTeam] = useState<string | null>(null);
   useEffect(() => setTeam(peekSave().team), []);
+  const ref = () => { const r = referredBy(); return r ? { ref: r } : {}; };
   return (
-    <main className="space-y-4 px-3 pt-3">
-      <GameHeader title="Bring your real pup!" subtitle="Hawthorne & Hillsdale" />
-      <p className="rounded-3xl bg-brand-gradient p-4 font-bold text-primary-foreground shadow-soft">
-        PAWtastic Academy offers dog daycare, boarding, baths and exit baths. Start with a free evaluation at the location nearest you.
-      </p>
+    <main className="space-y-3 px-3 pt-3 pb-6">
+      <GameHeader title="Visit PAWtastic" subtitle="Hawthorne & Hillsdale" />
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+        <p className="eyebrow">PAWtastic Academy</p>
+        <h2 className="mt-0.5 text-2xl font-bold leading-tight text-secondary">Bring your real pup!</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Dog daycare, boarding, baths and exit baths. Visit us, book a free evaluation, or get the PAWtastic app.
+        </p>
+      </section>
       {[...LOCATIONS].sort((a, b) => Number(b.id === team) - Number(a.id === team)).map((l) => (
-        <article key={l.id} className={`rounded-3xl bg-card p-4 shadow-soft ${l.id === team ? "ring-4 ring-primary" : ""}`}>
-          <h2 className="font-display text-xl font-bold text-secondary">{l.name}{l.id === team ? " · your team" : ""}</h2>
-          <p className="flex items-center gap-1 text-sm font-bold text-muted-foreground"><MapPin className="h-4 w-4" /> {l.address}</p>
-          <Button size="lg" className="mt-3 h-14 w-full font-display text-base" asChild>
-            <a href={bookingUrl(l)} target="_blank" rel="noopener noreferrer" onClick={() => { const ref = referredBy(); track("booking_click", { location: l.id, ...(ref ? { ref } : {}) }); }}>Book free evaluation <ExternalLink /></a>
-          </Button>
+        <article key={l.id} className={`rounded-2xl border bg-card p-4 shadow-soft ${l.id === team ? "border-primary" : "border-border"}`}>
+          <h2 className="text-xl font-bold text-secondary">{l.name}{l.id === team ? " · your team" : ""}</h2>
+          <p className="mt-0.5 flex items-center gap-1 text-sm text-muted-foreground"><MapPin className="h-4 w-4" aria-hidden /> {l.address}</p>
+          <div className="mt-3 grid gap-2">
+            <Button size="lg" className="h-12 w-full text-base" asChild>
+              <a href={bookingUrl(l)} target="_blank" rel="noopener noreferrer" onClick={() => track("booking_click", { location: l.id, ...ref() })}>
+                <CalendarCheck /> Book free evaluation <ExternalLink />
+              </a>
+            </Button>
+            <Button size="lg" variant="secondary" className="h-12 w-full text-base" asChild>
+              <a href={directionsUrl(l)} target="_blank" rel="noopener noreferrer" aria-label={`Directions to PAWtastic ${l.name}`} onClick={() => track("directions_click", { location: l.id })}>
+                <Navigation /> Directions
+              </a>
+            </Button>
+          </div>
         </article>
       ))}
-      <p className="text-center text-[11px] font-bold text-muted-foreground">Opens PAWtastic Academy's existing evaluation form. Game coins and scores have no cash value and aren't connected to PAWtastic customer rewards, discounts or credit.</p>
+      <section aria-label="Get the PAWtastic app" className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+        <div className="flex items-start gap-3">
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Smartphone className="h-6 w-6" strokeWidth={1.75} aria-hidden /></div>
+          <div className="min-w-0 flex-1">
+            <p className="eyebrow">Already a PAWtastic family?</p>
+            <h2 className="text-xl font-bold leading-tight text-secondary">Get the PAWtastic app</h2>
+          </div>
+        </div>
+        <p className="mt-2 text-sm text-muted-foreground">PAWtastic customers use the PAWtastic app at app.pawtasticacademy.com for their bookings and account.</p>
+        <Button size="lg" variant="secondary" className="mt-3 h-12 w-full text-base" asChild>
+          <a href={CUSTOMER_APP_URL} target="_blank" rel="noopener noreferrer" onClick={() => track("app_click", { from: "visit" })}>Open the PAWtastic app <ExternalLink /></a>
+        </Button>
+        <p className="mt-2 text-xs text-muted-foreground">Tip: on iPhone, open it in Safari, tap Share, then “Add to Home Screen”.</p>
+      </section>
+      <p className="text-center text-[11px] font-medium text-muted-foreground">
+        These links open PAWtastic Academy's own evaluation forms and app. The games are separate: game coins and scores have no cash value and aren't connected to PAWtastic customer accounts, rewards, discounts or credit.
+      </p>
     </main>
   );
 }

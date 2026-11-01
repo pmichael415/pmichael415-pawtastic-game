@@ -36,16 +36,16 @@ export async function renderCard(d: CardData): Promise<Blob | null> {
   if (logo) g.drawImage(logo, 440, 110, 200, 200);
   g.textAlign = "center";
   g.fillStyle = "#102c49";
-  g.font = "700 56px Fredoka, sans-serif";
+  g.font = "700 56px 'DM Sans', system-ui, sans-serif";
   g.fillText(d.title, 540, 380);
   g.fillStyle = "#0057A7";
-  g.font = "700 180px Fredoka, sans-serif";
+  g.font = "700 180px 'DM Sans', system-ui, sans-serif";
   g.fillText(d.big, 540, 580);
   g.fillStyle = "#102c49";
-  g.font = "700 40px Nunito, sans-serif";
+  g.font = "700 40px 'DM Sans', system-ui, sans-serif";
   d.lines.forEach((l, i) => g.fillText(l, 540, 680 + i * 60));
   g.fillStyle = "#0057A7";
-  g.font = "800 30px Nunito, sans-serif";
+  g.font = "700 30px 'DM Sans', system-ui, sans-serif";
   g.fillText("PAWtastic Tycoon · free to play", 540, 930);
   return new Promise((res) => {
     try {

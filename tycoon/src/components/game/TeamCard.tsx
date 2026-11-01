@@ -28,10 +28,10 @@ export function TeamCard() {
     return (
       <section
         aria-label="Pick your team"
-        className="rounded-3xl border-2 border-accent bg-card p-4 shadow-soft"
+        className="rounded-2xl border border-accent bg-card p-4 shadow-soft"
       >
         <h2 className="font-display text-lg font-bold text-secondary">Pick your team! 🐾</h2>
-        <p className="text-sm font-bold text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Team Hawthorne or Team Hillsdale? Your team picks where your daycare opens, your
           adventure, and who you play for each week.
         </p>
@@ -48,7 +48,7 @@ export function TeamCard() {
         </div>
         <button
           type="button"
-          className="mt-1 min-h-11 w-full text-xs font-bold text-muted-foreground underline"
+          className="mt-1 min-h-11 w-full text-xs text-muted-foreground underline"
           onClick={openTeamPicker}
         >
           Compare the teams first
@@ -69,29 +69,29 @@ export function TeamCard() {
         : `Last week: Team ${siteName(last.hawthorne.points > last.hillsdale.points ? "hawthorne" : "hillsdale")} won.`
       : null;
   return (
-    <section aria-label={`Team ${siteName(team)}`} className="rounded-3xl bg-card p-4 shadow-soft">
+    <section aria-label={`Team ${siteName(team)}`} className="rounded-2xl border border-border bg-card p-4 shadow-soft">
       <div className="flex items-center justify-between gap-2">
         <h2 className={`font-display text-xl font-bold ${TEAM_COLORS[team].text}`}>
           Team {siteName(team)} 🐾
         </h2>
         <button
           type="button"
-          className="min-h-11 px-1 text-xs font-bold text-muted-foreground underline"
+          className="min-h-11 px-1 text-xs text-muted-foreground underline"
           onClick={openTeamPicker}
         >
           Switch team
         </button>
       </div>
-      <h3 className="mt-1 flex items-center gap-1 text-sm font-extrabold text-secondary">
+      <h3 className="mt-1 flex items-center gap-1 text-sm font-bold text-secondary">
         <Trophy className="h-4 w-4 text-accent" /> This week: Team Hawthorne vs Team Hillsdale
       </h3>
       {standings === "loading" ? (
-        <p className="text-xs font-bold text-muted-foreground">Loading team totals…</p>
+        <p className="text-xs text-muted-foreground">Loading team totals…</p>
       ) : week ? (
         <div className="mt-1 space-y-1" data-testid="team-standings">
           {TEAMS.map((t) => (
             <div key={t}>
-              <div className="flex justify-between text-xs font-extrabold text-secondary">
+              <div className="flex justify-between text-xs font-bold text-secondary">
                 <span>
                   Team {siteName(t)}
                   {t === team ? " (you)" : ""}
@@ -109,26 +109,26 @@ export function TeamCard() {
               </div>
             </div>
           ))}
-          {lastWinner && <p className="text-xs font-bold text-muted-foreground">{lastWinner}</p>}
+          {lastWinner && <p className="text-xs text-muted-foreground">{lastWinner}</p>}
         </div>
       ) : (
-        <p className="text-xs font-bold text-muted-foreground" data-testid="team-standings">
+        <p className="text-xs text-muted-foreground" data-testid="team-standings">
           Team totals aren't available right now — your points still count.
         </p>
       )}
-      <p className="mt-1 text-xs font-bold text-muted-foreground">
+      <p className="mt-1 text-xs text-muted-foreground">
         Your points today: {teamPointsToday()}/{TEAM_DAILY_CAP}. Earn them by checking pups in,
         caring for them, Recess Rush runs and Graduation Day levels.
       </p>
       {adv && (
         <div className="mt-2 rounded-2xl bg-muted p-2">
-          <p className="text-sm font-extrabold text-secondary">
+          <p className="text-sm font-bold text-secondary">
             {adv.done
               ? `🏅 “${adv.adventure.title}” complete!`
               : `Adventure: “${adv.adventure.title}” · chapter ${adv.chapter + 1}/${adv.adventure.chapters.length}`}
           </p>
           {adv.current && (
-            <p className="text-xs font-bold text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {adv.current.title}: {adv.progress}/{adv.current.target}
             </p>
           )}

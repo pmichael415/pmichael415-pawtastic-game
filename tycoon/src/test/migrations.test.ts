@@ -345,6 +345,8 @@ describe("measurement", () => {
       "booking_click",
       '{"location":"hawthorne"}',
     );
+    await ins("device-bbbb", "2026-11-01", "2026-11-01T16:06:00Z", "app_click", '{"from":"visit"}');
+    await ins("device-aaaa", "2026-11-01", "2026-11-01T15:11:00Z", "directions_click", '{"location":"hawthorne"}');
     const ret = await as("service_role", null, () =>
       one<{ players: number; returned_next_day: number }>(
         `SELECT players::int, returned_next_day::int FROM public.game_retention WHERE cohort_day = '2026-11-01'`,
@@ -352,11 +354,11 @@ describe("measurement", () => {
     );
     expect(ret).toEqual({ players: 2, returned_next_day: 1 });
     const f = await as("service_role", null, () =>
-      one<{ h: number; s: number; first: number }>(
-        `SELECT booking_link_clicks_hawthorne::int h, booking_link_clicks_hillsdale::int s, first_time_players::int first FROM public.game_daily_funnel WHERE day = '2026-11-01'`,
+      one<{ h: number; s: number; first: number; app: number; dir: number }>(
+        `SELECT booking_link_clicks_hawthorne::int h, booking_link_clicks_hillsdale::int s, first_time_players::int first, customer_app_link_clicks::int app, directions_clicks::int dir FROM public.game_daily_funnel WHERE day = '2026-11-01'`,
       ),
     );
-    expect(f).toEqual({ h: 1, s: 1, first: 2 });
+    expect(f).toEqual({ h: 1, s: 1, first: 2, app: 1, dir: 1 });
   });
 
   it("referral counts: only first-time players from the link, never the inviter's own device", async () => {

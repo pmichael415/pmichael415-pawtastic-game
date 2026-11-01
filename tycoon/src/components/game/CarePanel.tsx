@@ -103,7 +103,7 @@ export function CarePanel({
   return (
     <section
       aria-label={`Care for ${dog.name}`}
-      className="rounded-t-3xl border-2 border-b-0 border-primary bg-card p-2.5 shadow-soft"
+      className="rounded-t-2xl border border-b-0 border-border bg-card p-2.5 shadow-soft"
     >
       <div className="flex items-start gap-2">
         <DogSprite
@@ -123,7 +123,7 @@ export function CarePanel({
             </span>
           </h2>
           <p
-            className={`text-[12px] font-extrabold ${fight ? "text-destructive" : !dog.checkedIn ? "text-secondary" : "text-muted-foreground"}`}
+            className={`text-[12px] font-bold ${fight ? "text-destructive" : !dog.checkedIn ? "text-secondary" : "text-muted-foreground"}`}
           >
             {describePlace(state, dog)}
           </p>
@@ -221,7 +221,7 @@ export function CarePanel({
             <div className="mt-2">
               <button
                 type="button"
-                className="flex min-h-11 w-full items-center justify-between rounded-xl bg-muted px-3 text-sm font-extrabold text-secondary"
+                className="flex min-h-11 w-full items-center justify-between rounded-xl bg-muted px-3 text-sm font-bold text-secondary"
                 aria-expanded={rooms}
                 onClick={() => setRooms(!rooms)}
               >
@@ -323,12 +323,12 @@ export function FrontDesk({ state, site, run, onSelect, admit }: DeskProps) {
   return (
     <section
       aria-label="Front desk"
-      className="rounded-3xl border-4 border-secondary bg-card p-3 shadow-pop"
+      className="rounded-2xl border border-border bg-card p-3 shadow-soft"
     >
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-display text-lg font-bold text-secondary">🛎️ Front desk</h2>
         <span
-          className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${full ? "bg-destructive text-destructive-foreground" : "bg-muted text-secondary"}`}
+          className={`rounded-full px-2 py-0.5 text-xs font-bold ${full ? "bg-destructive text-destructive-foreground" : "bg-muted text-secondary"}`}
         >
           {lobby.length}/{LOBBY_CAP} in lobby
         </span>
@@ -351,7 +351,7 @@ export function FrontDesk({ state, site, run, onSelect, admit }: DeskProps) {
                       {d.boarding ? "🌙 " : ""}
                       {d.name}
                     </span>
-                    <span className="block text-[11px] font-extrabold text-muted-foreground">
+                    <span className="block text-[11px] font-medium text-muted-foreground">
                       {traitLabel(d)} · just dropped off
                     </span>
                   </span>
@@ -385,7 +385,7 @@ export function FrontDesk({ state, site, run, onSelect, admit }: DeskProps) {
                 key={d.id}
                 type="button"
                 onClick={() => onSelect(d.id)}
-                className="mr-1 min-h-11 rounded-full bg-muted px-3 font-extrabold underline-offset-2"
+                className="mr-1 min-h-11 rounded-full bg-muted px-3 font-bold underline-offset-2"
               >
                 {d.name} → {d.boarding ? "suite" : groupName(groupOf(d))}
               </button>
@@ -461,7 +461,7 @@ export function AreaPanel({
               key={d.id}
               type="button"
               onClick={() => onSelect(d.id)}
-              className="min-h-11 rounded-full bg-muted px-3 text-sm font-extrabold text-secondary"
+              className="min-h-11 rounded-full bg-muted px-3 text-sm font-bold text-secondary"
             >
               {d.name}
               {groupOf(d) !== g.id ? " ⚠" : ""}
@@ -502,7 +502,7 @@ export function AreaPanel({
         <button
           type="button"
           onClick={() => onSelect(occ.id)}
-          className="min-h-11 rounded-full bg-muted px-3 text-sm font-extrabold text-secondary"
+          className="min-h-11 rounded-full bg-muted px-3 text-sm font-bold text-secondary"
         >
           Occupied by {occ.name} — tap to care or check out
         </button>
@@ -532,7 +532,7 @@ export function AreaPanel({
   return (
     <section
       aria-label={title}
-      className="rounded-t-3xl border-2 border-b-0 border-primary bg-card p-3 shadow-soft"
+      className="rounded-t-2xl border border-b-0 border-border bg-card p-3 shadow-soft"
     >
       <div className="flex items-center justify-between">
         <h2 className="font-display text-lg font-bold text-secondary">{title}</h2>

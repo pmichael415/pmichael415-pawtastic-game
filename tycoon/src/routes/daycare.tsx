@@ -572,7 +572,7 @@ function Daycare() {
       {preview && (
         <div
           role="status"
-          className="sticky top-1 z-30 mt-2 flex items-center gap-2 rounded-2xl bg-accent p-2 pl-3 text-sm font-extrabold text-accent-foreground shadow-soft"
+          className="sticky top-1 z-30 mt-2 flex items-center gap-2 rounded-2xl bg-accent p-2 pl-3 text-sm font-bold text-accent-foreground shadow-soft"
         >
           <span className="flex-1">
             👀 Previewing {preview === "deluxe" ? "Deluxe Daycare Decor" : "Blue Ribbon Style Pack"}{" "}
@@ -610,15 +610,15 @@ function Daycare() {
 
       <section
         aria-label="Game clock"
-        className={`mt-2 flex items-center gap-2 rounded-2xl px-3 py-1.5 shadow-soft ${lobbyNow.open ? "bg-card" : "bg-secondary text-secondary-foreground"}`}
+        className={`mt-2 flex items-center gap-2 rounded-2xl border px-3 py-1.5 shadow-soft ${lobbyNow.open ? "border-border bg-card" : "border-secondary bg-secondary text-secondary-foreground"}`}
       >
         <Clock className="h-5 w-5 shrink-0" aria-hidden />
         <div className="min-w-0 flex-1 leading-tight">
           <span className="font-display text-lg font-bold">{fmtClock(state.clockMin)}</span>{" "}
-          <span className="text-[11px] font-extrabold opacity-70">
+          <span className="text-[11px] font-bold opacity-70">
             Day {state.gameDay} · game clock
           </span>
-          <div className={`text-[11px] font-extrabold ${lobbyNow.open ? "text-success" : ""}`}>
+          <div className={`text-[11px] font-bold ${lobbyNow.open ? "text-success" : ""}`}>
             {lobbyNow.open
               ? state.clockMin < 720
                 ? `🟢 Drop-offs open · break in ${fmtDur(lobbyNow.minutesToChange)}`
@@ -660,7 +660,7 @@ function Daycare() {
                 setSel(null);
                 setArea(null);
               }}
-              className={`min-h-11 rounded-full font-display font-bold ${site === x.id ? "bg-secondary text-secondary-foreground" : "text-secondary"}`}
+              className={`min-h-11 rounded-full font-display font-bold ${site === x.id ? "bg-primary text-primary-foreground" : "text-secondary"}`}
             >
               {x.name}
             </button>
@@ -694,7 +694,7 @@ function Daycare() {
       {lobby.some((d) => !d.checkedIn) && (
         <section
           aria-label="Waiting for check-in"
-          className="mt-2 flex gap-2 overflow-x-auto rounded-2xl bg-accent/90 p-1.5 shadow-soft"
+          className="mt-2 flex gap-2 overflow-x-auto rounded-2xl border border-accent bg-accent/15 p-1.5"
         >
           {lobby
             .filter((d) => !d.checkedIn)
@@ -705,7 +705,7 @@ function Daycare() {
               >
                 <button
                   type="button"
-                  className="min-h-11 text-left text-sm font-extrabold text-secondary"
+                  className="min-h-11 text-left text-sm font-bold text-secondary"
                   onClick={() => selectDog(d.id)}
                 >
                   🛎️ {d.name}
@@ -742,7 +742,7 @@ function Daycare() {
             onUnavailable={() => setNo3d(true)}
           />
         ) : (
-          <div className="flex items-center justify-between gap-2 rounded-2xl bg-card p-3 shadow-soft">
+          <div className="flex items-center justify-between gap-2 rounded-2xl border border-border bg-card p-3 shadow-soft">
             <p className="text-sm font-bold text-secondary">
               {no3d
                 ? "3D view unavailable on this device — the list view below has every action."
@@ -757,11 +757,11 @@ function Daycare() {
         )}
       </div>
 
-      <section className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-2xl bg-card p-3 shadow-soft">
+      <section className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-2xl border border-border bg-card p-3 shadow-soft">
         <Meter label="Avg happiness" value={avgHappy} tone="bg-success" />
         <Meter label="Cleanliness" value={state.cleanliness} />
         <Meter label="Staff energy" value={avgEnergy} tone="bg-accent" />
-        <div className="text-[11px] font-extrabold text-secondary">
+        <div className="text-[11px] font-bold text-secondary">
           Pups here{" "}
           <span className="font-display text-lg">
             {state.dogs.filter((d) => d.site === site).length}
@@ -781,10 +781,10 @@ function Daycare() {
 
       {/* LIST VIEW — the accessible overview of every room (same state as the 3D world) */}
       <div className="mt-3 space-y-3 select-none" onClick={() => setSel(null)}>
-        <section aria-label={`${siteName} lobby`} className="rounded-3xl bg-card p-3 shadow-soft">
+        <section aria-label={`${siteName} lobby`} className="rounded-2xl border border-border bg-card p-3 shadow-soft">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-lg font-bold text-secondary">🛎️ Lobby</h2>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-extrabold text-secondary">
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-secondary">
               {lobby.length}/{LOBBY_CAP}
             </span>
           </div>
@@ -796,7 +796,7 @@ function Daycare() {
             </div>
             {lobby.map((d) => chip(d))}
             {!lobby.length && (
-              <p className="self-center text-xs font-bold text-muted-foreground">Lobby is empty.</p>
+              <p className="self-center text-xs text-muted-foreground">Lobby is empty.</p>
             )}
           </div>
         </section>
@@ -848,12 +848,12 @@ function Daycare() {
                       {g.name}
                     </span>
                     <span
-                      className={`rounded-full px-1.5 text-[11px] font-extrabold ${dogs.length >= roomCap ? "bg-destructive text-destructive-foreground" : "bg-muted text-secondary"}`}
+                      className={`rounded-full px-1.5 text-[11px] font-bold ${dogs.length >= roomCap ? "bg-destructive text-destructive-foreground" : "bg-muted text-secondary"}`}
                     >
                       {dogs.length}/{roomCap}
                     </span>
                   </div>
-                  <p className="text-[10px] font-extrabold text-muted-foreground">
+                  <p className="text-[10px] font-bold text-muted-foreground">
                     Accepts {g.size} · {g.temper}
                   </p>
                   <div className="mt-1 flex flex-wrap items-end gap-0.5">
@@ -865,7 +865,7 @@ function Daycare() {
                     )}
                   </div>
                   {risk && !fight && (
-                    <p className="mt-1 rounded-lg bg-accent p-1 text-[10px] font-extrabold text-accent-foreground">
+                    <p className="mt-1 rounded-lg bg-accent p-1 text-[10px] font-bold text-accent-foreground">
                       <AlertTriangle className="inline h-3 w-3" /> Tension — mismatched group
                     </p>
                   )}
@@ -887,13 +887,13 @@ function Daycare() {
                     </Button>
                   )}
                   {opt && opt.status !== "fit" && (
-                    <p className="mt-1 text-[10px] font-extrabold text-secondary">
+                    <p className="mt-1 text-[10px] font-bold text-secondary">
                       {opt.status === "warn" ? "⚠ " : <Lock className="inline h-3 w-3" />}{" "}
                       {opt.reason}
                     </p>
                   )}
                   {opt && opt.status === "fit" && (
-                    <p className="mt-1 text-[10px] font-extrabold text-success">
+                    <p className="mt-1 text-[10px] font-bold text-success">
                       ✓ Safe match — tap to move {selected!.name} here
                     </p>
                   )}
@@ -905,32 +905,32 @@ function Daycare() {
 
         <section
           aria-label="Recovery room"
-          className="rounded-3xl border-4 border-dashed border-accent bg-card p-3"
+          className="rounded-2xl border-2 border-dashed border-accent bg-card p-3"
         >
           <h2 className="font-display text-base font-bold text-secondary">
             🫶 Staff recovery room{" "}
             <span className="text-xs text-muted-foreground">calm space · always open</span>
           </h2>
-          <p className="text-[11px] font-bold text-muted-foreground">
+          <p className="text-[11px] font-medium text-muted-foreground">
             Separate from the public lobby. Works when the lobby is closed or full and when staff
             are tired.
           </p>
           <div className="mt-1 flex min-h-11 flex-wrap gap-1">
             {recoveryDogs(state, site).map((d) => chip(d))}
             {!recoveryDogs(state, site).length && (
-              <span className="text-xs font-bold text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 Empty — everyone's calm.
               </span>
             )}
           </div>
         </section>
 
-        <section aria-label="Boarding suites" className="rounded-3xl bg-secondary p-3 shadow-soft">
-          <h2 className="font-display text-lg font-bold text-secondary-foreground">
-            🌙 Boarding Suites <span className="text-xs opacity-80">one pup per private room</span>
+        <section aria-label="Boarding suites" className="rounded-2xl border border-border bg-card p-3 shadow-soft">
+          <h2 className="font-display text-lg font-bold text-secondary">
+            🌙 Boarding Suites <span className="text-xs font-medium text-muted-foreground">one pup per private room</span>
           </h2>
           {nSuites === 0 ? (
-            <p className="mt-2 flex items-center gap-2 rounded-2xl bg-card p-3 text-sm font-bold text-secondary">
+            <p className="mt-2 flex items-center gap-2 rounded-xl bg-muted p-3 text-sm font-medium text-secondary">
               <Lock className="h-4 w-4" /> Build Boarding Suites in Upgrades (800 coins) to host
               overnight guests.
             </p>
@@ -953,18 +953,18 @@ function Daycare() {
                       else if (selected && why && !occ) toast.error(why);
                       else setArea({ kind: "suite", index: i });
                     }}
-                    className={`flex min-h-32 flex-col items-center justify-between rounded-2xl border-4 bg-card p-1.5 ${fits ? "border-success ring-4 ring-success/40" : "border-primary"}`}
+                    className={`flex min-h-32 flex-col items-center justify-between rounded-xl border-2 bg-card p-1.5 ${fits ? "border-success ring-4 ring-success/40" : "border-border"}`}
                   >
-                    <span className="flex items-center gap-1 text-[11px] font-extrabold text-secondary">
+                    <span className="flex items-center gap-1 text-[11px] font-bold text-secondary">
                       <BedDouble className="h-3.5 w-3.5" /> Suite {i + 1}
                     </span>
                     {occ ? (
                       chip(occ, !!selected && selected.id !== occ.id)
                     ) : (
-                      <span className="text-xs font-bold text-muted-foreground">Vacant</span>
+                      <span className="text-xs text-muted-foreground">Vacant</span>
                     )}
                     <span
-                      className={`rounded-full px-1.5 text-[10px] font-extrabold ${occ ? "bg-destructive text-destructive-foreground" : "bg-success text-primary-foreground"}`}
+                      className={`rounded-full px-1.5 text-[10px] font-bold ${occ ? "bg-destructive text-destructive-foreground" : "bg-success text-primary-foreground"}`}
                     >
                       {occ ? "Occupied" : "Open"}
                     </span>
@@ -992,11 +992,11 @@ function Daycare() {
           <h2 className="font-display text-base font-bold text-secondary">
             🎯 Next goal: {goal.label}
           </h2>
-          <span className="text-xs font-extrabold text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             {Math.round(goal.progress * 100)}%
           </span>
         </div>
-        <p className="text-xs font-bold text-muted-foreground">{goal.detail}</p>
+        <p className="text-xs text-muted-foreground">{goal.detail}</p>
         <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-muted">
           <div
             className="h-full rounded-full bg-accent"
@@ -1016,7 +1016,7 @@ function Daycare() {
             role="tab"
             aria-selected={tab === t}
             onClick={() => setTab(t)}
-            className={`min-h-11 flex-1 rounded-full px-3 text-sm font-extrabold capitalize ${tab === t ? "bg-primary text-primary-foreground" : "text-secondary"}`}
+            className={`min-h-11 flex-1 rounded-full px-3 text-sm font-bold capitalize ${tab === t ? "bg-primary text-primary-foreground" : "text-secondary"}`}
           >
             {t}
           </button>
@@ -1169,7 +1169,7 @@ function Daycare() {
       </section>
 
       <section className="mt-4 grid grid-cols-2 gap-2">
-        <Button size="lg" className="h-14 bg-brand-gradient font-display text-base" onClick={share}>
+        <Button size="lg" className="h-14 font-display text-base" onClick={share}>
           <Share2 /> Share daycare card
         </Button>
         <Button size="lg" variant="secondary" className="h-14 font-display text-base" asChild>
@@ -1269,7 +1269,7 @@ function Daycare() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <footer className="mt-6 space-y-3 pb-4 text-center text-[11px] font-bold text-muted-foreground">
+      <footer className="mt-6 space-y-3 pb-4 text-center text-[11px] font-medium text-muted-foreground">
         <p>
           Game coins are free virtual currency with no cash value. They can't be exchanged for
           money, discounts or daycare credit and aren't connected to PAWtastic customer rewards.
@@ -1346,7 +1346,7 @@ function TeamAdventure({ state, onClaim }: { state: GameState; onClaim: () => vo
   const st = adventureStatus(state);
   if (!state.team || !st) {
     return (
-      <section aria-label="Team adventure" className="mt-4 flex items-center gap-3 rounded-2xl bg-card p-3 shadow-soft">
+      <section aria-label="Team adventure" className="mt-4 flex items-center gap-3 rounded-2xl border border-border bg-card p-3 shadow-soft">
         <p className="min-w-0 flex-1 text-sm font-bold text-secondary">Pick Team Hawthorne or Team Hillsdale to start your team adventure.</p>
         <Button className="h-11 shrink-0" onClick={openTeamPicker}>Pick team</Button>
       </section>
@@ -1355,25 +1355,25 @@ function TeamAdventure({ state, onClaim }: { state: GameState; onClaim: () => vo
   const c = TEAM_COLORS[state.team];
   return (
     <section aria-label="Team adventure" className={`mt-4 rounded-2xl border-2 bg-card p-3 shadow-soft ring-2 ${c.ring}`}>
-      <p className={`text-xs font-extrabold uppercase tracking-wide ${c.text}`}>Team {nameOfSite(state.team)} adventure · fictional story</p>
+      <p className={`text-xs font-bold uppercase tracking-wide ${c.text}`}>Team {nameOfSite(state.team)} adventure · fictional story</p>
       <h2 className="font-display text-base font-bold text-secondary">
         “{st.adventure.title}”{st.done ? " — complete! 🏅" : ` · chapter ${st.chapter + 1}/${st.adventure.chapters.length}: ${st.current!.title}`}
       </h2>
       {st.current ? (
         <>
-          <p className="text-xs font-bold text-muted-foreground">{st.chapter === 0 ? `${st.adventure.intro} ` : ""}{st.current.story}</p>
+          <p className="text-xs text-muted-foreground">{st.chapter === 0 ? `${st.adventure.intro} ` : ""}{st.current.story}</p>
           <div className="mt-1 flex items-center gap-2">
             <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
               <div className={`h-full rounded-full ${c.bg}`} style={{ width: `${(st.progress / st.current.target) * 100}%` }} />
             </div>
-            <span className="text-xs font-extrabold text-secondary">{st.progress}/{st.current.target}</span>
+            <span className="text-xs font-bold text-secondary">{st.progress}/{st.current.target}</span>
             <Button className="h-11" disabled={st.progress < st.current.target} onClick={onClaim} data-testid="claim-chapter">
               {st.progress < st.current.target ? `+${st.current.reward}` : `Claim +${st.current.reward}`}
             </Button>
           </div>
         </>
       ) : (
-        <p className="text-xs font-bold text-muted-foreground">You earned the Team {nameOfSite(state.team)} Bandana — equip it in the Style Shop.</p>
+        <p className="text-xs text-muted-foreground">You earned the Team {nameOfSite(state.team)} Bandana — equip it in the Style Shop.</p>
       )}
     </section>
   );

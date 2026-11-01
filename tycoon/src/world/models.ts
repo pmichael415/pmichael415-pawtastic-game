@@ -343,11 +343,11 @@ export function makeTag(width = 1.7): Tag {
       g.fill();
       g.textAlign = "center";
       g.fillStyle = t.fg;
-      g.font = `800 ${sub ? 34 : 40}px Nunito, system-ui, sans-serif`;
+      g.font = `700 ${sub ? 34 : 40}px 'DM Sans', system-ui, sans-serif`;
       g.fillText(text, c.width / 2, sub ? 44 : 61, c.width - 24);
       if (sub) {
         g.fillStyle = t.sub;
-        g.font = "700 24px Nunito, system-ui, sans-serif";
+        g.font = "700 24px 'DM Sans', system-ui, sans-serif";
         g.fillText(sub, c.width / 2, 76, c.width - 24);
       }
       tex.needsUpdate = true;
@@ -391,9 +391,9 @@ export function makeSign(w: number, h: number) {
       g.fill();
       g.fillStyle = "#ffffff";
       g.textAlign = "left";
-      g.font = "800 50px Nunito, system-ui, sans-serif";
+      g.font = "700 50px 'DM Sans', system-ui, sans-serif";
       g.fillText(lines.title, 26, 82, c.width - 170);
-      g.font = "700 30px Nunito, system-ui, sans-serif";
+      g.font = "700 30px 'DM Sans', system-ui, sans-serif";
       g.fillStyle = lines.alert ? "#ffe3e3" : "#b9d8ff";
       g.fillText(lines.sub, 26, c.height - 26, c.width - 170);
       g.fillStyle = "#ffffff";
@@ -401,7 +401,7 @@ export function makeSign(w: number, h: number) {
       g.fill();
       g.fillStyle = "#102c49";
       g.textAlign = "center";
-      g.font = "800 46px Nunito, system-ui, sans-serif";
+      g.font = "700 46px 'DM Sans', system-ui, sans-serif";
       g.fillText(lines.badge, c.width - 82, c.height / 2 + 16, 104);
       tex.needsUpdate = true;
     },

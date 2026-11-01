@@ -57,16 +57,16 @@ function Graduation() {
       style={{ height: "calc(100svh - 4rem - env(safe-area-inset-bottom))" }}
     >
       <GameHeader title="Graduation Day" subtitle={sub} />
-      <p className="mt-1.5 px-1 text-[11px] font-bold text-muted-foreground">
+      <p className="mt-1.5 px-1 text-[11px] font-medium text-muted-foreground">
         Free play here. Treats stay in Graduation Day; achievements and bandanas are shared with
         your daycare.
       </p>
       {import.meta.env["VITE_REVIEW_BUILD"] ? (
-        <div className="mt-2 rounded-3xl bg-card p-5 text-center shadow-soft">
+        <div className="mt-2 rounded-2xl border border-border bg-card p-5 text-center shadow-soft">
           <p className="font-display text-lg font-bold text-secondary">
             Graduation Day plays right here in the full game.
           </p>
-          <p className="mt-1 text-sm font-bold text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             This private preview leaves it out. You can try it on its own site:
           </p>
           <a
@@ -83,7 +83,7 @@ function Graduation() {
           title="Graduation Day match-3 game"
           src={`${import.meta.env.BASE_URL}graduation/index.html`}
           allow="autoplay; fullscreen"
-          className="mt-1.5 w-full flex-1 rounded-3xl border-4 border-secondary bg-card shadow-pop"
+          className="mt-1.5 w-full flex-1 rounded-2xl border border-border bg-card shadow-soft"
         />
       )}
     </main>

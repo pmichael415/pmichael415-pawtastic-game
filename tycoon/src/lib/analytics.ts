@@ -18,6 +18,8 @@ export const EVENT_NAMES = [
   "checkout_start",
   "restore_result",
   "booking_click",
+  "app_click",
+  "directions_click",
   "recess_run",
   "share",
   "hub_open",

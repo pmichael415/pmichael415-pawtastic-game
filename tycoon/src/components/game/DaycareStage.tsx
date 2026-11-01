@@ -180,7 +180,7 @@ export const DaycareStage = forwardRef<StageHandle, Props>(function DaycareStage
   return (
     <section
       aria-label="3D daycare view"
-      className="relative overflow-hidden rounded-3xl border-4 border-secondary bg-sky shadow-pop"
+      className="relative overflow-hidden rounded-2xl border border-border bg-sky shadow-soft"
     >
       <canvas
         ref={canvasRef}
@@ -216,7 +216,7 @@ export const DaycareStage = forwardRef<StageHandle, Props>(function DaycareStage
           role="radio"
           aria-checked={!walk}
           onClick={() => setView("overhead")}
-          className={`flex h-11 items-center gap-1 rounded-full px-3 text-sm font-extrabold ${!walk ? "bg-secondary text-secondary-foreground" : "text-secondary"}`}
+          className={`flex h-11 items-center gap-1 rounded-full px-3 text-sm font-bold ${!walk ? "bg-primary text-primary-foreground" : "text-secondary"}`}
         >
           <MapIcon className="h-4 w-4" aria-hidden /> Overhead
         </button>
@@ -225,7 +225,7 @@ export const DaycareStage = forwardRef<StageHandle, Props>(function DaycareStage
           role="radio"
           aria-checked={walk}
           onClick={() => setView("walk")}
-          className={`flex h-11 items-center gap-1 rounded-full px-3 text-sm font-extrabold ${walk ? "bg-secondary text-secondary-foreground" : "text-secondary"}`}
+          className={`flex h-11 items-center gap-1 rounded-full px-3 text-sm font-bold ${walk ? "bg-primary text-primary-foreground" : "text-secondary"}`}
         >
           <Eye className="h-4 w-4" aria-hidden /> Walk
         </button>
@@ -280,7 +280,7 @@ export const DaycareStage = forwardRef<StageHandle, Props>(function DaycareStage
               key={j.key}
               type="button"
               onClick={() => worldRef.current?.jumpTo(j.key)}
-              className="h-11 shrink-0 rounded-full bg-card/95 px-3 text-sm font-extrabold text-secondary shadow-soft"
+              className="h-11 shrink-0 rounded-full bg-card/95 px-3 text-sm font-bold text-secondary shadow-soft"
             >
               {j.label}
             </button>
@@ -325,8 +325,8 @@ export const DaycareStage = forwardRef<StageHandle, Props>(function DaycareStage
           )}
           <div className="absolute bottom-3 left-[9.5rem] right-2 flex flex-col items-stretch gap-1">
             {p ? (
-              <div className="rounded-2xl bg-card/95 p-1.5 shadow-soft">
-                <div className="truncate px-1 text-[12px] font-extrabold text-secondary">
+              <div className="rounded-2xl border border-border bg-card/95 p-1.5 shadow-soft">
+                <div className="truncate px-1 text-[12px] font-bold text-secondary">
                   <span className="font-display text-sm">{p.title}</span>
                   {p.sub ? <span className="text-muted-foreground"> · {p.sub}</span> : null}
                 </div>
@@ -344,7 +344,7 @@ export const DaycareStage = forwardRef<StageHandle, Props>(function DaycareStage
                       type="button"
                       aria-label="More options"
                       onClick={p.more}
-                      className="grid h-12 w-11 shrink-0 place-items-center rounded-xl bg-muted text-lg font-extrabold text-secondary"
+                      className="grid h-12 w-11 shrink-0 place-items-center rounded-xl bg-muted text-lg font-bold text-secondary"
                     >
                       ⋯
                     </button>
@@ -357,7 +357,7 @@ export const DaycareStage = forwardRef<StageHandle, Props>(function DaycareStage
                 )}
               </div>
             ) : (
-              <div className="rounded-2xl bg-card/90 px-3 py-2 text-xs font-bold text-secondary shadow-soft">
+              <div className="rounded-2xl border border-border bg-card/90 px-3 py-2 text-xs font-bold text-secondary shadow-soft">
                 Walk up to a pup, a room sign or the front desk
               </div>
             )}

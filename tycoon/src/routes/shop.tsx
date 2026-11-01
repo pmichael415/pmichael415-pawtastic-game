@@ -67,11 +67,11 @@ function Shop() {
     <main className="space-y-4 px-3 pt-3">
       <GameHeader title="Style Shop" subtitle="Cosmetics only" />
 
-      <section className="flex items-center gap-4 rounded-3xl bg-card p-4 shadow-soft">
+      <section className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-soft">
         <div className="grid h-24 w-24 place-items-center rounded-2xl bg-sky"><DogSprite breed={0} size={80} bandana={color} star={showStar} collar={showCollar} /></div>
         <div>
           <h2 className="font-display text-lg font-bold text-secondary">Preview</h2>
-          <p className="text-sm font-bold text-muted-foreground">{paidPreview ? (paidPreview === "sparkle-trail" ? "Sparkle Trail: ✨✨✨ follows your runner in Recess Rush." : paidPreview === "deluxe-decor" ? "Deluxe decor: ☁️ cloud beds, 🐾 paw-print rug, 🗼 lighthouse fort, 🫧 bubbles in your rooms." : "Previewing a pack item.") : preview ? "Previewing — tap Equip to wear it." : s.equipped ? "Currently equipped on all pups." : "No bandana equipped."}</p>
+          <p className="text-sm text-muted-foreground">{paidPreview ? (paidPreview === "sparkle-trail" ? "Sparkle Trail: ✨✨✨ follows your runner in Recess Rush." : paidPreview === "deluxe-decor" ? "Deluxe decor: ☁️ cloud beds, 🐾 paw-print rug, 🗼 lighthouse fort, 🫧 bubbles in your rooms." : "Previewing a pack item.") : preview ? "Previewing — tap Equip to wear it." : s.equipped ? "Currently equipped on all pups." : "No bandana equipped."}</p>
         </div>
       </section>
 
@@ -81,11 +81,11 @@ function Shop() {
           {FREE_COSMETICS.map((c) => {
             const owned = s.cosmetics.includes(c.id);
             return (
-              <div key={c.id} className="flex items-center gap-3 rounded-2xl bg-card p-3 shadow-soft">
+              <div key={c.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 shadow-soft">
                 <span className="h-8 w-8 rounded-full border-2 border-secondary" style={{ background: c.color }} />
                 <div className="flex-1">
                   <div className="font-display font-bold text-secondary">{c.name}</div>
-                  <div className="text-xs font-bold text-muted-foreground">{owned ? "Owned" : c.how}</div>
+                  <div className="text-xs text-muted-foreground">{owned ? "Owned" : c.how}</div>
                 </div>
                 <Button variant="outline" size="sm" className="min-h-11" onPointerEnter={() => setPreview(c.id)} onClick={() => setPreview(c.id)}>Preview</Button>
                 <Button size="sm" className="min-h-11" disabled={!owned} onClick={() => { equip(s.equipped === c.id ? null : c.id); setPreview(null); }}>
@@ -99,15 +99,15 @@ function Shop() {
 
       <section>
         <h2 className="font-display text-lg font-bold text-secondary">Optional cosmetic packs</h2>
-        <p className="text-xs font-bold text-muted-foreground">Proposed launch prices. Cosmetic only — every room, upgrade and location is free to earn in-game.</p>
+        <p className="text-xs text-muted-foreground">Proposed launch prices. Cosmetic only — every room, upgrade and location is free to earn in-game.</p>
         <div className="mt-2 grid gap-3">
           {PAID_PRODUCTS.map((p) => (
-            <article key={p.id} className="rounded-3xl border-2 border-primary bg-card p-4 shadow-soft">
+            <article key={p.id} className="rounded-2xl border border-primary/40 bg-card p-4 shadow-soft">
               <div className="flex items-start justify-between gap-2">
                 <h3 className="font-display text-lg font-bold text-secondary">{p.name}</h3>
                 <span className="rounded-full bg-secondary px-3 py-1 font-display font-bold text-secondary-foreground">{formatPrice(p)}</span>
               </div>
-              <p className="mt-1 text-sm font-bold text-muted-foreground">{p.blurb}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{p.blurb}</p>
               <ul className="mt-2 flex flex-wrap gap-1">{p.items.map((i) => <li key={i} className="rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-secondary">{i}</li>)}</ul>
               <div className="mt-2 grid gap-1.5">
                 {PAID_ITEMS.filter((it) => it.pack === p.id).map((it) => {
@@ -140,7 +140,7 @@ function Shop() {
               ) : (
                 <>
                   <Button className="mt-3 w-full" size="lg" disabled><Lock /> {pay.ready ? "Sign in to buy" : "Purchases coming soon"}</Button>
-                  {!pay.ready && pay.reason && <p className="mt-1 text-center text-[11px] font-bold text-muted-foreground">Locked: {pay.reason}. Nothing can be charged.</p>}
+                  {!pay.ready && pay.reason && <p className="mt-1 text-center text-[11px] font-medium text-muted-foreground">Locked: {pay.reason}. Nothing can be charged.</p>}
                 </>
               )}
             </article>
@@ -148,14 +148,14 @@ function Shop() {
         </div>
       </section>
 
-      <section className="rounded-3xl bg-card p-4 shadow-soft">
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-soft">
         <h2 className="font-display text-lg font-bold text-secondary">Account & purchases</h2>
-        <p className="mt-1 text-sm font-bold text-muted-foreground">Paid packs are tied to your verified account and confirmed by our server, so they follow you across devices. {user ? "" : "You're playing as a guest."}</p>
+        <p className="mt-1 text-sm text-muted-foreground">Paid packs are tied to your verified account and confirmed by our server, so they follow you across devices. {user ? "" : "You're playing as a guest."}</p>
         <div className="mt-3 grid grid-cols-2 gap-2">
           {user ? <Button variant="secondary" asChild><Link to="/account"><UserRound /> Account</Link></Button> : <Button variant="secondary" asChild><Link to="/account"><UserRound /> Sign in</Link></Button>}
           <Button variant="outline" disabled={!user || busy} onClick={restore}><RefreshCw /> Restore purchases</Button>
         </div>
-        <p className="mt-2 text-[11px] font-bold text-muted-foreground">Owned packs: {owned === null ? (!user ? "sign in to see" : ent.status === "error" ? "couldn't verify" : "checking…") : owned.length ? owned.map((id) => PAID_PRODUCTS.find((x) => x.id === id)?.name).join(", ") : "none"}. Game coins have no cash value and can't buy packs.</p>
+        <p className="mt-2 text-[11px] font-medium text-muted-foreground">Owned packs: {owned === null ? (!user ? "sign in to see" : ent.status === "error" ? "couldn't verify" : "checking…") : owned.length ? owned.map((id) => PAID_PRODUCTS.find((x) => x.id === id)?.name).join(", ") : "none"}. Game coins have no cash value and can't buy packs.</p>
       </section>
     </main>
   );
