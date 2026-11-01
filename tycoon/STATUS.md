@@ -34,6 +34,25 @@ with a 0.2 s animation). Production build OK.
   header. Directions now search "…, NJ" (the logo confirms the state). Note: both logos say
   "Daycare · Boarding · Grooming"; the game's own text keeps to daycare, boarding, baths and exit baths.
 
+## Update — sign in and load your progress: a cloud save per game (1 Nov)
+
+- **Each game has its own cloud save** (`public.game_saves`, migration 0006): Daycare Tycoon (daycare, shared coins,
+  bandanas, achievements, team), Recess Rush (best score, today's coin counter) and Graduation Day (its own save file,
+  incl. Summer Camp and location adventures). Loading or keeping one game never touches another.
+- **Sign in → your progress loads.** On a phone with nothing real for a game, that game loads from the account by itself;
+  a phone with progress and an empty account saves it; progress in both places asks for that game only ("Keep this
+  phone's progress" / "Load my account's progress"). After that each game saves automatically (every 20 s and when
+  leaving the app); a stale phone is paused for that game instead of overwriting newer progress.
+- **Sign-in:** Continue with Google (recommended), or email + password with "Forgot password?" (reset link by email,
+  then choose a new password). Home page: "Save your progress" card; header: "Guest · not backed up" / "Signed in ·
+  cloud saves on". Graduation Day isn't swapped while its screen is open (it would overwrite the load); it loads once
+  the player leaves that screen.
+- **Safety:** players read only their own saves; writes only through `save_game_progress` (revision-checked, three
+  game names only, objects ≤ 100 KB, no direct table writes). Saves hold free progress only.
+- Tests: 173 unit/integration (per-game slices and merges, sign-in decisions, multi-phone sync, the SQL on PGlite) and
+  a browser suite against a stand-in sign-in server (`qa/e2e-cloud.cjs`, 25/25). **Not tested here:** real Google
+  sign-in and real email delivery (password confirmation/reset emails depend on Lovable Cloud's email settings).
+
 ## Update — current Graduation Day inside the hub (1 Nov)
 
 - The hub now embeds the same Graduation Day build that is live (Summer Camp levels 41–80, location adventures,

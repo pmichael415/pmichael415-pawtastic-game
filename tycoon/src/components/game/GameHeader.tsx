@@ -12,7 +12,7 @@ import { Logo } from "@/game/sprites";
 import { ShareButton } from "./ShareSheet";
 import { openTeamPicker } from "./TeamPicker";
 import { useSession } from "@/lib/auth";
-import { useLink, useSyncStatus } from "@/game/cloud";
+import { overall, useLinks, useStatuses } from "@/game/cloud";
 import {
   Sheet,
   SheetContent,
@@ -28,49 +28,18 @@ import { setSettings, useSettings, type ViewMode } from "@/lib/settings";
 /** Account + cloud-save state in plain words, shown in every game's header. */
 export function SaveStatus() {
   const { user, ready } = useSession();
-  const link = useLink();
-  const st = useSyncStatus();
-  if (!ready)
-    return (
-      <span className="inline-flex items-center gap-1">
-        <Loader2 className="h-3 w-3 animate-spin" /> Checking account…
-      </span>
-    );
-  if (!user)
-    return (
-      <span className="inline-flex items-center gap-1">
-        <CloudOff className="h-3 w-3" /> Guest · saved on this device
-      </span>
-    );
-  if (!link || link.userId !== user.id)
-    return (
-      <span className="inline-flex  items-center gap-1">
-        <Cloud className="h-3 w-3" /> Signed in · choose a save to sync
-      </span>
-    );
-  if (st.kind === "syncing")
-    return (
-      <span className="inline-flex items-center gap-1">
-        <Loader2 className="h-3 w-3 animate-spin" /> Syncing…
-      </span>
-    );
-  if (st.kind === "error")
-    return (
-      <span className="inline-flex items-center gap-1 text-destructive">
-        <TriangleAlert className="h-3 w-3" /> Cloud save error — retrying
-      </span>
-    );
-  if (st.kind === "conflict")
-    return (
-      <span className="inline-flex items-center gap-1 text-destructive">
-        <TriangleAlert className="h-3 w-3" /> Newer save on another device — choose
-      </span>
-    );
-  return (
-    <span className="inline-flex items-center gap-1">
-      <Cloud className="h-3 w-3" /> Signed in · cloud save on
-    </span>
+  const links = useLinks();
+  const kind = overall(useStatuses());
+  const row = (icon: ReactNode, text: string, cls = "") => (
+    <span className={`inline-flex items-center gap-1 ${cls}`}>{icon} {text}</span>
   );
+  if (!ready) return row(<Loader2 className="h-3 w-3 animate-spin" />, "Checking account…");
+  if (!user) return row(<CloudOff className="h-3 w-3" />, "Guest · not backed up");
+  if (!links || links.userId !== user.id) return row(<Loader2 className="h-3 w-3 animate-spin" />, "Signed in · loading your saves");
+  if (kind === "conflict") return row(<TriangleAlert className="h-3 w-3" />, "Choose which progress to keep", "text-destructive");
+  if (kind === "error") return row(<TriangleAlert className="h-3 w-3" />, "Cloud save error — retrying", "text-destructive");
+  if (kind === "syncing") return row(<Loader2 className="h-3 w-3 animate-spin" />, "Saving…");
+  return row(<Cloud className="h-3 w-3" />, "Signed in · cloud saves on");
 }
 
 export function GameHeader({

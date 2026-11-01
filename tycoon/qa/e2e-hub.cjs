@@ -24,7 +24,7 @@ const check = (n, ok, d = '') => { ok ? pass++ : fail++; out.push(`${ok ? 'PASS'
 
   // Hub & navigation
   await fresh(undefined, '/');
-  check('hub shows both games', await page.getByText('Daycare Tycoon').isVisible() && await page.getByText('Recess Rush', { exact: true }).first().isVisible());
+  check('hub shows both games', await page.getByRole('heading', { name: 'Daycare Tycoon', exact: true }).isVisible() && await page.getByRole('heading', { name: 'Recess Rush', exact: true }).isVisible());
   const navLabels = await page.locator('nav[aria-label="Game tabs"] a').allInnerTexts();
   check('one bottom navigation for every game', navLabels.join('|') === 'Home|Daycare|Recess Rush|Graduation|Shop', navLabels.join('|'));
   await page.getByRole('link', { name: /Open your daycare/ }).tap();

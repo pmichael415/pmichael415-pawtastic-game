@@ -89,6 +89,30 @@ export type Database = {
         }
         Relationships: []
       }
+      game_saves: {
+        Row: {
+          data: Json
+          game: string
+          revision: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          data: Json
+          game: string
+          revision?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          data?: Json
+          game?: string
+          revision?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       player_saves: {
         Row: {
           data: Json
@@ -137,6 +161,10 @@ export type Database = {
       revoke_entitlement_for_refund: {
         Args: { _event_id: string; _payment_intent: string }
         Returns: string
+      }
+      save_game_progress: {
+        Args: { _data: Json; _expected_revision: number; _game: string }
+        Returns: number
       }
       save_player_progress: {
         Args: { _data: Json; _expected_revision: number }

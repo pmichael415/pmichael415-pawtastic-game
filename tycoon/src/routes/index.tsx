@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ArrowRight, Building2, CalendarCheck, ExternalLink, Gamepad2, GraduationCap, MapPin, Share2, ShoppingBag, Smartphone, Trophy } from "lucide-react";
+import { ArrowRight, Building2, CalendarCheck, Cloud, CloudOff, ExternalLink, Gamepad2, GraduationCap, MapPin, Share2, ShoppingBag, Smartphone, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ACHIEVEMENTS, FREE_COSMETICS, REFERRAL_COINS_EACH, REFERRAL_MAX_REWARDED, daycareScore, dailyMissions, fmtClock, lobbyDogs, missionProgress, nextGoal, recessCoinsLeft, type GameState } from "@/game/engine";
 import { peekSave, todayKey } from "@/game/store";
@@ -17,6 +17,7 @@ import { CUSTOMER_APP_URL, LOCATIONS, bookingUrl } from "@/lib/locations";
 import { referredBy } from "@/lib/referral";
 import { GRADUATION_LEVELS, readGraduationFromStorage, type GraduationProgress } from "@/lib/graduation";
 import { syncGraduation } from "@/game/linkSync";
+import { overall, useStatuses } from "@/game/cloud";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -98,6 +99,8 @@ function Hub() {
         to="/graduation"
         cta={g && g.cleared ? "Continue Graduation Day" : "Play Graduation Day"}
       />
+
+      <CloudCard signedIn={!!user} />
 
       <TeamCard />
 
@@ -198,6 +201,34 @@ function GameCard({ icon: Icon, eyebrow, title, text, to, cta, stat, statLabel }
       <p className="mt-2 text-sm text-muted-foreground">{text}</p>
       <Button asChild size="lg" className="mt-3 h-12 w-full text-base">
         <Link to={to}>{cta} <ArrowRight /></Link>
+      </Button>
+    </section>
+  );
+}
+
+/** Sign in to save each game's progress to your account (or, once signed in, the save status). */
+function CloudCard({ signedIn }: { signedIn: boolean }) {
+  const kind = overall(useStatuses());
+  const choose = signedIn && kind === "conflict";
+  return (
+    <section aria-label="Cloud saves" className={`flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-soft ${choose ? "border-accent" : "border-border"}`}>
+      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+        {signedIn ? <Cloud className="h-6 w-6" strokeWidth={1.75} aria-hidden /> : <CloudOff className="h-6 w-6" strokeWidth={1.75} aria-hidden />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <h2 className="text-base font-bold leading-tight text-secondary">
+          {!signedIn ? "Save your progress" : choose ? "Choose which progress to keep" : "Your progress is saved"}
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          {!signedIn
+            ? "Sign in to keep Daycare Tycoon, Recess Rush and Graduation Day on every phone."
+            : choose
+              ? "A game has different progress here and in your account."
+              : "Each game saves to your account automatically."}
+        </p>
+      </div>
+      <Button asChild className="h-11 shrink-0" variant={signedIn && !choose ? "secondary" : "default"}>
+        <Link to="/account">{!signedIn ? "Sign in" : choose ? "Choose" : "Manage"}</Link>
       </Button>
     </section>
   );

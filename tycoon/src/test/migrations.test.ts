@@ -69,6 +69,7 @@ describe("migrations", () => {
       "0003_payment_refunds_hardening.sql",
       "0004_referrals.sql",
       "0005_teams.sql",
+      "0006_game_saves.sql",
     ]);
   });
 });
@@ -415,5 +416,53 @@ describe("measurement", () => {
     for (const role of ["anon", "authenticated"] as const) {
       expect(await fails(as(role, U1, () => db.query(`SELECT * FROM public.team_standings(0)`)))).toMatch(/permission denied/);
     }
+  });
+});
+
+describe("per-game cloud saves (Daycare Tycoon, Recess Rush, Graduation Day)", () => {
+  const save = (uid: string | null, game: string, data: unknown, rev: number, role: "authenticated" | "anon" = "authenticated") =>
+    as(role, uid, () =>
+      one<{ r: number }>(`SELECT public.save_game_progress($1, $2::jsonb, $3) r`, [game, JSON.stringify(data), rev]),
+    );
+
+  it("each game has its own save and its own revision; a stale device conflicts only in that game", async () => {
+    expect(Number((await save(U1, "daycare", { v: 4, coins: 10 }, 0)).r)).toBe(1);
+    expect(Number((await save(U1, "recess", { best: 420 }, 0)).r)).toBe(1);
+    expect(Number((await save(U1, "graduation", { version: 1, progress: { levels: {} } }, 0)).r)).toBe(1);
+    expect(Number((await save(U1, "daycare", { v: 4, coins: 20 }, 1)).r)).toBe(2);
+    expect(await fails(save(U1, "daycare", { v: 4, coins: 5 }, 1))).toMatch(/save conflict/);
+    expect(await fails(save(U1, "recess", { best: 1 }, 0))).toMatch(/save conflict/); // first-save race
+    const rows = await as("authenticated", U1, () =>
+      db.query<{ game: string; revision: number; data: { coins?: number; best?: number } }>(
+        `SELECT game, revision::int, data FROM public.game_saves ORDER BY game`,
+      ),
+    );
+    expect(rows.rows.map((r) => [r.game, r.revision])).toEqual([["daycare", 2], ["graduation", 1], ["recess", 1]]);
+    expect(rows.rows[0]!.data.coins).toBe(20);
+    expect(rows.rows[2]!.data.best).toBe(420);
+  });
+
+  it("only the owner can read their saves; other players and signed-out visitors can't", async () => {
+    const other = await as("authenticated", U2, () => db.query(`SELECT * FROM public.game_saves`));
+    expect(other.rows).toEqual([]);
+    expect(await fails(as("anon", null, () => db.query(`SELECT * FROM public.game_saves`)))).toMatch(/permission denied/);
+    expect(await fails(save(null, "daycare", { v: 4 }, 0, "anon"))).toMatch(/permission denied|not signed in/);
+  });
+
+  it("only the three games, only objects, and no oversized saves", async () => {
+    expect(await fails(save(U2, "casino", { v: 1 }, 0))).toMatch(/unknown game/);
+    expect(await fails(save(U2, "daycare", [1, 2, 3], 0))).toMatch(/invalid save/);
+    expect(await fails(save(U2, "graduation", { blob: "x".repeat(150_000) }, 0))).toMatch(/invalid save/);
+    const n = await as("authenticated", U2, () => one<{ n: number }>(`SELECT count(*)::int n FROM public.game_saves`));
+    expect(n.n).toBe(0);
+  });
+
+  it("players can't write the table directly — only through the revision-checked save", async () => {
+    expect(
+      await fails(as("authenticated", U2, () => db.query(`INSERT INTO public.game_saves(user_id, game, data) VALUES ('${U2}', 'daycare', '{}')`))),
+    ).toMatch(/permission denied/);
+    expect(
+      await fails(as("authenticated", U1, () => db.query(`UPDATE public.game_saves SET revision = 99 WHERE user_id = '${U1}'`))),
+    ).toMatch(/permission denied/);
   });
 });

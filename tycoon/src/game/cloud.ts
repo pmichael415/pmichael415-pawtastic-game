@@ -1,32 +1,43 @@
-// Cloud saves for signed-in players. Rows are owner-isolated by RLS (user_id = auth.uid()).
-// Saves contain free progress only — paid ownership lives in server-written entitlements and
-// parseSave strips any paid fields before upload.
-// Every write is conditional on the revision this device last saw, so a stale device can never
-// silently overwrite newer progress from another device: it pauses and asks the player instead.
+// Cloud saves for signed-in players: one save per game — Daycare Tycoon, Recess Rush and Graduation Day — in
+// public.game_saves (owner-only; written only through save_game_progress, which checks the revision). Saves hold
+// free progress only; paid ownership lives in server-written entitlements.
+// Each game is synced on its own: a stale phone pauses that game and asks the player instead of overwriting newer
+// progress, and loading one game never touches another.
 import { useEffect, useSyncExternalStore } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { parseSave, type GameState } from "./engine";
-import { save } from "./store";
+import { newGame, parseSave, type GameState } from "./engine";
+import { save, todayKey, updateSave } from "./store";
+import { GRADUATION_SAVE_KEY } from "@/lib/graduation";
+import { syncGraduation } from "./linkSync";
+import {
+  GAME_IDS, GAME_NAMES, daycareOf, hasProgress, parseGraduationSave, parseSlot, planSignIn, recessOf, slotHash,
+  withDaycare, withRecess, type GameId, type SlotData,
+} from "./cloudSlots";
 
-const LINK_KEY = "pawtastic-cloud-link-v2";
+const LINK_KEY = "pawtastic-cloud-links-v3";
 const SAVE_KEY = "pawtastic-tycoon-save-v1";
 export const SYNC_INTERVAL_MS = 20000;
 
-export type CloudSave = { data: GameState; updated_at: string; revision: number } | null;
-export type Link = { userId: string; revision: number; hash?: string };
+export type SlotLink = { revision: number; hash?: string };
+export type Links = { userId: string; slots: Partial<Record<GameId, SlotLink>> };
 export type SyncStatus =
   | { kind: "idle" }
   | { kind: "syncing" }
   | { kind: "ok"; at: number; revision: number }
   | { kind: "error"; message: string }
   | { kind: "conflict" };
+export type Statuses = Record<GameId, SyncStatus>;
+export type CloudRow = { data: unknown; revision: number; updated_at: string };
+export type CloudRows = Partial<Record<GameId, CloudRow>>;
 
 export class SaveConflictError extends Error {
-  constructor() { super("Your cloud save changed on another device."); }
+  constructor() { super("This game's cloud save changed on another device."); }
 }
 
-// ---------- tiny reactive store (link + status), shared by Root sync hook and Account page ----------
-let status: SyncStatus = { kind: "idle" };
+// ---------- links (which revision of each game this phone last saw) + statuses ----------
+const IDLE: Statuses = { daycare: { kind: "idle" }, recess: { kind: "idle" }, graduation: { kind: "idle" } };
+let statuses: Statuses = IDLE;
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 const subscribe = (l: () => void) => {
@@ -37,29 +48,44 @@ const subscribe = (l: () => void) => {
 };
 
 let cachedRaw: string | null | undefined;
-let cachedLink: Link | null = null;
-export function getLink(): Link | null {
+let cachedLinks: Links | null = null;
+export function getLinks(): Links | null {
   if (typeof window === "undefined") return null;
   const raw = localStorage.getItem(LINK_KEY);
-  if (raw === cachedRaw) return cachedLink;
+  if (raw === cachedRaw) return cachedLinks;
   cachedRaw = raw;
   try {
     const v = raw ? JSON.parse(raw) : null;
-    cachedLink = v && typeof v.userId === "string" && Number.isInteger(v.revision) && v.revision >= 0 ? { userId: v.userId, revision: v.revision, ...(typeof v.hash === "string" ? { hash: v.hash } : {}) } : null;
-  } catch { cachedLink = null; }
-  return cachedLink;
+    if (!v || typeof v.userId !== "string" || !v.slots || typeof v.slots !== "object") cachedLinks = null;
+    else {
+      const slots: Links["slots"] = {};
+      for (const g of GAME_IDS) {
+        const s = v.slots[g];
+        if (s && Number.isInteger(s.revision) && s.revision >= 0) slots[g] = { revision: s.revision, ...(typeof s.hash === "string" ? { hash: s.hash } : {}) };
+      }
+      cachedLinks = { userId: v.userId, slots };
+    }
+  } catch { cachedLinks = null; }
+  return cachedLinks;
 }
-export function setLink(l: Link | null) {
+export function setLinks(l: Links | null) {
   if (l) localStorage.setItem(LINK_KEY, JSON.stringify(l)); else localStorage.removeItem(LINK_KEY);
   emit();
 }
-export function setStatus(s: SyncStatus) { status = s; emit(); }
-export const useLink = () => useSyncExternalStore(subscribe, getLink, () => null);
-export const useSyncStatus = () => useSyncExternalStore(subscribe, () => status, () => status);
-export const linkedUser = () => getLink()?.userId ?? null;
-export const unlink = () => { setLink(null); setStatus({ kind: "idle" }); };
+export function setStatus(game: GameId, s: SyncStatus) { statuses = { ...statuses, [game]: s }; emit(); }
+export const useLinks = () => useSyncExternalStore(subscribe, getLinks, () => null);
+export const useStatuses = () => useSyncExternalStore(subscribe, () => statuses, () => IDLE);
+export const unlink = () => { setLinks(null); statuses = IDLE; emit(); };
 
-export function readLocal(): GameState | null {
+/** One word for the header: the most important state across the three games. */
+export function overall(s: Statuses): SyncStatus["kind"] {
+  const kinds = GAME_IDS.map((g) => s[g].kind);
+  for (const k of ["conflict", "error", "syncing", "ok"] as const) if (kinds.includes(k)) return k;
+  return "idle";
+}
+
+// ---------- this phone's progress for each game ----------
+function readDaycareState(): GameState | null {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     return raw ? parseSave(JSON.parse(raw)) : null;
@@ -67,105 +93,224 @@ export function readLocal(): GameState | null {
     return null;
   }
 }
-
-/** Throws on network/permission errors — callers must NOT treat an error as "no cloud save". */
-export async function fetchCloud(userId: string): Promise<CloudSave> {
-  const { data, error } = await supabase.from("player_saves").select("data, updated_at, revision").eq("user_id", userId).maybeSingle();
-  if (error) throw new Error("Couldn't reach cloud saves");
-  if (!data) return null;
-  const parsed = parseSave(data.data);
-  if (!parsed) throw new Error("Cloud save is unreadable");
-  return { data: parsed, updated_at: data.updated_at, revision: Number(data.revision) };
+export function readLocal<G extends GameId>(game: G): SlotData[G] | null {
+  if (game === "graduation") {
+    try {
+      const raw = localStorage.getItem(GRADUATION_SAVE_KEY);
+      return (raw ? parseGraduationSave(JSON.parse(raw)) : null) as SlotData[G] | null;
+    } catch {
+      return null;
+    }
+  }
+  const s = readDaycareState();
+  if (!s) return null;
+  return (game === "daycare" ? daycareOf(s) : recessOf(s)) as SlotData[G];
+}
+/** Put a game's cloud progress on this phone. Only that game's part changes. */
+export function writeLocal<G extends GameId>(game: G, data: SlotData[G]) {
+  if (game === "daycare") save(withDaycare(readDaycareState(), data as GameState));
+  else if (game === "recess") {
+    if (readDaycareState()) updateSave((s) => withRecess(s, data as SlotData["recess"]));
+    else save(withRecess(newGame(Date.now(), todayKey()), data as SlotData["recess"]));
+  } else {
+    localStorage.setItem(GRADUATION_SAVE_KEY, JSON.stringify(data));
+    syncGraduation(); // shared achievements and bandanas follow the loaded progress
+  }
 }
 
-/** Conditional write. expectedRevision 0 = first save. Returns the new revision or throws SaveConflictError. */
-export async function uploadCloud(s: GameState, expectedRevision: number): Promise<number> {
-  const clean = parseSave(s); // re-validate + strip any non-progress fields
-  if (!clean) throw new Error("Local progress is invalid");
-  const { data, error } = await supabase.rpc("save_player_progress", { _data: clean as never, _expected_revision: expectedRevision });
+// ---------- the server ----------
+/** Every game's cloud save for the signed-in player. Throws on network errors — never read as "no saves". */
+export async function fetchAll(): Promise<CloudRows> {
+  const { data, error } = await supabase.from("game_saves").select("game, data, revision, updated_at");
+  if (error) throw new Error("Couldn't reach your cloud saves");
+  const rows: CloudRows = {};
+  for (const r of data ?? []) {
+    if ((GAME_IDS as string[]).includes(r.game)) rows[r.game as GameId] = { data: r.data, revision: Number(r.revision), updated_at: r.updated_at };
+  }
+  return rows;
+}
+/** Conditional write of one game. expected 0 = first save. Returns the new revision or throws SaveConflictError. */
+export async function upload<G extends GameId>(game: G, data: SlotData[G], expected: number): Promise<number> {
+  const clean = parseSlot(game, JSON.parse(JSON.stringify(data)));
+  if (!clean) throw new Error("This progress can't be saved");
+  const { data: rev, error } = await supabase.rpc("save_game_progress", { _game: game, _data: clean as never, _expected_revision: expected });
   if (error) {
     if (/save conflict/i.test(error.message)) throw new SaveConflictError();
     throw new Error("Cloud save failed — we'll retry");
   }
-  return Number(data);
+  return Number(rev);
 }
 
+// ---------- syncing (pure over deps so multi-device behaviour is testable) ----------
 export type SyncDeps = {
-  getLink: () => Link | null;
-  setLink: (l: Link) => void;
-  readLocal: () => GameState | null;
-  upload: (s: GameState, expected: number) => Promise<number>;
-  setStatus: (s: SyncStatus) => void;
+  getLinks: () => Links | null;
+  setLinks: (l: Links) => void;
+  read: <G extends GameId>(game: G) => SlotData[G] | null;
+  write: <G extends GameId>(game: G, data: SlotData[G]) => void;
+  upload: <G extends GameId>(game: G, data: SlotData[G], expected: number) => Promise<number>;
+  fetchAll: () => Promise<CloudRows>;
+  setStatus: (game: GameId, s: SyncStatus) => void;
+  /** False while a game can't take a load right now (Graduation Day while it's open on screen). */
+  canWrite?: (game: GameId) => boolean;
+};
+const link = (deps: SyncDeps, userId: string, game: GameId, l: SlotLink | null) => {
+  const cur = deps.getLinks();
+  const slots = cur && cur.userId === userId ? { ...cur.slots } : {};
+  if (l) slots[game] = l; else delete slots[game];
+  deps.setLinks({ userId, slots });
 };
 
-/** Fingerprint of progress (ignores lastSeen, which changes on every local autosave). */
-export function progressHash(s: GameState): string {
-  const str = JSON.stringify({ ...s, lastSeen: 0 });
-  let h = 5381;
-  for (let i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
-  return `${str.length}:${h.toString(36)}`;
-}
-
-/** One automatic sync step. Pure over deps so multi-device behaviour is testable. */
-export async function syncOnce(userId: string, deps: SyncDeps): Promise<SyncStatus> {
-  const link = deps.getLink();
-  if (!link || link.userId !== userId) return { kind: "idle" };
-  const local = deps.readLocal();
-  if (!local) return { kind: "idle" };
-  const hash = progressHash(local);
-  if (link.hash === hash) return { kind: "idle" }; // nothing new — don't bump the revision
-  deps.setStatus({ kind: "syncing" });
+/** One automatic save of one game. Saves only real progress, and only when it changed. */
+export async function syncSlot(userId: string, game: GameId, deps: SyncDeps): Promise<SyncStatus> {
+  const links = deps.getLinks();
+  const l = links && links.userId === userId ? links.slots[game] : undefined;
+  if (!l) return { kind: "idle" };
+  const local = deps.read(game);
+  if (!local || !hasProgress(game, local)) return { kind: "idle" };
+  const hash = slotHash(game, local);
+  if (l.hash === hash) return { kind: "idle" };
+  deps.setStatus(game, { kind: "syncing" });
   try {
-    const rev = await deps.upload(local, link.revision);
-    deps.setLink({ userId, revision: rev, hash });
-    const st: SyncStatus = { kind: "ok", at: Date.now(), revision: rev };
-    deps.setStatus(st);
+    const revision = await deps.upload(game, local, l.revision);
+    link(deps, userId, game, { revision, hash });
+    const st: SyncStatus = { kind: "ok", at: Date.now(), revision };
+    deps.setStatus(game, st);
     return st;
   } catch (e) {
-    const st: SyncStatus = e instanceof SaveConflictError ? { kind: "conflict" } : { kind: "error", message: e instanceof Error ? e.message : "Cloud save failed" };
-    deps.setStatus(st);
+    if (e instanceof SaveConflictError) {
+      link(deps, userId, game, null); // re-checked by reconcile: loads by itself if this phone has nothing real
+      deps.setStatus(game, { kind: "conflict" });
+      return { kind: "conflict" };
+    }
+    const st: SyncStatus = { kind: "error", message: e instanceof Error ? e.message : "Cloud save failed" };
+    deps.setStatus(game, st);
     return st;
   }
 }
 
-const liveDeps: SyncDeps = { getLink, setLink, readLocal, upload: uploadCloud, setStatus };
-
-/** Link choice: upload the device save (read at click time) or adopt the cloud save. */
-export async function chooseDevice(userId: string, expectedRevision: number) {
-  const local = readLocal();
-  if (!local) throw new Error("No progress on this device yet");
-  const rev = await uploadCloud(local, expectedRevision);
-  setLink({ userId, revision: rev, hash: progressHash(local) });
-  setStatus({ kind: "ok", at: Date.now(), revision: rev });
+export type Outcome = "loaded" | "saved" | "linked" | "ask" | "error";
+/** Sign-in on this phone (and after a conflict): settle every game that isn't linked yet. */
+export async function reconcile(userId: string, deps: SyncDeps): Promise<Partial<Record<GameId, Outcome>>> {
+  const links = deps.getLinks();
+  const pending = GAME_IDS.filter((g) => !(links && links.userId === userId && links.slots[g]));
+  if (!pending.length) return {};
+  let rows: CloudRows;
+  try {
+    rows = await deps.fetchAll();
+  } catch (e) {
+    for (const g of pending) deps.setStatus(g, { kind: "error", message: e instanceof Error ? e.message : "Couldn't reach your cloud saves" });
+    return Object.fromEntries(pending.map((g) => [g, "error"]));
+  }
+  const out: Partial<Record<GameId, Outcome>> = {};
+  for (const game of pending) {
+    const local = deps.read(game);
+    const row = rows[game];
+    const cloudData = row ? parseSlot(game, row.data) : null;
+    const plan = planSignIn(
+      local ? { has: hasProgress(game, local), hash: slotHash(game, local) } : null,
+      row ? { hasProgress: !!cloudData && hasProgress(game, cloudData), hash: cloudData ? slotHash(game, cloudData) : "unreadable", revision: row.revision } : null,
+    );
+    if (plan.action === "load" && cloudData && deps.canWrite && !deps.canWrite(game)) continue; // settled later
+    if (plan.action === "load") {
+      if (cloudData) deps.write(game, cloudData);
+      link(deps, userId, game, { revision: row!.revision, ...(cloudData ? { hash: slotHash(game, cloudData) } : {}) });
+      deps.setStatus(game, { kind: "ok", at: Date.now(), revision: row!.revision });
+      out[game] = cloudData ? "loaded" : "linked";
+    } else if (plan.action === "link") {
+      link(deps, userId, game, { revision: plan.revision, ...(plan.revision && cloudData ? { hash: slotHash(game, cloudData) } : {}) });
+      deps.setStatus(game, plan.revision ? { kind: "ok", at: Date.now(), revision: plan.revision } : { kind: "idle" });
+      out[game] = "linked";
+    } else if (plan.action === "upload") {
+      try {
+        const revision = await deps.upload(game, local!, plan.expected);
+        link(deps, userId, game, { revision, hash: slotHash(game, local!) });
+        deps.setStatus(game, { kind: "ok", at: Date.now(), revision });
+        out[game] = "saved";
+      } catch (e) {
+        deps.setStatus(game, e instanceof SaveConflictError ? { kind: "conflict" } : { kind: "error", message: e instanceof Error ? e.message : "Cloud save failed" });
+        out[game] = e instanceof SaveConflictError ? "ask" : "error";
+      }
+    } else {
+      deps.setStatus(game, { kind: "conflict" });
+      out[game] = "ask";
+    }
+  }
+  return out;
 }
-export function chooseCloud(userId: string, cloud: NonNullable<CloudSave>) {
-  save(cloud.data);
-  setLink({ userId, revision: cloud.revision, hash: progressHash(cloud.data) });
-  setStatus({ kind: "ok", at: Date.now(), revision: cloud.revision });
-}
-export const saveNow = (userId: string) => syncOnce(userId, liveDeps);
 
-/** Mounted once in the root. Reacts immediately when this device gets linked; pauses on conflict. */
+/** The player's choice for one game with progress in both places. */
+export async function chooseDevice(userId: string, game: GameId, deps: SyncDeps = liveDeps) {
+  const local = deps.read(game);
+  if (!local) throw new Error("No progress on this phone for this game");
+  const rows = await deps.fetchAll();
+  const revision = await deps.upload(game, local, rows[game]?.revision ?? 0);
+  link(deps, userId, game, { revision, hash: slotHash(game, local) });
+  deps.setStatus(game, { kind: "ok", at: Date.now(), revision });
+}
+export async function chooseCloud(userId: string, game: GameId, deps: SyncDeps = liveDeps) {
+  const rows = await deps.fetchAll();
+  const row = rows[game];
+  const data = row ? parseSlot(game, row.data) : null;
+  if (!row || !data) throw new Error("There's no cloud save for this game");
+  deps.write(game, data);
+  link(deps, userId, game, { revision: row.revision, hash: slotHash(game, data) });
+  deps.setStatus(game, { kind: "ok", at: Date.now(), revision: row.revision });
+}
+
+// Graduation Day keeps its save in memory while it runs, so a load waits until its screen isn't open.
+const canWrite = (game: GameId) => game !== "graduation" || !window.location.pathname.startsWith("/graduation");
+export const liveDeps: SyncDeps = { getLinks, setLinks, read: readLocal, write: writeLocal, upload, fetchAll, setStatus, canWrite };
+export const saveAllNow = async (userId: string) => {
+  const res = await Promise.all(GAME_IDS.map((g) => syncSlot(userId, g, liveDeps)));
+  return res;
+};
+
+const describeOutcomes = (out: Partial<Record<GameId, Outcome>>) => {
+  const names = (o: Outcome) => GAME_IDS.filter((g) => out[g] === o).map((g) => GAME_NAMES[g]);
+  const loaded = names("loaded"), saved = names("saved"), ask = names("ask");
+  if (loaded.length) toast.success(`Loaded from your account: ${loaded.join(", ")}`);
+  if (saved.length) toast.success(`Saved to your account: ${saved.join(", ")}`);
+  if (ask.length) toast.info(`Choose which progress to keep for ${ask.join(", ")} (Account page).`);
+};
+
+/** Mounted once in the root: settles each game when a player signs in, then saves changes automatically. */
 export function useCloudSync(userId: string | null) {
-  const link = useLink();
-  const st = useSyncStatus();
-  const active = !!userId && link?.userId === userId && st.kind !== "conflict";
   useEffect(() => {
-    if (!active || !userId) return;
-    const push = () => { if (status.kind !== "syncing" && status.kind !== "conflict") void syncOnce(userId, liveDeps); };
-    const id = setInterval(push, SYNC_INTERVAL_MS);
-    const onHide = () => document.hidden && push();
+    if (!userId) return;
+    let stopped = false;
+    let busy = false;
+    const cur = getLinks();
+    if (cur && cur.userId !== userId) unlink(); // another account on this phone: never write across accounts
+    const settle = async (announce: boolean) => {
+      if (busy || stopped) return;
+      busy = true;
+      try {
+        const out = await reconcile(userId, liveDeps);
+        if (announce && !stopped) describeOutcomes(out);
+      } finally { busy = false; }
+    };
+    const push = async () => {
+      if (busy || stopped) return;
+      busy = true;
+      let conflict = false;
+      try {
+        for (const g of GAME_IDS) {
+          if (statuses[g].kind === "syncing") continue;
+          if ((await syncSlot(userId, g, liveDeps)).kind === "conflict") conflict = true;
+        }
+      } finally { busy = false; }
+      // A game that isn't linked (new to this account, or a conflict) gets settled again; a choice stays a choice.
+      const l = getLinks();
+      if (conflict || GAME_IDS.some((g) => !l?.slots[g] && statuses[g].kind !== "conflict")) await settle(conflict);
+    };
+    void settle(true);
+    const id = setInterval(() => void push(), SYNC_INTERVAL_MS);
+    const onHide = () => { if (document.hidden) void push(); };
     document.addEventListener("visibilitychange", onHide);
     return () => {
+      stopped = true;
       clearInterval(id);
       document.removeEventListener("visibilitychange", onHide);
     };
-  }, [active, userId]);
-  // A different account signed in on this device: drop the old link so it can't write cross-account.
-  useEffect(() => {
-    if (userId && link && link.userId !== userId) unlink();
-  }, [userId, link?.userId]);
+  }, [userId]);
 }
-
-/** Summarise a save for the conflict chooser. */
-export const summary = (s: GameState) => `${s.coins} coins · Day ${s.gameDay} · ${s.upgrades.length} upgrades · ${s.stats.admitted} pups admitted`;
