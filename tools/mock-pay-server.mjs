@@ -103,7 +103,12 @@ createServer(async (req, res) => {
     const origin = `http://${req.headers.host}`;
     const path = url.pathname;
 
-    if (path === '/api/public/game/config') return send(res, 200, { payments: PAYMENTS, mode: 'test', authUrl: origin, authKey: PUBLISHABLE });
+    if (path === '/api/public/game/config') {
+      // MOCK_CONFIG_DELAY_MS: a slow server (the real one checks Stripe first), for tools/e2e-slow-config.cjs.
+      const delay = Number(process.env.MOCK_CONFIG_DELAY_MS || 0);
+      if (delay) await new Promise(r => setTimeout(r, delay));
+      return send(res, 200, { payments: PAYMENTS, mode: 'test', authUrl: origin, authKey: PUBLISHABLE });
+    }
 
     // Fake GoTrue (Lovable Cloud auth). Like the real one, it needs the publishable key as `apikey` and
     // refuses a publishable (non-JWT) key in the Authorization header.
