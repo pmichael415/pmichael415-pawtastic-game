@@ -2,7 +2,7 @@
 # Source: github.com/pmichael415/pmichael415-pawtastic-game, folder tycoon/. Base: Lovable c3a69bd.
 # Format: <sha256>  <path>. Deleted files: none. Never sync: .env, public/favicon.png, src/assets/daycare-room.jpg
 c75d31f3d77c0c129d77b51e253a5a8db81f6074fc4e2ebbedf1ed28fe288c03  AGENTS.md
-f6bfe67514332e20c7f8ba0d9a0f695933a4c7da65c368f2e7e349e6cb57b29a  STATUS.md
+9b21fc4915272b7f19fb8efe00e43ead08bb24b6ebf353ff87af56e5697ca431  STATUS.md
 d975249d373b6da51138fe7bdb83d1e59304ffb74d269bd572e3cce50643d3b7  SYNC-TO-LOVABLE.md
 e3f4db45b90ed1824d14658037a12675d16f2354136f35f7630db916b1cb34e2  bun.lock
 250fac3cfb7bbd982014bd81d8d9c320486e4bacbc74e31296f02e8667725046  drizzle/migrations/0002_game_measurement.sql
@@ -83,10 +83,10 @@ abc98f7abf8e577de4e8d04fd1c1ccab260b039e48b9da9009b47b13c916a8f5  src/lib/analyt
 3c6515d9ba1805e983ec6886995fb7d04e5a09a3b93753e07f5e14204486bdf3  src/lib/locations.test.ts
 3d2e4dba2a94339a5150ce68a1dc461dffb37a561430ce2a4440adf641ac9c2c  src/lib/locations.ts
 2869dd1455fa7583b334bf847fb37580b0d9711a25e64022da524d5a90ebb71b  src/lib/payments/account-refund.test.ts
-1067847cf169ba57f5d4a703afd9cb7ce48ded34da0eecbd4abded0e9edeba6e  src/lib/payments/checkout-rules.test.ts
-d34ff938a401e3a19e613eebf3f176c28686a0b5158494d36bacf1672155ef73  src/lib/payments/payments.functions.ts
+e0a6cfb1b6b0727c97fc2a244f63122c3835ed31b5936ab8e59993d17c5c223a  src/lib/payments/checkout-rules.test.ts
+a39c8b1bc6bb812b5a0d0560cc54a40a699d075a7ad2f831030e84ef89f3887a  src/lib/payments/payments.functions.ts
 e7353e1a4045f4bb50e35418641ee6917c9736d6e580cf8e5d0f57ff247e0314  src/lib/payments/verify.test.ts
-91a2bcfcea1f9263ff1175fc1763064fcbc10adb276e23738f1d07a3e4a32bb5  src/lib/payments/verify.ts
+18bf58d832a3da7f52d396e15e4a2ec53d19930abfbf6527558133d0b6e0a4b5  src/lib/payments/verify.ts
 c38c540e65f799ffb4703afe70dd807ef33628ed11ba251bf2096e2766c8af82  src/lib/referral.test.ts
 b28b558474ccc47bdd8d531771c95b156f87dd45d6922b560b57bdedeb34f4b2  src/lib/referral.ts
 d8aeccacbfecc2336bdafd2f09d921b183d83b5dec1ffacecc31a3078bef8734  src/lib/settings.ts
@@ -104,7 +104,7 @@ ae8dcacb23f70eb1ff7ff55b351eaa0df3dd5f4f6941bd1c2ad2ebf4240724ce  src/routes/__r
 cb56addd897624971ea77af3c65952863ab5029a24f904a4131e15ee2342bab6  src/routes/help.tsx
 688eef16834e1537add80bc28161b1efe4cb3a2fb198dceb09cefd4e613c08ee  src/routes/index.tsx
 df4a92bbb0a9e8bccdbe600830654c04481ec2d25808d97fb2a3b1088b847f4e  src/routes/recess.tsx
-d8d2c0d1d66b53f1d9cb14550ddfc06f4b3ee52b0743ab6ee92e9ffd6ca7bd78  src/routes/shop.tsx
+34091559f83b229c6628f452c8ee14348a834c81ef7517f6c158fa525d793fc1  src/routes/shop.tsx
 e5d2db3ea022b8a8e1617f0eb3ccf570f589e2b7d5bd45c0df9a36d9dabcfe2c  src/routes/visit.tsx
 9d542e2f35fb59bc0de7e0825fd750bc3c4b7ba1fefb6f7e8ac2dfce9932374f  src/styles.css
 e5ea700d697bced4a85ca7eb2a123569266658b65efaa007f94d212119edc377  src/test/account-switch.test.tsx
