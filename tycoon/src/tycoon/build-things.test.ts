@@ -89,7 +89,8 @@ describe("outdoor items", () => {
     expect(placeThing(p, "play_yard", 11, 21, 0)).toEqual({ ok: false, error: "Overlaps the Path." });
   });
   it("upgrades to level 2 for 360 and level 3 for 640, then stops", () => {
-    const t = ok(placeThing(s0, "play_yard", 12, 22, 0));
+    // Start at player level 2 so the building XP doesn't cross a level (which would add a coin reward).
+    const t = ok(placeThing(atLevel(s0, 2), "play_yard", 12, 22, 0));
     const uid = lastThing(t).uid;
     const two = ok(upgradeThing(t, uid));
     expect(two.coins).toBe(t.coins - 360);

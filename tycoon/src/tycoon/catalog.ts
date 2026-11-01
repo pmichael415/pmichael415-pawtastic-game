@@ -1,5 +1,5 @@
 // PAWtastic Daycare Tycoon — every constant and catalog (spec §4). Game coins only; never real prices.
-import type { FloorStyle, FurnitureId, OutdoorId, ParcelId, Prices, RoomType } from "./types";
+import type { CampaignId, FloorStyle, FurnitureId, OutdoorId, ParcelId, Prices, RoomType } from "./types";
 
 export const TILE = 2;
 export const COLS = 36;
@@ -128,3 +128,11 @@ export function upgradePrice(base: number, toLevel: 2 | 3): number {
 /** Game-coin prices (spec §4.7). Never real PAWtastic prices. */
 export const PRICE_DEFAULTS: Prices = { daycare: 40, boarding: 90, bath: 25, exitBath: 30 };
 export const PRICE_RANGES: Record<keyof Prices, [number, number]> = { daycare: [20, 80], boarding: [50, 160], bath: [10, 50], exitBath: [10, 60] };
+
+export type Campaign = { id: CampaignId; name: string; price: number; boost: number; days: number; level: number; reputation: number };
+/** Marketing campaigns (spec §4.7). One at a time. */
+export const CAMPAIGNS: Campaign[] = [
+  { id: "flyers", name: "Flyers", price: 150, boost: 0.2, days: 3, level: 2, reputation: 0 },
+  { id: "online", name: "Online ads", price: 400, boost: 0.4, days: 3, level: 5, reputation: 0 },
+  { id: "openhouse", name: "Open house", price: 800, boost: 0.6, days: 2, level: 8, reputation: 5 },
+];

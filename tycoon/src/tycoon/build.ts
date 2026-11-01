@@ -17,6 +17,7 @@ import type { Facility, Placed, Room } from "./types";
 import { DOOR_PRICE, FLOORS, PARCELS, SELL_RATE, WALL_COLORS, upgradePrice } from "./catalog";
 import { roomPrice } from "./grid";
 import { fac, withFac } from "./state";
+import { buildXp, gainXp, level } from "./progress";
 import type { Door, ExpenseKey, FloorStyle, ParcelId, Rot, RoomType, TResult, ThingKind, TycoonState } from "./types";
 import type { GroupId } from "@/game/engine";
 
@@ -103,6 +104,12 @@ export function spend(s: TycoonState, amount: number, _key: ExpenseKey): TResult
 }
 
 /** True if any dog is in this room (dogs waiting in the lobby count as being in the Lobby). */
+/** Pays for building (rooms, doors, things, upgrades, land) and earns XP for it. */
+function build(s: TycoonState, amount: number): TResult {
+  const paid = spend(s, amount, "building");
+  return paid.ok ? { ...paid, state: gainXp(paid.state, buildXp(amount)) } : paid;
+}
+
 const dogsIn = (f: Facility, roomUid: string) => {
   const isLobby = f.rooms.some((r) => r.uid === roomUid && r.type === "lobby");
   return f.dogs.some((d) => (d.place.kind === "lobby" ? isLobby : d.place.room === roomUid));
@@ -117,7 +124,7 @@ export function drawRoom(s: TycoonState, c: number, r: number, w: number, d: num
   const why = validRoomAt(f, room);
   if (why) return { ok: false, error: why };
   const price = roomPrice(w, d);
-  const paid = spend(s, price, "building");
+  const paid = build(s, price);
   if (!paid.ok) return paid;
   const nf = fac(paid.state);
   return { ok: true, state: withFac({ ...paid.state, seq: s.seq + 1 }, { ...nf, rooms: [...nf.rooms, { ...room, spent: price }] }), msg: "Room built! Now pick what it's for." };
@@ -137,7 +144,7 @@ export function addDoor(s: TycoonState, roomUid: string, door: Door): TResult {
   const trial = { ...room, doors: [...room.doors, door] };
   const why = validRoomAt(f, trial);
   if (why) return { ok: false, error: why };
-  const paid = spend(s, DOOR_PRICE, "building");
+  const paid = build(s, DOOR_PRICE);
   if (!paid.ok) return paid;
   return { ok: true, state: updateRoom(paid.state, { ...trial, spent: room.spent + DOOR_PRICE }), msg: "Door added." };
 }
@@ -208,13 +215,6 @@ export function sellRoom(s: TycoonState, roomUid: string): TResult {
 
 // ---------- furniture, outdoor items, paths, land ----------
 
-/** Player level from XP: level N starts at 50 × N × (N − 1). Task 6 replaces this with progress.level. */
-function level(s: TycoonState): number {
-  let n = 1;
-  while (50 * (n + 1) * n <= s.xp) n++;
-  return n;
-}
-
 const findThing = (f: Facility, uid: string) => f.items.find((i) => i.uid === uid) ?? null;
 const defOf = (kind: string) => furnitureDef(kind) ?? outdoorDef(kind);
 const roomOf = (f: Facility, thing: Placed) => (isFurniture(thing.kind) ? (roomContaining(f, thingTiles(thing))?.uid ?? null) : null);
@@ -230,7 +230,7 @@ export function placeThing(s: TycoonState, kind: ThingKind, c: number, r: number
   const thing = { ...draft, room: roomOf(f, draft) };
   const why = validThingAt(f, thing);
   if (why) return { ok: false, error: why };
-  const paid = spend(s, def.price, "building");
+  const paid = build(s, def.price);
   if (!paid.ok) return paid;
   const nf = fac(paid.state);
   return { ok: true, state: withFac({ ...paid.state, seq: s.seq + 1 }, { ...nf, items: [...nf.items, thing] }), msg: `${def.name} placed!` };
@@ -258,7 +258,7 @@ export function upgradeThing(s: TycoonState, uid: string): TResult {
   if (thing.level >= 3) return { ok: false, error: "Already at the top level." };
   const to = (thing.level + 1) as 2 | 3;
   const price = upgradePrice(od.price, to);
-  const paid = spend(s, price, "building");
+  const paid = build(s, price);
   if (!paid.ok) return paid;
   const nf = fac(paid.state);
   const next = { ...thing, level: to, spent: thing.spent + price };
@@ -298,7 +298,7 @@ export function paintPaths(s: TycoonState, tiles: { c: number; r: number }[]): T
     paved++;
   }
   if (paved === 0) return blocked ? { ok: false, error: `Need ${price - s.coins} more coins.` } : { ok: false, error: "There's no free square to pave there." };
-  const paid = spend({ ...s, seq }, paved * price, "building");
+  const paid = build({ ...s, seq }, paved * price);
   if (!paid.ok) return paid;
   return { ok: true, state: withFac(paid.state, { ...fac(paid.state), items: f.items }), msg: `Paved ${paved} square${paved === 1 ? "" : "s"}.` };
 }
@@ -308,7 +308,7 @@ export function buyLand(s: TycoonState, parcel: ParcelId): TResult {
   if (!p) return { ok: false, error: "Unknown land." };
   if (fac(s).land.includes(parcel)) return { ok: false, error: "You already own this land." };
   if (p.level > level(s)) return { ok: false, error: `Unlocks at level ${p.level}.` };
-  const paid = spend(s, p.price, "building");
+  const paid = build(s, p.price);
   if (!paid.ok) return paid;
   const nf = fac(paid.state);
   return { ok: true, state: withFac(paid.state, { ...nf, land: [...nf.land, parcel] }), msg: `The ${p.name} is yours!` };
