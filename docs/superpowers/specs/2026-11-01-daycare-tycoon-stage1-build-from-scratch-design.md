@@ -1,7 +1,7 @@
 # PAWtastic Daycare Tycoon (new engine): stage 1, build from scratch (Sims-style rooms) and run the business. Design
 
-Date: 1 Nov 2026 · Owner: Phil (PAWtastic Academy) · Status: approved by the owner (1 Nov), with the game-feel section added at his request. **Sims-style building was then
-added at his request (1 Nov) and needs his OK.**
+Date: 1 Nov 2026 · Owner: Phil (PAWtastic Academy) · Status: **approved by the owner (1 Nov)**, including the game-feel section and Sims-style building, both added at his
+request.
 Replaces: `2026-11-01-daycare-tycoon-stage1-campus-design.md` (the campus around a fixed building), which is withdrawn.
 
 ## 1. Where this fits
