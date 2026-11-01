@@ -7,7 +7,7 @@ import { topBar } from '../topbar.js';
 import { clientOf, signInThenReload } from '../payments.js';
 import { LOCATIONS } from '../../engine/levels.js';
 import { weekKey } from '../../engine/challenge.js';
-import { PRIZE_LINE, PRIZES, endsInText, homeName, pickHome, prizeCard, syncProfile, sendPendingRun } from '../compete.js';
+import { prizeLine, prizeForRank, endsInText, homeName, pickHome, prizeCard, syncProfile, sendPendingRun } from '../compete.js';
 
 const MEDALS = { 1: '🥇', 2: '🥈', 3: '🥉' };
 const num = n => Number(n || 0).toLocaleString('en-US');
@@ -30,7 +30,7 @@ export function render(app, { board = 'weekly', location = 'all' } = {}) {
   const intro = board === 'weekly'
     ? h('div', { class: 'card stack weekly-card' },
       h('p', { class: 'eyebrow' }, `Weekly Challenge · ${endsInText(week)}`),
-      h('p', { class: 'small' }, PRIZE_LINE),
+      h('p', { class: 'small' }, prizeLine()),
       h('button', { class: 'btn gold', type: 'button', onClick: () => app.go('challenge') }, 'Play the challenge'))
     : h('p', { class: 'small muted' }, 'All-time: most stars, then the highest best scores added up. Just for bragging rights.');
   app.view.append(bar, h('section', { class: 'leaderboard stack' }, h('h1', {}, 'Leaderboard'), tabs, chips, intro, body));
@@ -56,7 +56,7 @@ export function render(app, { board = 'weekly', location = 'all' } = {}) {
     const me = res.me
       ? h('p', { class: 'card small num me-line' }, h('strong', {}, `You: #${res.me.rank}`), location === 'all' ? '' : ` at ${LOCATIONS[location]}`,
         ` · ${board === 'weekly' ? `${num(res.me.score)} pts` : `${num(res.me.stars)} ★`}`,
-        board === 'weekly' && location !== 'all' && res.me.rank <= 3 ? ` · in the prizes: ${PRIZES[res.me.rank]}` : '')
+        board === 'weekly' && location !== 'all' && res.me.rank <= 3 ? ` · in the prizes: ${prizeForRank(res.me.rank)}` : '')
       : null;
     const join = !pay.signedIn
       ? h('div', { class: 'card stack' }, h('p', {}, 'Sign in to put your pup on the leaderboard and play for prizes.'),

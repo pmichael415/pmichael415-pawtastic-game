@@ -121,14 +121,28 @@ async function playChallenge(page, { greedy = false } = {}) {
   await b.waitForTimeout(800);
   check(/All-time/.test(await text(b)) && (await b.$$('.lb-row')).length === 2, 'all-time board lists both players');
 
-  // 5. The week ends: prizes for #1 at each location, shown to the winner with a code.
+  // 4b. This week's prizes change only when the owner approves a lineup: a draft is never shown.
+  const setLineup = (body) => fetch(`${base}/mock/week-prizes`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const LINEUP = ['Two free days of daycare', 'Two free baths', 'A free bath'];
+  const weeklyText = async () => { await a.goto(GAME, { waitUntil: 'networkidle' }); await closeSheets(a); await a.waitForTimeout(800); return a.innerText('.weekly-card').catch(() => ''); };
+  await setLineup({ labels: LINEUP, approved: false });
+  let card = await weeklyText();
+  check(/Win a free day of daycare/.test(card) && !/Two free days/.test(card), 'a draft lineup isn\'t shown: the standard prizes are', card.replace(/\n/g, ' | '));
+  await setLineup({ labels: LINEUP, approved: true });
+  card = await weeklyText();
+  check(/Win two free days of daycare/.test(card) && /1st two free days of daycare, 2nd two free baths, 3rd a free bath/.test(card), 'an approved lineup is shown on the map', card.replace(/\n/g, ' | '));
+  await setLineup({ next: true, labels: ['A free night of boarding', 'Two free baths', 'A free bath'], approved: true });
+  card = await weeklyText();
+  check(/Next week: 1st a free night of boarding/.test(card), "next week's approved lineup is teased", card.replace(/\n/g, ' | '));
+
+  // 5. The week ends: this week's approved prizes for #1 at each location, shown to the winner with a code.
   await fetch(`${base}/mock/award-week`, { method: 'POST' });
   const prize = (await state()).prizes.find(p => p.location === 'hawthorne');
-  check(prize?.reward === 'daycare-day' && prize.rank === 1, 'week end: #1 at Hawthorne wins a free day of daycare');
+  check(prize?.reward === 'custom' && prize.label === 'Two free days of daycare' && prize.rank === 1, "week end: #1 at Hawthorne wins this week's 1st prize", JSON.stringify(prize && { reward: prize.reward, label: prize.label }));
   await a.goto(GAME, { waitUntil: 'networkidle' });
   await a.waitForSelector('.sheet .prize-card', { timeout: 15000 }).catch(() => {});
   const won = await a.innerText('.sheet').catch(() => '');
-  check(/placed in the Weekly Challenge/.test(won) && won.includes(prize.code) && /Free day of daycare/.test(won), 'winner is told, with the prize code', won.replace(/\n/g, ' | ').slice(0, 160));
+  check(/placed in the Weekly Challenge/.test(won) && won.includes(prize.code) && /Two free days of daycare/.test(won), 'winner is told, with the prize and its code', won.replace(/\n/g, ' | ').slice(0, 160));
   await closeSheets(a);
 
   // 6. The front desk redeems it, and can hide a player.
@@ -143,7 +157,7 @@ async function playChallenge(page, { greedy = false } = {}) {
   await desk.fill('#lookup', prize.code.toLowerCase());
   await desk.click('button:text-is("Look up")');
   await desk.waitForTimeout(700);
-  check(/Free day of daycare for Max/.test(await text(desk)), 'staff: looking up the code shows the prize');
+  check(/Two free days of daycare for Max/.test(await text(desk)), 'staff: looking up the code shows the prize in its own words');
   await desk.click('button:text-is("Mark redeemed")');
   await desk.waitForTimeout(700);
   check((await state()).prizes.find(p => p.id === prize.id).status === 'redeemed' && /Redeemed/.test(await text(desk)), 'staff: prize marked redeemed');

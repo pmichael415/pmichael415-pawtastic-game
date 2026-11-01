@@ -29,12 +29,13 @@ const place = l => (l === 'hawthorne' ? 'Hawthorne' : l === 'hillsdale' ? 'Hills
 let pay = null;
 const LOC = { hawthorne: 'Hawthorne', hillsdale: 'Hillsdale' };
 const REWARD = { 'daycare-day': 'Free day of daycare', bath: 'Free bath' };
+const rewardOf = p => p.label || REWARD[p.reward] || p.reward;
 const PRIZE_STATUS = { won: 'Not used yet', redeemed: 'Redeemed', void: 'Voided', expired: 'Expired' };
 
 function prizeBox(p, after) {
   const actions = [];
   if (p.status === 'won') actions.push(h('button', { class: 'btn', type: 'button', onClick: async () => {
-    if (!confirm(`Give ${p.dogName} the ${REWARD[p.reward]?.toLowerCase()} now and mark the prize redeemed?`)) return;
+    if (!confirm(`Give ${p.dogName} the ${rewardOf(p).toLowerCase()} now and mark the prize redeemed?`)) return;
     const res = await pay.staffPrizeAction({ action: 'redeem', id: p.id });
     if (!res.ok) { alert(errText(res.error)); return; }
     after(res.prize);
@@ -48,7 +49,7 @@ function prizeBox(p, after) {
   return h('div', { class: 'card stack' },
     h('p', { class: 'eyebrow' }, 'Weekly Challenge prize'),
     h('p', { class: 'code' }, p.code),
-    h('p', { class: 'big' }, `${REWARD[p.reward] ?? p.reward} for ${p.dogName}`),
+    h('p', { class: 'big' }, `${rewardOf(p)} for ${p.dogName}`),
     h('p', {}, `#${p.rank} at ${LOC[p.location] ?? p.location}, week of ${p.week} · player ${p.email || 'unknown'}`),
     h('p', {}, h('span', { class: `tag ${p.status === 'won' ? 'earned' : p.status === 'redeemed' ? 'bath-given' : ''}` }, PRIZE_STATUS[p.status] ?? p.status),
       p.status === 'won' ? ` · use by ${when(p.expiresAt)}` : p.redeemedAt ? ` · ${when(p.redeemedAt)} by ${p.redeemedBy ?? ''}` : ''),
@@ -206,7 +207,7 @@ async function home() {
     h('p', { class: 'muted' }, 'Each week the top 3 at each location win: 1st a free day of daycare, 2nd and 3rd a free bath. Players show their code at the front desk within 30 days.'),
     prizeList.length
       ? h('ul', { class: 'list' }, prizeList.map(p => h('li', { class: `row ${p.status === 'won' ? 'earned' : p.status === 'void' || p.status === 'expired' ? 'void' : ''}` },
-        h('div', {}, h('strong', {}, `${REWARD[p.reward] ?? p.reward} · ${p.dogName}`), h('p', { class: 'muted' }, `#${p.rank} ${LOC[p.location] ?? ''} · week of ${p.week} · code ${p.code} · ${p.email || ''}`)),
+        h('div', {}, h('strong', {}, `${rewardOf(p)} · ${p.dogName}`), h('p', { class: 'muted' }, `#${p.rank} ${LOC[p.location] ?? ''} · week of ${p.week} · code ${p.code} · ${p.email || ''}`)),
         h('div', { class: 'row-side' }, h('span', { class: `tag ${p.status === 'won' ? 'earned' : p.status === 'redeemed' ? 'bath-given' : ''}` }, PRIZE_STATUS[p.status] ?? p.status)))))
       : h('p', { class: 'muted' }, 'No prizes yet. Winners appear here after each week ends (Monday).'));
   const boardSection = h('section', { class: 'card stack' }, h('h2', {}, "This week's leaderboard"),

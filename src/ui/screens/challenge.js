@@ -11,7 +11,7 @@ import { findValidMove } from '../../engine/shuffle.js';
 import { newChallengeGame, weekKey, CHALLENGE_MOVES } from '../../engine/challenge.js';
 import { clientOf, signInSheet } from '../payments.js';
 import { isPublicSite } from '../../backend/local.js';
-import { PRIZE_LINE, endsInText, homeName, keepPendingRun, pickHome, syncProfile } from '../compete.js';
+import { prizeLine, endsInText, homeName, keepPendingRun, pickHome, syncProfile } from '../compete.js';
 import { LOCATIONS } from '../../engine/levels.js';
 
 const ERRORS = {
@@ -117,7 +117,7 @@ export function render(app) {
     backend.markChallengeSent(week, res.score);
     const where = LOCATIONS[res.location] ?? homeName(backend.state());
     status.replaceChildren(h('strong', {}, `#${res.rank} at ${where}`), ` this week (${res.players} ${res.players === 1 ? 'player' : 'players'}). `,
-      res.rank <= 3 ? 'You are in the prizes right now! Hold on until Monday.' : PRIZE_LINE);
+      res.rank <= 3 ? 'You are in the prizes right now! Hold on until Monday.' : prizeLine());
   }
 
   const onSwap = async (a, b) => {
@@ -148,7 +148,7 @@ export function render(app) {
   });
   view.wrap.addEventListener('pointerdown', () => hint.reset());
   hint.reset();
-  screen.append(h('p', { class: 'small muted center' }, isPublicSite(backend) ? PRIZE_LINE : 'Weekly Challenge'));
+  screen.append(h('p', { class: 'small muted center' }, isPublicSite(backend) ? prizeLine() : 'Weekly Challenge'));
   updateHud();
   if (app.services.debug) window.__pawtasticChallenge = { game, moves, validMove: () => findValidMove(game.grid), swap: (a, b) => onSwap(a, b) };
   return () => { alive = false; hint.stop(); view.destroy(); if (app.services.debug) delete window.__pawtasticChallenge; };

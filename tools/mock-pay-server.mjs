@@ -38,17 +38,24 @@ const players = new Map(); // userId → { dogName, location, stars, levels, bes
 const weekly = []; // { week, userId, location, score, moves, at }
 const prizes = []; // { id, week, location, rank, userId, dogName, email, score, reward, code, status, expiresAt }
 const rankWeek = week => weekly.filter(w => w.week === week && !players.get(w.userId)?.hidden).sort((a, b) => b.score - a.score || a.at - b.at);
+// Weekly prize lineups, as game_week_prizes: used only once approved; otherwise the standard prizes.
+const STANDARD_PRIZES = [{ rank: 1, reward: 'daycare-day', label: 'A free day of daycare' }, { rank: 2, reward: 'bath', label: 'A free bath' }, { rank: 3, reward: 'bath', label: 'A free bath' }];
+const weekLineups = new Map(); // week → { labels: [3], approved }
+const approvedLineup = week => { const l = weekLineups.get(week); return l?.approved ? l.labels.map((label, i) => ({ rank: i + 1, reward: 'custom', label })) : null; };
+const prizesFor = week => approvedLineup(week) ?? STANDARD_PRIZES;
+const shown = list => list.map(p => ({ rank: p.rank, label: p.label }));
 function awardWeek(week) {
+  const lineup = prizesFor(week);
   for (const location of ['hawthorne', 'hillsdale']) {
     rankWeek(week).filter(w => w.location === location).slice(0, 3).forEach((w, i) => {
       if (prizes.some(p => p.week === week && p.location === location && p.rank === i + 1)) return;
       const user = [...db.users.values()].find(u => u.id === w.userId);
       prizes.push({ id: randomUUID(), week, location, rank: i + 1, userId: w.userId, dogName: players.get(w.userId)?.dogName ?? 'PAWtastic Pup', email: user?.email ?? '',
-        score: w.score, reward: i === 0 ? 'daycare-day' : 'bath', code: Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * 32)]).join(''), status: 'won', expiresAt: new Date(Date.now() + 30 * 86400000).toISOString() });
+        score: w.score, reward: lineup[i].reward, label: lineup[i].reward === 'custom' ? lineup[i].label : null, code: Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * 32)]).join(''), status: 'won', expiresAt: new Date(Date.now() + 30 * 86400000).toISOString() });
     });
   }
 }
-const prizeOut = p => ({ id: p.id, week: p.week, location: p.location, rank: p.rank, reward: p.reward, code: p.code, status: p.status, expiresAt: p.expiresAt, score: p.score });
+const prizeOut = p => ({ id: p.id, week: p.week, location: p.location, rank: p.rank, reward: p.reward, label: p.label ?? null, code: p.code, status: p.status, expiresAt: p.expiresAt, score: p.score });
 
 // Home Screen app sign-in codes (src/lib/game/signin.server.ts in the Lovable project).
 const appCodes = [];
@@ -167,7 +174,9 @@ createServer(async (req, res) => {
 
     if (path === '/api/public/game/challenge' && req.method === 'GET') {
       const week = weekKey(Date.now());
-      return send(res, 200, { week, endsAt: new Date(weekEndsAt(week)).toISOString(), moves: 25 });
+      const next = weekKey(weekEndsAt(week) + 3600000);
+      const upcoming = approvedLineup(next);
+      return send(res, 200, { week, endsAt: new Date(weekEndsAt(week)).toISOString(), moves: 25, prizes: shown(prizesFor(week)), next: upcoming ? { week: next, prizes: shown(upcoming) } : null });
     }
     if (path === '/api/public/game/leaderboard') {
       const user = authed(req);
@@ -345,6 +354,13 @@ createServer(async (req, res) => {
       return send(res, 200, { url: `${origin}/play/index.html#access_token=${t.access_token}&expires_at=${t.expires_at}&expires_in=3600&refresh_token=${t.refresh_token}&token_type=bearer&type=magiclink` });
     }
     // Ends the week early for tests: this week's top 3 at each location win their prizes.
+    // Sets a week's prize lineup (this week unless { next: true }), approved or still a draft.
+    if (path === '/mock/week-prizes' && req.method === 'POST') {
+      const b = await bodyOf(req);
+      const week = b.next ? weekKey(weekEndsAt(weekKey(Date.now())) + 3600000) : weekKey(Date.now());
+      weekLineups.set(week, { labels: b.labels, approved: !!b.approved });
+      return send(res, 200, { week });
+    }
     if (path === '/mock/award-week' && req.method === 'POST') { awardWeek(weekKey(Date.now())); return send(res, 200, { prizes }); }
     if (path === '/mock/state') return send(res, 200, { devices, players: Object.fromEntries(players), weekly, prizes, purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent, codes: Object.fromEntries(db.codes), referrals: db.referrals, appCodes });
     if (path === '/mock/refund' && req.method === 'POST') {

@@ -1,6 +1,7 @@
 // Competing (the public site): a home PAWtastic (Hawthorne or Hillsdale), the Weekly Challenge,
 // leaderboards and the real prizes the Weekly Challenge wins. Prizes are given at the front desk:
-// each week the top 3 at each location win, 1st a free day of daycare, 2nd and 3rd a free bath.
+// each week the top 3 at each location win that week's prizes, which the server sends (the lineup the
+// owner approved for the week, or the standard 1st a free day of daycare, 2nd and 3rd a free bath).
 
 import { h } from './dom.js';
 import { clientOf } from './payments.js';
@@ -9,14 +10,38 @@ import { LOCATIONS } from '../engine/levels.js';
 import { totalStars, totalBestScore } from '../economy/progression.js';
 import { weekKey, weekEndsAt } from '../engine/challenge.js';
 
-export const PRIZES = { 1: 'a free day of daycare', 2: 'a free bath', 3: 'a free bath' };
-export const PRIZE_LINE = 'Top 3 at each location win every week: 1st a free day of daycare, 2nd and 3rd a free bath.';
 const PRIZE_NAMES = { 'daycare-day': 'Free day of daycare', bath: 'Free bath' };
+const lower = t => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
+
+// This week's prizes as the server sent them: [{ rank, label }] for 1st–3rd. Until it answers, the wording
+// stays general, so a prize is never named that the server didn't confirm.
+let weekly = null; // { week, prizes, next }
+const goodLineup = v => Array.isArray(v) && v.length === 3 && v.every((p, i) => p && p.rank === i + 1 && typeof p.label === 'string' && p.label.length >= 3 && p.label.length <= 80);
+export function weekPrizes(week = weekKey(Date.now())) { return weekly?.week === week ? weekly.prizes : null; }
+export function nextPrizes() { return weekly?.next ?? null; }
+/** Asks the server for this week's prizes (and next week's, once approved). Resolves the lineup or null. */
+export async function loadWeekPrizes(app) {
+  const pay = clientOf(app);
+  if (!pay?.challengeWeek) return null;
+  const r = await pay.challengeWeek().catch(() => null);
+  if (!r?.ok || typeof r.week !== 'string' || !goodLineup(r.prizes)) return null;
+  weekly = { week: r.week, prizes: r.prizes, next: r.next && typeof r.next.week === 'string' && goodLineup(r.next.prizes) ? r.next : null };
+  return weekly.prizes;
+}
+/** "Top 3 at each location win: 1st …, 2nd …, 3rd …" (or general wording until the server answers). */
+export function prizeLine(prizes = weekPrizes()) {
+  if (!prizes) return 'Top 3 at each location win real PAWtastic prizes every week.';
+  const [a, b, c] = prizes.map(p => lower(p.label));
+  return b === c ? `Top 3 at each location win: 1st ${a}, 2nd and 3rd ${b}.` : `Top 3 at each location win: 1st ${a}, 2nd ${b}, 3rd ${c}.`;
+}
+export const prizeHeadline = (prizes = weekPrizes()) => (prizes ? `Win ${lower(prizes[0].label)}` : 'Win real PAWtastic prizes');
+export const prizeForRank = (rank, prizes = weekPrizes()) => (prizes && prizes[rank - 1] ? lower(prizes[rank - 1].label) : 'a prize');
 const PRIZES_SEEN_KEY = 'pawtastic-gd-prizes-seen-v1';
 const PENDING_RUN_KEY = 'pawtastic-gd-pending-run-v1';
 
 export const homeName = state => (state.home ? LOCATIONS[state.home] : null);
-export const prizeName = reward => PRIZE_NAMES[reward] ?? 'Prize';
+/** A won prize's name: its own words when it came from a weekly lineup. */
+export const prizeName = p => (p && typeof p === 'object' ? (p.label || PRIZE_NAMES[p.reward]) : PRIZE_NAMES[p]) ?? 'Prize';
 
 /** Two big buttons: Hawthorne and Hillsdale. */
 export function homeChoices(current, onPick) {
@@ -54,10 +79,17 @@ export function weeklyCard(app) {
   const state = app.services.backend.state();
   const week = weekKey(Date.now());
   const best = state.weekly.week === week ? state.weekly.best : 0;
+  const headline = h('h2', {}, prizeHeadline());
+  const line = h('p', { class: 'small' }, prizeLine());
+  const upcoming = h('p', { class: 'small muted' });
+  const showNext = () => { const n = nextPrizes(); upcoming.textContent = n ? `Next week: 1st ${lower(n.prizes[0].label)}.` : ''; upcoming.hidden = !n; };
+  showNext();
+  loadWeekPrizes(app).then(p => { if (p) { headline.textContent = prizeHeadline(p); line.textContent = prizeLine(p); showNext(); } }).catch(() => {});
   return h('section', { class: 'card weekly-card', 'aria-label': 'Weekly Challenge' },
     h('p', { class: 'eyebrow' }, `Weekly Challenge · ${endsInText(week)}`),
-    h('h2', {}, 'Win a free daycare day'),
-    h('p', { class: 'small' }, PRIZE_LINE),
+    headline,
+    line,
+    upcoming,
     best ? h('p', { class: 'small num' }, h('strong', {}, `Your best this week: ${best.toLocaleString('en-US')}`)) : null,
     h('div', { class: 'btn-pair' },
       h('button', { class: 'btn gold', type: 'button', onClick: () => app.go('challenge') }, best ? 'Play again' : 'Play the challenge'),
@@ -98,7 +130,7 @@ const seenPrizes = () => { try { return JSON.parse(localStorage.getItem(PRIZES_S
 export function prizeCard(p) {
   return h('div', { class: 'card prize-card' },
     h('p', { class: 'eyebrow' }, `Weekly Challenge · week of ${p.week} · #${p.rank} at ${LOCATIONS[p.location] ?? p.location}`),
-    h('h3', {}, prizeName(p.reward)),
+    h('h3', {}, prizeName(p)),
     p.status === 'won'
       ? [h('p', {}, `Show this code at the PAWtastic ${LOCATIONS[p.location] ?? ''} front desk by ${new Date(p.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}:`),
         h('p', { class: 'friend-code num', 'aria-label': `Prize code ${String(p.code).split('').join(' ')}` }, p.code),
