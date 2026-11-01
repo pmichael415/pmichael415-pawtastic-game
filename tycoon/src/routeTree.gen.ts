@@ -17,10 +17,12 @@ import { Route as HelpRouteImport } from './routes/help'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RecessRouteImport } from './routes/recess'
 import { Route as ShopRouteImport } from './routes/shop'
+import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as VisitRouteImport } from './routes/visit'
 import { Route as ApiPublicEventsRouteImport } from './routes/api/public/events'
 import { Route as ApiPublicReferralsRouteImport } from './routes/api/public/referrals'
 import { Route as ApiPublicTeamStandingsRouteImport } from './routes/api/public/team-standings'
+import { Route as ApiPublicNotificationsEmailUnsubscribeRouteImport } from './routes/api/public/notifications/email-unsubscribe'
 import { Route as ApiPublicNotificationsKeyRouteImport } from './routes/api/public/notifications/key'
 import { Route as ApiPublicNotificationsRunRouteImport } from './routes/api/public/notifications/run'
 import { Route as ApiPublicNotificationsSubscribeRouteImport } from './routes/api/public/notifications/subscribe'
@@ -67,6 +69,11 @@ const ShopRoute = ShopRouteImport.update({
   path: '/shop',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UnsubscribeRoute = UnsubscribeRouteImport.update({
+  id: '/unsubscribe',
+  path: '/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VisitRoute = VisitRouteImport.update({
   id: '/visit',
   path: '/visit',
@@ -87,6 +94,12 @@ const ApiPublicTeamStandingsRoute = ApiPublicTeamStandingsRouteImport.update({
   path: '/api/public/team-standings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicNotificationsEmailUnsubscribeRoute =
+  ApiPublicNotificationsEmailUnsubscribeRouteImport.update({
+    id: '/api/public/notifications/email-unsubscribe',
+    path: '/api/public/notifications/email-unsubscribe',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicNotificationsKeyRoute =
   ApiPublicNotificationsKeyRouteImport.update({
     id: '/api/public/notifications/key',
@@ -127,10 +140,12 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/recess': typeof RecessRoute
   '/shop': typeof ShopRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/visit': typeof VisitRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/referrals': typeof ApiPublicReferralsRoute
   '/api/public/team-standings': typeof ApiPublicTeamStandingsRoute
+  '/api/public/notifications/email-unsubscribe': typeof ApiPublicNotificationsEmailUnsubscribeRoute
   '/api/public/notifications/key': typeof ApiPublicNotificationsKeyRoute
   '/api/public/notifications/run': typeof ApiPublicNotificationsRunRoute
   '/api/public/notifications/subscribe': typeof ApiPublicNotificationsSubscribeRoute
@@ -146,10 +161,12 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/recess': typeof RecessRoute
   '/shop': typeof ShopRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/visit': typeof VisitRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/referrals': typeof ApiPublicReferralsRoute
   '/api/public/team-standings': typeof ApiPublicTeamStandingsRoute
+  '/api/public/notifications/email-unsubscribe': typeof ApiPublicNotificationsEmailUnsubscribeRoute
   '/api/public/notifications/key': typeof ApiPublicNotificationsKeyRoute
   '/api/public/notifications/run': typeof ApiPublicNotificationsRunRoute
   '/api/public/notifications/subscribe': typeof ApiPublicNotificationsSubscribeRoute
@@ -166,10 +183,12 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/recess': typeof RecessRoute
   '/shop': typeof ShopRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/visit': typeof VisitRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/referrals': typeof ApiPublicReferralsRoute
   '/api/public/team-standings': typeof ApiPublicTeamStandingsRoute
+  '/api/public/notifications/email-unsubscribe': typeof ApiPublicNotificationsEmailUnsubscribeRoute
   '/api/public/notifications/key': typeof ApiPublicNotificationsKeyRoute
   '/api/public/notifications/run': typeof ApiPublicNotificationsRunRoute
   '/api/public/notifications/subscribe': typeof ApiPublicNotificationsSubscribeRoute
@@ -187,10 +206,12 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/recess'
     | '/shop'
+    | '/unsubscribe'
     | '/visit'
     | '/api/public/events'
     | '/api/public/referrals'
     | '/api/public/team-standings'
+    | '/api/public/notifications/email-unsubscribe'
     | '/api/public/notifications/key'
     | '/api/public/notifications/run'
     | '/api/public/notifications/subscribe'
@@ -206,10 +227,12 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/recess'
     | '/shop'
+    | '/unsubscribe'
     | '/visit'
     | '/api/public/events'
     | '/api/public/referrals'
     | '/api/public/team-standings'
+    | '/api/public/notifications/email-unsubscribe'
     | '/api/public/notifications/key'
     | '/api/public/notifications/run'
     | '/api/public/notifications/subscribe'
@@ -225,10 +248,12 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/recess'
     | '/shop'
+    | '/unsubscribe'
     | '/visit'
     | '/api/public/events'
     | '/api/public/referrals'
     | '/api/public/team-standings'
+    | '/api/public/notifications/email-unsubscribe'
     | '/api/public/notifications/key'
     | '/api/public/notifications/run'
     | '/api/public/notifications/subscribe'
@@ -245,10 +270,12 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   RecessRoute: typeof RecessRoute
   ShopRoute: typeof ShopRoute
+  UnsubscribeRoute: typeof UnsubscribeRoute
   VisitRoute: typeof VisitRoute
   ApiPublicEventsRoute: typeof ApiPublicEventsRoute
   ApiPublicReferralsRoute: typeof ApiPublicReferralsRoute
   ApiPublicTeamStandingsRoute: typeof ApiPublicTeamStandingsRoute
+  ApiPublicNotificationsEmailUnsubscribeRoute: typeof ApiPublicNotificationsEmailUnsubscribeRoute
   ApiPublicNotificationsKeyRoute: typeof ApiPublicNotificationsKeyRoute
   ApiPublicNotificationsRunRoute: typeof ApiPublicNotificationsRunRoute
   ApiPublicNotificationsSubscribeRoute: typeof ApiPublicNotificationsSubscribeRoute
@@ -314,6 +341,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShopRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/unsubscribe': {
+      id: '/unsubscribe'
+      path: '/unsubscribe'
+      fullPath: '/unsubscribe'
+      preLoaderRoute: typeof UnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/visit': {
       id: '/visit'
       path: '/visit'
@@ -340,6 +374,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/team-standings'
       fullPath: '/api/public/team-standings'
       preLoaderRoute: typeof ApiPublicTeamStandingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/notifications/email-unsubscribe': {
+      id: '/api/public/notifications/email-unsubscribe'
+      path: '/api/public/notifications/email-unsubscribe'
+      fullPath: '/api/public/notifications/email-unsubscribe'
+      preLoaderRoute: typeof ApiPublicNotificationsEmailUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/notifications/key': {
@@ -389,10 +430,13 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   RecessRoute: RecessRoute,
   ShopRoute: ShopRoute,
+  UnsubscribeRoute: UnsubscribeRoute,
   VisitRoute: VisitRoute,
   ApiPublicEventsRoute: ApiPublicEventsRoute,
   ApiPublicReferralsRoute: ApiPublicReferralsRoute,
   ApiPublicTeamStandingsRoute: ApiPublicTeamStandingsRoute,
+  ApiPublicNotificationsEmailUnsubscribeRoute:
+    ApiPublicNotificationsEmailUnsubscribeRoute,
   ApiPublicNotificationsKeyRoute: ApiPublicNotificationsKeyRoute,
   ApiPublicNotificationsRunRoute: ApiPublicNotificationsRunRoute,
   ApiPublicNotificationsSubscribeRoute: ApiPublicNotificationsSubscribeRoute,

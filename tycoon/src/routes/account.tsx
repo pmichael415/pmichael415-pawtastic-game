@@ -12,6 +12,7 @@ import {
   chooseCloud, chooseDevice, fetchAll, readLocal, saveAllNow, unlink, useLinks, useStatuses,
   type CloudRows, type SyncStatus,
 } from "@/game/cloud";
+import { EmailUpdates } from "@/components/game/EmailUpdates";
 import { GAME_IDS, GAME_NAMES, hasProgress, parseSlot, summaryOf, type GameId } from "@/game/cloudSlots";
 
 export const Route = createFileRoute("/account")({
@@ -207,6 +208,8 @@ function SignedIn({ userId, email }: { userId: string; email: string }) {
           <LogOut /> Sign out
         </Button>
       </section>
+
+      <EmailUpdates />
 
       <section aria-label="Your cloud saves" className="space-y-2">
         <div className="flex items-end justify-between px-1">

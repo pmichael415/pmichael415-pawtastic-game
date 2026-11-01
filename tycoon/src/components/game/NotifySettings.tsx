@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { disablePush, enablePush, pushIsOn, pushSupport, type PushSupport } from "@/lib/notify/client";
 import { loadPrompt, recordAccept, savePrompt } from "@/lib/notify/prompt";
+import { emailUpdatesAvailable } from "@/lib/notify/email.functions";
 
 const NOTE: Partial<Record<PushSupport, string>> = {
   blocked: "Notifications are blocked in this browser's settings.",
@@ -14,9 +15,13 @@ export function NotifySettings() {
   const [support, setSupport] = useState<PushSupport>("unsupported");
   const [on, setOn] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [emailOffer, setEmailOffer] = useState(false);
   useEffect(() => {
     setSupport(pushSupport());
     void pushIsOn().then(setOn);
+    emailUpdatesAvailable()
+      .then((r) => setEmailOffer(r.available))
+      .catch(() => setEmailOffer(false));
   }, []);
   const toggle = async (v: boolean) => {
     setBusy(true);
@@ -40,7 +45,12 @@ export function NotifySettings() {
         Phone notifications (weekly challenge and prizes, at most 2 a week)
         <Switch checked={on} disabled={busy || support !== "supported"} onCheckedChange={(v) => void toggle(v)} />
       </label>
-      {NOTE[support] && <p className="text-xs text-muted-foreground">{NOTE[support]}</p>}
+      {NOTE[support] && (
+        <p className="text-xs text-muted-foreground">
+          {NOTE[support]}
+          {support !== "supported" && emailOffer && " You can get email updates instead: sign in, then turn them on under Account."}
+        </p>
+      )}
     </div>
   );
 }

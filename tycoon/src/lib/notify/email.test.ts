@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emailContent, emailUpdatesEnabled } from "./email";
+import { emailContent, emailOptInDecision, emailUpdatesEnabled } from "./email";
 
 const msg = { id: "9f1c", email_subject: "New week, new prizes", email_body: "Team Hawthorne vs Team Hillsdale <script>x</script> starts now.", path: "/recess" };
 const ORIGIN = "https://play.example.com";
@@ -35,5 +35,21 @@ describe("email updates stay off until the owner's gates are done", () => {
     expect(emailUpdatesEnabled({ NOTIFY_EMAIL_ENABLED: "true", NOTIFY_MAILING_ADDRESS: "123 Example St" }, null)).toBe(false);
     expect(emailUpdatesEnabled({ NOTIFY_EMAIL_ENABLED: "yes", NOTIFY_MAILING_ADDRESS: "123 Example St" }, transport)).toBe(false);
     expect(emailUpdatesEnabled({ NOTIFY_EMAIL_ENABLED: "true", NOTIFY_MAILING_ADDRESS: "123 Example St" }, transport)).toBe(true);
+  });
+});
+
+describe("turning email updates on or off", () => {
+  it("needs email updates to be available", () => {
+    expect(emailOptInDecision({ on: true, adult: true }, { email: "a@b.co" }, false)).toEqual({ ok: false, error: "Email updates aren't available yet." });
+  });
+  it("turning on needs the 18+ confirmation", () => {
+    expect(emailOptInDecision({ on: true, adult: false }, { email: "a@b.co" }, true)).toEqual({ ok: false, error: "Please confirm you're 18 or older." });
+  });
+  it("uses the signed-in account's email, never anything typed", () => {
+    expect(emailOptInDecision({ on: true, adult: true }, { email: "a@b.co" }, true)).toEqual({ ok: true, email: "a@b.co" });
+    expect(emailOptInDecision({ on: true, adult: true }, {}, true)).toEqual({ ok: false, error: "Your account has no email address." });
+  });
+  it("turning off always works, even if updates were switched off since", () => {
+    expect(emailOptInDecision({ on: false, adult: false }, { email: "a@b.co" }, false)).toEqual({ ok: true, email: "a@b.co" });
   });
 });

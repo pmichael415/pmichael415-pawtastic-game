@@ -40,3 +40,16 @@ export function emailContent(
 </div></body></html>`;
   return { subject: m.email_subject, text, html, unsubscribeUrl };
 }
+
+/** Decides an email opt-in change. The address always comes from the signed-in account, never from what was typed. */
+export function emailOptInDecision(
+  input: { on: boolean; adult: boolean },
+  claims: { email?: unknown },
+  available: boolean,
+): { ok: true; email: string } | { ok: false; error: string } {
+  const email = typeof claims.email === "string" && claims.email.includes("@") ? claims.email : null;
+  if (input.on && !available) return { ok: false, error: "Email updates aren't available yet." };
+  if (input.on && !input.adult) return { ok: false, error: "Please confirm you're 18 or older." };
+  if (!email) return { ok: false, error: "Your account has no email address." };
+  return { ok: true, email };
+}

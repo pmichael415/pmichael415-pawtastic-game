@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { NotifySettings } from "./NotifySettings";
+import { EmailUpdates } from "./EmailUpdates";
 import { Slider } from "@/components/ui/slider";
 import { setSettings, useSettings, type ViewMode } from "@/lib/settings";
 
@@ -84,6 +85,7 @@ export function GameHeader({
 
 export function SettingsSheet() {
   const s = useSettings();
+  const { user } = useSession();
   const views: { v: ViewMode; label: string }[] = [
     { v: "overhead", label: "Overhead" },
     { v: "walk", label: "Walk (first person)" },
@@ -156,6 +158,7 @@ export function SettingsSheet() {
             Battery saver and reduced motion apply the next time the 3D view opens.
           </p>
           <NotifySettings />
+          {user && <EmailUpdates />}
           <button
             type="button"
             onClick={openTeamPicker}
