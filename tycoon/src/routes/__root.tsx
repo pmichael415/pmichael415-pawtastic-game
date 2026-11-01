@@ -13,6 +13,7 @@ import { Building2, Gamepad2, GraduationCap, House, ShoppingBag } from "lucide-r
 import { useSession } from "@/lib/auth";
 import { useCloudSync } from "@/game/cloud";
 import { EntitlementsProvider } from "@/lib/entitlements";
+import { PUBLIC_ORIGIN } from "@/lib/site";
 import { Toaster } from "@/components/ui/sonner";
 import { startSession } from "@/lib/analytics";
 import { ShareSheet } from "@/components/game/ShareSheet";
@@ -63,6 +64,8 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
   );
 }
 
+const SHARE_DESCRIPTION = "Free dog games from PAWtastic Academy: Daycare Tycoon, Recess Rush and Graduation Day.";
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
     meta: [
@@ -70,14 +73,24 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { name: "theme-color", content: "#FAF8F5" },
       { title: "PAWtastic Games" },
-      { name: "description", content: "Free dog games from PAWtastic Academy: Daycare Tycoon and Recess Rush." },
+      { name: "description", content: SHARE_DESCRIPTION },
       { property: "og:type", content: "website" },
+      { property: "og:title", content: "PAWtastic Games" },
+      { property: "og:description", content: SHARE_DESCRIPTION },
+      { property: "og:image", content: `${PUBLIC_ORIGIN}/brand/og-image.png` },
+      { property: "og:url", content: PUBLIC_ORIGIN },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:image", content: `${PUBLIC_ORIGIN}/brand/og-image.png` },
+      // Installable from the home screen (iPhone notifications only work from the installed icon).
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-title", content: "PAWtastic" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/png", href: "/favicon.png" },
-      { rel: "apple-touch-icon", href: "/brand/pawtastic-logo.png" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "apple-touch-icon", href: "/icons/icon-192.png" },
     ],
   }),
   shellComponent: RootShell,

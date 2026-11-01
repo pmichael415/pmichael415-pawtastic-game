@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarCheck, ExternalLink, MapPin, Navigation, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CUSTOMER_APP_URL, LOCATIONS, bookingUrl, directionsUrl } from "@/lib/locations";
@@ -68,7 +68,8 @@ function Visit() {
         <p className="mt-2 text-xs text-muted-foreground">Tip: on iPhone, open it in Safari, tap Share, then “Add to Home Screen”.</p>
       </section>
       <p className="text-center text-[11px] font-medium text-muted-foreground">
-        These links open PAWtastic Academy's own evaluation forms and app. The games are separate: game coins and scores have no cash value and aren't connected to PAWtastic customer accounts, rewards, discounts or credit.
+        These links open PAWtastic Academy's own evaluation forms and app. The games are separate: game coins and scores have no cash value and aren't connected to PAWtastic customer accounts, rewards, discounts or credit.{" "}
+        <Link to="/privacy" className="underline">Privacy</Link>
       </p>
     </main>
   );

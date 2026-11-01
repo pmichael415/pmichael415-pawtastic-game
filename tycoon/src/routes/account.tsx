@@ -50,7 +50,8 @@ function Account() {
       )}
       <p className="text-center text-[11px] font-medium text-muted-foreground">
         Accounts are free and optional — guest play always works. Saves hold game progress only; game coins have no cash
-        value. This account is for PAWtastic Games; the Graduation Day website has its own sign-in.
+        value. This account is for PAWtastic Games; the Graduation Day website has its own sign-in.{" "}
+        <Link to="/privacy" className="underline">Privacy</Link>
       </p>
     </main>
   );

@@ -175,6 +175,9 @@ export function SettingsSheet() {
               Account & saves
             </Link>
           </div>
+          <Link to="/privacy" className="block text-center text-xs font-bold text-muted-foreground underline">
+            Privacy
+          </Link>
         </div>
       </SheetContent>
     </Sheet>

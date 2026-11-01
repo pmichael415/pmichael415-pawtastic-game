@@ -34,6 +34,13 @@ with a 0.2 s animation). Production build OK.
   header. Directions now search "…, NJ" (the logo confirms the state). Note: both logos say
   "Daycare · Boarding · Grooming"; the game's own text keeps to daycare, boarding, baths and exit baths.
 
+## Update — notifications and ad prep (in progress, 1 Nov)
+
+Plan: `docs/superpowers/plans/2026-11-01-notifications-and-ad-prep.md` (spec approved by the owner).
+- Ad prep: campaign tags (utm_*) and first touch are recorded on sessions and booking/app/directions clicks.
+- New `/privacy` page (linked from Settings, Account and Visit), link previews (og-image) and an installable hub
+  (manifest + icons). **Owner review needed:** the privacy page text must be OK'd before this is published.
+
 ## Update — a refused test checkout now says why (1 Nov)
 
 - The owner's first hub test purchase showed "Checkout could not be started": the settings and account check passed,
