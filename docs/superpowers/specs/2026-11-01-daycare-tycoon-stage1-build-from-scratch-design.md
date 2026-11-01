@@ -1,4 +1,4 @@
-# PAWtastic Daycare Tycoon (new engine): stage 1, build from scratch. Design
+# PAWtastic Daycare Tycoon (new engine): stage 1, build from scratch and run the business. Design
 
 Date: 1 Nov 2026 · Owner: Phil (PAWtastic Academy) · Status: awaiting owner review
 Replaces: `2026-11-01-daycare-tycoon-stage1-campus-design.md` (the campus around a fixed building), which is withdrawn.
@@ -12,7 +12,9 @@ Replaces: `2026-11-01-daycare-tycoon-stage1-campus-design.md` (the campus around
 - It makes money through themes and cosmetics, a monthly membership, coin packs and PAWtastic promos.
 - It's a web game, not the App Store.
 
-The owner wants players to keep coming back and to spend. We do that fairly (§2).
+The owner wants players to keep coming back and to spend. We do that fairly (§2). Players also control expenses, as in
+theme-park tycoon games (owner, 1 Nov). Because prices and expenses shape every building decision, the business is part
+of stage 1, not a later stage.
 
 **How it ships.** The new game is built on its own engine and starts as a **preview**: the route `/daycare-next`, linked
 as "Try the new Daycare (preview)" from the hub and from today's Daycare page. Today's Daycare Tycoon stays live. When
@@ -25,10 +27,9 @@ the owner says the new game is better (expected after stage 2):
 
 | Stage | What players get |
 |---|---|
-| **1 (this spec)** | An empty lot and entrance; build rooms, paths and outdoor items on a grid; path connections; a guided start; the full dog-care loop in player-built rooms; XP, levels and land; the PAWtastic Academy sign |
-| 2 | Dogs walk the paths and yards and use what was built; thought bubbles; a 1–5 star rating; walk view. Then it replaces today's game |
-| 3 | Run the business: game-coin prices, demand, staff wages and training, a daily money chart |
-| 4 | The facility chain: meet a facility's goal, buy the next fictional facility with coins, and repeat; earlier facilities earn a capped amount while you're away; awards |
+| **1 (this spec)** | An empty lot and entrance; build rooms, paths and outdoor items on a grid; path connections; a guided start; the full dog-care loop in player-built rooms; **the business: prices, demand, expenses (wages, upkeep, supplies, marketing), closing things to save money, and a finances screen with a profit chart**; XP, levels and land; the PAWtastic Academy sign |
+| 2 | Dogs walk the paths and yards and use what was built; thought bubbles (including "a bit pricey!"); a 1–5 star rating that feeds demand; walk view. Then it replaces today's game |
+| 3 | The facility chain: meet a facility's goal, buy the next fictional facility with coins, and repeat; earlier facilities earn a capped amount while you're away; awards |
 | Money 1–3 | Premium looks for buildings and dogs; the monthly membership; coin packs (free play only, after coins move to the server, with spending limits and an age check) |
 
 ## 2. Owner rules, and fair engagement
@@ -36,7 +37,7 @@ the owner says the new game is better (expected after stage 2):
 **What keeps players coming back:**
 - clear goals and level-ups that unlock new rooms, items and land
 - the satisfaction of building a daycare that works better each day
-- new facilities to buy (stage 4)
+- new facilities to buy (stage 3)
 - the weekly challenges and owner-approved notifications that already exist
 - buying things players actually want (money steps)
 
@@ -98,6 +99,22 @@ The run controls follow today's game:
 - **The calm-down room** is always available for overwhelmed dogs.
 - **Header:** coins, **Lv N** with an XP bar, the day and clock, and open/closed. A level-up shows a toast with the new
   unlocks and gives `25 × N` coins.
+
+### Finances (the business)
+A **Finances** button (a coin icon in the header) opens a screen with five tabs:
+- **Summary:** today, yesterday and the last 7 game days, showing:
+  - income by service (daycare, boarding, baths, exit baths, tips)
+  - expenses by type (wages, upkeep, supplies, marketing, building)
+  - profit, with a 14-day profit bar chart
+- **Prices:** a slider for each service (daycare day, boarding night, bath, exit bath). Each shows the current price, a
+  "fair price" marker, and a plain hint ("Above fair: fewer dogs will come").
+- **Staff:** the wage level (Lean, Standard or Generous) and what it does; hire.
+- **Upkeep:** every room and item with its daily cost and an **Open/Closed** switch. Closed things cost nothing and do
+  nothing. A closed room keeps the dogs already inside but takes no new ones.
+- **Marketing:** campaigns to buy, with how much they help and for how long. One runs at a time.
+
+The day wrap-up adds income, expenses and profit for the day, plus one money tip ("Your Fountain costs 16 a day and adds
+Appeal 6 — worth it while you have room for more dogs").
 
 ### Views
 - **Overhead 3D:** build and run, with a cutaway view: no roofs and low walls, so you can see inside.
@@ -192,7 +209,8 @@ Fun and Appeal are summed over placed outdoor items (rooms don't count). Stage 2
   - **Matching groups:** the mismatch warning and confirmation, and the "overwhelmed → calm-down room" handling (today's
     `scuffle` and `separate` rules).
   - **Staff:** energy costs (playtime 10, bath 15, exit bath 15, clean 10), hire costs, and a maximum of 6.
-  - **Checkout pay:** `10 + 0.4 × happiness`, +60 for boarders, +30 for an exit bath.
+  - **Checkout pay** is replaced by prices (§4.7). **Playtime no longer pays coins directly.** It raises happiness, which
+    raises checkout pay and reputation.
   - **The rest:** the day wrap-up report, the welcome-back bonus (capped at 150) and the guest book.
 - **Baths and exit baths** need a connected Bath Station. Without one, the buttons explain why.
 - **Moving or selling** a room isn't allowed while dogs are inside it.
@@ -204,15 +222,65 @@ Fun and Appeal are summed over placed outdoor items (rooms don't count). Stage 2
 - **Levels:** level N starts at total XP `50 × N × (N − 1)`, with no top level.
 - **Level-up reward:** `25 × N` coins.
 
-### 4.7 Saves
+### 4.7 The business (prices, demand, expenses)
+All amounts are game coins, never real money or real PAWtastic prices.
+
+**Prices:**
+
+| Service | Default | Range |
+|---|---|---|
+| Daycare day | 40 | 20–80 |
+| Boarding night (added for boarders) | 90 | 50–160 |
+| Bath | 25 | 10–50 |
+| Exit bath | 30 | 10–60 |
+
+**What the player is paid:**
+- **Checkout:** `round(daycare price × (0.6 + 0.4 × happiness/100))` + the Appeal tip (§4.4), plus the boarding price for
+  boarders and the exit-bath price if chosen.
+- **A bath** pays the bath price, plus any Bath Station level bonus.
+
+**Fair price and demand.** Each service has a fair price:
+- `fair = default × (0.7 + 0.6 × reputation/100) × (1 + appeal/200)`
+- Arrivals are multiplied by the demand factor `clamp((fairDaycare / daycarePrice)^1.5, 0.3, 1.6)`.
+- The share of boarders is multiplied by the same factor for boarding.
+- Baths and exit baths offered at more than 1.5 × fair are refused ("Too pricey"). There is no other penalty.
+
+**Expenses, charged once at the end of each game day played:**
+- **Wages:** 40 per staff member per day.
+  - Lean: 30, and staff energy recovers 20% slower.
+  - Generous: 60, and staff energy recovers 25% faster, and reputation rises by +0.01 per game minute.
+- **Upkeep:** each open room or item costs `ceil(2% of coins spent on it)` per day (for example, a level-1 Small
+  Playroom costs 12 a day). Paths, fences and the sign cost nothing. Closed things cost 0.
+- **Supplies,** per dog checked in:
+  - Basic: 2.
+  - Premium: 5, with +5 happiness at check-in and +5 more from each bath.
+- **Marketing,** one campaign at a time, paid when started:
+  - Flyers: 150, arrivals +20% for 3 game days.
+  - Online ads: 400, +40% for 3 days.
+  - Open house: 800, +60% for 2 days, and reputation +5.
+  - Unlocks: Flyers at level 2, Online ads at level 5, Open house at level 8.
+- **Building, upgrades and land** are shown as building spending, not as daily expenses.
+
+**When money runs short:**
+- Day-end expenses may take coins below 0.
+- While coins are below 0, building, upgrading, buying land, hiring and marketing are paused. The daycare keeps running
+  normally, and income pays the shortfall back.
+- There are no loans, no interest and no automatic selling. A banner suggests ways to save (close the costliest
+  low-value item, lower wages, change prices).
+
+**Time away:** expenses are only charged for game days actually played. The clock doesn't run while you're away, so
+leaving never costs anything.
+
+### 4.8 Saves
 - **Where:** a new local save key `pawtastic-daycare-next-v1`. Cloud saving comes when the new game takes over the
   `daycare` slot.
 - **Shape:**
   - `{ v: 1, coins, xp, guide, active: "f1", facilities: { f1: Facility } }`
   - where `Facility = { name, land[], items: Placed[], dogs[], staff[], clockMin, day, reputation, cleanliness, stats,
-    guestBook, open }`
-  - and `Placed = { uid, kind, c, r, rot: 0–3, level: 1–3, spent, group? }`
-- Keying everything by facility from day one lets stage 4 add more facilities without changing the save format.
+    guestBook, open, prices, wage, supplies, campaign, ledger }`
+  - and `Placed = { uid, kind, c, r, rot: 0–3, level: 1–3, spent, group?, closed? }`
+  - and `ledger` keeps the last 14 game days of income and expenses by category
+- Keying everything by facility from day one lets stage 3 add more facilities without changing the save format.
 - **Loading checks:** an item is dropped if its kind is unknown, it's out of bounds, it's not on owned land, it overlaps
   another item, a one-per-facility limit is exceeded, or it's beyond the item limit. Corrupt saves are set aside and a
   fresh game starts (as today).
@@ -245,6 +313,9 @@ New events (migration **0008** extends the `game_events` check; apply it before 
 - `tycoon_level { level }`
 - `tycoon_guide { step }`
 - `tycoon_open { day }`
+- `tycoon_price { service, price }`
+- `tycoon_marketing { campaign }`
+- `tycoon_day { day, income, expenses }` (one per game day, for balancing)
 
 ## 7. Testing
 - **Engine unit tests:**
@@ -255,6 +326,17 @@ New events (migration **0008** extends the `game_events` check; apply it before 
   - prices, upgrade steps, the 75% refund, and XP not being removed on sale
   - land levels and prices; XP per action, levels and rewards
   - Fun and Appeal caps and their effects
+  - the business:
+    - checkout and bath pay at given prices
+    - fair-price and demand factors at given reputation and appeal
+    - refusals above 1.5 × fair
+    - wages at each level and their energy effects
+    - upkeep (2% of spend, closed = 0, free paths)
+    - supplies per check-in and premium happiness
+    - marketing effect, duration and the one-at-a-time rule
+    - day-end ledger totals
+    - below-zero pauses spending without stopping the daycare and recovers from income
+    - no expenses while away
   - running rules ported from today's engine, with the same expected numbers. Today's `engine.test.ts` cases are ported
     to placed rooms: check-in, matching, mismatch confirmation, calm-down, playtime, bath, exit bath, boarding, checkout
     pay, staff energy, the day wrap-up and welcome-back.
@@ -271,16 +353,19 @@ New events (migration **0008** extends the `game_events` check; apply it before 
   - the level-up toast
   - the list view playing the same loop
   - the sign card and its click event
+  - the Finances screen: change a price and see the demand hint, close an item and see its upkeep drop on the next day's
+    report, start Flyers, and the profit chart after 3 days
+  - the below-zero banner
   - frame rate with 150 things
   - no page errors
 - **Existing suites stay green**, and today's Daycare Tycoon is untouched.
 - **A first-week playthrough** using the game rules. Targets: the guided start in under 5 minutes, level 3 (West or East
-  land) around game day 3, level 5 around day 5. Numbers are tuned if the playthrough is off by more than ±50%.
+  land) around game day 3, level 5 around day 5, and profit positive on every day of a sensible first week. Default
+  prices must break even with the guided-start build and 1 staff member by day 2. Numbers are tuned if the playthrough is off by more than ±50%.
 
 ## 8. Out of scope for stage 1
 - Dogs walking between places, thought bubbles, star ratings and walk view (stage 2).
-- Prices, wages and the money chart (stage 3).
-- More facilities, goals and awards (stage 4).
+- More facilities, goals and awards (stage 3).
 - Anything paid, apart from showing already-owned packs (the money steps).
 - Cloud saves for the preview.
 - Replacing today's game.
