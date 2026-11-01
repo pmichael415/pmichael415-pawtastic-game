@@ -39,6 +39,10 @@ describe("a refused checkout says why, without leaking keys", () => {
     const body = { error: { type: "invalid_request_error", code: "parameter_unknown", param: "payment_intent_data[description]", message: "Received unknown parameter: payment_intent_data[description]" } };
     expect(stripeErrorSummary(body, 400)).toBe("parameter_unknown: Received unknown parameter: payment_intent_data[description]");
   });
+  it("names the parameter when Stripe gives one but no code", () => {
+    const body = { error: { type: "invalid_request_error", param: "payment_method_types", message: "The payment_method_types parameter is no longer supported when creating a Checkout Session." } };
+    expect(stripeErrorSummary(body, 400)).toBe("invalid_request_error (payment_method_types): The payment_method_types parameter is no longer supported when creating a Checkout Session.");
+  });
   it("falls back to the error type, then the HTTP status", () => {
     expect(stripeErrorSummary({ error: { type: "api_error" } }, 500)).toBe("api_error");
     expect(stripeErrorSummary({}, 502)).toBe("HTTP 502");
@@ -68,9 +72,13 @@ describe("Stripe requests use the same pinned API version as Graduation Day", ()
     expect(h["Idempotency-Key"]).toBe("u1-blue-ribbon-style-1");
     expect(h["Stripe-Version"]).toBe(STRIPE_VERSION);
   });
-  it("checkout stays card-only (instant payment, no delayed bank methods)", () => {
+  it("checkout follows the current API: payment methods come from the Dashboard, not payment_method_types", () => {
     const p = checkoutParams({ id: "blue-ribbon-style", name: "Blue Ribbon Style Pack", priceCents: 299, currency: "usd" } as never, "u1", "https://play.example.com");
-    expect(p.get("payment_method_types[0]")).toBe("card");
+    expect([...p.keys()].some((k) => k.startsWith("payment_method_types"))).toBe(false);
     expect(p.get("mode")).toBe("payment");
+    expect(p.get("metadata[game]")).toBe("pawtastic-games-hub");
+    expect(p.get("metadata[user_id]")).toBe("u1");
+    expect(p.get("payment_intent_data[metadata][product_id]")).toBe("blue-ribbon-style");
+    expect(p.get("line_items[0][price_data][unit_amount]")).toBe("299");
   });
 });

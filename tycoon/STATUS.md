@@ -42,7 +42,10 @@ with a 0.2 s animation). Production build OK.
   event (`where: "/shop checkout"`) so it can be read from `game_events`. Hub payments stay test-mode only.
 - The recorded reason: Stripe's newer API rejects `payment_method_types` (req_RTRzSqNxvfC6IQ, HTTP 400). The hub sent
   no API version, so it got the account's newer default; Graduation Day pins `2026-01-28.clover` and works live. Every hub
-  Stripe call now pins that same version (card-only, instant payment), so both games behave alike.
+  Stripe call now pins that same version, so both games behave alike. At the owner's request the hub also stops
+  sending `payment_method_types` (current API): payment methods come from the Dashboard settings, and delayed methods
+  are safe because the webhook grants only once `payment_status` is "paid". Test-only, account check and webhook
+  verification unchanged.
 
 ## Update — Weekly Challenge prizes change every week, with the owner's approval (1 Nov)
 

@@ -130,8 +130,9 @@ export const gameOf = (o: Record<string, unknown>): string | null => {
 /** The Checkout Session request for one cosmetic pack (card only, test mode is enforced by the caller). */
 export function checkoutParams(product: PaidProduct, userId: string, origin: string): URLSearchParams {
   return new URLSearchParams({
+    // No payment_method_types: the current Stripe API rejects it; payment methods come from the Dashboard settings.
+    // Delayed methods are safe: the webhook grants only once payment_status is "paid".
     mode: "payment",
-    "payment_method_types[0]": "card",
     success_url: `${origin}/shop?checkout=returned`,
     cancel_url: `${origin}/shop?checkout=cancelled`,
     client_reference_id: userId,
@@ -157,7 +158,8 @@ export function stripeErrorSummary(body: unknown, status: number): string {
   const err = body && typeof body === "object" ? (body as { error?: unknown }).error : undefined;
   const e = err && typeof err === "object" ? (err as Record<string, unknown>) : {};
   const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : "");
-  const label = str(e["code"]) || str(e["type"]);
+  const param = str(e["param"]);
+  const label = str(e["code"]) || (str(e["type"]) && param ? `${str(e["type"])} (${param})` : str(e["type"]));
   const message = str(e["message"]);
   const text = label && message ? `${label}: ${message}` : label || message || `HTTP ${status}`;
   const masked = text.replace(/\b(?:sk|rk|pk)_(?:test|live)_[A-Za-z0-9*]+/g, "[key]");
@@ -165,9 +167,8 @@ export function stripeErrorSummary(body: unknown, status: number): string {
 }
 
 /**
- * Stripe API version for every hub request. Pinned to the same version Graduation Day uses on the shared games
- * account, so both games behave alike and an account-default upgrade can't break checkout (newer versions reject
- * `payment_method_types`, which keeps the hub card-only with instant payment).
+ * Stripe API version for every hub request: the same fixed version Graduation Day uses on the shared games account,
+ * so a change to the account's default version can't silently change how checkout behaves.
  */
 export const STRIPE_VERSION = "2026-01-28.clover";
 
