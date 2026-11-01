@@ -68,7 +68,7 @@ const completed = (
       currency: "usd",
       payment_status: "paid",
       payment_intent: `pi_${session}`,
-      metadata: { user_id: U1, product_id: "blue-ribbon-style" },
+      metadata: { user_id: U1, product_id: "blue-ribbon-style", game: "pawtastic-games-hub" },
       ...extra,
     },
   },
@@ -133,7 +133,7 @@ describe("signed webhook → entitlement", () => {
           amount_total: 1,
           currency: "usd",
           payment_status: "paid",
-          metadata: { user_id: U1, product_id: "deluxe-daycare-decor" },
+          metadata: { user_id: U1, product_id: "deluxe-daycare-decor", game: "pawtastic-games-hub" },
         },
       },
     });
@@ -150,7 +150,7 @@ describe("signed webhook → entitlement", () => {
           amount_total: 699,
           currency: "usd",
           payment_status: "unpaid",
-          metadata: { user_id: U1, product_id: "deluxe-daycare-decor" },
+          metadata: { user_id: U1, product_id: "deluxe-daycare-decor", game: "pawtastic-games-hub" },
         },
       },
     });
@@ -167,7 +167,7 @@ describe("signed webhook → entitlement", () => {
           currency: "usd",
           payment_status: "paid",
           payment_intent: "pi_cs_b",
-          metadata: { user_id: U1, product_id: "deluxe-daycare-decor" },
+          metadata: { user_id: U1, product_id: "deluxe-daycare-decor", game: "pawtastic-games-hub" },
         },
       },
     });
@@ -175,9 +175,12 @@ describe("signed webhook → entitlement", () => {
     expect((await active()).sort()).toEqual(["blue-ribbon-style", "deluxe-daycare-decor"]);
   });
 
-  it("live-mode events are refused while live payments are off", async () => {
+  it("live-mode events are acknowledged and ignored while this hub is test-only (no retries, nothing granted)", async () => {
+    const before = await active();
     const r = await send({ ...completed("evt_5", "cs_a", 299), livemode: true });
-    expect(r.status).toBe(400);
+    expect(r.status).toBe(200);
+    expect(r.json["ignored"]).toBe("live-mode");
+    expect(await active()).toEqual(before);
   });
 
   it("a full refund revokes the pack once; a partial refund keeps it", async () => {
@@ -228,7 +231,7 @@ describe("signed webhook → entitlement", () => {
       id: "evt_8",
       type: "checkout.session.expired",
       livemode: false,
-      data: { object: { id: "cs_c" } },
+      data: { object: { id: "cs_c", metadata: { game: "pawtastic-games-hub" } } },
     });
     expect(r.json["result"]).toBe("expired");
     expect(
@@ -239,5 +242,47 @@ describe("signed webhook → entitlement", () => {
       ).rows[0]!.status,
     ).toBe("expired");
     expect(await active()).toEqual(["deluxe-daycare-decor"]);
+  });
+});
+
+describe("one Stripe account shared by every PAWtastic game", () => {
+  const events = async () => (await db.query<{ n: number }>(`SELECT count(*)::int n FROM public.payment_events`)).rows[0]!.n;
+  const grad = { user_id: "6f1c0d2e-1111-4222-8333-944455556666", product: "pack55", game: "pawtastic-graduation", mode: "test" };
+
+  it("a Graduation Day sale is acknowledged and ignored: nothing granted, nothing recorded", async () => {
+    const before = { packs: await active(), events: await events() };
+    const r = await send(completed("evt_grad_1", "cs_grad_1", 299, { metadata: grad }));
+    expect(r.status).toBe(200);
+    expect(r.json["ignored"]).toBe("other-game");
+    expect(await active()).toEqual(before.packs);
+    expect(await events()).toBe(before.events);
+  });
+
+  it("an untagged checkout isn't granted either", async () => {
+    const r = await send(completed("evt_untagged", "cs_a", 299, { metadata: { user_id: U1, product_id: "blue-ribbon-style" } }));
+    expect(r.status).toBe(200);
+    expect(r.json["ignored"]).toBe("other-game");
+  });
+
+  it("Graduation Day's expired checkouts and refunds are ignored too", async () => {
+    const before = await events();
+    const expired = await send({ id: "evt_grad_2", type: "checkout.session.expired", livemode: false, data: { object: { id: "cs_grad_2", metadata: grad } } });
+    const refund = await send({ id: "evt_grad_3", type: "charge.refunded", livemode: false, data: { object: { id: "ch_g", payment_intent: "pi_grad", amount: 299, amount_refunded: 299, refunded: true, metadata: grad } } });
+    expect([expired.status, refund.status]).toEqual([200, 200]);
+    expect([expired.json["ignored"], refund.json["ignored"]]).toEqual(["other-game", "other-game"]);
+    expect(await events()).toBe(before);
+  });
+
+  it("hub checkouts are tagged as PAWtastic Games (checkout and payment), so Stripe shows which game sold what", async () => {
+    const { checkoutParams } = await import("@/lib/payments/verify");
+    const { PAID_PRODUCTS } = await import("@/lib/catalog");
+    const p = checkoutParams(PAID_PRODUCTS[0]!, U1, "https://play.example.com");
+    expect(p.get("metadata[game]")).toBe("pawtastic-games-hub");
+    expect(p.get("payment_intent_data[metadata][game]")).toBe("pawtastic-games-hub");
+    expect(p.get("payment_intent_data[metadata][user_id]")).toBe(U1);
+    expect(p.get("payment_intent_data[metadata][product_id]")).toBe(PAID_PRODUCTS[0]!.id);
+    expect(p.get("line_items[0][price_data][product_data][name]")).toBe("PAWtastic Games · Blue Ribbon Style Pack");
+    expect(p.get("line_items[0][price_data][unit_amount]")).toBe("299");
+    expect(p.get("success_url")).toBe("https://play.example.com/shop?checkout=returned");
   });
 });

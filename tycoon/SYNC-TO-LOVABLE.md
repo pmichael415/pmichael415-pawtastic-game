@@ -41,13 +41,19 @@ creates/links a repository the owner chooses.
 ## After syncing
 
 1. Open the preview and run through `/daycare` on a phone.
-2. Payments stay locked until these are set in **Project Settings → Secrets** (never in chat):
-   `STRIPE_SECRET_KEY` (test key, `sk_test_…`), `PAYMENT_WEBHOOK_SECRET` (`whsec_…`),
-   `APP_ORIGIN` (the public https address) and `STRIPE_EXPECTED_ACCOUNT` (the `acct_…` id of the
-   **PAWtastic Games** Stripe account, confirmed in the Stripe dashboard).
-3. In Stripe **test mode**, add a webhook endpoint at `<APP_ORIGIN>/api/public/payments/webhook` for:
-   `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
-   `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.refunded`.
+2. Payments use **the same Stripe account as Graduation Day**: the separate games account, Pawtastic Academy II LLC
+   (`acct_1UWfxx58XGeAL8Pr`), never the daycare's accounts. Hub checkouts are tagged `game=pawtastic-games-hub`
+   (checkout and payment) and named "PAWtastic Games · …"; Graduation Day's are tagged `game=pawtastic-graduation`.
+   Each game's server ignores the other's notifications. The hub's checkout is **test mode only** until live
+   activation is authorized (a code change, on purpose).
+   Payments stay locked until these are set in **Project Settings → Secrets** (never in chat):
+   `STRIPE_SECRET_KEY` (the games account's **test** key, `sk_test_…`), `PAYMENT_WEBHOOK_SECRET` (`whsec_…`, step 3),
+   `APP_ORIGIN` (the public address, e.g. `https://play.pawtasticacademy.com`) and `STRIPE_EXPECTED_ACCOUNT`
+   (`acct_1UWfxx58XGeAL8Pr`). The hub checks the key really belongs to that account before any checkout.
+3. Publish, then in the games account's Stripe dashboard (**test mode**) add a webhook endpoint at
+   `<APP_ORIGIN>/api/public/payments/webhook` for: `checkout.session.completed`,
+   `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`,
+   `charge.refunded`. Save its signing secret as `PAYMENT_WEBHOOK_SECRET`.
 
 ## Graduation Day inside the hub
 

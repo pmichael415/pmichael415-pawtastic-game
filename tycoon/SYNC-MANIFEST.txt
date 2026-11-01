@@ -2,8 +2,8 @@
 # Source: github.com/pmichael415/pmichael415-pawtastic-game, folder tycoon/. Base: Lovable c3a69bd.
 # Format: <sha256>  <path>. Deleted files: none. Never sync: .env, public/favicon.png, src/assets/daycare-room.jpg
 c75d31f3d77c0c129d77b51e253a5a8db81f6074fc4e2ebbedf1ed28fe288c03  AGENTS.md
-6fc95e39839d734f3095aeb930cdd6593a31bd2110c492bad6ae6ff0a2ebe342  STATUS.md
-01351117b0078690c07004df3ee223987becca454c36792e1ffb3447f9867498  SYNC-TO-LOVABLE.md
+1bc39042cbbdc94e58097ff72a528e817f7764e953201afa4474da764de1c1a7  STATUS.md
+d975249d373b6da51138fe7bdb83d1e59304ffb74d269bd572e3cce50643d3b7  SYNC-TO-LOVABLE.md
 e3f4db45b90ed1824d14658037a12675d16f2354136f35f7630db916b1cb34e2  bun.lock
 250fac3cfb7bbd982014bd81d8d9c320486e4bacbc74e31296f02e8667725046  drizzle/migrations/0002_game_measurement.sql
 5fb6009a81be98af4e8a620f7f2bf49cd3eb047f7881bac435d13aed06b514b3  drizzle/migrations/0003_payment_refunds_hardening.sql
@@ -84,9 +84,9 @@ abc98f7abf8e577de4e8d04fd1c1ccab260b039e48b9da9009b47b13c916a8f5  src/lib/analyt
 3d2e4dba2a94339a5150ce68a1dc461dffb37a561430ce2a4440adf641ac9c2c  src/lib/locations.ts
 2869dd1455fa7583b334bf847fb37580b0d9711a25e64022da524d5a90ebb71b  src/lib/payments/account-refund.test.ts
 1067847cf169ba57f5d4a703afd9cb7ce48ded34da0eecbd4abded0e9edeba6e  src/lib/payments/checkout-rules.test.ts
-09ebbe7e561af68357cd9ff68320218cd398e60c7e9391a905aae315cd09f775  src/lib/payments/payments.functions.ts
+d34ff938a401e3a19e613eebf3f176c28686a0b5158494d36bacf1672155ef73  src/lib/payments/payments.functions.ts
 e7353e1a4045f4bb50e35418641ee6917c9736d6e580cf8e5d0f57ff247e0314  src/lib/payments/verify.test.ts
-392b97100f2ec2f1d8fe9c6acd2471a6eb64ce3c5d86b603bfca6656b3c018ea  src/lib/payments/verify.ts
+91a2bcfcea1f9263ff1175fc1763064fcbc10adb276e23738f1d07a3e4a32bb5  src/lib/payments/verify.ts
 c38c540e65f799ffb4703afe70dd807ef33628ed11ba251bf2096e2766c8af82  src/lib/referral.test.ts
 b28b558474ccc47bdd8d531771c95b156f87dd45d6922b560b57bdedeb34f4b2  src/lib/referral.ts
 d8aeccacbfecc2336bdafd2f09d921b183d83b5dec1ffacecc31a3078bef8734  src/lib/settings.ts
@@ -96,7 +96,7 @@ b124d4feaf4f3f51f5cda0d4e37833e74e7bbfa64e5351c2bb85ba697aadbdd1  src/lib/team.t
 ae8dcacb23f70eb1ff7ff55b351eaa0df3dd5f4f6941bd1c2ad2ebf4240724ce  src/routes/__root.tsx
 71022767abc5348d083cff11fda382490f3e574e832069b7fec7969d041dbf74  src/routes/account.tsx
 4ab36359c14415f2737a16920ef8188f1a87f7d9a037e1e9b486fb12e65f6c0e  src/routes/api/public/events.ts
-6a5abfe3e946303f8b327fe4986b70bb621c13c905a7228e48d6b23fe3f0255d  src/routes/api/public/payments/webhook.ts
+76e4e6a24b98f26ee227181bcc75e70fd0204e12b6a4a2fa53992db7d04c2179  src/routes/api/public/payments/webhook.ts
 91ccd899b1f11e3510b903407ddf29c596edf2eaad00a7d176b8c0f3db047ca4  src/routes/api/public/referrals.ts
 39d9aca8a53c32f749ffb03ecbf37d72c613b27592c133c912dd1bc8f756d197  src/routes/api/public/team-standings.ts
 418b03fb5eb9f78303546981df58adfac1f6504fcaa7fe1af8d74737b29105f5  src/routes/daycare.tsx
@@ -110,7 +110,7 @@ e5d2db3ea022b8a8e1617f0eb3ccf570f589e2b7d5bd45c0df9a36d9dabcfe2c  src/routes/vis
 e5ea700d697bced4a85ca7eb2a123569266658b65efaa007f94d212119edc377  src/test/account-switch.test.tsx
 cc80162404980d697ef7e732ee375da61ec684a57e745da6155b585722702c54  src/test/migrations.test.ts
 73b61c0945a898d202b395e20de0eef5f9ce208ff77dfcc001916b05d3cef5c1  src/test/setup.ts
-613f5cf9fe0f179d6960cd23859793a55db9915476c03b98109413b3f34e519f  src/test/webhook-flow.test.ts
+4104cd8b9df09049258b845b59db13d926e63b040fda0bf640e668e77a5ffe02  src/test/webhook-flow.test.ts
 4daa095e58706b48457ee419cc307794ebe2fd2b0306465b532590915e814f2b  src/world/layout.ts
 4e27b0a941afa3143901bfaed2b57b3fd2102b6966896a63898e44d59e6f44b7  src/world/models.ts
 ee3ce03521a651f0e52caeb427e40a09174ca0d79030b6c9bdf3db9f361c67a2  src/world/renderer.ts

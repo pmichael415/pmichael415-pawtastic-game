@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { PAID_PRODUCTS } from "@/lib/catalog";
-import { accountMatches, paymentsConfig, reconcileSession, serverPaymentsEnv } from "./verify";
+import { accountMatches, checkoutParams, paymentsConfig, reconcileSession, serverPaymentsEnv } from "./verify";
 
 // Cache the "this key belongs to the confirmed game account" check briefly per server instance.
 let accountOk: { key: string; account: string; until: number } | null = null;
@@ -49,19 +49,7 @@ export const createCheckout = createServerFn({ method: "POST" })
     if (owned) return { ok: false as const, error: "You already own this pack — use Restore purchases." };
 
     const origin = cfg.origin;
-    const body = new URLSearchParams({
-      mode: "payment",
-      "payment_method_types[0]": "card",
-      success_url: `${origin}/shop?checkout=returned`,
-      cancel_url: `${origin}/shop?checkout=cancelled`,
-      client_reference_id: context.userId,
-      "metadata[user_id]": context.userId,
-      "metadata[product_id]": product.id,
-      "line_items[0][quantity]": "1",
-      "line_items[0][price_data][currency]": product.currency,
-      "line_items[0][price_data][unit_amount]": String(product.priceCents),
-      "line_items[0][price_data][product_data][name]": product.name,
-    });
+    const body = checkoutParams(product, context.userId, origin);
     const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
       headers: { Authorization: `Bearer ${cfg.key}`, "Content-Type": "application/x-www-form-urlencoded", "Idempotency-Key": `${context.userId}-${product.id}-${Math.floor(Date.now() / 60000)}` },

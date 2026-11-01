@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CLOSING_EVENTS, GRANTING_EVENTS, REFUND_EVENT, paymentsConfig, refundOf, serverPaymentsEnv, validatePaidEvent, verifySignature } from "@/lib/payments/verify";
+import { CLOSING_EVENTS, GAME_TAG, GRANTING_EVENTS, REFUND_EVENT, gameOf, paymentsConfig, refundOf, serverPaymentsEnv, validatePaidEvent, verifySignature } from "@/lib/payments/verify";
 
 // Signed payment webhook (test mode only). Fails closed: missing config -> 503,
 // bad signature -> 400, validation failure -> 400, DB failure -> 500 (provider retries).
+// The Stripe account is shared with the other PAWtastic games, so notifications that aren't this hub's
+// (other games' sales, or live mode while the hub is test-only) are acknowledged and ignored — never retried.
 // Granting is atomic + idempotent in public.grant_entitlement (event dedupe + session match).
 export const Route = createFileRoute("/api/public/payments/webhook")({
   server: {
@@ -22,12 +24,14 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
         }
         const o = evt.data?.object ?? {};
         const type = String(evt.type);
-        if (evt.livemode || o["livemode"] === true) return Response.json({ error: "live mode not enabled" }, { status: 400 });
+        if (evt.livemode || o["livemode"] === true) return Response.json({ received: true, ignored: "live-mode" });
         const eventId = String(evt.id ?? "");
         if (!eventId) return Response.json({ error: "missing event id" }, { status: 400 });
 
         // Failed / expired checkouts: record them (nothing is granted). Idempotent per event.
         const closing = CLOSING_EVENTS[type];
+        const notOurs = Response.json({ received: true, ignored: "other-game" });
+        if (closing && gameOf(o) !== GAME_TAG) return notOurs;
         if (closing) {
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           const { data, error } = await supabaseAdmin.rpc("mark_checkout_closed", { _event_id: eventId, _session_id: String(o["id"] ?? ""), _status: closing });
@@ -37,6 +41,9 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
 
         // Full refunds switch the cosmetic off for that account. Partial refunds are acknowledged only.
         if (type === REFUND_EVENT) {
+          // Charges may not repeat the payment's tag; untagged refunds are matched by payment below (unknown ones change nothing).
+          const g = gameOf(o);
+          if (g !== null && g !== GAME_TAG) return notOurs;
           const r = refundOf(o);
           if (!r) return Response.json({ error: "missing payment intent" }, { status: 400 });
           if (!r.full) return Response.json({ received: true, partial: true });
@@ -47,6 +54,7 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
         }
 
         if (!(GRANTING_EVENTS as readonly string[]).includes(type)) return Response.json({ received: true });
+        if (gameOf(o) !== GAME_TAG) return notOurs;
         const meta = (o["metadata"] ?? {}) as Record<string, string>;
         const paid = {
           eventId: String(evt.id ?? ""),

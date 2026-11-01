@@ -34,6 +34,19 @@ with a 0.2 s animation). Production build OK.
   header. Directions now search "…, NJ" (the logo confirms the state). Note: both logos say
   "Daycare · Boarding · Grooming"; the game's own text keeps to daycare, boarding, baths and exit baths.
 
+## Update — every game on the same Stripe account (1 Nov)
+
+- The owner chose one Stripe account for all games: the games account Graduation Day already uses (Pawtastic Academy
+  II LLC, `acct_1UWfxx58XGeAL8Pr`). Graduation Day's server already ignores sales that aren't tagged
+  `game=pawtastic-graduation`, so it needs no change.
+- Hub checkouts are now tagged `game=pawtastic-games-hub` on the checkout and the payment, and named
+  "PAWtastic Games · Blue Ribbon Style Pack" / "… Deluxe Daycare Decor". The hub's webhook acknowledges and ignores
+  other games' notifications and live-mode notices (it stays test-only) instead of returning errors that Stripe would
+  retry for days. Tests: 177 (incl. Graduation Day sales, untagged checkouts, other games' expiries and refunds).
+- Still locked until the owner adds the games account's **test** key, webhook secret, address and account id in
+  Lovable Secrets and publishes (see `SYNC-TO-LOVABLE.md`). Live hub payments need a separate go-ahead.
+- Graduation Day's site is live on that account: 2 real $2.99 purchases (31 Oct, 1 Nov), both delivered.
+
 ## Update — sign in and load your progress: a cloud save per game (1 Nov)
 
 - **Each game has its own cloud save** (`public.game_saves`, migration 0006): Daycare Tycoon (daycare, shared coins,

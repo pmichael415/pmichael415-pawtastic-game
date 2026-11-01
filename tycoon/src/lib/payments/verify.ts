@@ -1,5 +1,5 @@
 // Runtime-agnostic (Web Crypto) Stripe-style webhook verification + event checks.
-import { PAID_PRODUCTS } from "../catalog";
+import { PAID_PRODUCTS, type PaidProduct } from "../catalog";
 
 const enc = new TextEncoder();
 
@@ -115,3 +115,36 @@ export function reconcileSession(existing: SessionRow | null, want: SessionRow):
 
 /** Webhook event types that may grant. Card-only checkout, but delayed payments are still handled. */
 export const GRANTING_EVENTS = ["checkout.session.completed", "checkout.session.async_payment_succeeded"] as const;
+
+// ---------- one Stripe account shared by every PAWtastic game ----------
+// Graduation Day sells on the same Stripe account (its sessions carry metadata game=pawtastic-graduation).
+// Hub sales carry this tag on the Checkout Session and on its payment, so each game's server ignores the
+// other's notifications and Stripe's payments list shows which game earned what.
+export const GAME_TAG = "pawtastic-games-hub";
+export const ITEM_PREFIX = "PAWtastic Games · ";
+export const gameOf = (o: Record<string, unknown>): string | null => {
+  const m = o["metadata"];
+  const g = m && typeof m === "object" ? (m as Record<string, unknown>)["game"] : null;
+  return typeof g === "string" ? g : null;
+};
+/** The Checkout Session request for one cosmetic pack (card only, test mode is enforced by the caller). */
+export function checkoutParams(product: PaidProduct, userId: string, origin: string): URLSearchParams {
+  return new URLSearchParams({
+    mode: "payment",
+    "payment_method_types[0]": "card",
+    success_url: `${origin}/shop?checkout=returned`,
+    cancel_url: `${origin}/shop?checkout=cancelled`,
+    client_reference_id: userId,
+    "metadata[game]": GAME_TAG,
+    "metadata[user_id]": userId,
+    "metadata[product_id]": product.id,
+    "payment_intent_data[metadata][game]": GAME_TAG,
+    "payment_intent_data[metadata][user_id]": userId,
+    "payment_intent_data[metadata][product_id]": product.id,
+    "payment_intent_data[description]": `${ITEM_PREFIX}${product.name}`,
+    "line_items[0][quantity]": "1",
+    "line_items[0][price_data][currency]": product.currency,
+    "line_items[0][price_data][unit_amount]": String(product.priceCents),
+    "line_items[0][price_data][product_data][name]": `${ITEM_PREFIX}${product.name}`,
+  });
+}
