@@ -4,7 +4,7 @@
 
 | What | State |
 |---|---|
-| Lovable project **PAWtastic Daycare Tycoon** (preview behind Lovable login, not published) | Linked to GitHub `pmichael415/pawtastic-daycare-tycoon` (branch `main`). The new code was pushed there on 1 Nov (`bb84f32`, the 100 files in `SYNC-MANIFEST.txt`); not published. |
+| Lovable project **PAWtastic Daycare Tycoon** (preview behind Lovable login, not published) | Linked to GitHub `pmichael415/pawtastic-daycare-tycoon` (branch `main`). The new code was pushed there on 1 Nov (`bb84f32`, then `f52e504` with the current Graduation Day and its music; the files in `SYNC-MANIFEST.txt`). Lovable's preview shows the new hub. Not published. |
 | GitHub `pmichael415/pmichael415-pawtastic-game`, branch `claude/pawtastic-games-unified`, folder `tycoon/` | The new code. |
 | Private review build (claude.ai artifact, owner-only) | Guest play of the new code. Sign-in, cloud saves and purchases are switched off there. |
 | Live game database (Lovable Cloud / Supabase) | Migrations 0002–0005 applied on 1 Nov (each in its own transaction, recorded in `drizzle.__drizzle_migrations` with the file hash, so they won't run twice). Checked: 6 migrations recorded, events table private (RLS on, no anon/player access), team totals start at 0. |
