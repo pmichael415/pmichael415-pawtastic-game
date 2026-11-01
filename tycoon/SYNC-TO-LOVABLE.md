@@ -2,7 +2,14 @@
 
 This folder is a copy of the Lovable project **PAWtastic Daycare Tycoon**
 (`acd6158e-ca42-414d-a979-e8b24d27b4b1`, imported from Lovable commit `c3a69bd`), developed and
-tested here. The Lovable project is **not connected to GitHub**, so pushing here does not change it.
+tested here.
+
+**Since 1 Nov the Lovable project is linked to GitHub `pmichael415/pawtastic-daycare-tycoon` (branch `main`).**
+To update it (no Lovable credits): copy every path in `SYNC-MANIFEST.txt` from this folder into that repository,
+check the fingerprints, run the type check / tests / build there, and push to `main`. Don't push while Lovable's
+agent is mid-job. New database migrations must also be applied (each in a transaction, recorded in
+`drizzle.__drizzle_migrations` with the file's sha256 and its journal `when`). Publishing stays the owner's call.
+The options below were the routes used before the link existed.
 
 Every changed or new file is listed with its SHA-256 in `SYNC-MANIFEST.txt`
 (regenerate with `scripts/make-sync-manifest.sh`). Nothing was deleted.

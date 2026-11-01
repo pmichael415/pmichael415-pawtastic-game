@@ -1,8 +1,8 @@
 # PAWtastic Games — files to sync into the Lovable project (relative to the project root)
 # Source: github.com/pmichael415/pmichael415-pawtastic-game, folder tycoon/. Base: Lovable c3a69bd.
 # Format: <sha256>  <path>. Deleted files: none. Never sync: .env, public/favicon.png, src/assets/daycare-room.jpg
-a126e92d5d0dff9601bd25d5e7424cf5e50ca16fb905865f166752fe546626fc  STATUS.md
-6481ee838497edd7f9443e69220d332669959ef7abc86d734bea7fd89f9ccbdf  SYNC-TO-LOVABLE.md
+cea2a9ae2e89b7edec4aa20bb6eceb6e9e8b7890d9e7495f77e4dfe6b2fe7993  STATUS.md
+60e57e42f265647bee49aaa83ea10eb86600ad6242a5806128be3e62a575c2e5  SYNC-TO-LOVABLE.md
 e3f4db45b90ed1824d14658037a12675d16f2354136f35f7630db916b1cb34e2  bun.lock
 250fac3cfb7bbd982014bd81d8d9c320486e4bacbc74e31296f02e8667725046  drizzle/migrations/0002_game_measurement.sql
 5fb6009a81be98af4e8a620f7f2bf49cd3eb047f7881bac435d13aed06b514b3  drizzle/migrations/0003_payment_refunds_hardening.sql
