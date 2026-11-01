@@ -63,9 +63,18 @@ async function freshRecess(page) {
   await page.goto(BASE + '/recess', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1500);
 }
-async function playRun(page) {
-  await page.getByRole('button', { name: /Start run/ }).tap();
-  await page.getByRole('button', { name: /^Run again|Share & challenge/ }).first().waitFor({ timeout: 90000 });
+async function playRun(page, name) {
+  await page.bringToFront(); // the game pauses in a page that isn't visible
+  const start = page.getByRole('button', { name: /Start run/ });
+  await start.waitFor({ timeout: 15000 });
+  await start.tap();
+  try {
+    await page.locator('text=/⏱ \\d+s/').waitFor({ timeout: 10000 });
+    await page.getByRole('button', { name: /^Run again|Share & challenge/ }).first().waitFor({ timeout: 90000 });
+  } catch (e) {
+    await page.screenshot({ path: `qa/out/notify-${name}-stuck.png` }).catch(() => {});
+    throw new Error(`${name}: the run didn't finish (${e.message.split('\n')[0]})`);
+  }
 }
 const card = (page) => page.getByText(QUESTION);
 
@@ -81,7 +90,7 @@ const card = (page) => page.getByText(QUESTION);
   await Promise.all([freshRecess(A.page), freshRecess(B.page), freshRecess(C.page)]);
   check('no card when the game first opens', !(await card(A.page).isVisible()));
   // One run at a time, each page in front: the game pauses in a page that isn't visible.
-  for (const p of [A, B, C]) { await p.page.bringToFront(); await playRun(p.page); }
+  for (const [n, p] of [['A', A], ['B', B], ['C', C]]) await playRun(p.page, n);
   await Promise.all([A, B].map((p) => card(p.page).waitFor({ timeout: 8000 }).catch(() => {})));
   await C.page.getByText(/tap Share, then Add to Home Screen/).waitFor({ timeout: 8000 }).catch(() => {});
 
