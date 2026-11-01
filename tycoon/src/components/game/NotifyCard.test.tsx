@@ -66,4 +66,15 @@ describe("the 'Notify me' card", () => {
     expect(screen.queryByText(QUESTION)).toBeNull();
     expect(screen.queryByText(/Add to Home Screen/)).toBeNull();
   });
+  it("inside Instagram or Facebook on an iPhone, it says to open Safari first", () => {
+    const real = navigator.userAgent;
+    Object.defineProperty(navigator, "userAgent", { value: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 320.0", configurable: true });
+    try {
+      render(<NotifyCard />);
+      act(() => goodMoment("needs_install"));
+      expect(screen.getByText(/open this page in Safari/)).toBeTruthy();
+    } finally {
+      Object.defineProperty(navigator, "userAgent", { value: real, configurable: true });
+    }
+  });
 });

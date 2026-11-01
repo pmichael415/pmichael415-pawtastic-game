@@ -5,7 +5,7 @@ import type { PGlite } from "@electric-sql/pglite";
 import { pgHelpers, pgRpc, setupDb } from "@/test/pg";
 import { b64url } from "./webpush";
 import { getNotifyKeys } from "./sender.server";
-import { handleKey, handleRun, handleSubscribe, handleUnsubscribe } from "./api.server";
+import { handleEmailUnsubscribe, handleKey, handleRun, handleSubscribe, handleUnsubscribe } from "./api.server";
 
 const U1 = "00000000-0000-0000-0000-000000000001";
 let db: PGlite;
@@ -99,5 +99,28 @@ describe("run (the scheduler's call)", () => {
     const r = await handleRun(req(runSecret), pgRpc(db), Date.parse("2026-11-10T01:30:00Z"), null); // 20:30 EST
     expect(r.status).toBe(200);
     expect(await r.json()).toMatchObject({ quiet: true, message: null });
+  });
+});
+
+describe("email unsubscribe", () => {
+  const TOKEN = "6f1d2c3b-0000-4000-8000-000000000009";
+  it("confirms only when the unsubscribe was saved", async () => {
+    const down = { rpc: async () => ({ data: null, error: new Error("db down") }) };
+    expect((await handleEmailUnsubscribe(JSON.stringify({ token: TOKEN }), down)).status).toBe(503);
+    const up = { rpc: async () => ({ data: false, error: null }) };
+    expect((await handleEmailUnsubscribe(JSON.stringify({ token: TOKEN }), up)).status).toBe(200); // unknown token: same answer
+  });
+  it("ignores malformed tokens without touching the database", async () => {
+    let calls = 0;
+    const db = { rpc: async () => ((calls += 1), { data: true, error: null }) };
+    for (const raw of ["{nope", JSON.stringify({ token: "x" }), JSON.stringify({})]) expect((await handleEmailUnsubscribe(raw, db)).status).toBe(200);
+    expect(calls).toBe(0);
+  });
+  it("really unsubscribes on the real database", async () => {
+    await h.as("service_role", null, () => db.query(`SELECT public.notify_set_email_optin($1::uuid, 'u1@example.com', true, true)`, [U1]));
+    const t = await h.as("service_role", null, () => h.one<{ t: string }>(`SELECT unsub_token::text AS t FROM public.email_optins WHERE user_id = $1`, [U1]));
+    expect((await handleEmailUnsubscribe(JSON.stringify({ token: t.t }), pgRpc(db))).status).toBe(200);
+    const row = await h.as("service_role", null, () => h.one<{ off: boolean }>(`SELECT unsubscribed_at IS NOT NULL AS off FROM public.email_optins WHERE user_id = $1`, [U1]));
+    expect(row.off).toBe(true);
   });
 });

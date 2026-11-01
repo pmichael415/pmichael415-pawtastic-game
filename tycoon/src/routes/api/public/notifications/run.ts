@@ -18,7 +18,10 @@ export const Route = createFileRoute("/api/public/notifications/run")({
             transport && emailUpdatesEnabled(env, transport)
               ? { transport, mailingAddress: env.NOTIFY_MAILING_ADDRESS!.trim(), origin: process.env["APP_ORIGIN"]?.replace(/\/$/, "") || PUBLIC_ORIGIN }
               : null;
-          return await handleRun(request, supabaseAdmin as unknown as NotifyRpc, Date.now(), email);
+          // Outgoing-request budget per run (the scheduler call itself and the key check use 2).
+          const limit = Number(process.env["NOTIFY_MAX_SUBREQUESTS"]);
+          const maxRequests = Number.isFinite(limit) && limit > 25 ? limit - 2 : undefined;
+          return await handleRun(request, supabaseAdmin as unknown as NotifyRpc, Date.now(), email, maxRequests);
         } catch {
           return Response.json({ error: "unavailable" }, { status: 503 });
         }

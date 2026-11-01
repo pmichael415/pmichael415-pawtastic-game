@@ -3,7 +3,7 @@ import { Bell, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { track } from "@/lib/analytics";
-import { enablePush } from "@/lib/notify/client";
+import { enablePush, inAppBrowser } from "@/lib/notify/client";
 import { closeNotifyCard, loadPrompt, recordAccept, recordDecline, savePrompt, useNotifyCard } from "@/lib/notify/prompt";
 
 export function NotifyCard() {
@@ -36,7 +36,9 @@ export function NotifyCard() {
           <p className="text-sm text-muted-foreground">At most 2 a week.</p>
           {card.support === "needs_install" && (
             <p className="text-sm text-muted-foreground">
-              On iPhone: tap Share, then Add to Home Screen. Open PAWtastic Games from your home screen, then tap Notify me.
+              {inAppBrowser(typeof navigator === "undefined" ? "" : navigator.userAgent)
+                ? "On iPhone: first open this page in Safari (tap the ••• or share button, then Open in Safari). Then tap Share, then Add to Home Screen. Open PAWtastic Games from your home screen, then tap Notify me."
+                : "On iPhone: tap Share, then Add to Home Screen. Open PAWtastic Games from your home screen, then tap Notify me."}
             </p>
           )}
         </div>

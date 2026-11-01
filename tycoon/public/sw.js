@@ -18,19 +18,34 @@ self.addEventListener("push", (event) => {
   );
 });
 
+// Opening a notification: only ever a page on the hub's own site. Bring the hub's own tab forward first (never the
+// Graduation Day frame inside it), then open the page there; if that tab can't be used, open a new window.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const raw = event.notification.data && event.notification.data.url;
-  const path = typeof raw === "string" && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/";
-  const target = new URL(path, self.location.origin).href;
+  let target = self.location.origin + "/";
+  try {
+    if (typeof raw === "string") {
+      const u = new URL(raw, self.location.origin);
+      if (u.origin === self.location.origin) target = u.href;
+    }
+  } catch (e) {
+    target = self.location.origin + "/";
+  }
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
-      for (const c of list) {
-        if (new URL(c.url).origin === self.location.origin && "focus" in c) {
-          return c.navigate(target).then((w) => (w || c).focus());
+    (async () => {
+      const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const tab = list.find((c) => c.frameType === "top-level" && new URL(c.url).origin === self.location.origin);
+      if (tab) {
+        try {
+          await tab.focus();
+          await tab.navigate(target);
+          return;
+        } catch (e) {
+          /* not ours to steer: open a fresh window instead */
         }
       }
-      return self.clients.openWindow(target);
-    }),
+      await self.clients.openWindow(target);
+    })(),
   );
 });

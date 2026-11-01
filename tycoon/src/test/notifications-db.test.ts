@@ -17,15 +17,15 @@ const svc = <T>(fn: () => Promise<T>) => h.as("service_role", null, fn);
 const sub = (endpoint: string, device: string, user: string | null = null) =>
   svc(() => h.one<{ id: string }>(`SELECT public.notify_subscribe($1, $2, $3, $4, $5::uuid) AS id`, [endpoint, P256, AUTH, device, user]));
 let n = 0;
-async function msg(o: { status?: string; path?: string; channels?: string; audience?: string | null; approved?: boolean } = {}) {
+async function msg(o: { status?: string; path?: string; channels?: string; audience?: string | null; approved?: boolean; kind?: string } = {}) {
   n += 1;
   const approved = o.approved ?? true;
   return svc(() =>
     h.one<{ id: string }>(
       `INSERT INTO public.notify_messages(kind, title, body, path, channels, email_subject, email_body, audience_user, send_at, approved_at, approved_by, status)
-       VALUES ('weekly', $1, 'New week!', $2, $3::text[], 'New week', 'Play now', $4::uuid, now() - interval '1 minute',
+       VALUES ($7, $1, 'New week!', $2, $3::text[], 'New week', 'Play now', $4::uuid, now() - interval '1 minute',
                CASE WHEN $5 THEN now() ELSE NULL END, CASE WHEN $5 THEN 'test' ELSE NULL END, $6) RETURNING id`,
-      [`Message ${n}`, o.path ?? "/", o.channels ?? "{push}", o.audience ?? null, approved, o.status ?? (approved ? "scheduled" : "draft")],
+      [`Message ${n}`, o.path ?? "/", o.channels ?? "{push}", o.audience ?? null, approved, o.status ?? (approved ? "scheduled" : "draft"), o.kind ?? "weekly"],
     ),
   ).then((r) => r.id);
 }
@@ -196,5 +196,62 @@ describe("sender bookkeeping", () => {
           ),
         ),
       ).toBeNull();
+  });
+});
+
+describe("review fixes", () => {
+  it("approved text can't be edited afterwards (cancel and draft again instead), but it can still be cancelled", async () => {
+    await svc(() => db.query(`UPDATE public.notify_messages SET status = 'cancelled' WHERE status IN ('draft', 'scheduled', 'sending')`));
+    const m = await msg();
+    for (const change of [`title = 'Changed'`, `body = 'Changed'`, `path = '/shop'`, `send_at = now() + interval '1 day'`, `audience_user = '${U2}'`])
+      expect(await h.fails(svc(() => db.query(`UPDATE public.notify_messages SET ${change} WHERE id = $1`, [m]))), change).toMatch(/approved/);
+    expect(await h.fails(svc(() => db.query(`UPDATE public.notify_messages SET status = 'cancelled' WHERE id = $1`, [m])))).toBeNull();
+  });
+  it("an approval needs a name", async () => {
+    expect(
+      await h.fails(
+        svc(() => db.query(`INSERT INTO public.notify_messages(kind,title,body,path,channels,send_at,approved_at,approved_by,status) VALUES ('weekly','t','b','/','{push}',now(),now(),'','scheduled')`)),
+      ),
+    ).toMatch(/check/);
+  });
+  it("test messages don't use up anyone's weekly limit, and always reach their audience", async () => {
+    await svc(() => db.query(`UPDATE public.push_subscriptions SET disabled_at = now()`));
+    await svc(() => db.query(`UPDATE public.notify_messages SET status = 'cancelled' WHERE status IN ('draft', 'scheduled', 'sending')`));
+    const p = await sub("https://fcm.googleapis.com/fcm/send/TESTCAP", "devtestcap", U2);
+    const wk = "2026-12-07";
+    const t1 = await msg({ kind: "test", audience: U2 });
+    await svc(() => db.query(`UPDATE public.notify_messages SET status = 'sending' WHERE id = $1`, [t1]));
+    expect(await claimPush(t1, wk)).toHaveLength(1);
+    await mark(t1, "push", p.id);
+    const m1 = await msg();
+    await sendAll(m1, wk);
+    const m2 = await msg();
+    await svc(() => db.query(`UPDATE public.notify_messages SET status = 'sending' WHERE id = $1`, [m2]));
+    expect(await claimPush(m2, wk)).toHaveLength(1); // the test message didn't count
+    await mark(m2, "push", p.id);
+    const t2 = await msg({ kind: "test", audience: U2 });
+    await svc(() => db.query(`UPDATE public.notify_messages SET status = 'sending' WHERE id = $1`, [t2]));
+    expect(await claimPush(t2, wk)).toHaveLength(1); // a test still arrives when the person is at the limit
+  });
+  it("a slice of send results is recorded in one call", async () => {
+    await svc(() => db.query(`UPDATE public.push_subscriptions SET disabled_at = now()`));
+    await svc(() => db.query(`UPDATE public.notify_messages SET status = 'cancelled' WHERE status IN ('draft', 'scheduled', 'sending')`));
+    const a = await sub("https://fcm.googleapis.com/fcm/send/REC1", "devrec001");
+    const b = await sub("https://fcm.googleapis.com/fcm/send/REC2", "devrec002");
+    const m = await msg();
+    await svc(() => db.query(`UPDATE public.notify_messages SET status = 'sending' WHERE id = $1`, [m]));
+    expect(await claimPush(m, "2026-12-14")).toHaveLength(2);
+    const results = [
+      { target: a.id, status: "sent", error: null },
+      { target: b.id, status: "gone", error: "HTTP 410" },
+    ];
+    await svc(() => db.query(`SELECT public.notify_record_results($1::uuid, 'push', $2::jsonb)`, [m, JSON.stringify(results)]));
+    const d = await svc(() => h.rows<{ target_id: string; status: string }>(`SELECT target_id, status FROM public.notify_deliveries WHERE message_id = $1 ORDER BY status`, [m]));
+    expect(d.map((x) => x.status)).toEqual(["gone", "sent"]);
+    const subs = await svc(() =>
+      h.rows<{ id: string; off: boolean; ok: boolean }>(`SELECT id, disabled_at IS NOT NULL AS off, last_success_at IS NOT NULL AS ok FROM public.push_subscriptions WHERE id IN ($1, $2)`, [a.id, b.id]),
+    );
+    expect(subs.find((x) => x.id === a.id)).toMatchObject({ off: false, ok: true });
+    expect(subs.find((x) => x.id === b.id)).toMatchObject({ off: true });
   });
 });

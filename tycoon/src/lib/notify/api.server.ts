@@ -77,10 +77,23 @@ export async function handleRun(
   db: NotifyRpc,
   now: number,
   email: { transport: EmailTransport; mailingAddress: string; origin: string } | null,
+  maxRequests?: number,
 ): Promise<Response> {
   const given = req.headers.get("x-notify-run") ?? "";
   const { runSecret } = await getNotifyKeys(db);
   if (!given || !sameSecret(given, runSecret)) return json(401, { error: "unauthorized" });
-  const summary = await runSender({ db, now, email });
+  const summary = await runSender({ db, now, email, ...(maxRequests ? { maxRequests } : {}) });
   return json(200, summary);
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The unsubscribe button. Same answer for unknown or malformed tokens; 503 only when saving failed, so the page never
+ *  confirms an unsubscribe that didn't happen. */
+export async function handleEmailUnsubscribe(raw: string, db: NotifyRpc): Promise<Response> {
+  const token = parse(raw.slice(0, 512))?.["token"];
+  if (typeof token !== "string" || !UUID_RE.test(token)) return json(200, { ok: true });
+  const { error } = await db.rpc("notify_email_unsubscribe", { _token: token });
+  if (error) return json(503, { error: "try again" });
+  return json(200, { ok: true });
 }

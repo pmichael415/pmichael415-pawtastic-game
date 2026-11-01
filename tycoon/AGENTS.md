@@ -27,5 +27,9 @@
 2. Show the owner the exact text. Only after his explicit yes:
    `UPDATE notify_messages SET approved_at = now(), approved_by = 'Phil (owner), approved in chat', status = 'scheduled' WHERE id = '<id>';`
 3. The database scheduler (drizzle/manual/notify_schedule.sql, pg_cron every 15 minutes) calls `/api/public/notifications/run`, which sends it. To cancel before it goes: `UPDATE notify_messages SET status = 'cancelled' WHERE id = '<id>' AND status = 'scheduled';`
-- A test message for one person: set `kind = 'test'` and `audience_user = '<their user id>'`.
+- A test message for one person: set `kind = 'test'` and `audience_user = '<their user id>'`. Test messages don't count toward the weekly limit.
+- Approved messages can't be edited (a database trigger refuses it): cancel and draft a new one.
+- Each sender run claims people 20 at a time and stays within `NOTIFY_MAX_SUBREQUESTS` outgoing requests (default
+  budget 40, safe for Cloudflare's free-plan limit of 50); a big audience is finished over several 15-minute runs. Raise
+  the setting once the hosting plan's real limit is known.
 - When the custom domain changes, update together: `notify_config.origin`, `src/lib/site.ts` PUBLIC_ORIGIN, `APP_ORIGIN`, and the Stripe webhook URL.

@@ -4,6 +4,11 @@ import { fromB64url } from "./webpush";
 
 export type PushSupport = "supported" | "needs_install" | "unsupported" | "blocked";
 
+/** Instagram, Facebook and similar apps open links in their own browser, where Add to Home Screen isn't possible. */
+export function inAppBrowser(ua: string): boolean {
+  return /\b(Instagram|FBAN|FBAV|FB_IAB|FBIOS|Line\/|Twitter|TikTok|BytedanceWebview|Snapchat|Pinterest)\b/i.test(ua);
+}
+
 export function pushSupport(env?: { navigator: Navigator; window: Window }): PushSupport {
   const e = env ?? (typeof window === "undefined" ? null : { navigator, window });
   if (!e) return "unsupported";
@@ -27,6 +32,30 @@ async function accessToken(): Promise<string | null> {
   }
 }
 
+async function postSubscription(sub: PushSubscription): Promise<boolean> {
+  const j = sub.toJSON();
+  const token = await accessToken();
+  const r = await fetch("/api/public/notifications/subscribe", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ endpoint: j.endpoint, keys: j.keys, deviceId: device().id }),
+  });
+  return r.ok;
+}
+
+/** On app start (and sign-in): re-send this browser's current subscription so a changed endpoint, a disabled row or a
+ *  lost account link is repaired. Does nothing unless the player turned notifications on here. */
+export async function resyncPush(): Promise<void> {
+  try {
+    if (pushSupport() !== "supported" || Notification.permission !== "granted") return;
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = await reg?.pushManager.getSubscription();
+    if (sub) await postSubscription(sub);
+  } catch {
+    /* try again next time the app opens */
+  }
+}
+
 /** Call straight from the tap: Safari only shows the permission prompt for a direct user action. */
 export async function enablePush(): Promise<"on" | "denied" | "error"> {
   try {
@@ -39,14 +68,7 @@ export async function enablePush(): Promise<"on" | "denied" | "error"> {
     await navigator.serviceWorker.ready;
     const { publicKey } = (await (await fetch("/api/public/notifications/key")).json()) as { publicKey: string };
     const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: fromB64url(publicKey) as unknown as BufferSource });
-    const j = sub.toJSON();
-    const token = await accessToken();
-    const r = await fetch("/api/public/notifications/subscribe", {
-      method: "POST",
-      headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ endpoint: j.endpoint, keys: j.keys, deviceId: device().id }),
-    });
-    if (!r.ok) throw new Error("subscribe failed");
+    if (!(await postSubscription(sub))) throw new Error("subscribe failed");
     track("notify_optin", { result: "granted" });
     return "on";
   } catch {

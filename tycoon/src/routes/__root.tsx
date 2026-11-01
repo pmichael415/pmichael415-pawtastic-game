@@ -15,6 +15,7 @@ import { useCloudSync } from "@/game/cloud";
 import { EntitlementsProvider } from "@/lib/entitlements";
 import { PUBLIC_ORIGIN } from "@/lib/site";
 import { NotifyCard } from "@/components/game/NotifyCard";
+import { resyncPush } from "@/lib/notify/client";
 import { Toaster } from "@/components/ui/sonner";
 import { startSession } from "@/lib/analytics";
 import { ShareSheet } from "@/components/game/ShareSheet";
@@ -128,6 +129,10 @@ function RootComponent() {
   const { user } = useSession();
   useCloudSync(user?.id ?? null);
   useEffect(() => startSession(window.location.pathname), []);
+  // Keep this browser's notifications linked and working (new endpoint, sign-in, re-enable).
+  useEffect(() => {
+    void resyncPush();
+  }, [user?.id]);
   return (
     <QueryClientProvider client={queryClient}>
       <EntitlementsProvider>

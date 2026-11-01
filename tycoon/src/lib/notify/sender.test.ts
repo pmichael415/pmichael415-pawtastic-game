@@ -103,7 +103,7 @@ describe("only approved, due messages are sent", () => {
     const id = await message({ sendAt: "2026-11-09T14:30:00Z", path: "/recess" });
     const s = pushServices();
     const r = await runSender({ db: pgRpc(), now: at(MON_10), fetchImpl: s.fetchImpl });
-    expect(r).toMatchObject({ quiet: false, message: id, push: { sent: 2, gone: 0, failed: 0 }, done: true });
+    expect(r).toMatchObject({ quiet: false, message: id, push: { sent: 2, gone: 0, failed: 0 }, done: true, bookkeepingErrors: 0 });
     expect(s.calls.map((c) => c.endpoint).sort()).toEqual([p1.endpoint, p2.endpoint].sort());
     const got = decrypt(p1, s.calls.find((c) => c.endpoint === p1.endpoint)!.body);
     expect(got).toEqual({
@@ -170,22 +170,47 @@ describe("push service answers", () => {
 });
 
 describe("never twice", () => {
-  it("a run that stops part-way never resends to anyone it already tried", async () => {
-    await phone("crash1");
-    await phone("crash2");
-    await phone("crash3");
+  it("a database hiccup while recording results doesn't stop the run: everyone still gets the message once", async () => {
+    const phones = await Promise.all(Array.from({ length: 25 }, (_, i) => phone(`hic${i}`)));
     const id = await message({ sendAt: "2026-11-09T14:30:00Z" });
     const s = pushServices();
-    let marks = 0;
-    const flaky = pgRpc((name) => name === "notify_mark" && ++marks === 2); // the database fails after the 2nd send
-    await expect(runSender({ db: flaky, now: at(MON_10), fetchImpl: s.fetchImpl, batch: 500 })).rejects.toThrow();
-    const before = s.calls.length;
-    await runSender({ db: pgRpc(), now: at(MON_10) + 15 * 60_000, fetchImpl: s.fetchImpl });
-    const perEndpoint = new Map<string, number>();
-    for (const c of s.calls) perEndpoint.set(c.endpoint, (perEndpoint.get(c.endpoint) ?? 0) + 1);
-    expect([...perEndpoint.values()].every((n) => n === 1)).toBe(true);
-    expect(s.calls.length).toBeGreaterThanOrEqual(before);
+    let records = 0;
+    const flaky = pgRpc((name) => name === "notify_record_results" && ++records === 1); // the first slice's bookkeeping fails
+    const r = await runSender({ db: flaky, now: at(MON_10), fetchImpl: s.fetchImpl, maxRequests: 1000 });
+    expect(r.bookkeepingErrors).toBe(1);
+    expect(r.done).toBe(true);
+    expect(s.calls.map((c) => c.endpoint).sort()).toEqual(phones.map((p) => p.endpoint).sort());
     expect(await status(id)).toBe("sent");
+    const again = pushServices();
+    await runSender({ db: pgRpc(), now: at(MON_10) + 15 * 60_000, fetchImpl: again.fetchImpl });
+    expect(again.calls).toHaveLength(0); // never twice, even for the slice whose results weren't recorded
+  });
+
+  it("a run stops within its request budget and the next run carries on; nobody is skipped or sent twice", async () => {
+    const phones = await Promise.all(Array.from({ length: 45 }, (_, i) => phone(`bud${i}`)));
+    const id = await message({ sendAt: "2026-11-09T14:30:00Z" });
+    const s = pushServices();
+    const r1 = await runSender({ db: pgRpc(), now: at(MON_10), fetchImpl: s.fetchImpl, maxRequests: 40 });
+    expect(r1.done).toBe(false);
+    expect(r1.push.sent).toBe(20); // one slice of 20 fits in 40 requests
+    expect(await status(id)).toBe("sending");
+    for (let i = 1; i <= 3; i++) await runSender({ db: pgRpc(), now: at(MON_10) + i * 15 * 60_000, fetchImpl: s.fetchImpl, maxRequests: 40 });
+    expect(s.calls.map((c) => c.endpoint).sort()).toEqual(phones.map((p) => p.endpoint).sort());
+    expect(await status(id)).toBe("sent");
+  });
+
+  it("a run that is cut off part-way strands at most one slice, and never resends to it", async () => {
+    await Promise.all(Array.from({ length: 30 }, (_, i) => phone(`cut${i}`)));
+    await message({ sendAt: "2026-11-09T14:30:00Z" });
+    const s = pushServices();
+    let claims = 0;
+    const dies = pgRpc((name) => name === "notify_claim_push" && ++claims === 2); // the run dies before its 2nd slice
+    await expect(runSender({ db: dies, now: at(MON_10), fetchImpl: s.fetchImpl, maxRequests: 1000 })).rejects.toThrow();
+    await runSender({ db: pgRpc(), now: at(MON_10) + 15 * 60_000, fetchImpl: s.fetchImpl, maxRequests: 1000 });
+    const per = new Map<string, number>();
+    for (const c of s.calls) per.set(c.endpoint, (per.get(c.endpoint) ?? 0) + 1);
+    expect(per.size).toBe(30);
+    expect([...per.values()].every((n) => n === 1)).toBe(true);
   });
 
   it("two overlapping runs send each phone the message exactly once", async () => {
