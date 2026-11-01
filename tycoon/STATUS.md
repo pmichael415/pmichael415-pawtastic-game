@@ -47,7 +47,14 @@ Plan: `docs/superpowers/plans/2026-11-01-notifications-and-ad-prep.md` (spec app
   notification".
 - Email updates (18+, unsubscribe link without sign-in, business address in the footer) are built but **off** until the
   owner's gates: Lovable confirms opt-in update emails are allowed, the footer mailing address, and email set up for the hub.
-- Tests: unit 276+, notifications browser checks 20/20 (qa/e2e-notify.cjs); hub, teams, daycare and cloud suites green.
+- Final review (fresh reviewer): no critical issues; the important ones were fixed with tests (sender claims 20 at a
+  time within a request budget, approved text locked, test messages outside the weekly limit, unsubscribe confirms only
+  when saved, notification taps use the hub's own tab, subscriptions re-sent on app start, Instagram/Facebook iPhone
+  visitors told to open Safari first). Unit 295/295; browser checks: notifications 20, hub 33, teams 27, daycare 36,
+  cloud 25.
+- **Released to the Daycare project (630d5d5, not yet published).** Migration 0007 applied and recorded on the Daycare
+  database (8 migrations; tables locked to the service role, verified). Next: owner OKs the privacy text and publishes;
+  then the scheduler SQL; then a test message to the owner's phone only, after his yes.
 
 ## Update — a refused test checkout now says why (1 Nov)
 
