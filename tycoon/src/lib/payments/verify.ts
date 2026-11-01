@@ -148,3 +148,18 @@ export function checkoutParams(product: PaidProduct, userId: string, origin: str
     "line_items[0][price_data][product_data][name]": `${ITEM_PREFIX}${product.name}`,
   });
 }
+
+/**
+ * Short, safe reason for a refused Stripe request: "<code>: <message>" (or the type, or the HTTP status).
+ * Anything shaped like a Stripe key is masked, and the result is capped so it fits in a toast and a log line.
+ */
+export function stripeErrorSummary(body: unknown, status: number): string {
+  const err = body && typeof body === "object" ? (body as { error?: unknown }).error : undefined;
+  const e = err && typeof err === "object" ? (err as Record<string, unknown>) : {};
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : "");
+  const label = str(e["code"]) || str(e["type"]);
+  const message = str(e["message"]);
+  const text = label && message ? `${label}: ${message}` : label || message || `HTTP ${status}`;
+  const masked = text.replace(/\b(?:sk|rk|pk)_(?:test|live)_[A-Za-z0-9*]+/g, "[key]");
+  return masked.length > 300 ? `${masked.slice(0, 299)}…` : masked;
+}

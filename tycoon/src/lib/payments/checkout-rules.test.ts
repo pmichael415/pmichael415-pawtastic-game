@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalOrigin, GRANTING_EVENTS, paymentsConfig, reconcileSession } from "./verify";
+import { canonicalOrigin, GRANTING_EVENTS, paymentsConfig, reconcileSession, stripeErrorSummary } from "./verify";
 
 const base = { STRIPE_SECRET_KEY: "sk_test_x", PAYMENT_WEBHOOK_SECRET: "whsec_x", STRIPE_EXPECTED_ACCOUNT: "acct_1PawGames000" };
 describe("payment readiness requires a canonical HTTPS origin", () => {
@@ -31,5 +31,25 @@ describe("checkout retry within the idempotency window", () => {
   it("delayed payments are handled via async_payment_succeeded", () => {
     expect(GRANTING_EVENTS).toContain("checkout.session.async_payment_succeeded");
     expect(GRANTING_EVENTS).toContain("checkout.session.completed");
+  });
+});
+
+describe("a refused checkout says why, without leaking keys", () => {
+  it("names Stripe's error code and message", () => {
+    const body = { error: { type: "invalid_request_error", code: "parameter_unknown", param: "payment_intent_data[description]", message: "Received unknown parameter: payment_intent_data[description]" } };
+    expect(stripeErrorSummary(body, 400)).toBe("parameter_unknown: Received unknown parameter: payment_intent_data[description]");
+  });
+  it("falls back to the error type, then the HTTP status", () => {
+    expect(stripeErrorSummary({ error: { type: "api_error" } }, 500)).toBe("api_error");
+    expect(stripeErrorSummary({}, 502)).toBe("HTTP 502");
+    expect(stripeErrorSummary("not json", 503)).toBe("HTTP 503");
+  });
+  it("masks anything shaped like a Stripe key and stays short", () => {
+    const body = { error: { type: "permission_error", message: "The provided key 'rk_test_51Abc*********************XyZ9' does not have the required permissions for this endpoint. Having the 'rak_checkout_session_write' permission would allow this request to continue." } };
+    const s = stripeErrorSummary(body, 403);
+    expect(s).not.toMatch(/rk_test_51/);
+    expect(s).toContain("[key]");
+    expect(s).toContain("rak_checkout_session_write");
+    expect(stripeErrorSummary({ error: { message: "x".repeat(900) } }, 400).length).toBeLessThanOrEqual(300);
   });
 });

@@ -53,7 +53,11 @@ function Shop() {
     try {
       const r = await createCheckout({ data: { productId } });
       if (r.ok) window.location.href = r.url;
-      else toast.error(r.error);
+      else {
+        // Keep the reason readable, and record it (key-masked, no personal data) so a refused checkout can be diagnosed.
+        track("client_error", { where: "/shop checkout", message: r.error.replace(/^Checkout could not be started — /, "") });
+        toast.error(r.error, { duration: 15000 });
+      }
     } catch { toast.error("Checkout unavailable"); } finally { setBusy(false); }
   };
   if (!s) return null;

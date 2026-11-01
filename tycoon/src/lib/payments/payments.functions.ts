@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { PAID_PRODUCTS } from "@/lib/catalog";
-import { accountMatches, checkoutParams, paymentsConfig, reconcileSession, serverPaymentsEnv } from "./verify";
+import { accountMatches, checkoutParams, paymentsConfig, reconcileSession, serverPaymentsEnv, stripeErrorSummary } from "./verify";
 
 // Cache the "this key belongs to the confirmed game account" check briefly per server instance.
 let accountOk: { key: string; account: string; until: number } | null = null;
@@ -50,13 +50,25 @@ export const createCheckout = createServerFn({ method: "POST" })
 
     const origin = cfg.origin;
     const body = checkoutParams(product, context.userId, origin);
-    const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${cfg.key}`, "Content-Type": "application/x-www-form-urlencoded", "Idempotency-Key": `${context.userId}-${product.id}-${Math.floor(Date.now() / 60000)}` },
-      body,
-    });
-    const session = (await res.json()) as { id?: string; url?: string; livemode?: boolean };
-    if (!res.ok || !session.id || !session.url || session.livemode) return { ok: false as const, error: "Checkout could not be started" };
+    let res: Response;
+    try {
+      res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${cfg.key}`, "Content-Type": "application/x-www-form-urlencoded", "Idempotency-Key": `${context.userId}-${product.id}-${Math.floor(Date.now() / 60000)}` },
+        body,
+      });
+    } catch {
+      console.error("[checkout] could not reach Stripe");
+      return { ok: false as const, error: "Checkout could not be started — couldn't reach the payment service. Try again in a minute." };
+    }
+    const session = (await res.json().catch(() => null)) as { id?: string; url?: string; livemode?: boolean } | null;
+    if (!res.ok || !session?.id || !session.url) {
+      // Stripe's reason (key-like text masked) so the owner can fix the account or key setting; never the key itself.
+      const reason = stripeErrorSummary(session, res.status);
+      console.error(`[checkout] Stripe refused the checkout session (${res.status}): ${reason}`);
+      return { ok: false as const, error: `Checkout could not be started — Stripe says: ${reason}` };
+    }
+    if (session.livemode) return { ok: false as const, error: "Checkout could not be started — the payment key is in live mode; the hub only takes test payments." };
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const want = { id: session.id, user_id: context.userId, product_id: product.id, amount: product.priceCents, currency: product.currency };
