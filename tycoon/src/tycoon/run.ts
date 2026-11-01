@@ -296,14 +296,21 @@ export function clean(s: TycoonState): TResult {
   return { ok: true, state: gainXp(withFac(s, nf), XP.clean), msg: "Floors mopped!" };
 }
 
-/** Checkout pays the daycare price by happiness (plus tip, boarding and exit bath), and builds friendship. */
+/**
+ * Checkout from a playroom or boarding bed pays the daycare price by happiness (plus tip, boarding and exit bath) and
+ * builds friendship. From the lobby or calm-down room the pup goes home free of charge, so dog spots stay what earns.
+ */
 export function checkout(s: TycoonState, dogId: string, exitBath: boolean): TResult {
   const f = fac(s);
   const dog = findDog(f, dogId);
   if (!dog) return gone;
   if (!dog.checkedIn) return { ok: false, error: `${dog.name} hasn't been checked in yet.` };
   if (inActiveScuffle(f, dog)) return { ok: false, error: `Separate the scuffle in ${dog.name}'s room first.` };
-  if (dog.boarding && dog.place.kind !== "bed") return { ok: false, error: `${dog.name} is booked overnight — settle them into a boarding bed before checkout.` };
+  if (dog.place.kind === "lobby" || dog.place.kind === "calm") {
+    // No playroom or bed today: the owner takes the pup home at no charge. No pay, no XP, no penalty.
+    const nf = { ...f, dogs: f.dogs.filter((d) => d.id !== dogId) };
+    return done(withFac(s, nf), `${dog.name} went home — no charge, since they didn't get a playroom${dog.boarding ? " or bed" : ""} today.`);
+  }
   let st: Facility = f;
   if (exitBath) {
     const why = bathBlock(f, "exitBath");

@@ -176,6 +176,17 @@ describe("care", () => {
     const happy = inPlay(guidedBuild(newTycoon(0)), { happiness: 85 });
     expect(ok(checkout(happy, "a", false)).xp).toBe(happy.xp + 15);
   });
+  it("only pups leaving a playroom or bed pay; the lobby and calm-down room send them home free", () => {
+    const s = withDogs(opened(), [dog("a"), dog("b", { place: { kind: "calm", room: roomOfType(opened(), "calm").uid } })]);
+    const a = ok(checkout(s, "a", false));
+    expect(a.coins).toBe(s.coins);
+    expect(a.xp).toBe(s.xp);
+    expect(fac(a).dogs.map((d) => d.id)).toEqual(["b"]);
+    expect(fac(a).stats.checkouts).toBe(0);
+    const b = ok(checkout(a, "b", false));
+    expect(b.coins).toBe(s.coins);
+    expect(fac(b).dogs).toHaveLength(0);
+  });
   it("cleaning mops the floor for 1 XP", () => {
     const s = setF(opened(), { cleanliness: 50 });
     const c = ok(clean(s));
@@ -205,7 +216,8 @@ describe("boarding", () => {
     const a = ok(createArrival(s, r, true));
     const pup = fac(a).dogs[0]!;
     const c = ok(checkIn(a, pup.id));
-    expect(checkout(c, pup.id, false)).toMatchObject({ ok: false, error: expect.stringContaining("boarding bed") });
+    expect(checkout(c, pup.id, false)).toMatchObject({ ok: true, msg: expect.stringContaining("no charge") });
+    expect(ok(checkout(c, pup.id, false)).coins).toBe(c.coins);
     const b = ok(assignBed(c, pup.id, beds[0]!.uid));
     expect(placed(b, pup.id)).toEqual({ kind: "bed", room: beds[0]!.room, bed: beds[0]!.uid });
     const two = withDogs(b, [...fac(b).dogs, dog("z", { boarding: true })]);
