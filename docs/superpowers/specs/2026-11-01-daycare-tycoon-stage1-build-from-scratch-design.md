@@ -1,6 +1,7 @@
-# PAWtastic Daycare Tycoon (new engine): stage 1, build from scratch and run the business. Design
+# PAWtastic Daycare Tycoon (new engine): stage 1, build from scratch (Sims-style rooms) and run the business. Design
 
-Date: 1 Nov 2026 · Owner: Phil (PAWtastic Academy) · Status: **approved by the owner (1 Nov)**, game-feel section added at his request
+Date: 1 Nov 2026 · Owner: Phil (PAWtastic Academy) · Status: approved by the owner (1 Nov), with the game-feel section added at his request. **Sims-style building was then
+added at his request (1 Nov) and needs his OK.**
 Replaces: `2026-11-01-daycare-tycoon-stage1-campus-design.md` (the campus around a fixed building), which is withdrawn.
 
 ## 1. Where this fits
@@ -13,7 +14,9 @@ Replaces: `2026-11-01-daycare-tycoon-stage1-campus-design.md` (the campus around
 - It's a web game, not the App Store.
 
 The owner wants players to keep coming back and to spend. We do that fairly (§2). Players also control expenses, as in
-theme-park tycoon games (owner, 1 Nov). Because prices and expenses shape every building decision, the business is part
+theme-park tycoon games (owner, 1 Nov). The owner also asked for a mix of The Sims and theme-park tycoon games: players
+draw their own rooms with walls and doors, furnish and decorate them (Sims-style), and run the business around them
+(tycoon-style). Because prices and expenses shape every building decision, the business is part
 of stage 1, not a later stage.
 
 **How it ships.** The new game is built on its own engine and starts as a **preview**: the route `/daycare-next`, linked
@@ -28,7 +31,7 @@ the owner says the new game is better (expected after stage 2):
 | Stage | What players get |
 |---|---|
 | **1 (this spec)** | An empty lot and entrance; build rooms, paths and outdoor items on a grid; path connections; a guided start; the full dog-care loop in player-built rooms; **the business: prices, demand, expenses (wages, upkeep, supplies, marketing), closing things to save money, and a finances screen with a profit chart**; XP, levels and land; the PAWtastic Academy sign |
-| 2 | Dogs walk the paths and yards and use what was built; thought bubbles (including "a bit pricey!"); a 1–5 star rating that feeds demand; walk view. Then it replaces today's game |
+| 2 | Dogs come alive, Sims-style: each dog has need bars (thirst, energy, fun, social, cleanliness) and walks the paths, rooms and yards to meet them using the furniture and items you placed; thought bubbles (including "a bit pricey!"); a 1–5 star rating that feeds demand; walk view. Then it replaces today's game |
 | 3 | The facility chain: meet a facility's goal, buy the next fictional facility with coins, and repeat; earlier facilities earn a capped amount while you're away; awards |
 | Money 1–3 | Premium looks for buildings and dogs; the monthly membership; coin packs (free play only, after coins move to the server, with spending limits and an age check) |
 
@@ -65,36 +68,53 @@ Every room and item in this stage is earned with free game coins. Nothing is sol
 ### First minutes: guided start (skippable)
 The lot is grass with a road along the bottom and an **entrance gate**. The player has **3,000 coins**, level 1 and one
 staff member. A checklist card walks through:
-1. Build a **Front Desk** and connect it to the entrance with **paths**.
-2. Build a **Small Playroom**, pick its group (Small & Gentle, Small & Active, Large & Gentle or Large & Active), and
-   connect it.
-3. Build a **Calm-Down Room** and connect it.
-4. Place a **Water Station**.
+1. **Draw a Lobby:** drag out a 4 × 3 room. Add a **door** on the road side and connect it to the entrance with a
+   **path**. Place the **Front Desk Counter** and a **Waiting Bench**.
+2. **Draw a Playroom** next to the lobby and pick its group (Small & Gentle, Small & Active, Large & Gentle or Large &
+   Active). Add a door into the lobby, then place **2 Dog Beds** and a **Water Bowl**.
+3. **Draw a small Calm-Down Room** with a door.
+4. **Paint** the lobby: pick a floor and a wall colour. This step is optional.
 5. Tap **Open for business**. The first dog arrives: check it in, put it in the playroom, give it playtime, then check
    it out.
 
-Finishing the checklist gives **+200 coins**. "Skip guide" hides it.
+Finishing the checklist gives **+200 coins**. "Skip guide" hides it. The guided build costs about 1,650 coins.
 
-### Build mode
-**Build** opens a sheet with the tabs **Rooms**, **Play**, **Comfort**, **Scenery**, **Paths** and **Land**. Each entry
-shows its price, size and what it does; locked entries show "Unlocks at level N".
-- **Placing:**
-  1. Choose an item and tap a square. A ghost appears: green if it fits, red with a reason if not ("Overlaps the Bath
-     Station", "Buy this land first").
-  2. **Rotate** (rooms show where their door is), then **Place** or **Cancel**.
-  3. Paths can be placed by tapping square after square ("paint" mode) until **Done**.
-- **Editing:** tap a placed thing to see its level, its effect and connection status, with **Upgrade** (up to level 3),
-  **Move** (free) and **Sell** (75% back, after a confirmation).
-  - Playrooms also have **Change group**, which is free and only works when the room is empty.
-  - Something can't be moved or sold while dogs are inside.
+### Build mode (Sims-style rooms, tycoon-style grounds)
+**Build** opens a toolbar with eight tools: **Rooms**, **Doors**, **Furniture**, **Outdoor** (Play, Comfort and Scenery),
+**Paths**, **Paint**, **Land** and **Sell**. Each catalog entry shows its price, size, what it does and where it can go;
+locked entries show "Unlocks at level N".
+- **Drawing a room:**
+  1. Tap one corner tile, then the opposite corner (or drag). Ghost walls show the size ("4 × 3") and the price, green
+     or red with a reason ("Overlaps the Splash Pool", "Rooms are 2–10 squares a side").
+  2. Tap **Build**.
+  3. Choose the room type: **Lobby**, **Playroom** (pick a group), **Calm-Down Room**, **Bath Room**, **Boarding Room**
+     or **Staff Room**. A room without a type is just an empty room.
+  - Rooms can share a wall with a neighbour, which is how players make wings of connected rooms.
+- **Doors:** tap a wall segment to add a door. A door on a shared wall links the two rooms; a door on an outside wall
+  opens onto the grounds.
+- **Furniture:** choose an item and tap a square inside a room. It must fit and suit the room type ("Bath tubs go in a
+  Bath Room"). **Rotate**, then **Place**. What's inside decides what the room can do (§4.2).
+- **Outdoor items and paths:** placed on the grounds like the yard items, rotated and placed. Paths can be painted square
+  by square until **Done**.
+- **Paint:** tap a room, then pick one of 4 floor styles (wood, tile, soft rubber, carpet) and one of 8 wall colours.
+  Painting is free.
+- **Editing a room:**
+  - **Move** the whole room, with its furniture, to a free spot.
+  - **Change type**, free, only while the room is empty.
+  - **Paint**.
+  - **Sell** the room and everything in it for 75% back, after a confirmation.
+- **Editing furniture or an outdoor item:** **Move** (free) and **Sell** (75% back). Outdoor items also have **Upgrade**
+  (up to level 3).
+- Nothing with dogs in it can be moved or sold.
 - **Land:** unowned land shows "For sale" with its price and the level it needs.
 
 ### Running the daycare
 The run controls follow today's game:
-- **Open / closed.** You can open once a connected Front Desk, a connected playroom and a connected Calm-Down Room exist.
+- **Open / closed.** You can open once there is a connected Lobby with a Front Desk Counter, a connected Playroom with at
+  least one dog spot, and a connected Calm-Down Room.
 - **Daily rhythm:** a game clock with open hours, a midday lobby break and an end-of-day wrap-up.
-- **Dogs:** arrive at the Front Desk and wait in the lobby. Tap a dog to check it in and choose a matching playroom (or a
-  suite, for boarders). Then give playtime and baths, clean, and check it out with an optional exit bath.
+- **Dogs:** arrive at the Front Desk Counter and wait in the lobby. Tap a dog to check it in and choose a matching
+  playroom (or a Boarding Bed, for boarders). Then give playtime and baths, clean, and check it out with an optional exit bath.
 - **Staff:** have energy, and you can hire more.
 - **The calm-down room** is always available for overwhelmed dogs.
 - **Header:** coins, **Lv N** with an XP bar, the day and clock, and open/closed. A level-up shows a toast with the new
@@ -170,28 +190,66 @@ Big, satisfying moments, all within §2:
 
 - **Placement is valid only if** every tile of the rotated footprint is on owned land and free. Rotation 1 or 3 swaps
   width and depth.
-- **Limit:** at most **150 placed things per facility**, including paths.
+- **Limit:** at most **200 placed things per facility** (outdoor items, furniture and paths), plus up to 12 rooms
+  (§4.2).
 
-### 4.2 Rooms
-Each room has a **door**: on its front edge, the tile at index `floor((w − 1) / 2)` counted from the room's origin
-corner. It turns with the room. The front is +z at
-rotation 0; each rotation turns it 90°. Upgrade prices are per step: to level 2 costs the level-1 price × 1.8, to level 3
-costs the level-1 price × 3.2, both rounded to the nearest 10.
+### 4.2 Rooms, doors and furniture (Sims-style)
+**Rooms:**
+- A room is a rectangle of 2–10 tiles a side, on owned land, not overlapping other rooms, outdoor items or paths. Walls
+  run along its edge.
+- **Price:** 20 per wall segment (one tile edge of its outline) plus 10 per floor tile. For example, a 4 × 3 room costs
+  14 × 20 + 12 × 10 = 400.
+- Two rooms may share a wall edge. Each pays for its own outline, which keeps prices simple.
+- **Limit:** at most **12 rooms per facility**.
 
-| id | Room | Size | Unlock level | Level-1 price | Max per facility | Effect (L1 / L2 / L3) |
+**Doors:** 30 each, on a wall segment.
+- A door on an outside wall connects the room to the outdoor tile in front of it.
+- A door on a shared wall connects the two rooms.
+- Doors can't sit on room corners.
+- At most 4 doors per room.
+
+**Room types**, chosen after drawing and changeable for free while the room is empty:
+
+| Type | Needs inside to work | Provides | Max per facility |
+|---|---|---|---|
+| Lobby | 1 Front Desk Counter | Waiting spots: 2, plus 2 per Waiting Bench (up to 10) | 1 |
+| Playroom (choose a group) | at least 1 dog spot | Dog spots = Dog Beds + Deluxe Dog Beds + Play Mats, up to `floor(area / 2)` | — |
+| Calm-Down Room | nothing | Unlimited space for overwhelmed dogs (as today) | — |
+| Bath Room | a Bath Tub or Deluxe Bath Tub | Baths and exit baths; Deluxe Tub adds +10 bath pay | — |
+| Boarding Room | at least 1 Boarding Bed | 1 boarder per Boarding Bed; boarders only arrive when a connected bed is free | — |
+| Staff Room | at least 1 Staff Couch | Staff energy recovers +50% per Staff Couch (up to +150%) | 1 |
+
+**Furniture** goes inside rooms. Fun and Appeal count toward the facility totals in §4.4. Furniture has one level;
+better versions are separate items, as in Sims games.
+
+| id | Furniture | Size | Allowed in | Unlock | Price | Effect |
 |---|---|---|---|---|---|---|
-| front_desk | Front Desk & Lobby | 3×3 | 1 | 500 | 1 | Lobby waiting spots 4 / 6 / 8 |
-| playroom_s | Small Playroom | 3×3 | 1 | 600 | — | Holds 2 / 3 / 4 dogs of its group |
-| playroom_m | Medium Playroom | 4×4 | 4 | 1,200 | — | Holds 4 / 5 / 6 |
-| playroom_l | Large Playroom | 5×5 | 9 | 2,200 | — | Holds 6 / 8 / 10 |
-| calm_room | Calm-Down Room | 2×2 | 1 | 300 | — | Unlimited; overwhelmed dogs rest here (as today) |
-| bath_station | Bath Station | 2×3 | 2 | 700 | — | Enables baths and exit baths; bath pay +0 / +5 / +10 |
-| suite | Boarding Suite | 2×2 | 3 | 500 | — | 1 boarder each; boarders only arrive when a connected suite is free |
-| staff_room | Staff Room | 2×2 | 5 | 600 | 1 | Staff energy recovers +50% / +100% / +150% faster |
+| front_counter | Front Desk Counter | 2×1 | Lobby | 1 | 300 | required; 1 per facility |
+| bench | Waiting Bench | 2×1 | Lobby | 1 | 120 | +2 waiting spots |
+| dog_bed | Dog Bed | 1×1 | Playroom, Calm-Down | 1 | 60 | +1 dog spot (playroom) |
+| play_mat | Play Mat | 1×1 | Playroom | 1 | 50 | +1 dog spot |
+| water_bowl | Water Bowl | 1×1 | any room | 1 | 20 | Fun +1 |
+| rug | Rug | 1×1 | any room | 1 | 40 | Appeal +1 |
+| plant | House Plant | 1×1 | any room | 1 | 60 | Appeal +1 |
+| toy_bin | Toy Bin | 1×1 | Playroom | 2 | 80 | Fun +2 |
+| bath_tub | Bath Tub | 2×1 | Bath Room | 2 | 400 | enables baths |
+| boarding_bed | Boarding Bed | 1×1 | Boarding Room | 3 | 150 | +1 boarder |
+| couch | Comfy Couch | 2×1 | Lobby, Calm-Down, Staff | 3 | 200 | Appeal +2 |
+| hurdles | Mini Hurdles | 2×1 | Playroom | 4 | 180 | Fun +4 |
+| deluxe_bed | Deluxe Dog Bed | 1×1 | Playroom | 5 | 150 | +1 dog spot, Fun +2 |
+| staff_couch | Staff Couch | 2×1 | Staff Room | 5 | 180 | staff energy recovery +50% |
+| deluxe_tub | Deluxe Bath Tub | 2×1 | Bath Room | 7 | 900 | enables baths, +10 bath pay |
 
-**Connected:** a room counts as connected when a tile next to its door, outside the room, is a path tile linked through
-paths (4-way adjacency) to the entrance. Rooms that aren't connected are shown greyed with "Not connected". They can't
-take dogs, and their effects don't count.
+**Paint:** floor style and wall colour, per room, free. Premium paint sets are a later money step.
+
+**Connected:** walkable spaces are path tiles, the entrance and room floors.
+- A path tile connects to its 4 neighbouring path tiles.
+- A room connects to an outdoor path tile through a door on that side.
+- Two rooms connect through a door on their shared wall.
+- A room is **connected** when it can be reached from the entrance.
+
+Rooms that aren't connected, and rooms missing what their type needs, show greyed with the reason ("Not connected",
+"Needs a Front Desk Counter"). They can't take dogs, and their furniture's effects don't count.
 
 ### 4.3 Outdoor items
 Effects use the Fun and Appeal model below. Upgrade prices follow the same rule as rooms. Scenery, paths, fences and the
@@ -227,7 +285,7 @@ Fun and Appeal are summed over placed outdoor items (rooms don't count). Stage 2
 - **Kept the same as `src/game/engine.ts`, with rooms referenced by placed-room id instead of fixed groups:**
   - **Day rhythm:** open hours 07:00–18:00 game time, a lobby break 12:00–14:00, 2 game minutes per real second.
   - **Arrivals:** base chance per game minute 0.04 × reputation/80 × the Appeal multiplier. Boarders are 25% of
-    arrivals when a free connected suite exists.
+    arrivals when a free connected Boarding Bed exists.
   - **Happiness and cleanliness:** the same decay and gain numbers.
   - **Matching groups:** the mismatch warning and confirmation, and the "overwhelmed → calm-down room" handling (today's
     `scuffle` and `separate` rules).
@@ -235,7 +293,7 @@ Fun and Appeal are summed over placed outdoor items (rooms don't count). Stage 2
   - **Checkout pay** is replaced by prices (§4.7). **Playtime no longer pays coins directly.** It raises happiness, which
     raises checkout pay and reputation.
   - **The rest:** the day wrap-up report, the welcome-back bonus (capped at 150) and the guest book.
-- **Baths and exit baths** need a connected Bath Station. Without one, the buttons explain why.
+- **Baths and exit baths** need a connected Bath Room with a tub. Without one, the buttons explain why.
 - **Moving or selling** a room isn't allowed while dogs are inside it.
 - **Staff** start at 1, with a 250-coin step for each hire (as today).
 
@@ -260,7 +318,7 @@ All amounts are game coins, never real money or real PAWtastic prices.
 **What the player is paid:**
 - **Checkout:** `round(daycare price × (0.6 + 0.4 × happiness/100))` + the Appeal tip (§4.4), plus the boarding price for
   boarders and the exit-bath price if chosen.
-- **A bath** pays the bath price, plus any Bath Station level bonus.
+- **A bath** pays the bath price, plus +10 with a Deluxe Bath Tub.
 
 **Fair price and demand.** Each service has a fair price:
 - `fair = default × (0.7 + 0.6 × reputation/100) × (1 + appeal/200)`
@@ -300,12 +358,17 @@ leaving never costs anything.
 - **Shape:**
   - `{ v: 1, coins, xp, guide, active: "f1", facilities: { f1: Facility } }`
   - where `Facility = { name, land[], items: Placed[], dogs[], staff[], clockMin, day, reputation, cleanliness, stats,
-    guestBook, open, prices, wage, supplies, campaign, ledger }`
-  - and `Placed = { uid, kind, c, r, rot: 0–3, level: 1–3, spent, group?, closed? }`
+    guestBook, open, prices, wage, supplies, campaign, ledger, rooms: Room[] }`
+  - and `Room = { uid, c, r, w, d, type?, group?, doors: { side: N | E | S | W, i }[], floor, wall, spent, closed? }`
+  - and `Placed = { uid, kind, c, r, rot: 0–3, level: 1–3, spent, room?, closed? }`. Furniture records the `room` it is
+    in; outdoor items and paths don't.
   - and `ledger` keeps the last 14 game days of income and expenses by category
 - Keying everything by facility from day one lets stage 3 add more facilities without changing the save format.
-- **Loading checks:** an item is dropped if its kind is unknown, it's out of bounds, it's not on owned land, it overlaps
-  another item, a one-per-facility limit is exceeded, or it's beyond the item limit. Corrupt saves are set aside and a
+- **Loading checks:**
+  - A room is dropped if it's out of bounds, off owned land, overlapping, the wrong size, or past the 12-room limit.
+    Its doors must sit on its own walls and not on corners.
+  - An item is dropped if its kind is unknown, it's out of bounds or off owned land, it overlaps, it's furniture outside
+    its room or in a room type that doesn't allow it, it breaks a one-per-facility limit, or it's past the item limit. Corrupt saves are set aside and a
   fresh game starts (as today).
 - **Paid packs** are never stored as owned. Deluxe Daycare Decor and the Blue Ribbon Style Pack appear from fresh server
   entitlements:
@@ -316,22 +379,24 @@ leaving never costs anything.
 - **Reused from `src/world/models.ts`:** materials and parts, dog and person rigs, tags, signs and blob shadows. The
   camera and controls come from today's renderer. The fixed-building code in `src/world/` isn't changed (today's game
   still uses it).
-- **Rooms** are drawn from placed data:
-  - a coloured floor (group colours as today)
-  - low walls with a gap at the door
+- **Rooms** are drawn from placed data, as a Sims-style cutaway:
+  - the chosen floor style and wall colour (playrooms add a stripe in their group colour)
+  - low walls along the outline, a little over waist height, so you can see inside, with door gaps and frames
+  - shared walls drawn once
   - a name tag
-  - a level badge
-  - "Not connected" shown in grey
+  - greyed rooms with a reason badge when not working
+  - **Furniture** as simple low-poly models (beds, mats, toy bins, tubs, couches, counter, benches, plants, rugs)
 - **Paths** are drawn as flat tiles. **Outdoor items** are simple low-poly models, one variant per level.
 - **Build overlay:** owned land is light green and unowned land grey with "For sale" signs. A ghost follows the chosen
-  tile, and tiles are picked with a ground-plane raycast.
+  tile (a ghost outline for rooms, a ghost door on the nearest wall segment, a ghost model for furniture and items).
+  Tiles and wall segments are picked with a ground-plane raycast.
 - **Dogs and staff** stand inside their rooms and the lobby, as today. Walking between places is stage 2.
-- **Performance:** 150 placed things and 30 dogs at 30 fps or better in a phone-sized headless Chromium; battery-saver
+- **Performance:** 12 rooms, 200 placed things and 30 dogs at 30 fps or better in a phone-sized headless Chromium; battery-saver
   mode lowers detail.
 
 ## 6. Measurement
 New events (migration **0008** extends the `game_events` check; apply it before publishing):
-- `tycoon_build { kind, action: place | upgrade | move | sell }`
+- `tycoon_build { kind, action: place | upgrade | move | sell | paint }` (kind includes `room`, `door` and furniture ids)
 - `tycoon_land { parcel }`
 - `tycoon_level { level }`
 - `tycoon_guide { step }`
@@ -343,10 +408,19 @@ New events (migration **0008** extends the `game_events` check; apply it before 
 
 ## 7. Testing
 - **Engine unit tests:**
+  - room drawing:
+    - size limits, owned land and overlaps with rooms, items and paths
+    - price from outline and floor
+    - shared walls, and doors (outside, shared, never on corners, 4 per room)
   - footprints, rotation and door tiles
   - bounds, owned land, overlaps, one-per-facility limits and the item cap
-  - connectivity: path breadth-first search from the entrance, a disconnected room greys out and comes back after a path
-    is repaired, and selling a path disconnects rooms
+  - connectivity:
+    - path breadth-first search from the entrance through doors and rooms, including a room reached through another room
+    - a disconnected room greys out and comes back after a path or door is added
+    - selling a path or door disconnects rooms
+  - room types: what each needs (counter, tub, beds, couch), capacities from furniture (dog spots capped at area / 2,
+    waiting spots, boarders), furniture allowed only in its room types, change type only when empty, move room with its
+    furniture, sell room refunds 75% of the room and contents, paint is free
   - prices, upgrade steps, the 75% refund, and XP not being removed on sale
   - land levels and prices; XP per action, levels and rewards
   - Fun and Appeal caps and their effects
@@ -370,7 +444,9 @@ New events (migration **0008** extends the `game_events` check; apply it before 
   - paid items only from entitlements
 - **No-timer tests:** building, upgrading and buying land are immediate, and time away never removes or damages anything.
 - **Browser checks** (phone size, Playwright, `qa/e2e-tycoon.cjs`):
-  - the whole guided start from an empty lot to the first checkout
+  - the whole guided start from an empty lot (draw lobby, door, path, counter, bench, playroom, beds, calm-down room,
+    paint) to the first checkout
+  - a door between two rooms connects the inner room
   - a red ghost on overlap, rotating, a "Not connected" room fixed by a path
   - upgrade, move and sell
   - buy West land at level 3
@@ -383,7 +459,7 @@ New events (migration **0008** extends the `game_events` check; apply it before 
   - a level-up celebration with reduced motion off and on
   - a trophy unlocking once
   - the "Smooth operator" bonus no more than once per game day
-  - frame rate with 150 things
+  - frame rate with 12 rooms and 200 things
   - no page errors
 - **Existing suites stay green**, and today's Daycare Tycoon is untouched.
 - **A first-week playthrough** using the game rules. Targets: the guided start in under 5 minutes, level 3 (West or East
