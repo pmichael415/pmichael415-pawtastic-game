@@ -2,7 +2,7 @@
 # Source: github.com/pmichael415/pmichael415-pawtastic-game, folder tycoon/. Base: Lovable c3a69bd.
 # Format: <sha256>  <path>. Deleted files: none. Never sync: .env, public/favicon.png, src/assets/daycare-room.jpg
 c75d31f3d77c0c129d77b51e253a5a8db81f6074fc4e2ebbedf1ed28fe288c03  AGENTS.md
-9b21fc4915272b7f19fb8efe00e43ead08bb24b6ebf353ff87af56e5697ca431  STATUS.md
+ec008a5d94ffc5d1829557823e20888febae7306730f0ed6f8244e91b983a11b  STATUS.md
 d975249d373b6da51138fe7bdb83d1e59304ffb74d269bd572e3cce50643d3b7  SYNC-TO-LOVABLE.md
 e3f4db45b90ed1824d14658037a12675d16f2354136f35f7630db916b1cb34e2  bun.lock
 250fac3cfb7bbd982014bd81d8d9c320486e4bacbc74e31296f02e8667725046  drizzle/migrations/0002_game_measurement.sql
@@ -83,10 +83,10 @@ abc98f7abf8e577de4e8d04fd1c1ccab260b039e48b9da9009b47b13c916a8f5  src/lib/analyt
 3c6515d9ba1805e983ec6886995fb7d04e5a09a3b93753e07f5e14204486bdf3  src/lib/locations.test.ts
 3d2e4dba2a94339a5150ce68a1dc461dffb37a561430ce2a4440adf641ac9c2c  src/lib/locations.ts
 2869dd1455fa7583b334bf847fb37580b0d9711a25e64022da524d5a90ebb71b  src/lib/payments/account-refund.test.ts
-e0a6cfb1b6b0727c97fc2a244f63122c3835ed31b5936ab8e59993d17c5c223a  src/lib/payments/checkout-rules.test.ts
-a39c8b1bc6bb812b5a0d0560cc54a40a699d075a7ad2f831030e84ef89f3887a  src/lib/payments/payments.functions.ts
+e4f1c810393769d590a93c268fceda0260c93027a88c15488b758cf91bcad5c8  src/lib/payments/checkout-rules.test.ts
+00040213e11e96f5184f3f9feaeaa5548bdd448b563ba7d30e479b083f5cbeee  src/lib/payments/payments.functions.ts
 e7353e1a4045f4bb50e35418641ee6917c9736d6e580cf8e5d0f57ff247e0314  src/lib/payments/verify.test.ts
-18bf58d832a3da7f52d396e15e4a2ec53d19930abfbf6527558133d0b6e0a4b5  src/lib/payments/verify.ts
+352a90aa6c0538e03f3fdf9fc62996888d7855ff3ccfc2e90d33d6d1cd5e9964  src/lib/payments/verify.ts
 c38c540e65f799ffb4703afe70dd807ef33628ed11ba251bf2096e2766c8af82  src/lib/referral.test.ts
 b28b558474ccc47bdd8d531771c95b156f87dd45d6922b560b57bdedeb34f4b2  src/lib/referral.ts
 d8aeccacbfecc2336bdafd2f09d921b183d83b5dec1ffacecc31a3078bef8734  src/lib/settings.ts

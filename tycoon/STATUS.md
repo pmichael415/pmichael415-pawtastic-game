@@ -40,6 +40,9 @@ with a 0.2 s animation). Production build OK.
   but Stripe refused to create the checkout page and the reason was thrown away. The Shop now shows Stripe's error
   code and message (anything shaped like a key is masked), the server logs it, and it is recorded as a `client_error`
   event (`where: "/shop checkout"`) so it can be read from `game_events`. Hub payments stay test-mode only.
+- The recorded reason: Stripe's newer API rejects `payment_method_types` (req_RTRzSqNxvfC6IQ, HTTP 400). The hub sent
+  no API version, so it got the account's newer default; Graduation Day pins `2026-01-28.clover` and works live. Every hub
+  Stripe call now pins that same version (card-only, instant payment), so both games behave alike.
 
 ## Update — Weekly Challenge prizes change every week, with the owner's approval (1 Nov)
 

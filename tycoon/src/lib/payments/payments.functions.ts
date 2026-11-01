@@ -2,14 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { PAID_PRODUCTS } from "@/lib/catalog";
-import { accountMatches, checkoutParams, paymentsConfig, reconcileSession, serverPaymentsEnv, stripeErrorSummary } from "./verify";
+import { accountMatches, checkoutParams, paymentsConfig, reconcileSession, serverPaymentsEnv, stripeErrorSummary, stripeHeaders } from "./verify";
 
 // Cache the "this key belongs to the confirmed game account" check briefly per server instance.
 let accountOk: { key: string; account: string; until: number } | null = null;
 async function keyMatchesAccount(key: string, account: string): Promise<boolean> {
   if (accountOk && accountOk.key === key && accountOk.account === account && accountOk.until > Date.now()) return true;
   try {
-    const res = await fetch("https://api.stripe.com/v1/account", { headers: { Authorization: `Bearer ${key}` } });
+    const res = await fetch("https://api.stripe.com/v1/account", { headers: stripeHeaders(key) });
     const body = await res.json();
     const ok = res.ok && accountMatches(body, account);
     accountOk = ok ? { key, account, until: Date.now() + 10 * 60_000 } : null;
@@ -54,7 +54,7 @@ export const createCheckout = createServerFn({ method: "POST" })
     try {
       res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
         method: "POST",
-        headers: { Authorization: `Bearer ${cfg.key}`, "Content-Type": "application/x-www-form-urlencoded", "Idempotency-Key": `${context.userId}-${product.id}-${Math.floor(Date.now() / 60000)}` },
+        headers: stripeHeaders(cfg.key, `${context.userId}-${product.id}-${Math.floor(Date.now() / 60000)}`),
         body,
       });
     } catch {

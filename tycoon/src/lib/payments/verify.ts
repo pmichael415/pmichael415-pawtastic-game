@@ -163,3 +163,20 @@ export function stripeErrorSummary(body: unknown, status: number): string {
   const masked = text.replace(/\b(?:sk|rk|pk)_(?:test|live)_[A-Za-z0-9*]+/g, "[key]");
   return masked.length > 300 ? `${masked.slice(0, 299)}…` : masked;
 }
+
+/**
+ * Stripe API version for every hub request. Pinned to the same version Graduation Day uses on the shared games
+ * account, so both games behave alike and an account-default upgrade can't break checkout (newer versions reject
+ * `payment_method_types`, which keeps the hub card-only with instant payment).
+ */
+export const STRIPE_VERSION = "2026-01-28.clover";
+
+/** Headers for a Stripe API call; pass an idempotency key for form POSTs. */
+export function stripeHeaders(key: string, idempotencyKey?: string): Record<string, string> {
+  const h: Record<string, string> = { Authorization: `Bearer ${key}`, "Stripe-Version": STRIPE_VERSION };
+  if (idempotencyKey) {
+    h["Content-Type"] = "application/x-www-form-urlencoded";
+    h["Idempotency-Key"] = idempotencyKey;
+  }
+  return h;
+}

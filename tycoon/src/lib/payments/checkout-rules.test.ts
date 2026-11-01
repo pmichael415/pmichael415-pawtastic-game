@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalOrigin, GRANTING_EVENTS, paymentsConfig, reconcileSession, stripeErrorSummary } from "./verify";
+import { canonicalOrigin, checkoutParams, GRANTING_EVENTS, paymentsConfig, reconcileSession, STRIPE_VERSION, stripeErrorSummary, stripeHeaders } from "./verify";
 
 const base = { STRIPE_SECRET_KEY: "sk_test_x", PAYMENT_WEBHOOK_SECRET: "whsec_x", STRIPE_EXPECTED_ACCOUNT: "acct_1PawGames000" };
 describe("payment readiness requires a canonical HTTPS origin", () => {
@@ -51,5 +51,26 @@ describe("a refused checkout says why, without leaking keys", () => {
     expect(s).toContain("[key]");
     expect(s).toContain("rak_checkout_session_write");
     expect(stripeErrorSummary({ error: { message: "x".repeat(900) } }, 400).length).toBeLessThanOrEqual(300);
+  });
+});
+
+describe("Stripe requests use the same pinned API version as Graduation Day", () => {
+  it("pins the version Graduation Day already uses on the shared games account", () => {
+    expect(STRIPE_VERSION).toBe("2026-01-28.clover");
+    const h = stripeHeaders("sk_test_x");
+    expect(h["Stripe-Version"]).toBe(STRIPE_VERSION);
+    expect(h["Authorization"]).toBe("Bearer sk_test_x");
+    expect(h["Idempotency-Key"]).toBeUndefined();
+  });
+  it("form requests carry the content type and idempotency key", () => {
+    const h = stripeHeaders("sk_test_x", "u1-blue-ribbon-style-1");
+    expect(h["Content-Type"]).toBe("application/x-www-form-urlencoded");
+    expect(h["Idempotency-Key"]).toBe("u1-blue-ribbon-style-1");
+    expect(h["Stripe-Version"]).toBe(STRIPE_VERSION);
+  });
+  it("checkout stays card-only (instant payment, no delayed bank methods)", () => {
+    const p = checkoutParams({ id: "blue-ribbon-style", name: "Blue Ribbon Style Pack", priceCents: 299, currency: "usd" } as never, "u1", "https://play.example.com");
+    expect(p.get("payment_method_types[0]")).toBe("card");
+    expect(p.get("mode")).toBe("payment");
   });
 });
