@@ -36,8 +36,10 @@ function server(rows: Row[]) {
     ack: async (inst: string, ids: string[]) => {
       let n = 0;
       for (const r of rows)
-        if (ids.includes(r.id) && r.status === "reserved" && r.by === inst)
-          ((r.status = "delivered"), n++);
+        if (ids.includes(r.id) && r.status === "reserved" && r.by === inst) {
+          r.status = "delivered";
+          n++;
+        }
       return n;
     },
   };
