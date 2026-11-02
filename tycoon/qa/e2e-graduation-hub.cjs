@@ -82,6 +82,14 @@ const mockState = (server) => fetch(`${server}/mock/state`).then((r) => r.json()
 // only — to the browser that is the same refusal as today's real server, which sends no such header.
 async function contextFor(browser, server, seen, { unpatched = false, touch = false } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: touch });
+  // The first-visit "Pick your team!" dialog has its own suite (e2e-teams); skip it here, as e2e-games does.
+  await ctx.addInitScript(() => {
+    try {
+      sessionStorage.setItem("pawtastic-team-dismissed", "1");
+    } catch {
+      /* ignore */
+    }
+  });
   await ctx.route(`${SITE}/**`, async (route) => {
     const req = route.request();
     const response = await route.fetch({ url: req.url().replace(SITE, server) });
