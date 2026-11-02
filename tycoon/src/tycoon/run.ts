@@ -165,6 +165,19 @@ export function checkIn(s: TycoonState, dogId: string): TResult {
   return { ok: true, state: st, msg: `${dog.name} is checked in!${prepaidBath ? ` ${v.owner} prepaid the bath (+${prepaidBath}).` : ""}`, ...(prepaidBath ? { earned: prepaidBath } : {}) };
 }
 
+/**
+ * Politely turning a pup away before check-in (no room for their group, lobby crowded): the family takes them home,
+ * no charge, nothing held against the daycare. Once checked in, the visit is a promise — use checkout.
+ */
+export function turnAway(s: TycoonState, dogId: string): TResult {
+  const f = fac(s);
+  const dog = findDog(f, dogId);
+  if (!dog) return gone;
+  if (dog.checkedIn) return { ok: false, error: `${dog.name} is already checked in — check them out instead.` };
+  const v = visitOf(f, dog);
+  return { ok: true, state: withFac(s, { ...f, dogs: f.dogs.filter((d) => d.id !== dogId) }), msg: `${v.owner} took ${dog.name} home — we couldn't take them today. No charge.` };
+}
+
 // ---------- placing pups ----------
 
 function notWorking(f: Facility, room: Room): string | null {
@@ -222,7 +235,7 @@ export function toCalm(s: TycoonState, dogId: string): TResult {
   if (dog.place.kind === "calm") return { ok: false, error: `${dog.name} is already calming down.` };
   const scuffled = inActiveScuffle(f, dog);
   const from = dog.place;
-  let nf = setDog(f, dogId, (d) => ({ ...d, place: calmPlace(f), happiness: clamp(d.happiness - (scuffled ? 10 : 0)) }));
+  let nf = setDog(f, dogId, (d) => ({ ...d, place: calmPlace(f), happiness: clamp(d.happiness - (scuffled ? 10 : 0)), visit: logVisit({ ...visitOf(f, d), safeMove: true }, `Calm-down room ${fmtTime(f.clockMin)}`) }));
   if (from.kind === "room") {
     const room = roomOf(nf, from.room);
     if (room && !roomAtRisk(nf, room)) nf = { ...nf, scuffles: nf.scuffles.filter((x) => x.room !== from.room) };
@@ -242,7 +255,7 @@ export function separate(s: TycoonState, roomUid: string): TResult {
   const stay = new Set(inRoom.map((d) => d.id));
   const calm = calmPlace(f);
   const dogs = f.dogs.map((d) => {
-    if (movers.has(d.id)) return { ...d, place: calm, happiness: clamp(d.happiness - (scuffled ? 10 : 0)) };
+    if (movers.has(d.id)) return { ...d, place: calm, happiness: clamp(d.happiness - (scuffled ? 10 : 0)), visit: logVisit({ ...visitOf(f, d), safeMove: true }, `Separated to calm down ${fmtTime(f.clockMin)}`) };
     if (stay.has(d.id) && scuffled) return { ...d, happiness: clamp(d.happiness - 5) };
     return d;
   });
