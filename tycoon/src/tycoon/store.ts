@@ -11,7 +11,7 @@ import { fac, newTycoon, parseTycoon, withFac } from "./state";
 import { checkTrophies, type Trophy } from "./trophies";
 import { rollWeekly } from "./weekly";
 import { weekKey } from "@/game/engine";
-import type { TResult, TycoonState } from "./types";
+import type { TDog, TResult, TycoonState } from "./types";
 
 export const KEY = "pawtastic-daycare-next-v1";
 export const TICK_MS = 250;
@@ -181,8 +181,10 @@ export function useTycoon() {
     const { bonus, weekly } = activate();
     if (bonus > 0) toast.success(`Welcome back! Your team kept everyone safe and comfy. +${bonus} coins`);
     if (weekly > 0) toast.success(`Last week's challenge was finished — +${weekly} coins`);
-    const onHide = () => {
-      if (document.hidden) tycoonStore.setPaused(true);
+    // Save only when this tab goes away; coming back must never overwrite what another tab saved meanwhile.
+    const onHide = (e: Event) => {
+      if (e.type !== "pagehide" && !document.hidden) return;
+      tycoonStore.setPaused(true);
       if (snap.state) persist(snap.state);
     };
     document.addEventListener("visibilitychange", onHide);
@@ -255,7 +257,15 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
         const r = placeFirstFree(st, kinds[i % kinds.length]!);
         if (r.ok) st = r.state;
       }
-      return st;
+      // 30 pups: spread over the playrooms (and the lobby), as in a busy day
+      const f = fac(st);
+      const plays = f.rooms.filter((r) => r.type === "playroom");
+      const dogs = Array.from({ length: 30 }, (_, i): TDog => ({
+        id: `stress${i}`, name: `Pup ${i + 1}`, breed: i % 8, size: i % 2 ? "large" : "small", temper: i % 3 ? "gentle" : "active", visits: 1,
+        place: i < 4 || !plays.length ? { kind: "lobby" } : { kind: "room", room: plays[i % plays.length]!.uid },
+        checkedIn: i >= 2, happiness: 70, clean: 70, boarding: false, played: 0, bathed: false,
+      }));
+      return withFac(st, { ...f, dogs });
     });
 }
 

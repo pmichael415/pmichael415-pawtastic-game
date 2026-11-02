@@ -3,15 +3,16 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { GROUPS, groupName, hireCost, MAX_STAFF } from "@/game/engine";
 import type { GroupId } from "@/game/engine";
-import { FURNITURE, OUTDOOR, PARCELS, ROOM_TYPE_NAMES, DOOR_PRICE } from "@/tycoon/catalog";
-import { DEFAULT_ROOM_SIZE, buyLand, placeFirstFree, sellRoom, setClosed, setRoomType, type FirstFree } from "@/tycoon/build";
+import { FURNITURE, OUTDOOR, PARCELS, ROOM_TYPE_NAMES, DOOR_PRICE, SELL_RATE, furnitureDef, outdoorDef, thingName, upgradePrice } from "@/tycoon/catalog";
+import { DEFAULT_ROOM_SIZE, buyLand, placeFirstFree, sellRoom, sellThing, setClosed, setRoomType, upgradeThing, type FirstFree } from "@/tycoon/build";
+import { isActive, ownedPaid } from "@/tycoon/paid";
 import { connectedRooms, roomStatus } from "@/tycoon/connect";
 import { roomPrice } from "@/tycoon/grid";
 import { level } from "@/tycoon/progress";
 import { clean, hasScuffle, hireStaff, lobbyDogs, roomAtRisk, roomDogs, separate } from "@/tycoon/run";
 import { fac } from "@/tycoon/state";
 import type { ActOpts, ActResult } from "@/tycoon/store";
-import type { Facility, Room, RoomType, TResult, TycoonState } from "@/tycoon/types";
+import type { Facility, Placed, Room, RoomType, TResult, TycoonState } from "@/tycoon/types";
 import { DogPanel } from "./DogPanel";
 
 type Act = (fn: (s: TycoonState) => TResult, opts?: ActOpts) => ActResult;
@@ -37,7 +38,7 @@ function buildEntries(): BuildEntry[] {
   rooms.push(roomEntry("lobby"));
   for (const g of GROUPS) rooms.push(roomEntry("playroom", g.id));
   rooms.push(roomEntry("calm"), roomEntry("bath"), roomEntry("boarding"), roomEntry("staff"));
-  const furniture = FURNITURE.filter((x) => !x.paid).map<BuildEntry>((x) => ({
+  const furniture = FURNITURE.map<BuildEntry>((x) => ({
     key: x.id,
     name: x.name,
     what: x.id,
@@ -59,6 +60,47 @@ function buildEntries(): BuildEntry[] {
 }
 const ENTRIES = buildEntries();
 
+/** One built thing: its level and effect, with Upgrade (play/comfort items), Close/Open and Sell. */
+function ItemRow({ item, act }: { item: Placed; act: Act }) {
+  const [selling, setSelling] = useState(false);
+  const od = outdoorDef(item.kind);
+  const name = thingName(item.kind);
+  const next = od && od.levels === 3 && item.level < 3 ? upgradePrice(od.price, (item.level + 1) as 2 | 3) : null;
+  const refund = Math.floor(SELL_RATE * item.spent);
+  const ev = (action: string) => ({ event: { name: "tycoon_build" as const, props: { kind: item.kind, action } } });
+  return (
+    <li className="flex flex-wrap items-center gap-2 py-1.5">
+      <span className="min-w-0 flex-1 text-sm text-secondary">
+        {name}
+        {od && od.levels === 3 ? <span className="text-xs text-muted-foreground"> · level {item.level}</span> : null}
+        {item.closed ? <span className="text-xs text-muted-foreground"> · closed</span> : null}
+        {!isActive(item.kind) ? <span className="text-xs text-destructive"> · pack no longer active</span> : null}
+      </span>
+      {next !== null && (
+        <Button size="sm" className="h-11" aria-label={`Upgrade ${name} · ${next}`} onClick={() => act((s) => upgradeThing(s, item.uid), ev("upgrade"))}>
+          Upgrade · {next}
+        </Button>
+      )}
+      <Button size="sm" variant="ghost" className="h-11" aria-label={`${item.closed ? "Open" : "Close"} ${name}`} onClick={() => act((s) => setClosed(s, item.uid, !item.closed))}>
+        {item.closed ? "Open" : "Close"}
+      </Button>
+      <Button
+        size="sm"
+        variant={selling ? "destructive" : "ghost"}
+        className="h-11"
+        aria-label={selling ? `Tap again to sell ${name} (+${refund})` : `Sell ${name}`}
+        onClick={() => {
+          if (!selling) return setSelling(true);
+          setSelling(false);
+          act((s) => sellThing(s, item.uid), ev("sell"));
+        }}
+      >
+        {selling ? `Tap again (+${refund})` : "Sell"}
+      </Button>
+    </li>
+  );
+}
+
 function RoomCard({ f, room, act }: { f: Facility; room: Room; act: Act }) {
   const [selling, setSelling] = useState(false);
   const st = roomStatus(f, room);
@@ -76,12 +118,12 @@ function RoomCard({ f, room, act }: { f: Facility; room: Room; act: Act }) {
       {!room.type && (
         <div className="mt-2 flex flex-wrap gap-2">
           {(["lobby", "calm", "bath", "boarding", "staff"] as RoomType[]).map((t) => (
-            <Button key={t} size="sm" variant="outline" className="h-10" onClick={() => act((s) => setRoomType(s, room.uid, t))}>
+            <Button key={t} size="sm" variant="outline" className="h-11" onClick={() => act((s) => setRoomType(s, room.uid, t))}>
               {ROOM_TYPE_NAMES[t]}
             </Button>
           ))}
           {GROUPS.map((g) => (
-            <Button key={g.id} size="sm" variant="outline" className="h-10" onClick={() => act((s) => setRoomType(s, room.uid, "playroom", g.id))}>
+            <Button key={g.id} size="sm" variant="outline" className="h-11" onClick={() => act((s) => setRoomType(s, room.uid, "playroom", g.id))}>
               Playroom · {g.name}
             </Button>
           ))}
@@ -99,14 +141,23 @@ function RoomCard({ f, room, act }: { f: Facility; room: Room; act: Act }) {
           ))}
         </div>
       )}
+      {f.items.some((i) => i.room === room.uid) && (
+        <ul aria-label={`Furniture in ${roomTitle(room)}`} className="mt-2 divide-y divide-border">
+          {f.items
+            .filter((i) => i.room === room.uid)
+            .map((i) => (
+              <ItemRow key={i.uid} item={i} act={act} />
+            ))}
+        </ul>
+      )}
       <div className="mt-2 flex gap-2">
-        <Button size="sm" variant="ghost" className="h-10" onClick={() => act((s) => setClosed(s, room.uid, !room.closed))}>
+        <Button size="sm" variant="ghost" className="h-11" onClick={() => act((s) => setClosed(s, room.uid, !room.closed))}>
           {room.closed ? "Open room" : "Close room"}
         </Button>
         <Button
           size="sm"
           variant={selling ? "destructive" : "ghost"}
-          className="h-10"
+          className="h-11"
           onClick={() => {
             if (!selling) return setSelling(true);
             setSelling(false);
@@ -128,7 +179,12 @@ export function ListView({ state, act, compact = false }: { state: TycoonState; 
   const lobby = lobbyDogs(f);
   const calmAtDesk = f.dogs.filter((d) => d.place.kind === "calm" && !f.rooms.some((r) => r.uid === (d.place as { room: string }).room));
   const [tab, setTab] = useState<"rooms" | "furniture" | "outdoor" | "land">("rooms");
-  const shown = ENTRIES.filter((e) => (tab === "rooms" ? e.kind === "room" : tab === "furniture" ? FURNITURE.some((x) => x.id === e.kind) : tab === "outdoor" ? OUTDOOR.some((x) => x.id === e.kind) : false));
+  const owned = ownedPaid();
+  const shown = ENTRIES.filter((e) => {
+    const paid = furnitureDef(e.kind)?.paid;
+    if (paid && !owned.has(paid)) return false; // pack items only for owners (fresh server entitlements)
+    return tab === "rooms" ? e.kind === "room" : tab === "furniture" ? FURNITURE.some((x) => x.id === e.kind) : tab === "outdoor" ? OUTDOOR.some((x) => x.id === e.kind) : false;
+  });
 
   return (
     <div className="space-y-3">
@@ -144,11 +200,11 @@ export function ListView({ state, act, compact = false }: { state: TycoonState; 
           <span className="self-center text-muted-foreground">
             Staff {f.staff.length}/{MAX_STAFF} · energy {f.staff.map((x) => Math.round(x.energy)).join(" / ")} · floors {Math.round(f.cleanliness)}%
           </span>
-          <Button size="sm" variant="outline" className="h-10" onClick={() => act(clean)}>
+          <Button size="sm" variant="outline" className="h-11" onClick={() => act(clean)}>
             Mop floors
           </Button>
           {f.staff.length < MAX_STAFF && (
-            <Button size="sm" variant="outline" className="h-10" onClick={() => act(hireStaff)}>
+            <Button size="sm" variant="outline" className="h-11" onClick={() => act(hireStaff)}>
               Hire ({hireCost(f.staff.length)})
             </Button>
           )}
@@ -177,11 +233,24 @@ export function ListView({ state, act, compact = false }: { state: TycoonState; 
         <p className="px-1 text-xs text-muted-foreground">Rooms marked "Not connected" need a door and a path back to the entrance.</p>
       )}
 
+      {f.items.some((i) => i.room === null && i.kind !== "path" && i.uid !== "entrance") && (
+        <section aria-label="Outdoor items" className="rounded-2xl border border-border bg-card p-3 shadow-soft">
+          <h2 className="text-lg font-bold text-secondary">Outdoor items</h2>
+          <ul className="mt-1 divide-y divide-border">
+            {f.items
+              .filter((i) => i.room === null && i.kind !== "path" && i.uid !== "entrance")
+              .map((i) => (
+                <ItemRow key={i.uid} item={i} act={act} />
+              ))}
+          </ul>
+        </section>
+      )}
+
       <section aria-label="Build" className="rounded-2xl border border-border bg-card p-3 shadow-soft">
         <h2 className="text-lg font-bold text-secondary">Build</h2>
         <div className="mt-2 flex gap-1" role="tablist">
           {(["rooms", "furniture", "outdoor", "land"] as const).map((t) => (
-            <Button key={t} role="tab" aria-selected={tab === t} size="sm" variant={tab === t ? "default" : "outline"} className="h-10 capitalize" onClick={() => setTab(t)}>
+            <Button key={t} role="tab" aria-selected={tab === t} size="sm" variant={tab === t ? "default" : "outline"} className="h-11 capitalize" onClick={() => setTab(t)}>
               {t}
             </Button>
           ))}
@@ -202,7 +271,7 @@ export function ListView({ state, act, compact = false }: { state: TycoonState; 
                 ) : (
                   <Button
                     size="sm"
-                    className="h-10"
+                    className="h-11"
                     aria-label={`Place ${e.name} in first free spot`}
                     onClick={() => act((s) => placeFirstFree(s, e.what), { event: { name: "tycoon_build", props: { kind: e.kind, action: "place" } } })}
                   >
@@ -224,7 +293,7 @@ export function ListView({ state, act, compact = false }: { state: TycoonState; 
                   {owned ? null : p.level > lv ? (
                     <span className="text-xs font-semibold text-muted-foreground">Unlocks at level {p.level}</span>
                   ) : (
-                    <Button size="sm" className="h-10" onClick={() => act((s) => buyLand(s, p.id), { event: { name: "tycoon_land", props: { parcel: p.id } } })}>
+                    <Button size="sm" className="h-11" onClick={() => act((s) => buyLand(s, p.id), { event: { name: "tycoon_land", props: { parcel: p.id } } })}>
                       Buy
                     </Button>
                   )}

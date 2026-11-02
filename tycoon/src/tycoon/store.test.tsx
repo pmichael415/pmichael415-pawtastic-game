@@ -107,6 +107,19 @@ describe("the tycoon store", () => {
     vi.useRealTimers();
   });
 
+  it("coming back to a tab never overwrites a newer save from another tab", () => {
+    const { result, unmount } = renderHook(() => useTycoon());
+    expect(result.current.state).toBeTruthy();
+    const other = { ...newTycoon(Date.now()), coins: 4242 };
+    localStorage.setItem(KEY, JSON.stringify(other)); // another tab saved
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(JSON.parse(localStorage.getItem(KEY)!).coins).toBe(4242);
+    unmount();
+  });
+
   it("pauses when hidden", () => {
     const { result, unmount } = renderHook(() => useTycoon());
     Object.defineProperty(document, "hidden", { configurable: true, get: () => true });

@@ -25,7 +25,7 @@ function DaycareNext() {
   const f = state ? fac(state) : null;
   return (
     <main className="space-y-3 px-3 pt-3 pb-8">
-      <GameHeader title="Daycare (preview)" {...(f ? { subtitle: `${f.name} · rep ${Math.round(f.reputation)}` } : {})} />
+      <GameHeader title="Daycare (preview)" sound {...(f ? { subtitle: `${f.name} · rep ${Math.round(f.reputation)}` } : {})} />
       <p className="rounded-xl bg-muted px-3 py-2 text-xs text-muted-foreground">
         A brand-new daycare you build from scratch. It's a separate save — your{" "}
         <Link to="/daycare" className="font-semibold underline">

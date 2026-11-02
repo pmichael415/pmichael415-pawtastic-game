@@ -241,7 +241,7 @@ export function BuildToolbar({ b, state, act }: { b: Build; state: TycoonState; 
     <section aria-label="Build mode" className="space-y-2 rounded-2xl border border-primary/40 bg-card p-3 shadow-soft">
       <div role="toolbar" aria-label="Build tools" className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1">
         {TOOLS.map((t) => (
-          <Button key={t.id} size="sm" variant={ui.tool === t.id ? "default" : "outline"} aria-pressed={ui.tool === t.id} className="h-10 shrink-0" onClick={() => b.setTool(ui.tool === t.id ? null : t.id)}>
+          <Button key={t.id} size="sm" variant={ui.tool === t.id ? "default" : "outline"} aria-pressed={ui.tool === t.id} className="h-11 shrink-0" onClick={() => b.setTool(ui.tool === t.id ? null : t.id)}>
             {t.label}
           </Button>
         ))}

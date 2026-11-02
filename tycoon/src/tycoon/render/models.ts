@@ -255,6 +255,10 @@ const MAKERS: Record<ThingKind, Make> = {
     const s = makeSign(W - 0.4, 0.9);
     s.draw({ title: "PAWtastic Academy", sub: "Dog daycare (game)", badge: "🐾", color: "#ffd34d" });
     s.mesh.position.set(0, 1.35, 0.08);
+    s.mesh.userData["dispose"] = () => {
+      s.material.map?.dispose();
+      s.material.dispose();
+    };
     g.add(s.mesh);
   },
 };

@@ -66,7 +66,7 @@ export function EditPanel({
   if (!room && !thing) return null;
 
   const close = (
-    <Button size="icon" variant="ghost" className="h-10 w-10" aria-label="Close" onClick={onClose}>
+    <Button size="icon" variant="ghost" className="h-11 w-11" aria-label="Close" onClick={onClose}>
       <X className="h-5 w-5" />
     </Button>
   );
@@ -127,19 +127,19 @@ export function EditPanel({
           </div>
         ) : (
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button variant="outline" className="h-10" onClick={() => setTyping(true)}>
+            <Button variant="outline" className="h-11" onClick={() => setTyping(true)}>
               Change type
             </Button>
-            <Button variant="outline" className="h-10" onClick={() => onPaint(room)}>
+            <Button variant="outline" className="h-11" onClick={() => onPaint(room)}>
               Paint
             </Button>
-            <Button variant="outline" className="h-10" onClick={() => onMoveRoom(room)}>
+            <Button variant="outline" className="h-11" onClick={() => onMoveRoom(room)}>
               Move
             </Button>
-            <Button variant="outline" className="h-10" onClick={() => act((s) => setClosed(s, room.uid, !room.closed))}>
+            <Button variant="outline" className="h-11" onClick={() => act((s) => setClosed(s, room.uid, !room.closed))}>
               {room.closed ? "Open" : "Close"}
             </Button>
-            <Button variant="outline" className="h-10 text-destructive" onClick={() => setConfirm(true)}>
+            <Button variant="outline" className="h-11 text-destructive" onClick={() => setConfirm(true)}>
               Sell
             </Button>
           </div>
@@ -197,7 +197,7 @@ export function EditPanel({
         <div className="mt-2 flex flex-wrap gap-2">
           {nextPrice !== null && (
             <Button
-              className="h-10"
+              className="h-11"
               onClick={() => {
                 const r = act((s) => upgradeThing(s, t.uid), { event: { name: "tycoon_build", props: { kind: t.kind, action: "upgrade" } } });
                 if (r.ok) fx("sparkle", { c: t.c, r: t.r });
@@ -206,16 +206,16 @@ export function EditPanel({
               Upgrade · {nextPrice}
             </Button>
           )}
-          <Button variant="outline" className="h-10" onClick={() => onMoveThing(t)}>
+          <Button variant="outline" className="h-11" onClick={() => onMoveThing(t)}>
             Move
           </Button>
-          <Button variant="outline" className="h-10" onClick={() => act((s) => moveThing(s, t.uid, t.c, t.r, ((t.rot + 1) % 4) as Rot), { event: { name: "tycoon_build", props: { kind: t.kind, action: "move" } } })}>
+          <Button variant="outline" className="h-11" onClick={() => act((s) => moveThing(s, t.uid, t.c, t.r, ((t.rot + 1) % 4) as Rot), { event: { name: "tycoon_build", props: { kind: t.kind, action: "move" } } })}>
             Rotate
           </Button>
-          <Button variant="outline" className="h-10" onClick={() => act((s) => setClosed(s, t.uid, !t.closed))}>
+          <Button variant="outline" className="h-11" onClick={() => act((s) => setClosed(s, t.uid, !t.closed))}>
             {t.closed ? "Open" : "Close"}
           </Button>
-          <Button variant="outline" className="h-10 text-destructive" onClick={() => setConfirm(true)}>
+          <Button variant="outline" className="h-11 text-destructive" onClick={() => setConfirm(true)}>
             Sell
           </Button>
         </div>

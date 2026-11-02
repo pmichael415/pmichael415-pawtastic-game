@@ -49,11 +49,14 @@ export function GameHeader({
   subtitle,
   children,
   back = true,
+  sound = false,
 }: {
   title: string;
   subtitle?: string;
   children?: ReactNode;
   back?: boolean;
+  /** Show the Sound effects and Music switches (the new Daycare). */
+  sound?: boolean;
 }) {
   return (
     <header className="flex items-center gap-2">
@@ -78,12 +81,24 @@ export function GameHeader({
       </div>
       {children}
       <ShareButton />
-      <SettingsSheet />
+      <SettingsSheet sound={sound} />
     </header>
   );
 }
 
-export function SettingsSheet() {
+type SwitchKey = "invertLook" | "sound" | "music" | "reducedMotion" | "lowPower" | "analytics";
+/** The on/off settings. Sound and Music belong to the new Daycare only (today's games have no sound switches). */
+export function settingsSwitches(sound: boolean): [SwitchKey, string][] {
+  return [
+    ["invertLook", "Invert up/down look"],
+    ...(sound ? ([["sound", "Sound effects"], ["music", "Music"]] as [SwitchKey, string][]) : []),
+    ["reducedMotion", "Reduce motion (less bobbing & shaking)"],
+    ["lowPower", "Battery saver graphics"],
+    ["analytics", "Share anonymous gameplay stats (no name, email or location)"],
+  ];
+}
+
+export function SettingsSheet({ sound = false }: { sound?: boolean } = {}) {
   const s = useSettings();
   const { user } = useSession();
   const views: { v: ViewMode; label: string }[] = [
@@ -138,16 +153,7 @@ export function SettingsSheet() {
               aria-label="Look sensitivity"
             />
           </label>
-          {(
-            [
-              ["invertLook", "Invert up/down look"],
-              ["sound", "Sound effects"],
-              ["music", "Music"],
-              ["reducedMotion", "Reduce motion (less bobbing & shaking)"],
-              ["lowPower", "Battery saver graphics"],
-              ["analytics", "Share anonymous gameplay stats (no name, email or location)"],
-            ] as const
-          ).map(([k, label]) => (
+          {settingsSwitches(sound).map(([k, label]) => (
             <label
               key={k}
               className="flex min-h-11 items-center justify-between gap-3 text-sm font-bold"

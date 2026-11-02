@@ -175,6 +175,58 @@ function parseLedger(x: unknown): DayLedger[] {
   return out;
 }
 
+/** A guest-book entry with everything an arrival needs, or null. */
+function parseRegular(x: unknown): Regular | null {
+  if (!isObj(x) || typeof x["name"] !== "string") return null;
+  const breed = int(x["breed"], -1);
+  const size = x["size"] === "small" || x["size"] === "large" ? x["size"] : null;
+  const temper = x["temper"] === "gentle" || x["temper"] === "active" ? x["temper"] : null;
+  if (breed < 0 || breed >= BREEDS.length || !size || !temper) return null;
+  return {
+    name: x["name"].trim().slice(0, 24) || "Pup",
+    breed,
+    size,
+    temper,
+    visits: Math.max(1, int(x["visits"], 1)),
+    friendship: clamp(num(x["friendship"], 0), 0, 100),
+    lastDay: Math.max(0, int(x["lastDay"], 0)),
+  };
+}
+
+/**
+ * Puts every pup somewhere valid: unchecked pups wait in the lobby; boarders sleep only in a free boarding bed of that
+ * room; daycare pups only in a playroom with a free spot (extras calm down, or wait in the lobby). Nobody is dropped.
+ */
+function normalisePlaces(f: Facility, dogs: TDog[]): TDog[] {
+  const roomOf = (uid: string) => f.rooms.find((r) => r.uid === uid) ?? null;
+  const calm = f.rooms.find((r) => r.type === "calm") ?? null;
+  const spotKinds = ["dog_bed", "play_mat", "deluxe_bed", "cloud_bed"];
+  const left = new Map<string, number>();
+  for (const r of f.rooms)
+    if (r.type === "playroom")
+      left.set(r.uid, Math.min(Math.floor((r.w * r.d) / 2), f.items.filter((i) => i.room === r.uid && spotKinds.includes(i.kind)).length));
+  const takenBeds = new Set<string>();
+  const lobby: TPlace = { kind: "lobby" };
+  return dogs.map((d) => {
+    const p = d.place;
+    if (p.kind === "lobby") return d;
+    if (!d.checkedIn) return { ...d, place: lobby };
+    if (p.kind === "bed") {
+      const bed = f.items.find((i) => i.uid === p.bed);
+      if (!d.boarding || !bed || bed.kind !== "boarding_bed" || bed.room !== p.room || takenBeds.has(bed.uid)) return { ...d, place: lobby };
+      takenBeds.add(bed.uid);
+      return d;
+    }
+    const room = roomOf(p.room);
+    if (p.kind === "calm") return room?.type === "calm" ? d : { ...d, place: lobby };
+    if (d.boarding || room?.type !== "playroom") return { ...d, place: lobby };
+    const free = left.get(room.uid) ?? 0;
+    if (free <= 0) return { ...d, place: calm ? { kind: "calm", room: calm.uid } : lobby };
+    left.set(room.uid, free - 1);
+    return d;
+  });
+}
+
 function parseFacility(x: unknown): Facility | null {
   if (!isObj(x)) return null;
   const f = newFacility(str(x["name"], "My Daycare"));
@@ -200,17 +252,23 @@ function parseFacility(x: unknown): Facility | null {
     const placed: Placed = { ...p, room: room && p.kind !== "path" ? room.uid : null };
     if (validThingAt(f, placed) === null) f.items.push(placed);
   }
-  f.dogs = (Array.isArray(x["dogs"]) ? x["dogs"] : []).map((d) => parseDog(d, f)).filter((d): d is TDog => !!d);
+  const seenDogs = new Set<string>();
+  const dogs = (Array.isArray(x["dogs"]) ? x["dogs"] : [])
+    .map((d) => parseDog(d, f))
+    .filter((d): d is TDog => !!d && !seenDogs.has(d.id) && !!seenDogs.add(d.id))
+    .slice(0, 200);
+  f.dogs = normalisePlaces(f, dogs);
+  const seenStaff = new Set<string>();
   const staff = (Array.isArray(x["staff"]) ? x["staff"] : []).filter(
-    (s): s is Staff => isObj(s) && typeof s["id"] === "string" && typeof s["name"] === "string" && typeof s["energy"] === "number",
+    (s): s is Staff => isObj(s) && typeof s["id"] === "string" && SAFE_ID.test(s["id"]) && typeof s["name"] === "string" && typeof s["energy"] === "number" && !seenStaff.has(s["id"]) && !!seenStaff.add(s["id"]),
   );
-  f.staff = staff.length ? staff.slice(0, 6).map((s) => ({ ...s, energy: clamp(s.energy, 0, 100) })) : f.staff;
+  f.staff = staff.length ? staff.slice(0, 6).map((s) => ({ id: s.id, name: s.name.trim().slice(0, 24) || "Pal", energy: clamp(s.energy, 0, 100) })) : f.staff;
   f.clockMin = clamp(num(x["clockMin"], DAY_OPEN_MIN), 0, 24 * 60);
   f.day = Math.max(1, int(x["day"], 1));
   f.reputation = clamp(num(x["reputation"], 80), 40, 100);
   f.cleanliness = clamp(num(x["cleanliness"], 100), 0, 100);
   f.stats = parseStats(x["stats"]);
-  f.guestBook = (Array.isArray(x["guestBook"]) ? x["guestBook"] : []).filter((g): g is Regular => isObj(g) && typeof g["name"] === "string").slice(0, GUESTBOOK_MAX);
+  f.guestBook = (Array.isArray(x["guestBook"]) ? x["guestBook"] : []).map(parseRegular).filter((g): g is Regular => !!g).slice(0, GUESTBOOK_MAX);
   f.open = bool(x["open"], false);
   const pr = isObj(x["prices"]) ? x["prices"] : {};
   const prices = { ...PRICE_DEFAULTS };
@@ -231,23 +289,43 @@ function parseFacility(x: unknown): Facility | null {
   return f;
 }
 
+const SAFE_ID = /^[A-Za-z0-9_-]{1,24}$/;
+const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype", "hasOwnProperty", "toString", "valueOf"]);
+/** One past the highest numbered id in the save (r12, t40, d7, s3…), so new things never reuse an id. */
+function nextSeq(facilities: Record<string, Facility>): number {
+  let max = 0;
+  const see = (uid: string) => {
+    const m = /^[a-z](\d+)$/.exec(uid);
+    if (m) max = Math.max(max, Number(m[1]));
+  };
+  for (const f of Object.values(facilities)) {
+    f.rooms.forEach((r) => see(r.uid));
+    f.items.forEach((i) => see(i.uid));
+    f.dogs.forEach((d) => see(d.id));
+    f.staff.forEach((st) => see(st.id));
+  }
+  return max + 1;
+}
+
 /** Validates and repairs a loaded save; null if it isn't a save at all. Never trusts paid ownership (none is stored). */
 export function parseTycoon(raw: unknown): TycoonState | null {
   if (!isObj(raw) || raw["v"] !== SAVE_VERSION) return null;
   const facs = isObj(raw["facilities"]) ? raw["facilities"] : {};
   const facilities: Record<string, Facility> = {};
   for (const [id, f] of Object.entries(facs)) {
+    if (!SAFE_ID.test(id) || UNSAFE_KEYS.has(id)) continue;
     const parsed = parseFacility(f);
     if (parsed) facilities[id] = parsed;
   }
-  const active = typeof raw["active"] === "string" && facilities[raw["active"]] ? raw["active"] : Object.keys(facilities)[0] ?? "f1";
-  if (!facilities[active]) facilities[active] = newFacility("My Daycare");
+  const own = (id: unknown): id is string => typeof id === "string" && Object.hasOwn(facilities, id);
+  const active = own(raw["active"]) ? raw["active"] : Object.keys(facilities)[0] ?? "f1";
+  if (!Object.hasOwn(facilities, active)) facilities[active] = newFacility("My Daycare");
   const g = isObj(raw["guide"]) ? raw["guide"] : {};
   return {
     v: SAVE_VERSION,
     coins: num(raw["coins"], START_COINS),
     xp: Math.max(0, int(raw["xp"], 0)),
-    seq: Math.max(1, int(raw["seq"], 1)),
+    seq: Math.max(1, int(raw["seq"], 1), nextSeq(facilities)),
     lastSeen: num(raw["lastSeen"], Date.now()),
     guide: { done: bool(g["done"], false), skipped: bool(g["skipped"], false), painted: bool(g["painted"], false) },
     active,

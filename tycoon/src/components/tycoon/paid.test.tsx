@@ -25,17 +25,18 @@ describe("paid packs in the new game", () => {
     expect(placeThing(s, "cloud_bed", 22, 22, 0, NONE)).toEqual({ ok: false, error: "Part of the Deluxe Daycare Decor pack." });
     expect(placeThing(s, "cloud_bed", 22, 22, 0)).toEqual({ ok: false, error: "Part of the Deluxe Daycare Decor pack." }); // default: fail closed
   });
-  it("with it, it places at price 0 and adds a spot and Fun", () => {
-    const { s, room } = play();
+  it("with it, they place like their free twins: Cloud Bed = Dog Bed, Lighthouse Fort = Mini Hurdles", () => {
+    const { s, room } = play({ ...guidedBuild(newTycoon(0)), xp: 50 * 4 * 3 });
     const t = ok(placeThing(s, "cloud_bed", 22, 22, 0, DELUXE));
-    expect(t.coins).toBe(s.coins);
-    expect(fac(t).items.at(-1)).toMatchObject({ kind: "cloud_bed", room: room.uid, spent: 0 });
+    expect(t.coins).toBe(s.coins - 60);
+    expect(fac(t).items.at(-1)).toMatchObject({ kind: "cloud_bed", room: room.uid, spent: 60 });
     expect(caps(fac(t), DELUXE).playrooms[0]!.spots).toBe(3);
-    expect(funAppeal(fac(t), DELUXE).fun).toBe(funAppeal(fac(s), DELUXE).fun + 2);
+    expect(funAppeal(fac(t), DELUXE).fun).toBe(funAppeal(fac(s), DELUXE).fun);
     const fort = ok(placeThing(t, "lighthouse_fort", 20, 22, 0, DELUXE));
-    expect(funAppeal(fac(fort), DELUXE).fun).toBe(funAppeal(fac(s), DELUXE).fun + 7);
+    expect(fort.coins).toBe(t.coins - 180);
+    expect(funAppeal(fac(fort), DELUXE).fun).toBe(funAppeal(fac(s), DELUXE).fun + 4);
   });
-  it("after the entitlement goes, placed pack items count nothing, can't move, and sell for 0", () => {
+  it("after the entitlement goes, placed pack items count nothing and can't move, but still sell", () => {
     const { s } = play();
     const t = ok(placeThing(s, "cloud_bed", 22, 22, 0, DELUXE));
     const bed = fac(t).items.at(-1)!;
@@ -43,7 +44,7 @@ describe("paid packs in the new game", () => {
     expect(caps(fac(t), NONE).playrooms[0]!.spots).toBe(2);
     expect(moveThing(t, bed.uid, 20, 23, 0, NONE)).toEqual({ ok: false, error: "Pack no longer active." });
     const sold = ok(sellThing(t, bed.uid));
-    expect(sold.coins).toBe(t.coins);
+    expect(sold.coins).toBe(t.coins + 45);
   });
   it("saves never record ownership", () => {
     const { s } = play();
@@ -56,7 +57,7 @@ describe("paid packs in the new game", () => {
     const { rerender } = render(<CatalogSheet open tab="furniture" level={1} coins={3000} owned={NONE} onPick={() => {}} onClose={() => {}} />);
     expect(screen.getAllByText("Part of the Deluxe Daycare Decor pack")).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "Cloud Bed" })).toBeNull();
-    rerender(<CatalogSheet open tab="furniture" level={1} coins={3000} owned={DELUXE} onPick={() => {}} onClose={() => {}} />);
+    rerender(<CatalogSheet open tab="furniture" level={5} coins={3000} owned={DELUXE} onPick={() => {}} onClose={() => {}} />);
     expect(screen.getByRole("button", { name: "Cloud Bed" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Lighthouse Fort" })).toBeTruthy();
     expect(screen.queryByText("Part of the Deluxe Daycare Decor pack")).toBeNull();

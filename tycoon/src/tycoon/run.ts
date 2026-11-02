@@ -273,6 +273,8 @@ export function bath(s: TycoonState, dogId: string): TResult {
   const dog = findDog(f, dogId);
   if (!dog) return gone;
   if (!dog.checkedIn) return { ok: false, error: `Check ${dog.name} in first.` };
+  if (dog.place.kind !== "room" && dog.place.kind !== "bed") return { ok: false, error: `Settle ${dog.name} into a playroom or boarding bed first.` };
+  if (dog.bathed) return { ok: false, error: `${dog.name} already had a bath today.` };
   if (inActiveScuffle(f, dog)) return { ok: false, error: `Separate the scuffle in ${dog.name}'s room first.` };
   const why = bathBlock(f, "bath");
   if (why) return { ok: false, error: why };

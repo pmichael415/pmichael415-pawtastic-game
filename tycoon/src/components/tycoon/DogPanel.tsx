@@ -89,7 +89,7 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
             Playtime
           </Button>
         )}
-        {dog.checkedIn && c.bath && (
+        {dog.checkedIn && placed && !dog.bathed && c.bath && (
           <Button variant="secondary" className={btn} aria-label="Bath" onClick={() => act((s) => bath(s, dog.id))}>
             Bath <span className="ml-1 text-xs opacity-80">+{bathPay(f)}</span>
           </Button>

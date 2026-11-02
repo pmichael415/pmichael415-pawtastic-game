@@ -320,7 +320,7 @@ function MarketingTab({ state, f, act }: { state: TycoonState; f: Facility; act:
             {c.level > lv ? (
               <span className="text-xs font-semibold text-muted-foreground">Unlocks at level {c.level}</span>
             ) : (
-              <Button size="sm" className="h-10" disabled={!!running} onClick={() => act((s) => startCampaign(s, c.id), { event: { name: "tycoon_marketing", props: { campaign: c.id } } })}>
+              <Button size="sm" className="h-11" disabled={!!running} onClick={() => act((s) => startCampaign(s, c.id), { event: { name: "tycoon_marketing", props: { campaign: c.id } } })}>
                 Start {c.name} · {c.price}
               </Button>
             )}
@@ -346,7 +346,7 @@ export function FinancesSheet({ open, state, act, onClose }: { open: boolean; st
         </SheetHeader>
         <div role="tablist" aria-label="Finances" className="-mx-1 mt-2 flex gap-1 overflow-x-auto px-1 pb-1">
           {TABS.map((t) => (
-            <Button key={t} role="tab" aria-selected={tab === t} size="sm" variant={tab === t ? "default" : "outline"} className="h-10 shrink-0" onClick={() => setTab(t)}>
+            <Button key={t} role="tab" aria-selected={tab === t} size="sm" variant={tab === t ? "default" : "outline"} className="h-11 shrink-0" onClick={() => setTab(t)}>
               {t}
             </Button>
           ))}

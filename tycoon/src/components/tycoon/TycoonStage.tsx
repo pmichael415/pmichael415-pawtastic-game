@@ -60,7 +60,7 @@ export const TycoonStage = forwardRef<TycoonStageHandle, Props>(function TycoonS
         world.setSnapshot({ state: s.state, selected: s.selected, ghost: s.ghost, overlay: s.overlay, looks: s.looks ?? {}, pickMode: s.pickMode });
         world.resetCamera();
         worldRef.current = world;
-        (window as unknown as { __tycoonWorld?: TycoonWorld }).__tycoonWorld = world;
+        if (import.meta.env.DEV) (window as unknown as { __tycoonWorld?: TycoonWorld }).__tycoonWorld = world;
         setStatus("ready");
       })
       .catch(() => {

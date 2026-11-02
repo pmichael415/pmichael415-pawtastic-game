@@ -76,9 +76,10 @@ export const FURNITURE: FurnitureDef[] = [
   { id: "deluxe_bed", name: "Deluxe Dog Bed", w: 1, d: 1, allowed: ["playroom"], unlock: 5, price: 150, spots: 1, fun: 2 },
   { id: "staff_couch", name: "Staff Couch", w: 2, d: 1, allowed: ["staff"], unlock: 5, price: 180, staffBoost: 0.5 },
   { id: "deluxe_tub", name: "Deluxe Bath Tub", w: 2, d: 1, allowed: ["bath"], unlock: 7, price: 900, tub: "deluxe" },
-  // Deluxe Daycare Decor pack (paid, owners only): playroom furniture, price 0.
-  { id: "cloud_bed", name: "Cloud Bed", w: 1, d: 1, allowed: ["playroom"], unlock: 1, price: 0, spots: 1, fun: 2, paid: "deluxe-decor" },
-  { id: "lighthouse_fort", name: "Lighthouse Fort", w: 2, d: 2, allowed: ["playroom"], unlock: 1, price: 0, fun: 5, paid: "deluxe-decor" },
+  // Deluxe Daycare Decor pack (paid, owners only). It's sold as cosmetic-only, so each item is a new look for a free
+  // item: same coin price, level and effect (Cloud Bed = Dog Bed; Lighthouse Fort = Mini Hurdles, on a bigger footprint).
+  { id: "cloud_bed", name: "Cloud Bed", w: 1, d: 1, allowed: ["playroom"], unlock: 1, price: 60, spots: 1, paid: "deluxe-decor" },
+  { id: "lighthouse_fort", name: "Lighthouse Fort", w: 2, d: 2, allowed: ["playroom"], unlock: 4, price: 180, fun: 4, paid: "deluxe-decor" },
 ];
 
 export type OutdoorTab = "play" | "comfort" | "scenery" | "paths";

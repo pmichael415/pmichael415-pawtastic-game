@@ -36,7 +36,7 @@ const LARGE = 1.12;
 const EDGE_PICK = 0.35;
 const LOT = { x0: -36, x1: -36 + TILE * COLS, z0: -36, z1: -36 + TILE * ROWS };
 
-type DogActor = { id: string; rig: DogRig; tag: Tag; pos: { x: number; z: number }; to: { x: number; z: number }; heading: number; phase: number; size: number };
+type DogActor = { id: string; rig: DogRig; tag: Tag; pos: { x: number; z: number }; to: { x: number; z: number }; heading: number; phase: number; size: number; important?: boolean };
 type StaffActor = { rig: PersonRig; pos: { x: number; z: number }; to: { x: number; z: number } };
 type Fx = { sprite: THREE.Sprite; born: number; life: number; from: THREE.Vector3; rise: number; drift: number };
 
@@ -85,8 +85,18 @@ function bake(parts: THREE.Object3D[], target: THREE.Group) {
 
 const clear = (g: THREE.Group) => {
   g.traverse((o) => (o.userData["dispose"] as (() => void) | undefined)?.());
+  delete g.userData["dispose"];
   while (g.children.length) g.remove(g.children[0]!);
 };
+/** A canvas sign whose texture and material go away with it. */
+function disposableSign(w: number, h: number) {
+  const sign = makeSign(w, h);
+  sign.mesh.userData["dispose"] = () => {
+    sign.material.map?.dispose();
+    sign.material.dispose();
+  };
+  return sign;
+}
 
 /** Where a thing's footprint centre is in the world. */
 function thingCenter(kind: ThingKind, c: number, r: number, rot: Rot) {
@@ -110,6 +120,7 @@ export class TycoonWorld {
   private ghost = new THREE.Group();
   private fxGroup = new THREE.Group();
   private keys = { rooms: "", things: "", paths: "", overlay: "", ghost: "" };
+  private entranceSign: THREE.Object3D | null = null;
   private dogs = new Map<string, DogActor>();
   private staff = new Map<string, StaffActor>();
   private effects: Fx[] = [];
@@ -133,7 +144,8 @@ export class TycoonWorld {
   constructor(canvas: HTMLCanvasElement, opts: TycoonWorldOptions) {
     this.canvas = canvas;
     this.opts = opts;
-    const dpr = Math.min(window.devicePixelRatio || 1, opts.lowPower ? 1.25 : 1.75);
+    // Phones draw every pixel 2–3 times over at full device ratio; 1.5 looks the same at this zoom and keeps 30 fps.
+    const dpr = Math.min(window.devicePixelRatio || 1, opts.lowPower ? 1 : 1.5);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: dpr < 1.5, powerPreference: "high-performance", alpha: false });
     this.renderer.setPixelRatio(dpr);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -224,7 +236,13 @@ export class TycoonWorld {
     this.ro?.disconnect();
     this.unbindInput();
     for (const d of this.dogs.values()) d.tag.dispose();
-    for (const g of [this.rooms, this.overlay, this.things]) clear(g);
+    for (const g of [this.rooms, this.overlay, this.things, this.paths, this.ghost]) clear(g);
+    for (const f of this.effects) {
+      (f.sprite.material as THREE.SpriteMaterial).map?.dispose();
+      f.sprite.material.dispose();
+    }
+    this.effects = [];
+    (this.entranceSign?.userData["dispose"] as (() => void) | undefined)?.();
     this.renderer.dispose();
   }
 
@@ -251,10 +269,11 @@ export class TycoonWorld {
     const e = tileCenter(ENTRANCE.c, ENTRANCE.r);
     const z = LOT.z1 - 0.2;
     this.scene.add(part(GEO.box, "#0057A7", 0.35, 2.6, 0.35, e.x - 1.4, 1.3, z), part(GEO.box, "#0057A7", 0.35, 2.6, 0.35, e.x + 1.4, 1.3, z), part(GEO.box, "#0057A7", 3.3, 0.35, 0.4, e.x, 2.7, z));
-    const sign = makeSign(3.2, 0.8);
+    const sign = disposableSign(3.2, 0.8);
     sign.draw({ title: "Entrance", sub: "Your daycare", badge: "🐾", color: "#ffd34d" });
     sign.mesh.position.set(e.x, 3.3, z);
     this.scene.add(sign.mesh);
+    this.entranceSign = sign.mesh;
     // trees outside the lot for scale
     for (const [x, tz] of [[-42, 10], [42, 12], [-44, -12], [43, -20], [-41, -30], [40, -34], [-20, -40], [18, -41]] as const) {
       this.scene.add(part(GEO.cylLo, "#8a5a33", 0.4, 1.8, 0.4, x, 0.9, tz), part(GEO.sphereLo, "#5fb35a", 3, 2.7, 3, x, 2.7, tz));
@@ -326,7 +345,7 @@ export class TycoonWorld {
         g.rotation.x = -Math.PI / 2;
         this.overlay.add(g);
         if (on) {
-          const sign = makeSign(4.2, 1.3);
+          const sign = disposableSign(4.2, 1.3);
           sign.draw({ title: `${p.name} · for sale`, sub: `Level ${p.level}`, badge: `${p.price / 1000}k`, color: "#ffd34d" });
           sign.mesh.position.set(x0 + W / 2, 1.6, z0 + D / 2);
           this.overlay.add(sign.mesh, part(GEO.cylLo, "#3b3f45", 0.12, 1.2, 0.12, x0 + W / 2, 0.6, z0 + D / 2 - 0.05));
@@ -341,8 +360,12 @@ export class TycoonWorld {
         for (let r = p.r0; r <= p.r1; r++) pts.push(x0, 0.01, -36 + TILE * r, x0 + W, 0.01, -36 + TILE * r);
         const geo = new THREE.BufferGeometry();
         geo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
-        const lines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: "#5c8f4e", transparent: true, opacity: 0.35 }));
-        lines.userData["dispose"] = () => geo.dispose();
+        const lineMat = new THREE.LineBasicMaterial({ color: "#5c8f4e", transparent: true, opacity: 0.35 });
+        const lines = new THREE.LineSegments(geo, lineMat);
+        lines.userData["dispose"] = () => {
+          geo.dispose();
+          lineMat.dispose();
+        };
         this.overlay.add(lines);
       }
     }
@@ -466,6 +489,7 @@ export class TycoonWorld {
       if (this.snap?.looks.bandana) (a.rig.bandana as THREE.Mesh).material = mat(this.snap.looks.bandana);
       const tone = selected === d.id ? "selected" : inActiveScuffle(f, d) ? "alert" : !d.checkedIn ? "waiting" : d.place.kind === "calm" ? "calm" : "default";
       a.tag.set(d.name, !d.checkedIn ? "check in" : `${Math.round(d.happiness)}% happy`, tone);
+      a.important = tone !== "default" && tone !== "calm";
     }
     for (const [id, a] of this.dogs)
       if (!seen.has(id)) {
@@ -564,6 +588,8 @@ export class TycoonWorld {
       }
       a.rig.root.position.set(a.pos.x, 0.06, a.pos.z);
       a.rig.root.rotation.y = a.heading;
+      // Zoomed out, only pups that need you keep their name tags (less clutter, fewer layers to draw).
+      a.tag.sprite.visible = this.distance <= 30 || !!a.important;
       const p = this.t * (moving ? 10 : 3) + a.phase;
       a.rig.tail.rotation.z = calm ? 0 : Math.sin(p * (moving ? 1 : 2.5)) * 0.6;
       a.rig.body.position.y = calm ? 0 : moving ? Math.abs(Math.sin(p)) * 0.05 : Math.sin(p * 0.5) * 0.012;

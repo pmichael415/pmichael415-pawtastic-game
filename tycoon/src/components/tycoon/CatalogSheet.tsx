@@ -56,7 +56,7 @@ export function CatalogSheet({ open, tab, level, coins, owned, onPick, onClose }
                 ) : locked ? (
                   <span className="shrink-0 text-xs font-semibold text-muted-foreground">Unlocks at level {e.unlock}</span>
                 ) : (
-                  <Button size="sm" className="h-10 shrink-0" aria-label={e.name} variant={coins >= e.price ? "default" : "outline"} onClick={() => onPick(e.id)}>
+                  <Button size="sm" className="h-11 shrink-0" aria-label={e.name} variant={coins >= e.price ? "default" : "outline"} onClick={() => onPick(e.id)}>
                     Choose
                   </Button>
                 )}

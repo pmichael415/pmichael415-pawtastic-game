@@ -36,7 +36,7 @@ export function LandSheet({ open, state, act, onClose }: { open: boolean; state:
                 ) : (
                   <Button
                     size="sm"
-                    className="h-10"
+                    className="h-11"
                     aria-label={`Buy ${p.name} for ${p.price.toLocaleString()} coins`}
                     onClick={() => act((s) => buyLand(s, p.id), { event: { name: "tycoon_land", props: { parcel: p.id } } })}
                   >

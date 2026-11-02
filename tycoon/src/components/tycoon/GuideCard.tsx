@@ -28,7 +28,7 @@ export function GuideCard({
               <p className="font-semibold text-secondary">{g.title}</p>
               {i + 1 === step && <p className="text-sm text-muted-foreground">{g.detail}</p>}
               {i + 1 === step && i === 3 && (
-                <Button size="sm" variant="ghost" className="mt-1 h-9 px-2" onClick={() => set(markPainted)}>
+                <Button size="sm" variant="ghost" className="mt-1 h-11 px-2" onClick={() => set(markPainted)}>
                   Skip this step
                 </Button>
               )}

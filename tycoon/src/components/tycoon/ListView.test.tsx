@@ -83,6 +83,33 @@ describe("list view", () => {
     unmount();
   });
 
+  it("built things can be upgraded, closed and sold from the list view", () => {
+    const { unmount } = render(<Harness />);
+    tab("outdoor");
+    place("Play Yard");
+    const items = screen.getByRole("region", { name: "Outdoor items" });
+    fireEvent.click(within(items).getByRole("button", { name: "Upgrade Play Yard · 360" }));
+    expect(fac(tycoonStore.getState()!).items.find((i) => i.kind === "play_yard")!.level).toBe(2);
+    fireEvent.click(within(items).getByRole("button", { name: "Close Play Yard" }));
+    expect(fac(tycoonStore.getState()!).items.find((i) => i.kind === "play_yard")!.closed).toBe(true);
+    fireEvent.click(within(items).getByRole("button", { name: "Sell Play Yard" }));
+    fireEvent.click(within(items).getByRole("button", { name: /^Tap again to sell Play Yard/ }));
+    expect(fac(tycoonStore.getState()!).items.some((i) => i.kind === "play_yard")).toBe(false);
+    unmount();
+  });
+
+  it("furniture inside a room can be sold from its room card", () => {
+    const { unmount } = render(<Harness />);
+    place("Lobby");
+    tab("furniture");
+    place("Waiting Bench");
+    const lobby = screen.getByRole("region", { name: "Lobby" });
+    fireEvent.click(within(lobby).getByRole("button", { name: "Sell Waiting Bench" }));
+    fireEvent.click(within(lobby).getByRole("button", { name: /^Tap again to sell Waiting Bench/ }));
+    expect(fac(tycoonStore.getState()!).items.some((i) => i.kind === "bench")).toBe(false);
+    unmount();
+  });
+
   it("locked items say when they unlock", () => {
     const { unmount } = render(<Harness />);
     tab("furniture");

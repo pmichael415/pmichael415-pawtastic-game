@@ -78,3 +78,26 @@ describe("tycoon models", () => {
     expect((box.min.x + box.max.x) / 2).toBeCloseTo(1);
   });
 });
+
+describe("GPU resources are released", () => {
+  it("the sign's canvas texture and material are disposed with it", () => {
+    const g = buildThing("sign", 1);
+    const disposed: string[] = [];
+    g.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined;
+      if (m && m.map) {
+        const md = m.dispose.bind(m);
+        const td = m.map.dispose.bind(m.map);
+        m.dispose = () => (disposed.push("material"), md());
+        m.map.dispose = () => (disposed.push("texture"), td());
+      }
+    });
+    let hooks = 0;
+    g.traverse((o) => {
+      const d = o.userData["dispose"] as (() => void) | undefined;
+      if (d) (hooks++, d());
+    });
+    expect(hooks).toBeGreaterThan(0);
+    expect(disposed).toEqual(expect.arrayContaining(["material", "texture"]));
+  });
+});

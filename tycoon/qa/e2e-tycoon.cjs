@@ -141,7 +141,7 @@ async function guidedStart(s, label) {
   await page.waitForTimeout(300);
   await clearOverlays();
   const after = await s.st();
-  check(`${label}: check in → playroom → playtime → checkout pays`, after.facilities.f1.dogs.length === 0 && after.coins > coins0 && after.facilities.f1.stats.checkouts === 1, `+${after.coins - coins0}`);
+  check(`${label}: check in → playroom → playtime → checkout pays`, !after.facilities.f1.dogs.some((d) => d.id === pup.id) && after.coins > coins0 && after.facilities.f1.stats.checkouts === 1, `+${after.coins - coins0}`);
   const claim = page.getByRole('button', { name: /^Claim \+200/ });
   const c1 = (await s.st()).coins;
   if (await claim.count()) await claim.click();
@@ -164,11 +164,14 @@ async function guidedStart(s, label) {
   try { await guidedStart(s, 'iPhone 13'); } catch (e) { check('iPhone 13: guided start ran', false, String(e).split('\n')[0]); }
 
   try {
+    // close for the build checks, so a new arrival can't stand on a square we tap
+    await page.evaluate(() => window.__tycoonSet((st) => ({ ...st, facilities: { f1: { ...st.facilities.f1, open: false, dogs: [] } } })));
     await page.getByRole('button', { name: 'Build', exact: true }).click();
     await tool('Rooms');
     await tile(17, 21); await tile(18, 23);
     const p = await panel();
     check('a room over another room is red with the reason', /Overlaps the Lobby\./.test(p) && (await btn(/^Build room/).isDisabled()), p.replace(/\n/g, ' / ').slice(0, 120));
+    log('overlap ok');
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
 
     // the playroom is reached only through the lobby door; selling a path square disconnects both
@@ -179,6 +182,7 @@ async function guidedStart(s, label) {
     const playPanel = await page.locator('section[aria-label^="Edit Playroom"]').innerText().catch(() => '');
     check('a door between rooms connects the inner room', !!play && !/Not connected/.test(playPanel), playPanel.slice(0, 80));
     await page.getByRole('button', { name: 'Close' }).click().catch(() => {});
+    log('sell path');
     await tile(18, 26);
     await btn('Sell').click(); await btn('Yes, sell').click();
     await page.waitForTimeout(200);
@@ -190,6 +194,7 @@ async function guidedStart(s, label) {
     await tool('Paths'); await tile(18, 26); await btn(/^Done · 1 square/).click(); await clearOverlays();
 
     // upgrade, move, sell
+    log('play yard');
     await s.item('Outdoor', 'Play Yard', [[11, 25]]);
     await page.getByRole('button', { name: 'Done building' }).click();
     await tile(11, 25);
@@ -197,6 +202,7 @@ async function guidedStart(s, label) {
     fac = await f();
     let yard = fac.items.find((i) => i.kind === 'play_yard');
     check('upgrading a play yard to level 2', yard && yard.level === 2);
+    log('move');
     await btn('Move').click();
     await tile(11, 19); await btn('Place').click(); await page.waitForTimeout(200);
     yard = (await f()).items.find((i) => i.kind === 'play_yard');
@@ -238,7 +244,8 @@ async function guidedStart(s, label) {
     await page.getByRole('button', { name: /^Start Flyers/ }).click();
     check('starting Flyers costs 150', (await st()).coins === c0 - 150 && (await f()).campaign.id === 'flyers');
     await page.keyboard.press('Escape');
-    // play three days fast
+    // play three days fast (open, so the day clock runs)
+    await page.evaluate(() => window.__tycoonSet((st) => ({ ...st, facilities: { f1: { ...st.facilities.f1, open: true } } })));
     await page.evaluate(() => { window.__tycoonSpeed = 64; });
     const day0 = (await f()).day;
     const start = Date.now();
@@ -310,7 +317,7 @@ async function guidedStart(s, label) {
     await page.evaluate(() => document.querySelector('section[aria-label="3D daycare view"] canvas').scrollIntoView({ block: 'center' }));
     const fps = await page.evaluate(() => new Promise((res) => { let n = 0; const t0 = performance.now(); const step = (t) => { n++; if (t - t0 < 3000) requestAnimationFrame(step); else res((n * 1000) / (t - t0)); }; requestAnimationFrame(step); }));
     const info = await page.evaluate(() => window.__tycoonWorld.debugInfo());
-    check('frame rate with 12 rooms and 200 things ≥ 30 fps', fac.rooms.length === 12 && fac.items.length === 200 && fps >= 30, `${fac.rooms.length} rooms, ${fac.items.length} things, ${fps.toFixed(1)} fps, render ${info.frameMs.toFixed(1)} ms, ${info.calls} draw calls`);
+    check('frame rate with 12 rooms, 200 things and 30 dogs ≥ 30 fps', fac.rooms.length === 12 && fac.items.length === 200 && fac.dogs.length === 30 && info.dogs.length === 30 && fps >= 30, `${fac.rooms.length} rooms, ${fac.items.length} things, ${info.dogs.length} dogs, ${fps.toFixed(1)} fps, render ${info.frameMs.toFixed(1)} ms, ${info.calls} draw calls`);
   } catch (e) { check('frame-rate check ran', false, String(e).split('\n')[0]); }
   check('iPhone 13: no page errors', s.errors.length === 0, s.errors.slice(0, 3).join(' | '));
   await s.ctx.close();
