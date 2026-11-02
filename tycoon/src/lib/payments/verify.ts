@@ -1,5 +1,5 @@
 // Runtime-agnostic (Web Crypto) Stripe-style webhook verification + event checks.
-import { PAID_PRODUCTS, type PaidProduct } from "../catalog";
+import { PAID_PRODUCTS, type PaidProduct, type ReturnPath } from "../catalog";
 
 const enc = new TextEncoder();
 
@@ -140,14 +140,18 @@ export const gameOf = (o: Record<string, unknown>): string | null => {
   const g = m && typeof m === "object" ? (m as Record<string, unknown>)["game"] : null;
   return typeof g === "string" ? g : null;
 };
-/** The Checkout Session request for one cosmetic pack (card only, test mode is enforced by the caller). */
-export function checkoutParams(product: PaidProduct, userId: string, origin: string): URLSearchParams {
+/** A buyer returns to the product's own game page, or to the Shop tab when the purchase started there. */
+export const allowedReturn = (product: PaidProduct, returnTo: string): returnTo is ReturnPath =>
+  returnTo === product.returnPath || returnTo === "/shop";
+
+/** The Checkout Session request for one product; the caller checks the mode and the return page. */
+export function checkoutParams(product: PaidProduct, userId: string, origin: string, returnTo: ReturnPath): URLSearchParams {
   return new URLSearchParams({
     // No payment_method_types: the current Stripe API rejects it; payment methods come from the Dashboard settings.
     // Delayed methods are safe: the webhook grants only once payment_status is "paid".
     mode: "payment",
-    success_url: `${origin}/shop?checkout=returned`,
-    cancel_url: `${origin}/shop?checkout=cancelled`,
+    success_url: `${origin}${returnTo}?checkout=returned`,
+    cancel_url: `${origin}${returnTo}?checkout=cancelled`,
     client_reference_id: userId,
     "metadata[game]": GAME_TAG,
     "metadata[user_id]": userId,

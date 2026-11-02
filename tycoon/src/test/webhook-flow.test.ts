@@ -9,6 +9,7 @@ import { PGlite } from "@electric-sql/pglite";
 const db = new PGlite();
 const SECRET = "whsec_test_flow";
 const U1 = "00000000-0000-0000-0000-0000000000a1";
+const I1 = "11111111-1111-4111-8111-111111111111";
 
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
@@ -277,7 +278,7 @@ describe("one Stripe account shared by every PAWtastic game", () => {
     const { checkoutParams } = await import("@/lib/payments/verify");
     const { productById } = await import("@/lib/catalog");
     const product = productById("blue-ribbon-style")!;
-    const p = checkoutParams(product, U1, "https://play.example.com");
+    const p = checkoutParams(product, U1, "https://play.example.com", "/shop");
     expect(p.get("metadata[game]")).toBe("pawtastic-games-hub");
     expect(p.get("payment_intent_data[metadata][game]")).toBe("pawtastic-games-hub");
     expect(p.get("payment_intent_data[metadata][user_id]")).toBe(U1);
@@ -285,5 +286,35 @@ describe("one Stripe account shared by every PAWtastic game", () => {
     expect(p.get("line_items[0][price_data][product_data][name]")).toBe("PAWtastic Games · Blue Ribbon Style Pack");
     expect(p.get("line_items[0][price_data][unit_amount]")).toBe("299");
     expect(p.get("success_url")).toBe("https://play.example.com/shop?checkout=returned");
+  });
+});
+
+describe("consumables become deliveries, looks become entitlements", () => {
+  const hub = (product: string) => ({ metadata: { user_id: U1, product_id: product, game: "pawtastic-games-hub" } });
+  it("a paid coin pack becomes one delivery for the new Daycare; a refund after it was collected becomes a reversal", async () => {
+    await db.exec(`INSERT INTO public.checkout_sessions(id, user_id, product_id, amount, currency) VALUES ('cs_live_k1', '${U1}', 'coins-8000', 299, 'usd')`);
+    const r = await send(completed("evt_k1", "cs_live_k1", 299, hub("coins-8000")));
+    expect(r.json["result"]).toBe("granted");
+    const rows = (await db.query(`SELECT game, contents, status FROM public.deliveries WHERE source_ref = 'cs_live_k1'`)).rows;
+    expect(rows).toEqual([{ game: "daycare-next", contents: { coins: 8000 }, status: "ready" }]);
+    expect(await active()).not.toContain("coins-8000");
+    await db.query(`SELECT public.reserve_deliveries($1, $2, 'daycare-next', 'live')`, [U1, I1]);
+    const rf = await send({
+      id: "evt_k1_rf",
+      type: "charge.refunded",
+      livemode: true,
+      data: { object: { id: "ch_k1", payment_intent: "pi_cs_live_k1", amount: 299, amount_refunded: 299, refunded: true, metadata: { game: "pawtastic-games-hub" } } },
+    });
+    expect(rf.json["result"]).toBe("revoked");
+    const rev = (await db.query(`SELECT contents, reserved_by FROM public.deliveries WHERE source = 'reversal' AND source_ref IN (SELECT id::text FROM public.deliveries WHERE source_ref = 'cs_live_k1')`)).rows;
+    expect(rev).toEqual([{ contents: { coins: -8000 }, reserved_by: I1 }]);
+  });
+  it("a Power Pack is delivered to Recess Rush; Runner Looks become an account entitlement", async () => {
+    await db.exec(`INSERT INTO public.checkout_sessions(id, user_id, product_id, amount, currency) VALUES ('cs_live_k2', '${U1}', 'power-pack', 299, 'usd'), ('cs_live_k3', '${U1}', 'runner-looks', 199, 'usd')`);
+    expect((await send(completed("evt_k2", "cs_live_k2", 299, hub("power-pack")))).json["result"]).toBe("granted");
+    expect((await db.query(`SELECT game, contents FROM public.deliveries WHERE source_ref = 'cs_live_k2'`)).rows).toEqual([{ game: "recess", contents: { shieldStarts: 10, extraLives: 10 } }]);
+    expect((await send(completed("evt_k3", "cs_live_k3", 199, hub("runner-looks")))).json["result"]).toBe("granted");
+    expect(await active()).toContain("runner-looks");
+    expect((await db.query(`SELECT 1 FROM public.deliveries WHERE source_ref = 'cs_live_k3'`)).rows).toHaveLength(0);
   });
 });

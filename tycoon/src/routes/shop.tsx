@@ -51,7 +51,7 @@ function Shop() {
     setBusy(true);
     track("checkout_start", { product: productId });
     try {
-      const r = await createCheckout({ data: { productId } });
+      const r = await createCheckout({ data: { productId, returnTo: "/shop" } });
       if (r.ok) window.location.href = r.url;
       else {
         // Keep the reason readable, and record it (key-masked, no personal data) so a refused checkout can be diagnosed.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalOrigin, checkoutParams, GRANTING_EVENTS, paymentsConfig, reconcileSession, STRIPE_VERSION, stripeErrorSummary, stripeHeaders } from "./verify";
+import { allowedReturn, canonicalOrigin, checkoutParams, GRANTING_EVENTS, paymentsConfig, reconcileSession, STRIPE_VERSION, stripeErrorSummary, stripeHeaders } from "./verify";
 
 const base = { STRIPE_SECRET_KEY: "sk_live_x", PAYMENT_WEBHOOK_SECRET: "whsec_x", STRIPE_EXPECTED_ACCOUNT: "acct_1PawGames000" };
 describe("payment readiness requires a canonical HTTPS origin", () => {
@@ -73,12 +73,32 @@ describe("Stripe requests use the same pinned API version as Graduation Day", ()
     expect(h["Stripe-Version"]).toBe(STRIPE_VERSION);
   });
   it("checkout follows the current API: payment methods come from the Dashboard, not payment_method_types", () => {
-    const p = checkoutParams({ id: "blue-ribbon-style", name: "Blue Ribbon Style Pack", priceCents: 299, currency: "usd" } as never, "u1", "https://play.example.com");
+    const p = checkoutParams({ id: "blue-ribbon-style", name: "Blue Ribbon Style Pack", priceCents: 299, currency: "usd" } as never, "u1", "https://play.example.com", "/shop");
     expect([...p.keys()].some((k) => k.startsWith("payment_method_types"))).toBe(false);
     expect(p.get("mode")).toBe("payment");
     expect(p.get("metadata[game]")).toBe("pawtastic-games-hub");
     expect(p.get("metadata[user_id]")).toBe("u1");
     expect(p.get("payment_intent_data[metadata][product_id]")).toBe("blue-ribbon-style");
     expect(p.get("line_items[0][price_data][unit_amount]")).toBe("299");
+  });
+});
+
+describe("checkout returns the buyer to the game", () => {
+  it("success and cancel go back to the page the purchase started from", async () => {
+    const { productById } = await import("@/lib/catalog");
+    const pp = productById("power-pack")!;
+    const p = checkoutParams(pp, "u1", "https://play.example.com", "/recess");
+    expect(p.get("success_url")).toBe("https://play.example.com/recess?checkout=returned");
+    expect(p.get("cancel_url")).toBe("https://play.example.com/recess?checkout=cancelled");
+    expect(checkoutParams(pp, "u1", "https://play.example.com", "/shop").get("success_url")).toBe("https://play.example.com/shop?checkout=returned");
+  });
+  it("only the product's own game page or the Shop tab is allowed", async () => {
+    const { productById } = await import("@/lib/catalog");
+    const pp = productById("power-pack")!;
+    expect(allowedReturn(pp, "/recess")).toBe(true);
+    expect(allowedReturn(pp, "/shop")).toBe(true);
+    expect(allowedReturn(pp, "/daycare-next")).toBe(false);
+    expect(allowedReturn(pp, "https://evil.example/" as never)).toBe(false);
+    expect(allowedReturn(productById("coins-8000")!, "/daycare-next")).toBe(true);
   });
 });

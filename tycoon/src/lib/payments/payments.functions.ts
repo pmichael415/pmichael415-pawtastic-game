@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { PAID_PRODUCTS, PRODUCT_IDS } from "@/lib/catalog";
-import { PAYMENT_MODE, accountMatches, checkoutParams, paymentsConfig, reconcileSession, serverPaymentsEnv, stripeErrorSummary, stripeHeaders } from "./verify";
+import type { Delivery } from "@/lib/purchases/delivery";
+import { PAYMENT_MODE, accountMatches, allowedReturn, checkoutParams, paymentsConfig, reconcileSession, serverPaymentsEnv, stripeErrorSummary, stripeHeaders } from "./verify";
 
 // Cache the "this key belongs to the confirmed game account" check briefly per server instance.
 let accountOk: { key: string; account: string; until: number } | null = null;
@@ -29,7 +30,8 @@ export const getPaymentsStatus = createServerFn({ method: "GET" }).handler(async
 export const listEntitlements = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase.from("entitlements").select("product_id, granted_at").eq("user_id", context.userId).is("revoked_at" as never, null);
+    // Only purchases made in this deployment's mode count (test packs from before go-live never show).
+    const { data, error } = await context.supabase.from("entitlements").select("product_id, granted_at").eq("user_id", context.userId).eq("mode" as never, PAYMENT_MODE as never).is("revoked_at" as never, null);
     if (error) throw new Error("Could not load purchases");
     return data ?? [];
   });
@@ -37,19 +39,22 @@ export const listEntitlements = createServerFn({ method: "GET" })
 /** Creates a checkout session in PAYMENT_MODE. Fails closed when not configured or the key is in the other mode. */
 export const createCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ productId: z.enum(PRODUCT_IDS) }).parse(input))
+  .inputValidator((input: unknown) => z.object({ productId: z.enum(PRODUCT_IDS), returnTo: z.enum(["/daycare-next", "/recess", "/daycare", "/shop"]) }).parse(input))
   .handler(async ({ data, context }) => {
     const cfg = paymentsConfig(serverPaymentsEnv());
     if (!cfg.ready) return { ok: false as const, error: cfg.reason };
     const product = PAID_PRODUCTS.find((p) => p.id === data.productId)!;
+    if (!allowedReturn(product, data.returnTo)) return { ok: false as const, error: "Checkout could not be started" };
     if (!(await keyMatchesAccount(cfg.key, cfg.account))) return { ok: false as const, error: "Purchases are paused: the payment key doesn't match the confirmed PAWtastic Games account." };
 
-    const { data: owned, error: ownErr } = await context.supabase.from("entitlements").select("id").eq("user_id", context.userId).eq("product_id", product.id).maybeSingle();
-    if (ownErr) return { ok: false as const, error: "Couldn't confirm your purchases — try again" };
-    if (owned) return { ok: false as const, error: "You already own this pack — use Restore purchases." };
+    if (product.kind === "looks") {
+      const { data: owned, error: ownErr } = await context.supabase.from("entitlements").select("id").eq("user_id", context.userId).eq("product_id", product.id).eq("mode" as never, PAYMENT_MODE as never).maybeSingle();
+      if (ownErr) return { ok: false as const, error: "Couldn't confirm your purchases — try again" };
+      if (owned) return { ok: false as const, error: "You already own this pack — use Restore purchases." };
+    }
 
     const origin = cfg.origin;
-    const body = checkoutParams(product, context.userId, origin);
+    const body = checkoutParams(product, context.userId, origin, data.returnTo);
     let res: Response;
     try {
       res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
@@ -72,7 +77,8 @@ export const createCheckout = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const want = { id: session.id, user_id: context.userId, product_id: product.id, amount: product.priceCents, currency: product.currency };
-    const { error } = await supabaseAdmin.from("checkout_sessions").insert(want);
+    const row = { ...want, mode: PAYMENT_MODE };
+    const { error } = await supabaseAdmin.from("checkout_sessions").insert(row as never);
     if (error) {
       // Retried within the idempotency window -> Stripe returned the same session; reuse it only if it matches.
       if (error.code !== "23505") return { ok: false as const, error: "Checkout could not be recorded" };
@@ -81,3 +87,30 @@ export const createCheckout = createServerFn({ method: "POST" })
     }
     return { ok: true as const, url: session.url };
   });
+
+const deliveryInput = z.object({ installation: z.string().uuid(), game: z.enum(["daycare-next", "recess"]) });
+/**
+ * Reserves this account's ready deliveries for this game on this installation and returns everything reserved
+ * here and not yet confirmed (spec: "Delivery: reserve, apply, confirm"). Other installations never get them.
+ */
+export const reserveDeliveries = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => deliveryInput.parse(input))
+  .handler(async ({ data, context }): Promise<Delivery[]> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await supabaseAdmin.rpc("reserve_deliveries" as never, { _user_id: context.userId, _installation: data.installation, _game: data.game, _mode: PAYMENT_MODE } as never);
+    if (error) throw new Error("Couldn't collect purchases right now");
+    return Array.isArray(rows) ? (rows as Delivery[]) : [];
+  });
+
+/** Confirms deliveries this installation has saved. Only the installation that holds a delivery can confirm it. */
+export const ackDeliveries = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ installation: z.string().uuid(), ids: z.array(z.string().uuid()).max(100) }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: n, error } = await supabaseAdmin.rpc("ack_deliveries" as never, { _user_id: context.userId, _installation: data.installation, _ids: data.ids, _mode: PAYMENT_MODE } as never);
+    if (error) throw new Error("Couldn't confirm purchases right now");
+    return { acked: Number(n) || 0 };
+  });
+
