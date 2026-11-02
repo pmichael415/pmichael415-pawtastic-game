@@ -24,6 +24,14 @@ describe("weekly email content", () => {
     expect(c.text).toContain(`Unsubscribe: ${ORIGIN}/unsubscribe?t=tok-123`);
     expect(c.html).toContain(`href="${ORIGIN}/unsubscribe?t=tok-123"`);
   });
+  it("looks like the games and Graduation Day's emails: logo, DM Sans, brand colours, phone-sized", () => {
+    expect(c.html).toContain(`src="${ORIGIN}/brand/pawtastic-logo.png"`);
+    expect(c.html).toContain('alt="PAWtastic Academy"');
+    expect(c.html).toContain("font-family:'DM Sans'");
+    for (const colour of ["#FAF8F5", "#0068D6", "#F6A823", "#312721"]) expect(c.html).toContain(colour);
+    expect(c.html).toContain('name="viewport" content="width=device-width, initial-scale=1"');
+    expect(c.html).not.toMatch(/groom|haircut/i);
+  });
 });
 
 describe("email updates stay off until the owner's gates are done", () => {

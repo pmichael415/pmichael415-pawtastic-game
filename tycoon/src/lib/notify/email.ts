@@ -31,12 +31,20 @@ export function emailContent(
   const unsubscribeUrl = `${origin}/unsubscribe?t=${encodeURIComponent(token)}`;
   const footer = `PAWtastic Academy · ${mailingAddress}`;
   const text = [m.email_body, "", `Play now: ${link}`, "", "—", WHY, `Unsubscribe: ${unsubscribeUrl}`, footer].join("\n");
-  const html = `<!doctype html><html><body style="margin:0;background:#FAF8F5;font-family:Arial,sans-serif;color:#312721">
-<div style="max-width:520px;margin:0 auto;padding:24px">
-<p style="font-size:16px;line-height:1.5;white-space:pre-line">${esc(m.email_body)}</p>
-<p><a href="${esc(link)}" style="display:inline-block;background:#0068D6;color:#ffffff;font-weight:bold;padding:12px 20px;border-radius:12px;text-decoration:none">Play now</a></p>
-<hr style="border:none;border-top:1px solid #DAE0E7;margin:24px 0">
-<p style="font-size:12px;color:#6b5f57">${esc(WHY)}<br><a href="${esc(unsubscribeUrl)}" style="color:#6b5f57">Unsubscribe</a><br>${esc(footer)}</p>
+  // The same look as Graduation Day's emails and the games: logo tile, gold rule, DM Sans, brand blue and gold.
+  const font = "font-family:'DM Sans',-apple-system,'Segoe UI',Helvetica,Arial,sans-serif";
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;700&display=swap" rel="stylesheet"></head>
+<body style="margin:0;padding:24px 0;background:#FAF8F5;${font};color:#312721">
+<div style="max-width:560px;margin:0 auto;padding:0 12px">
+<div style="background:#FFFFFF;border:1px solid #DAE0E7;border-radius:20px;padding:28px 28px 24px">
+<img src="${esc(`${origin}/brand/pawtastic-logo.png`)}" width="72" height="72" alt="PAWtastic Academy" style="display:block;margin:0 auto;border-radius:16px">
+<div style="height:4px;width:56px;background:#F6A823;border-radius:4px;margin:18px auto 22px"></div>
+<p style="${font};font-size:16px;line-height:1.55;color:#312721;white-space:pre-line;margin:0 0 18px">${esc(m.email_body)}</p>
+<p style="text-align:center;margin:0 0 6px"><a href="${esc(link)}" style="${font};display:inline-block;background:#0068D6;color:#FFFFFF;font-size:16px;font-weight:bold;padding:14px 24px;border-radius:12px;text-decoration:none">Play now</a></p>
+</div>
+<p style="${font};font-size:12px;line-height:1.5;color:#70645C;text-align:center;margin:18px 12px 0">${esc(WHY)}<br><a href="${esc(unsubscribeUrl)}" style="color:#70645C">Unsubscribe</a><br>${esc(footer)}</p>
 </div></body></html>`;
   return { subject: m.email_subject, text, html, unsubscribeUrl };
 }
