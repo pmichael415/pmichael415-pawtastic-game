@@ -20,6 +20,7 @@ import { addedMessage, useCheckoutReturn } from "@/components/purchases/useCheck
 import { RunStart, type RunStartBuy } from "@/components/recess/RunStart";
 import { goodMoment } from "@/lib/notify/prompt";
 import { useShareContext } from "@/components/game/ShareSheet";
+import { audio } from "@/lib/audio/engine";
 
 const search = z.object({
   seed: z.string().regex(/^[\w-]{1,32}$/).optional().catch(undefined),
@@ -109,8 +110,19 @@ function Recess() {
     g.current = { lane: 1, items: [], t: 0, spawn: 0, score: 0, lives, shield, rand: mulberry(seedFrom("recess-" + runSeed)), flash: 0 };
     setHud({ score: 0, time: DUR, lives, shield });
     setPhase("run");
+    audio.jingle("start");
   };
-  const move = (d: number) => { g.current.lane = Math.max(0, Math.min(2, g.current.lane + d)); };
+  const move = (d: number) => {
+    const to = Math.max(0, Math.min(2, g.current.lane + d));
+    if (to !== g.current.lane) audio.sfx("swoosh");
+    g.current.lane = to;
+  };
+  // "Recess Run" plays during a run; pausing or finishing stops it, and leaving the page too.
+  useEffect(() => {
+    if (phase === "run") audio.music("recess");
+    else audio.stopMusic();
+  }, [phase]);
+  useEffect(() => () => audio.stopMusic(), []);
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
@@ -124,7 +136,11 @@ function Recess() {
   }, [phase]);
 
   const finish = (score: number) => {
+    const wasBest = peekSave().recessBest;
     setPhase("over");
+    audio.stopMusic();
+    audio.sfx("whistle");
+    setTimeout(() => audio.jingle(score > wasBest ? "best" : "finish"), 650);
     let coins = 0, cos: string[] = [], capped = false, rejected: string | undefined;
     const day = todayKey();
     const s = updateSave((st) => {
@@ -168,11 +184,11 @@ function Recess() {
       st.items = st.items.filter((it) => {
         it.y += speed * dt;
         if (it.lane === st.lane && Math.abs(it.y - dogY) < 30) {
-          if (it.kind === "treat") st.score += 10;
-          if (it.kind === "shield") st.shield = true;
+          if (it.kind === "treat") { st.score += 10; audio.sfx("treat"); }
+          if (it.kind === "shield") { st.shield = true; audio.sfx("shield"); }
           if (it.kind === "puddle") {
-            if (st.shield) st.shield = false;
-            else { st.lives -= 1; st.flash = 0.4; }
+            if (st.shield) { st.shield = false; audio.sfx("block"); }
+            else { st.lives -= 1; st.flash = 0.4; audio.sfx("splash"); }
           }
           return false;
         }
@@ -242,7 +258,7 @@ function Recess() {
 
   return (
     <main className="px-3 pt-3">
-      <GameHeader title="Recess Rush" subtitle={`${seed ? `Challenge “${seed}”` : "Today's course"} · best ${best}`}>
+      <GameHeader title="Recess Rush" sound subtitle={`${seed ? `Challenge “${seed}”` : "Today's course"} · best ${best}`}>
         {phase === "run" && <Button size="icon" variant="secondary" className="h-11 w-11" aria-label="Pause" onClick={() => setPhase("paused")}><Pause /></Button>}
       </GameHeader>
       {challenge != null && <p className="mt-2 rounded-2xl bg-accent p-2 text-center text-sm font-bold text-accent-foreground">A friend challenged you to beat {challenge}!</p>}

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { SoundToggle } from "./SoundToggle";
 import { Link } from "@tanstack/react-router";
 import {
   ChevronLeft,
@@ -55,7 +56,7 @@ export function GameHeader({
   subtitle?: string;
   children?: ReactNode;
   back?: boolean;
-  /** Show the Sound effects and Music switches (the new Daycare). */
+  /** A game with sound (the new Daycare, Recess Rush): a mute button, and the Sound effects and Music switches. */
   sound?: boolean;
 }) {
   return (
@@ -80,6 +81,7 @@ export function GameHeader({
         </p>
       </div>
       {children}
+      {sound && <SoundToggle />}
       <ShareButton />
       <SettingsSheet sound={sound} />
     </header>
@@ -87,7 +89,7 @@ export function GameHeader({
 }
 
 type SwitchKey = "invertLook" | "sound" | "music" | "reducedMotion" | "lowPower" | "analytics";
-/** The on/off settings. Sound and Music belong to the new Daycare only (today's games have no sound switches). */
+/** The on/off settings. Sound and Music appear in games that have sound (the new Daycare and Recess Rush). */
 export function settingsSwitches(sound: boolean): [SwitchKey, string][] {
   return [
     ["invertLook", "Invert up/down look"],

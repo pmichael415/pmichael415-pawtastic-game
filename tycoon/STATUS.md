@@ -10,6 +10,25 @@
 | Live game database (Lovable Cloud / Supabase) | Migrations 0002–0005 applied on 1 Nov (each in its own transaction, recorded in `drizzle.__drizzle_migrations` with the file hash, so they won't run twice). Checked: 6 migrations recorded, events table private (RLS on, no anon/player access), team totals start at 0. |
 | Customer app (app.pawtasticacademy.com), its database and Stripe | Not touched. |
 
+## Update — music and sounds in Recess Rush and the new Daycare (2 Nov)
+
+- **Owner:** "We need to add music and sounds on recess rush and tycoon."
+- **Built and tested; not published** (same release decision as Stage A).
+- **Music** (original, synthesized in the browser, no files):
+  - "Daycare Day": relaxed, with a faster version in rush hour;
+  - "Recess Run": upbeat;
+  - jingles for run start, finish and a new best.
+- **Daycare sounds:**
+  - a doorbell at check-in, a yip when a pup arrives;
+  - playtime, a bath and calm-down;
+  - coins at checkout, building, selling and upgrades;
+  - a soft "bonk" when something can't be done.
+- **Recess Rush sounds:** lane swoosh, treat, shield pick-up and block, puddle splash, finish whistle.
+- **Controls:** a mute button in both games' headers; Sound and Music switches in Settings (now in Recess Rush too).
+  Audio starts after the first tap and pauses in a hidden tab.
+- **Listening previews:** `node qa/audio-preview.cjs` renders them to qa/out/audio-*.wav.
+- **Not verified:** how it sounds on real phone speakers, iOS silent-switch behaviour, Bluetooth delay.
+
 ## Update — new Daycare Stage A: the first 15 minutes, the world first, a 2D map without 3D (2 Nov)
 
 - **Built and tested in this session; NOT in the Lovable hub project and NOT published.** Report:

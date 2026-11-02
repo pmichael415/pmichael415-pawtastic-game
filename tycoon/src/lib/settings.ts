@@ -82,3 +82,5 @@ const subscribe = (l: () => void) => {
   return () => listeners.delete(l);
 };
 export const useSettings = () => useSyncExternalStore(subscribe, getSettings, () => DEFAULTS);
+/** Called after any setting changes (e.g. the audio engine stopping music when Music is switched off). */
+export const onSettingsChange = subscribe;

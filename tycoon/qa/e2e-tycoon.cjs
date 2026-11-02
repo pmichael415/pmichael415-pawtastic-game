@@ -131,7 +131,9 @@ async function guidedStart(s, label) {
   check(`${label}: can open once the guided build is done`, !(await sw.isDisabled()));
   await sw.click();
   await page.evaluate(() => window.__tycoonSet((st) => ({ ...st, facilities: { f1: { ...st.facilities.f1, clockMin: 480 } } })));
-  await page.evaluate(() => window.__tycoonArrive('small', 'gentle'));
+  // The guide brings Biscuit when the daycare opens; add a pup only if none came (never a second "Biscuit").
+  await page.waitForTimeout(300);
+  if (!(await f()).dogs.length) await page.evaluate(() => window.__tycoonArrive('small', 'gentle'));
   await page.waitForTimeout(300);
   const pup = (await f()).dogs[0];
   const desk = page.getByRole('region', { name: 'Front desk' });

@@ -154,10 +154,20 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
   const act: Act = (fn, opts) => {
     const before = tycoonStore.getState();
     const r = rawAct(fn, opts);
-    if (!r.ok || !before) return r;
+    if (!r.ok) {
+      if (!opts?.quiet) sound.play("error"); // a soft bonk, never harsh
+      return r;
+    }
+    if (!before) return r;
     const a = fac(before);
     const z = fac(r.state);
     const count = (x: Facility) => x.rooms.length + x.items.length;
+    // care sounds: a doorbell at check-in, a boing at playtime, bubbles at a bath, a chime in the calm-down room
+    const calmNow = (x: Facility) => x.dogs.filter((d) => d.place.kind === "calm").length;
+    if (z.stats.admitted > a.stats.admitted) sound.play("checkin");
+    if (z.stats.plays > a.stats.plays) sound.play("playtime");
+    if (z.stats.baths > a.stats.baths && z.stats.checkouts === a.stats.checkouts) sound.play("bath");
+    if (calmNow(z) > calmNow(a)) sound.play("calm");
     if (z.stats.checkouts > a.stats.checkouts) {
       const gone = a.dogs.find((d) => !z.dogs.some((x) => x.id === d.id));
       const at = gone ? dogTile(a, gone) : null;
@@ -183,24 +193,19 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
     wasRush.current = rush;
     music.setIntensity(rush ? 1 : 0);
   }, [waiting]);
-  // Music starts on the first tap (browsers allow audio only after the player interacts) and stops when switched off.
+  // "Daycare Day" while this screen is open. The engine starts it with the first tap (browsers require one), stops
+  // it when Music is switched off, and pauses it while the tab is hidden.
   useEffect(() => {
-    if (!settings.music) {
-      music.stop();
-      return;
-    }
-    const go = () => music.start();
-    document.addEventListener("pointerdown", go, { once: true });
-    const hide = () => {
-      if (document.hidden) music.stop();
-    };
-    document.addEventListener("visibilitychange", hide);
-    return () => {
-      document.removeEventListener("pointerdown", go);
-      document.removeEventListener("visibilitychange", hide);
-      music.stop();
-    };
-  }, [settings.music]);
+    music.start();
+    return () => music.stop();
+  }, []);
+  // A little yip when a new pup arrives at the lobby (not for pups already there when the game opens).
+  const known = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const ids = new Set(f.dogs.map((d) => d.id));
+    if (known.current && f.dogs.some((d) => d.place.kind === "lobby" && !known.current!.has(d.id))) sound.play("arrive");
+    known.current = ids;
+  }, [f.dogs]);
   const show3d = settings.view !== "list" && !no3d;
   const controls: Controls = settings.view === "list" ? "list" : no3d ? "map" : "3d";
   useEffect(() => setTourControls(controls), [controls]);
@@ -221,6 +226,7 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
       return setSign(p.uid);
     }
     setSel(p.kind === "dog" ? { kind: "dog", id: p.id } : { kind: p.kind, id: p.uid });
+    sound.play("select");
   };
 
   const pickedDog = sel?.kind === "dog" ? f.dogs.find((d) => d.id === sel.id) ?? null : null;
