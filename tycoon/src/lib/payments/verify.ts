@@ -189,6 +189,23 @@ export function stripeErrorSummary(body: unknown, status: number): string {
  */
 export const STRIPE_VERSION = "2026-01-28.clover";
 
+/**
+ * Stripe's API. Only `vite dev` with the purchase checks' stand-in switched on (see vite.config.ts) may point it at
+ * qa/mock-stripe.cjs; import.meta.env.DEV is false in production builds, so that branch isn't in them at all.
+ */
+export function stripeApi(): string {
+  if (import.meta.env.DEV && process.env["PAWTASTIC_E2E_STUB"] === "1" && process.env["STRIPE_API_BASE"]) return process.env["STRIPE_API_BASE"];
+  return "https://api.stripe.com";
+}
+
+/**
+ * Idempotency-Key for creating a checkout: a quick retry of the same request (same buyer, product and return page,
+ * within the same minute) gets the same session back. The return page is part of the key because Stripe refuses a
+ * reused key whose parameters differ (success_url and cancel_url name the return page).
+ */
+export const checkoutIdempotencyKey = (userId: string, productId: string, returnTo: string, nowMs: number): string =>
+  `${userId}-${productId}-${returnTo}-${Math.floor(nowMs / 60000)}`;
+
 /** Headers for a Stripe API call; pass an idempotency key for form POSTs. */
 export function stripeHeaders(key: string, idempotencyKey?: string): Record<string, string> {
   const h: Record<string, string> = { Authorization: `Bearer ${key}`, "Stripe-Version": STRIPE_VERSION };

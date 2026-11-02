@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowedReturn, canonicalOrigin, checkoutParams, GRANTING_EVENTS, paymentsConfig, reconcileSession, STRIPE_VERSION, stripeErrorSummary, stripeHeaders } from "./verify";
+import { allowedReturn, canonicalOrigin, checkoutIdempotencyKey, checkoutParams, GRANTING_EVENTS, paymentsConfig, reconcileSession, STRIPE_VERSION, stripeErrorSummary, stripeHeaders } from "./verify";
 
 const base = { STRIPE_SECRET_KEY: "sk_live_x", PAYMENT_WEBHOOK_SECRET: "whsec_x", STRIPE_EXPECTED_ACCOUNT: "acct_1PawGames000" };
 describe("payment readiness requires a canonical HTTPS origin", () => {
@@ -27,6 +27,15 @@ describe("checkout retry within the idempotency window", () => {
     expect(reconcileSession({ ...want, user_id: "u2" }, want)).toBe("mismatch");
     expect(reconcileSession({ ...want, product_id: "deluxe-daycare-decor" }, want)).toBe("mismatch");
     expect(reconcileSession({ ...want, amount: 1 }, want)).toBe("mismatch");
+  });
+  it("a retry of the same request reuses one key; a different return page or a later minute gets a new one", () => {
+    // Stripe refuses a reused key whose parameters differ (the return page is in success_url/cancel_url), so backing
+    // out of a game's checkout and buying the same pack from the Shop tab straight away must not reuse the key.
+    const t = Date.UTC(2026, 10, 2, 15, 0, 10);
+    expect(checkoutIdempotencyKey("u1", "coins-2500", "/daycare-next", t)).toBe(checkoutIdempotencyKey("u1", "coins-2500", "/daycare-next", t + 30_000));
+    expect(checkoutIdempotencyKey("u1", "coins-2500", "/shop", t)).not.toBe(checkoutIdempotencyKey("u1", "coins-2500", "/daycare-next", t));
+    expect(checkoutIdempotencyKey("u1", "coins-2500", "/daycare-next", t)).not.toBe(checkoutIdempotencyKey("u1", "coins-2500", "/daycare-next", t + 60_000));
+    expect(checkoutIdempotencyKey("u1", "coins-2500", "/shop", t)).not.toBe(checkoutIdempotencyKey("u2", "coins-2500", "/shop", t));
   });
   it("delayed payments are handled via async_payment_succeeded", () => {
     expect(GRANTING_EVENTS).toContain("checkout.session.async_payment_succeeded");
@@ -100,5 +109,17 @@ describe("checkout returns the buyer to the game", () => {
     expect(allowedReturn(pp, "/daycare-next")).toBe(false);
     expect(allowedReturn(pp, "https://evil.example/" as never)).toBe(false);
     expect(allowedReturn(productById("coins-8000")!, "/daycare-next")).toBe(true);
+  });
+});
+
+describe("Stripe's address", () => {
+  it("is always api.stripe.com unless the development stand-in is switched on", async () => {
+    const { stripeApi } = await import("./verify");
+    const before = { ...process.env };
+    process.env["STRIPE_API_BASE"] = "http://127.0.0.1:8899";
+    expect(stripeApi()).toBe("https://api.stripe.com"); // the switch alone isn't enough
+    process.env["PAWTASTIC_E2E_STUB"] = "1";
+    expect(stripeApi()).toBe("http://127.0.0.1:8899"); // tests run as a development build
+    process.env = before;
   });
 });

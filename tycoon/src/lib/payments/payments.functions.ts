@@ -3,14 +3,14 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { PAID_PRODUCTS, PRODUCT_IDS } from "@/lib/catalog";
 import type { Delivery } from "@/lib/purchases/delivery";
-import { PAYMENT_MODE, accountMatches, allowedReturn, checkoutParams, paymentsConfig, reconcileSession, serverPaymentsEnv, stripeErrorSummary, stripeHeaders } from "./verify";
+import { PAYMENT_MODE, accountMatches, allowedReturn, checkoutIdempotencyKey, checkoutParams, paymentsConfig, reconcileSession, serverPaymentsEnv, stripeApi, stripeErrorSummary, stripeHeaders } from "./verify";
 
 // Cache the "this key belongs to the confirmed game account" check briefly per server instance.
 let accountOk: { key: string; account: string; until: number } | null = null;
 async function keyMatchesAccount(key: string, account: string): Promise<boolean> {
   if (accountOk && accountOk.key === key && accountOk.account === account && accountOk.until > Date.now()) return true;
   try {
-    const res = await fetch("https://api.stripe.com/v1/account", { headers: stripeHeaders(key) });
+    const res = await fetch(`${stripeApi()}/v1/account`, { headers: stripeHeaders(key) });
     const body = await res.json();
     const ok = res.ok && accountMatches(body, account);
     accountOk = ok ? { key, account, until: Date.now() + 10 * 60_000 } : null;
@@ -57,9 +57,9 @@ export const createCheckout = createServerFn({ method: "POST" })
     const body = checkoutParams(product, context.userId, origin, data.returnTo);
     let res: Response;
     try {
-      res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+      res = await fetch(`${stripeApi()}/v1/checkout/sessions`, {
         method: "POST",
-        headers: stripeHeaders(cfg.key, `${context.userId}-${product.id}-${Math.floor(Date.now() / 60000)}`),
+        headers: stripeHeaders(cfg.key, checkoutIdempotencyKey(context.userId, product.id, data.returnTo, Date.now())),
         body,
       });
     } catch {
