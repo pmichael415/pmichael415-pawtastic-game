@@ -105,7 +105,8 @@ function Shop() {
         <h2 className="font-display text-lg font-bold text-secondary">Optional cosmetic packs</h2>
         <p className="text-xs text-muted-foreground">Proposed launch prices. Cosmetic only — every room, upgrade and location is free to earn in-game.</p>
         <div className="mt-2 grid gap-3">
-          {PAID_PRODUCTS.map((p) => (
+          {/* Until the Shop tab is regrouped (purchases plan, Task 11), it shows only the two original packs. */}
+          {PAID_PRODUCTS.filter((p): p is typeof p & { id: "blue-ribbon-style" | "deluxe-daycare-decor" } => p.id === "blue-ribbon-style" || p.id === "deluxe-daycare-decor").map((p) => (
             <article key={p.id} className="rounded-2xl border border-primary/40 bg-card p-4 shadow-soft">
               <div className="flex items-start justify-between gap-2">
                 <h3 className="font-display text-lg font-bold text-secondary">{p.name}</h3>

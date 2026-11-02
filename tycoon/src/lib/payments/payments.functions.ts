@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { PAID_PRODUCTS } from "@/lib/catalog";
+import { PAID_PRODUCTS, PRODUCT_IDS } from "@/lib/catalog";
 import { PAYMENT_MODE, accountMatches, checkoutParams, paymentsConfig, reconcileSession, serverPaymentsEnv, stripeErrorSummary, stripeHeaders } from "./verify";
 
 // Cache the "this key belongs to the confirmed game account" check briefly per server instance.
@@ -37,7 +37,7 @@ export const listEntitlements = createServerFn({ method: "GET" })
 /** Creates a checkout session in PAYMENT_MODE. Fails closed when not configured or the key is in the other mode. */
 export const createCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ productId: z.enum(["blue-ribbon-style", "deluxe-daycare-decor"]) }).parse(input))
+  .inputValidator((input: unknown) => z.object({ productId: z.enum(PRODUCT_IDS) }).parse(input))
   .handler(async ({ data, context }) => {
     const cfg = paymentsConfig(serverPaymentsEnv());
     if (!cfg.ready) return { ok: false as const, error: cfg.reason };
