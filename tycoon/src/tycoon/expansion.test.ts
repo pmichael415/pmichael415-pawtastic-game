@@ -54,7 +54,8 @@ describe("a bath station", () => {
     const s = ready();
     const o = opt(s, "bath");
     const r = ok(buyExpansion(s, "bath"));
-    expect(s.coins - r.coins).toBe(o.cost);
+    const spent = (x: TycoonState) => fac(x).ledger.find((l) => l.day === fac(x).day)?.expenses.building ?? 0;
+    expect(spent(r) - spent(s)).toBe(o.cost);
     expect(caps(fac(r)).tubs).toHaveLength(1);
     expect(facilityUpkeep(fac(r)) - facilityUpkeep(fac(s))).toBe(o.upkeep);
   });

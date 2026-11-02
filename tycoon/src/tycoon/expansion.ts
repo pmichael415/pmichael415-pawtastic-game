@@ -3,7 +3,7 @@
 // duplicated) the second time. Game coins only. Pure.
 import { GROUPS, groupName, groupOf, type GroupId } from "@/game/engine";
 import { addDoor, drawRoom, placeThing, setRoomType } from "./build";
-import { WAGES, facilityUpkeep } from "./business";
+import { WAGES, facilityUpkeep, today } from "./business";
 import { caps, connectedRooms, roomStatus } from "./connect";
 import { containsTile, doorOutside, type Tile } from "./grid";
 import { level } from "./progress";
@@ -136,7 +136,8 @@ function quote(s: TycoonState, id: ExpansionId): { cost: number; upkeep: number 
   const hit = quotes.get(key);
   if (hit !== undefined) return hit;
   const after = build({ ...s, coins: RICH }, id);
-  const q = typeof after === "string" ? after : { cost: RICH - after.coins, upkeep: facilityUpkeep(fac(after)) - facilityUpkeep(f) };
+  // the coins spent on building (a level-up reward earned by the build is not part of the price)
+  const q = typeof after === "string" ? after : { cost: today(fac(after)).expenses.building - today(f).expenses.building, upkeep: facilityUpkeep(fac(after)) - facilityUpkeep(f) };
   if (quotes.size > 200) quotes.clear();
   quotes.set(key, q);
   return q;

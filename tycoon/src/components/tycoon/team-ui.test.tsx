@@ -97,7 +97,7 @@ describe("pups, money and objectives", () => {
   it("the Today strip shows revenue, wages due, other costs and the net, in game coins", () => {
     open(ok(hire(base(), "reception")));
     const strip = screen.getByRole("button", { name: /^Today: revenue/ });
-    expect(strip.textContent).toMatch(/Wages\s*−80/);
+    expect(strip.textContent).toMatch(/Wages\s*−330/); // tonight 80 + the sign-on fee 250 paid today
     expect(strip.textContent).toMatch(/game coins/);
   });
   it("after the first checkout the next objective is the staffing decision, and its button opens the team", () => {
