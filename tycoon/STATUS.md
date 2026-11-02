@@ -10,6 +10,24 @@
 | Live game database (Lovable Cloud / Supabase) | Migrations 0002–0005 applied on 1 Nov (each in its own transaction, recorded in `drizzle.__drizzle_migrations` with the file hash, so they won't run twice). Checked: 6 migrations recorded, events table private (RLS on, no anon/player access), team totals start at 0. |
 | Customer app (app.pawtasticacademy.com), its database and Stripe | Not touched. |
 
+## Update — new Daycare preview, and Graduation Day's Weekly Challenge, leaderboard and Shop in the hub (2 Nov)
+
+- **New Daycare (preview) at `/daycare-next`:** the build-your-own daycare (rooms, grounds, business, levels,
+  trophies, weekly challenge, Deluxe Daycare Decor pack with no gameplay advantage). Plan:
+  `docs/superpowers/plans/2026-11-01-daycare-tycoon-stage1.md`; rulings and deferred minors are in that plan's
+  ledger summary. Today's Daycare stays the default; the home page links to the preview.
+- **Migration 0008 applied** to the Daycare database on 2 Nov (one transaction, recorded with the file hash):
+  9 migrations recorded; `game_events` accepts the `tycoon_*` events and `graduation_weekly_open`.
+- **Graduation Day in the hub now uses Graduation Day's own server** for the Weekly Challenge (scores replayed
+  there), leaderboard, sign-in (its own email code, separate from the hub's sign-in) and Shop. **The Shop is
+  Graduation Day's live Stripe store: real purchases** on the games account. Checkout opens in the whole tab and
+  returns to the hub's `/graduation`. Server side: `pmichael415/pawtastic-graduation` ecff9ec (allows only the hub's
+  three addresses; staff routes and the webhook stay closed). See `docs/graduation-hub/README.md`. If the hub can't
+  reach that server, the copy falls back to free play with a link to Graduation Day's site.
+- The home page's Weekly Challenge card now opens the hub's Graduation Day page.
+- Not verified here: this session can't reach the lovable.app sites, so the live hub ↔ Graduation Day connection
+  and a real purchase from the hub haven't been tried. The owner makes the first real purchase.
+
 ## Update — Graduation Day look, and Visit / book / get the app (1 Nov)
 
 - **Same look as Graduation Day:** warm off-white page, white cards with a thin line and soft shadow, brand blue

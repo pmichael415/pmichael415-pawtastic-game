@@ -23,8 +23,8 @@ This change lets the hub's copy use Graduation Day's server, so players in the h
 - `tycoon/src/routes/graduation.tsx` hands Stripe's return and the email sign-in link to the game, and shows the
   "on Graduation Day's site" link only while the server can't be reached.
 
-**2. Graduation Day's server (`graduation-hub.patch`, NOT applied yet).** This needs a change in the
-`pmichael415/pawtastic-graduation` repository (Lovable project f53c6548). It does three things:
+**2. Graduation Day's server: applied** as `pmichael415/pawtastic-graduation` commit ecff9ec (Lovable project
+f53c6548); publish requested in Lovable on 2 Nov 2026. `graduation-hub.patch` is that commit. It does three things:
 - new `src/lib/game/hub.ts`, which allows exactly three hub addresses to call `/api/public/game/*` from a browser:
   - `https://paw-sitive-playhouse-rush.lovable.app`
   - `https://id-preview--acd6158e-ca42-414d-a979-e8b24d27b4b1.lovable.app`
@@ -39,18 +39,12 @@ This change lets the hub's copy use Graduation Day's server, so players in the h
 Sign-in is a bearer token, never a cookie, so allowing these addresses doesn't let any page act for a player who
 didn't sign in on it. Return addresses can only ever be one of the three hub addresses or Graduation Day's own site.
 
-Until part 2 is live, nothing changes for players: the game in the hub can't reach the server and stays free play.
-This is the same as today. The two parts can be published in either order.
+Whenever the hub's copy can't reach the server (an outage, or a hub address not on the list), it falls back to
+free play and the hub shows a link to Graduation Day's own site instead.
 
-## Applying part 2
-
-Either:
-- allow this Claude Code session to push to `pmichael415/pawtastic-graduation`. The session's permission check
-  refused that, so it needs a permission rule for the `add_repo` tool or your approval when asked; or
-- in a checkout of that repository: `git apply graduation-hub.patch`, run `bunx vitest run` (the new
-  `src/lib/game/hub.test.ts` has 5 tests), then commit and push (Lovable syncs from GitHub).
-
-Then publish Graduation Day in Lovable, sync and publish the hub, and try one purchase from the hub.
+Checked before publishing: Graduation Day's full suite (129 tests), typecheck and build. The production build was
+then loaded in Node and sent requests: the hub gets permission, other sites and staff routes don't, and the real
+API handlers still answer (401 when signed out).
 
 Optional: in Graduation Day's Lovable Cloud auth settings, add `https://paw-sitive-playhouse-rush.lovable.app/graduation`
 (and later `https://play.pawtasticacademy.com/graduation`) to the allowed redirect URLs. Then the link in the

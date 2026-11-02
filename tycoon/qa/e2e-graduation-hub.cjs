@@ -137,7 +137,10 @@ async function contextFor(browser, server, seen, { unpatched = false } = {}) {
   const ctx = await contextFor(browser, PATCHED, seen);
   const page = await ctx.newPage();
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(`${HUB}/graduation`, { waitUntil: "networkidle" });
+  await page.goto(`${HUB}/`, { waitUntil: "networkidle" });
+  await page.click('a:has-text("Play the Weekly Challenge")');
+  await page.waitForURL(/\/graduation$/, { timeout: 10000 });
+  check(page.url() === `${HUB}/graduation`, "home: the Weekly Challenge card opens the hub's Graduation page", page.url());
   let f = await gameFrame(page);
   check(await serverOn(f), "patched server: the game reaches Graduation Day's server from the hub");
   await page.waitForTimeout(800);
