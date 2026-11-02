@@ -10,6 +10,18 @@
 | Live game database (Lovable Cloud / Supabase) | Migrations 0002–0005 applied on 1 Nov (each in its own transaction, recorded in `drizzle.__drizzle_migrations` with the file hash, so they won't run twice). Checked: 6 migrations recorded, events table private (RLS on, no anon/player access), team totals start at 0. |
 | Customer app (app.pawtasticacademy.com), its database and Stripe | Not touched. |
 
+## Update — emails on brand (2 Nov)
+
+- Owner: "The emails need to be within brand." Every Graduation Day email (Weekly Challenge prize, sign-in code,
+  password reset, invite, email change, verification code, owner alert, weekly winners summary) now has the PAWtastic
+  Academy logo tile, a gold rule, DM Sans, the brand blue and reward gold, and one footer (PAWtastic Academy ·
+  Hawthorne & Hillsdale, NJ · pawtasticacademy.com). Prize terms unchanged word for word. Graduation 9f82fc2,
+  published 2 Nov; tests 143/143. The logo is served at
+  https://pawtastic-graduation.lovable.app/email/pawtastic-academy-logo.png (not checked from this session, which
+  can't reach lovable.app).
+- The hub's weekly email (still off) uses the same look. The hub's own sign-in and password-reset emails are still
+  the platform's default design: branding them needs custom account emails set up for the hub project.
+
 ## Update — in-game purchases, phase 1 built and tested; NOT live yet (2 Nov)
 
 - **What's built (plan `docs/superpowers/plans/2026-11-02-in-game-purchases.md`, spec rev 3):** the new Daycare's
@@ -21,7 +33,8 @@
   write under a lock, then confirms. Tabs, retries, crashes and failed confirmations can't add it twice; another
   phone gets nothing; a refund takes it back once. Cloud saves never carry bought items.
 - **Team scores:** flat points per run/day, so purchases can't raise them. **Graduation Day:** no monthly spending
-  limit by default (a player can still choose $5–$100) — pushed to its repo (559f423), not published.
+  limit by default (a player can still choose $5–$100) — published 2 Nov with its database update 0009 applied
+  (owner's go-ahead), together with the branded emails below.
 - **Tests:** unit 614/614; Graduation Day node 30/30; browser: purchases 29/29 (against development-only Stripe and
   database stand-ins), hub 37, games 35, daycare 36, teams 27, cloud 25, notify 20, Graduation in the hub 35,
   tycoon 30/31 (the known frame-rate check in this container).
