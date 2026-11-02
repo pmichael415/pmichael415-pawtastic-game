@@ -9,7 +9,7 @@ import { buyLand, placeFirstFree } from "./build";
 import { createArrival, tick, welcomeBack } from "./run";
 import { fac, newTycoon, parseTycoon, withFac } from "./state";
 import { checkTrophies, type Trophy } from "./trophies";
-import { TOUR_ORDER, syncTour } from "./tour";
+import { TOUR_ORDER, hasTourUpgrade, syncTour } from "./tour";
 import { rollWeekly } from "./weekly";
 import { nyDateKey, weekKey } from "@/game/engine";
 import type { Controls } from "./controls";
@@ -113,17 +113,19 @@ const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
 // ---------- measuring the guided tour (spec §3.8): start, each beat reached, skip, return ----------
-let controls: Controls = "3d";
+// Unknown until the playing screen says (the save loads before it renders): events leave it out rather than guess.
+let controls: Controls | null = null;
 /** The playing screen says which controls the player has (3D, the 2D map or the list), for the tour's events. */
-export function setTourControls(c: Controls) {
+export function setTourControls(c: Controls | null) {
   controls = c;
 }
+const withControls = () => (controls ? { controls } : {});
 
 function reportTour(prev: TycoonState | null, next: TycoonState) {
   const a = prev?.tour ?? null;
   const b = next.tour;
   if (!b) return;
-  const base = { mode: b.mode, controls, sec: Math.max(0, Math.round((Date.now() - b.startedAt) / 1000)) };
+  const base = { mode: b.mode, ...withControls(), sec: Math.max(0, Math.round((Date.now() - b.startedAt) / 1000)) };
   if (!a) track("tycoon_guide", { beat: "start", ...base });
   if (b.skipped) {
     if (!a?.skipped) track("tycoon_guide", { beat: "skipped", at: b.beat, ...base });
@@ -132,7 +134,11 @@ function reportTour(prev: TycoonState | null, next: TycoonState) {
   // Every beat passed since the last change, in order (one change can pass several); "meet" is the start itself.
   const from = a && !a.skipped ? TOUR_ORDER.indexOf(a.beat) : 0;
   const to = TOUR_ORDER.indexOf(b.beat);
-  for (let i = Math.max(1, from + 1); i <= to; i++) track("tycoon_guide", { beat: TOUR_ORDER[i]!, ...base });
+  for (let i = Math.max(1, from + 1); i <= to; i++) {
+    // "Not now" at the upgrade jumps past the benefit beat: report that, not a benefit that didn't happen.
+    const beat = TOUR_ORDER[i] === "benefit" && !hasTourUpgrade(next) ? "upgrade_passed" : TOUR_ORDER[i]!;
+    track("tycoon_guide", { beat, ...base });
+  }
 }
 
 /** Whole New York calendar days between two times (0 on the same day). */
@@ -210,7 +216,7 @@ function activate(): { bonus: number; weekly: number } {
   if (users > 1 && snap.state) return { bonus: 0, weekly: 0 };
   const loaded = load();
   const days = readStored() ? daysBetween(loaded.lastSeen, Date.now()) : 0;
-  if (days > 0) track("tycoon_guide", { beat: "return", days, tour: !loaded.tour ? "none" : loaded.tour.done ? "done" : loaded.tour.skipped ? "skipped" : loaded.tour.beat, controls });
+  if (days > 0) track("tycoon_guide", { beat: "return", days, tour: !loaded.tour ? "none" : loaded.tour.done ? "done" : loaded.tour.skipped ? "skipped" : loaded.tour.beat, ...withControls() });
   const { state, bonus } = welcomeBack(loaded, Date.now());
   commit(state, { paused: false });
   const weekly = checkWeek(true);

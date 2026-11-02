@@ -25,3 +25,23 @@ describe("the tour's one-tap choices", () => {
     expect(r.ok && fac(r.state).stats.checkouts).toBe(0);
   });
 });
+
+describe("letting a pup rest is truly free", () => {
+  it("an unchecked pup goes home without counting a check-in (so no supplies are charged for it)", async () => {
+    const { fac: facOf, newTycoon: fresh } = await import("./state");
+    const { startTour: start } = await import("./tour");
+    const { today } = await import("./business");
+    let s = start(fresh(Date.now()), "quick", Date.now());
+    const f0 = facOf(s);
+    const dog = f0.dogs[0]!;
+    const before = today(f0).checkIns;
+    const r = restAtHome(s, dog.id);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    s = r.state;
+    expect(facOf(s).dogs.some((d) => d.id === dog.id)).toBe(false);
+    expect(today(facOf(s)).checkIns).toBe(before);
+    expect(s.coins).toBe(start(fresh(Date.now()), "quick", Date.now()).coins);
+  });
+});
+

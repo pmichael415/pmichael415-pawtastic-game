@@ -221,6 +221,8 @@ export function TycoonMap({ state, selected, onPick }: { state: TycoonState; sel
               onKeyDown={keyPick(pick)}
               className="cursor-pointer"
             >
+              {/* an invisible, bigger hit area so a finger finds the pup easily */}
+              <circle data-hit="1" r={0.9} fill="transparent" />
               <circle r={on ? 0.48 : 0.4} fill={dogColor(f, d)} stroke="#FFFFFF" strokeWidth={0.1} />
               <text y={-0.55} fontSize={0.45} fontWeight={700} textAnchor="middle" fill="#312721" fontFamily="DM Sans, system-ui, sans-serif">
                 {d.name}

@@ -98,7 +98,11 @@ async function session(browser, deviceName) {
 async function guidedStart(s, label) {
   const { page, f, fresh, tool, btn, room, door, item, tile, clearOverlays } = s;
   await fresh();
+  // A brand-new save shows only the start card; this run builds by hand, so it picks Build from scratch.
+  check(`${label}: a new save offers only the start card (no Build yet)`, (await page.getByRole('button', { name: 'Build', exact: true }).count()) === 0);
+  await page.getByRole('button', { name: /Build from scratch/ }).click();
   await page.getByRole('button', { name: 'Build', exact: true }).click();
+  check(`${label}: the building step stays on screen while building`, await page.getByRole('status', { name: 'Building step' }).isVisible());
   await room(16, 22, 19, 24, 'Lobby');
   await door(18, 24, 'S');
   await tool('Paths'); await tile(18, 25); await tile(18, 26); await btn(/^Done · 2 squares/).click(); await clearOverlays();
@@ -142,11 +146,13 @@ async function guidedStart(s, label) {
   await clearOverlays();
   const after = await s.st();
   check(`${label}: check in → playroom → playtime → checkout pays`, !after.facilities.f1.dogs.some((d) => d.id === pup.id) && after.coins > coins0 && after.facilities.f1.stats.checkouts === 1, `+${after.coins - coins0}`);
-  const claim = page.getByRole('button', { name: /^Claim \+200/ });
+  check(`${label}: the first checkout moves the guide on to the first upgrade`, (await s.st()).tour?.beat === 'upgrade');
+  // The rest of this suite is free play: skip the guide (it pays nothing) and the shop comes back.
   const c1 = (await s.st()).coins;
-  if (await claim.count()) await claim.click();
+  await page.getByRole('button', { name: 'Skip guide' }).click();
   await page.waitForTimeout(200);
-  check(`${label}: guide reward +200 once`, (await s.st()).coins === c1 + 200 && (await s.st()).guide.done === true);
+  await clearOverlays();
+  check(`${label}: skipping the guide pays nothing and brings back the shop`, (await s.st()).coins === c1 && (await s.st()).tour?.skipped === true && (await page.getByRole('button', { name: 'Daycare Shop' }).count()) === 1);
 }
 
 (async () => {

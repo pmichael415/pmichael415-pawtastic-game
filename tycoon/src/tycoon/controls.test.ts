@@ -24,7 +24,7 @@ describe("instructions for each kind of control", () => {
   });
   it("3D keeps the drag-out wording for rooms, and the map says where to tap", () => {
     expect(guideText(1, "3d")).toMatch(/Drag out/);
-    expect(guideText(1, "map")).toMatch(/Tap Build/);
+    expect(guideText(1, "map")).toMatch(/In Build below, tap Place next to Lobby/);
     expect(beatText("checkin", "map", ctx).action).toMatch(/on the map/);
     expect(beatText("checkin", "list", ctx).action).toMatch(/Front desk/);
   });
@@ -36,5 +36,12 @@ describe("instructions for each kind of control", () => {
     const ready = beatText("decision", "map", { ...ctx, roomReady: true });
     expect(ready.title).toBe("Rocket's room is ready");
     expect(ready.action).toMatch(/Tap Rocket on the map, check him in, then “To Large & Active”/);
+  });
+  it("map and list building steps point at the Build list's Place buttons, and never promise moving things", () => {
+    for (const c of ["map", "list"] as const) {
+      expect(guideText(1, c)).not.toMatch(/Tap Build/);
+      expect(guideText(1, c)).toMatch(/Place/);
+      expect(beatText("upgrade", c, ctx).action).not.toMatch(/move it/);
+    }
   });
 });

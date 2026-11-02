@@ -27,8 +27,9 @@ const OUTDOOR_ENTRIES: Entry[] = OUTDOOR.filter((o) => o.id !== "path").map((o) 
   unlock: o.unlock,
 }));
 
-export function CatalogSheet({ open, tab, level, coins, owned, onPick, onClose, onBuyPack }: { open: boolean; tab: "furniture" | "outdoor"; level: number; coins: number; owned: ReadonlySet<PaidItemId>; onPick: (k: ThingKind) => void; onClose: () => void; onBuyPack?: (() => void) | undefined }) {
-  const entries = tab === "furniture" ? FURNITURE_ENTRIES : OUTDOOR_ENTRIES;
+export function CatalogSheet({ open, tab, level, coins, owned, onPick, onClose, onBuyPack, hidePaid = false }: { open: boolean; tab: "furniture" | "outdoor"; level: number; coins: number; owned: ReadonlySet<PaidItemId>; onPick: (k: ThingKind) => void; onClose: () => void; onBuyPack?: (() => void) | undefined; hidePaid?: boolean }) {
+  // During the guided tour, paid items the player doesn't own aren't listed at all (no purchase prompts, spec §6).
+  const entries = (tab === "furniture" ? FURNITURE_ENTRIES : OUTDOOR_ENTRIES).filter((e) => !hidePaid || !e.paid || owned.has(e.paid));
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent side="bottom" className="max-h-[75svh] overflow-y-auto rounded-t-2xl">

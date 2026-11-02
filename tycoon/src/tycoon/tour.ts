@@ -147,3 +147,16 @@ export function chooseUpgrade(s: TycoonState, kind: TourUpgrade): TycoonState {
 export function skipTour(s: TycoonState): TycoonState {
   return { ...s, tour: s.tour ? { ...s.tour, skipped: true } : null, guide: { ...s.guide, skipped: true } };
 }
+
+/**
+ * Short of coins for any first upgrade: carry on to the decision instead (Daisy's benefit beat needs an upgrade).
+ * Nothing is paid or charged; the guide's reward still comes at the end.
+ */
+export function passUpgrade(s: TycoonState): TycoonState {
+  if (!s.tour || s.tour.beat !== "upgrade" || s.tour.done || s.tour.skipped) return s;
+  return syncTour(enter({ ...s, tour: { ...s.tour, beat: "decision" } }, "decision"), Date.now()).state;
+}
+
+/** Whether the daycare has one of the tour's upgrades (so the benefit beat really happened). */
+export const hasTourUpgrade = (s: TycoonState) => fac(s).items.some((i) => i.kind === "toy_bin" || i.kind === "play_yard");
+

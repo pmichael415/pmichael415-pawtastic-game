@@ -36,7 +36,7 @@ export function beatText(beat: TourBeat, c: Controls, x: BeatCtx): { title: stri
     case "upgrade":
       return {
         title: "Your first upgrade",
-        action: "Pick one below — it goes in the first free spot, and you can move it later.",
+        action: c === "3d" ? "Pick one below — it goes in the first free spot, and you can move it later." : "Pick one below — it goes in the first free spot.",
       };
     case "benefit":
       return { title: "See what it does", action: `${x.second} is here. Check her in, find her a playroom and give her playtime — watch the bonus from your ${x.upgrade}.` };
@@ -60,13 +60,13 @@ export function guideText(step: number, c: Controls): string {
     case 1:
       return three
         ? "Drag out a 4 × 3 room, add a door on the road side and a path to the entrance, then place the Front Desk Counter and a Waiting Bench."
-        : "Tap Build, then Lobby (it comes with a door and a path). Then add the Front Desk Counter and a Waiting Bench from Build.";
+        : "In Build below, tap Place next to Lobby (it comes with a door and a path). Then, under Furniture, place the Front Desk Counter and a Waiting Bench.";
     case 2:
       return three
         ? "Draw it next to the Lobby and pick its group. Add a door into the Lobby, then place 2 Dog Beds and a Water Bowl."
-        : "Tap Build, then a Playroom for one group of pups. Then add 2 Dog Beds and a Water Bowl from Build.";
+        : "In Build below, place a Playroom for one group of pups. Then, under Furniture, place 2 Dog Beds and a Water Bowl.";
     case 3:
-      return three ? "A small room with a door, where overwhelmed pups can settle." : "Tap Build, then Calm-Down Room — where overwhelmed pups can settle.";
+      return three ? "A small room with a door, where overwhelmed pups can settle." : "In Build below, place a Calm-Down Room — where overwhelmed pups can settle.";
     case 4:
       return three ? "Pick a floor and a wall colour. This step is optional." : "Tap a room, then Paint to pick a floor and wall colour. This step is optional.";
     default:

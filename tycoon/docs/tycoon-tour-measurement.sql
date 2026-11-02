@@ -10,13 +10,14 @@ where name = 'tycoon_guide' and props->>'beat' = 'start' and build = '2026-11-02
 group by 1, 2 order by 3 desc;
 
 -- 2. The funnel: how many devices reached each beat (checkout reached = first pup checked in and placed;
---    upgrade reached = first payout collected; benefit reached = first upgrade placed; goals = tour complete).
+--    upgrade reached = first payout collected; benefit reached = first upgrade placed; upgrade_passed = "Not now"
+--    at the upgrade (short of coins); goals = tour complete).
 select props->>'beat' as beat, count(distinct device_id) as devices
 from public.game_events
 where name = 'tycoon_guide' and build = '2026-11-02.tycoon-stage-a'
-  and props->>'beat' in ('start','checkin','place','play','checkout','upgrade','benefit','decision','goals','skipped')
+  and props->>'beat' in ('start','checkin','place','play','checkout','upgrade','upgrade_passed','benefit','decision','goals','skipped')
 group by 1
-order by array_position(array['start','checkin','place','play','checkout','upgrade','benefit','decision','goals','skipped'], props->>'beat');
+order by array_position(array['start','checkin','place','play','checkout','upgrade','upgrade_passed','benefit','decision','goals','skipped'], props->>'beat');
 
 -- 3. Time to the first payout ('upgrade' reached) and to the first upgrade placed ('benefit' reached), in seconds since
 --    the tour started (median and 90th percentile, per mode). Targets: payout by 2 minutes, upgrade by 5.

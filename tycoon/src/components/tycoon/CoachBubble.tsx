@@ -9,7 +9,7 @@ import { guideProgress } from "@/tycoon/guide";
 import { placeFirstFree } from "@/tycoon/build";
 import { fac } from "@/tycoon/state";
 import type { ActOpts, ActResult } from "@/tycoon/store";
-import { TOUR_DOGS, chooseUpgrade, firstDogGroup, skipTour } from "@/tycoon/tour";
+import { TOUR_DOGS, chooseUpgrade, firstDogGroup, passUpgrade, skipTour } from "@/tycoon/tour";
 import { buildPlayroomFor, playroomCost, restAtHome } from "@/tycoon/tourActions";
 import type { TResult, TycoonState, TourUpgrade } from "@/tycoon/types";
 
@@ -20,10 +20,20 @@ const UPGRADES: { kind: TourUpgrade; name: string; price: number; benefit: strin
   { kind: "play_yard", name: "Play Yard", price: outdoorDef("play_yard")!.price, benefit: `+${outdoorDef("play_yard")!.fun![0]} happiness at every playtime, for every pup` },
 ];
 
-export function CoachBubble({ state, controls, act, set }: { state: TycoonState; controls: Controls; act: Act; set: (fn: (s: TycoonState) => TycoonState) => void }) {
+export function CoachBubble({ state, controls, act, set, compact = false }: { state: TycoonState; controls: Controls; act: Act; set: (fn: (s: TycoonState) => TycoonState) => void; compact?: boolean }) {
   const t = state.tour;
   if (!t || t.done || t.skipped) return null;
   const f = fac(state);
+  if (compact) {
+    // While building from scratch: just the current building step, one line above the build tools.
+    const n = guideProgress(state).step;
+    const line = n <= 3 ? `Step ${n} of 3: ${guideText(n, controls)}` : canOpen(f).ok && !f.open ? "Ready! Tap Done building, then switch Open on in the status bar." : "";
+    return line ? (
+      <p role="status" aria-label="Building step" className="rounded-xl border border-accent bg-card px-3 py-2 text-sm text-secondary">
+        {line}
+      </p>
+    ) : null;
+  }
   const chosen = UPGRADES.find((u) => u.kind === t.upgrade) ?? UPGRADES.find((u) => f.items.some((i) => i.kind === u.kind));
   const rocket = f.dogs.find((d) => d.name === TOUR_DOGS.third) ?? null;
   // Once a playroom for the decision pup exists, the coach says to take him there instead of offering to build one.
@@ -54,6 +64,16 @@ export function CoachBubble({ state, controls, act, set }: { state: TycoonState;
           Skip guide
         </button>
       </div>
+      {t.beat === "upgrade" && state.coins < Math.min(...UPGRADES.map((u) => u.price)) && (
+        <div className="mt-2 rounded-xl bg-muted p-2 text-sm text-secondary">
+          <p>
+            You need {Math.min(...UPGRADES.map((u) => u.price))} coins for the {UPGRADES[0]!.name} — you have {state.coins}. You can come back to upgrades later.
+          </p>
+          <button type="button" onClick={() => set(passUpgrade)} className="mt-2 min-h-11 w-full rounded-xl border border-primary bg-background px-3 text-sm font-bold text-primary">
+            Not now — carry on
+          </button>
+        </div>
+      )}
       {t.beat === "upgrade" && (
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           {UPGRADES.map((u) => (

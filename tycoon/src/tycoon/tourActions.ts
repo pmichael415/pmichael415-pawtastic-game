@@ -3,8 +3,8 @@
 import { groupName, type GroupId } from "@/game/engine";
 import { placeFirstFree, placeThing } from "./build";
 import { roomTiles } from "./grid";
-import { checkIn, checkout, toCalm } from "./run";
-import { fac } from "./state";
+import { checkout, toCalm } from "./run";
+import { fac, withFac } from "./state";
 import type { Facility, TResult, TycoonState } from "./types";
 
 const spent = (f: Facility) => f.rooms.reduce((n, r) => n + r.spent, 0) + f.items.reduce((n, i) => n + i.spent, 0);
@@ -33,9 +33,14 @@ export function restAtHome(s: TycoonState, dogId: string): TResult {
   const dog = fac(s).dogs.find((d) => d.id === dogId);
   if (!dog) return { ok: false, error: "That pup already went home." };
   if (!dog.checkedIn) {
-    const r = checkIn(out, dogId);
-    if (!r.ok) return r;
-    out = r.state;
+    // Never checked in: the family takes the pup home from the lobby. No check-in is counted, so no supplies are
+    // charged for this visit — resting is free.
+    const f = fac(out);
+    return {
+      ok: true,
+      state: withFac(out, { ...f, dogs: f.dogs.filter((d) => d.id !== dogId) }),
+      msg: `${dog.name} is resting at home today — no charge, and everyone stayed safe.`,
+    };
   }
   if (fac(out).dogs.find((d) => d.id === dogId)?.place.kind !== "calm") {
     const r = toCalm(out, dogId);

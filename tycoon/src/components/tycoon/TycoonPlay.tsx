@@ -92,10 +92,13 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
   const [buyDecor, setBuyDecor] = useState(false);
   // Purchase prompts wait until the guided tour reaches free play (spec §6); the hub Shop tab is always there.
   const holding = tourHolds(state);
+  // Before a start is picked, only the start card asks for anything (no checklist, shop, coin buttons or Build).
+  const preTour = isFreshSave(state);
+  const quiet = holding || preTour;
   useEffect(() => {
-    onGetCoins(holding ? null : () => setShop(true));
+    onGetCoins(quiet ? null : () => setShop(true));
     return () => onGetCoins(null);
-  }, [holding]);
+  }, [quiet]);
   const tourDone = !!state.tour?.done;
   const wasDone = useRef(tourDone);
   useEffect(() => {
@@ -141,6 +144,11 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
   const [sign, setSign] = useState<string | null>(null);
   const stage = useRef<TycoonStageHandle>(null);
   const f = fac(state);
+  // A panel whose pup went home (or whose room or item is gone) closes instead of staying empty.
+  const selGone = !!sel && (sel.kind === "dog" ? !f.dogs.some((d) => d.id === sel.id) : sel.kind === "room" ? !f.rooms.some((r) => r.uid === sel.id) : !f.items.some((i) => i.uid === sel.id));
+  useEffect(() => {
+    if (selGone) setSel(null);
+  }, [selGone]);
   const fx: FxFn = (k, at) => stage.current?.fx(k, at);
   /** Every action, plus its sound and effect: coins fly at checkout, building thunks, selling pops, upgrades sparkle. */
   const act: Act = (fn, opts) => {
@@ -220,10 +228,10 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
 
   return (
     <div className="space-y-3" style={{ paddingBottom: sel ? "min(48svh, 440px)" : undefined }}>
-      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} {...(holding ? {} : { onShop: () => setShop(true) })} />
+      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} {...(quiet ? {} : { onShop: () => setShop(true) })} />
       {isFreshSave(state) && <StartCard onPick={(mode) => set((s) => startTour(s, mode, Date.now()))} />}
       {/* During the tour Build waits (one thing at a time), except while building from scratch. */}
-      {show3d && (!holding || state.tour?.beat === "meet") && (
+      {show3d && !preTour && (!holding || state.tour?.beat === "meet") && (
         <Button
           variant={building ? "default" : "outline"}
           className="h-11 w-full"
@@ -237,7 +245,9 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
           {building ? "Done building" : "Build"}
         </Button>
       )}
-      {show3d && building && <BuildToolbar b={b} state={state} act={act} onBuyPack={() => setBuyDecor(true)} />}
+      {/* Building from scratch: the current building step stays on screen while you build. */}
+      {show3d && building && holding && state.tour?.beat === "meet" && <CoachBubble state={state} controls={controls} act={act} set={set} compact />}
+      {show3d && building && <BuildToolbar b={b} state={state} act={act} onBuyPack={() => setBuyDecor(true)} hidePaid={holding} />}
       {!show3d && <FallbackNotice reason={no3d ?? "list"} onRetry={() => (no3d ? setNo3d(null) : setSettings({ view: "overhead" }))} />}
       {/* The coach sits right above the daycare (never over it) — on a phone it would hide the pups. */}
       {!building && (
@@ -290,8 +300,8 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
           </div>
         </div>
       )}
-      {!holding && <GoalsStrip state={state} />}
-      {!state.tour && <GuideCard state={state} act={act} set={set} controls={controls} />}
+      {!quiet && <GoalsStrip state={state} />}
+      {!state.tour && !preTour && <GuideCard state={state} act={act} set={set} controls={controls} />}
       <WeeklyCard state={state} act={act} />
       <MoneyBanner state={state} />
       <PaintSheet

@@ -7,7 +7,7 @@ vi.mock("sonner", () => ({ toast: Object.assign(() => {}, { success: () => {}, e
 
 import { KEY, setTourControls, tycoonStore, useTycoon } from "./store";
 import { fac, newTycoon } from "./state";
-import { skipTour, startTour } from "./tour";
+import { passUpgrade, skipTour, startTour } from "./tour";
 import { checkIn } from "./run";
 import type { TycoonState } from "./types";
 
@@ -48,6 +48,15 @@ describe("tour measurement", () => {
     }
   });
 
+  it("'Not now' at the upgrade reports upgrade_passed, never a benefit that didn't happen", () => {
+    tycoonStore.set((s) => ({ ...startTour(s, "quick", Date.now()), tour: { ...startTour(s, "quick", Date.now()).tour!, beat: "upgrade" } }));
+    const n = mark();
+    tycoonStore.set((s) => passUpgrade({ ...s, coins: 10 }));
+    const beats = since(n).map((p) => p["beat"]);
+    expect(beats).toContain("upgrade_passed");
+    expect(beats).not.toContain("benefit");
+    expect(beats).toContain("decision");
+  });
   it("skipping sends skipped with the beat it was skipped at", () => {
     tycoonStore.set((s) => startTour(s, "scratch", Date.now()));
     const n = mark();
@@ -56,6 +65,7 @@ describe("tour measurement", () => {
   });
 
   it("opening the game on a later day sends return with the days away", () => {
+    setTourControls(null);
     const saved: TycoonState = { ...newTycoon(Date.now()), lastSeen: Date.now() - 3 * 86_400_000 };
     localStorage.setItem(KEY, JSON.stringify(saved));
     tycoonStore._reset(null);
@@ -63,6 +73,8 @@ describe("tour measurement", () => {
     const { unmount } = renderHook(() => useTycoon());
     const ret = since(n).filter((p) => p["beat"] === "return");
     expect(ret).toHaveLength(1);
+    // the screen hasn't said which controls it has yet, so the event doesn't guess
+    expect("controls" in ret[0]!).toBe(false);
     expect(ret[0]!["days"]).toBeGreaterThanOrEqual(2);
     unmount();
   });

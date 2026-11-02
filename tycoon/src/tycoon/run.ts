@@ -259,8 +259,8 @@ export function playtime(s: TycoonState, dogId: string): TResult {
   const g = playGain(f, dog);
   let nf = setDog(st, dogId, (d) => ({ ...d, happiness: clamp(d.happiness + g.total), clean: clamp(d.clean - 10), played: d.played + 1 }));
   nf = bump({ ...nf, cleanliness: clamp(nf.cleanliness - 4) }, "plays");
-  const extra = g.total - g.base;
-  const helped = extra > 0 ? ` (+${extra} from your ${g.topItem ?? "daycare's fun"})` : "";
+  // Credit the top item with its own share only (what its card promised); with no item, the daycare's general fun.
+  const helped = g.topItem && g.topShare > 0 ? ` (+${g.topShare} from your ${g.topItem})` : g.fromFun > 0 ? ` (+${g.fromFun} from your daycare's fun)` : "";
   const said = loves ? `${dog.name} loved it — ${FAVORITE_LABEL[fav]} is their favorite!` : `${dog.name} had a blast!`;
   return { ok: true, state: gainXp(withFac(s, nf), XP.playtime), msg: said + helped };
 }

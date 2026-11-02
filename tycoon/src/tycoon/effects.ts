@@ -47,7 +47,16 @@ export const ROOM_FUN_MAX = 12;
 /** Outdoor play areas (Play Yard, Ball Pit, Splash Pool, Agility) add their Fun to every playtime, up to +8. */
 export const YARD_FUN_MAX = 8;
 
-export type PlayGain = { base: number; fromFun: number; fromRoom: number; fromYard: number; total: number; topItem: string | null };
+export type PlayGain = {
+  base: number;
+  fromFun: number;
+  fromRoom: number;
+  fromYard: number;
+  total: number;
+  topItem: string | null;
+  /** The top item's own share of the extra (what its card promised), within its room or yard cap. */
+  topShare: number;
+};
 
 /** Happiness one playtime gives this pup, and what helped most. Same base as before (favourite, cuddles). */
 export function playGain(f: Facility, dog: TDog, owned: ReadonlySet<PaidItemId> = ownedPaid()): PlayGain {
@@ -61,8 +70,12 @@ export function playGain(f: Facility, dog: TDog, owned: ReadonlySet<PaidItemId> 
   let roomFun = 0;
   let yardFun = 0;
   let top: { name: string; value: number } | null = null;
-  const consider = (name: string, value: number) => {
-    if (value > 0 && (!top || value > top.value)) top = { name, value };
+  let topIn: "room" | "yard" = "room";
+  const consider = (name: string, value: number, where: "room" | "yard") => {
+    if (value > 0 && (!top || value > top.value)) {
+      top = { name, value };
+      topIn = where;
+    }
   };
   for (const it of f.items) {
     if (it.closed || !isActive(it.kind, owned)) continue;
@@ -71,17 +84,18 @@ export function playGain(f: Facility, dog: TDog, owned: ReadonlySet<PaidItemId> 
       const fd = furnitureDef(it.kind);
       if (!fd?.fun) continue;
       roomFun += fd.fun;
-      consider(fd.name, ROOM_FUN_HAPPY * fd.fun);
+      consider(fd.name, ROOM_FUN_HAPPY * fd.fun, "room");
     } else {
       const od = outdoorDef(it.kind);
       if (od?.tab !== "play" || !od.fun) continue;
       const v = od.fun[it.level - 1] ?? 0;
       yardFun += v;
-      consider(od.name, v);
+      consider(od.name, v, "yard");
     }
   }
   const fromRoom = Math.min(ROOM_FUN_MAX, ROOM_FUN_HAPPY * roomFun);
   const fromYard = Math.min(YARD_FUN_MAX, yardFun);
   const picked = top as { name: string; value: number } | null;
-  return { base, fromFun, fromRoom, fromYard, total: base + fromFun + fromRoom + fromYard, topItem: picked ? picked.name : null };
+  const topShare = picked ? Math.min(picked.value, topIn === "room" ? fromRoom : fromYard) : 0;
+  return { base, fromFun, fromRoom, fromYard, total: base + fromFun + fromRoom + fromYard, topItem: picked ? picked.name : null, topShare };
 }

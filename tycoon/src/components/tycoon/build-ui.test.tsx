@@ -29,8 +29,10 @@ const ghost = () => JSON.parse(screen.getByTestId("stage").getAttribute("data-gh
 const button = (name: string | RegExp) => screen.getByRole("button", { name });
 const tool = (name: string) => fireEvent.click(within(screen.getByRole("toolbar", { name: "Build tools" })).getByRole("button", { name }));
 
+/** A player building freely: picked "Build from scratch", then skipped the guide (a brand-new save shows only the start card). */
+const FREE_BUILD = { mode: "scratch", beat: "meet", startedAt: 0, upgrade: null, done: false, skipped: true } as const;
 function start(s: TycoonState = newTycoon(Date.now())) {
-  localStorage.setItem(KEY, JSON.stringify(s));
+  localStorage.setItem(KEY, JSON.stringify({ ...s, tour: s.tour ?? FREE_BUILD }));
   const r = render(<TycoonPlay />);
   fireEvent.click(button("Build"));
   return r;

@@ -27,7 +27,8 @@ describe("what an upgrade adds to playtime", () => {
     expect(b.total - a.total).toBe(6);
     expect(b.topItem).toBe("Toy Bin");
     const played = playtime(withBin, biscuit(withBin).id);
-    expect(played.ok && played.msg).toContain(`(+${b.total - b.base} from your Toy Bin)`);
+    // the message credits the Toy Bin with its own share only (the card promised +6), whatever else helped
+    expect(played.ok && played.msg).toContain("(+6 from your Toy Bin)");
   });
   it("a Play Yard outside adds its Fun to every pup's playtime and is named", () => {
     let s = biscuitPlaying();
