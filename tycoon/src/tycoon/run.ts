@@ -29,6 +29,7 @@ import { canOpen, caps, roomStatus } from "./connect";
 import { arrivalMultiplier, decayMultiplier, funAppeal, playBonus } from "./effects";
 import { XP, gainXp } from "./progress";
 import { fac, withFac } from "./state";
+import { tourHolds } from "./tour";
 import type { Facility, Room, TDog, TPlace, TResult, TycoonState } from "./types";
 
 const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
@@ -359,6 +360,11 @@ export function hireStaff(s: TycoonState): TResult {
 export function tick(s: TycoonState, seconds: number, rand: () => number = Math.random): TycoonState {
   if (!(seconds > 0)) return s;
   let f = fac(s);
+  if (tourHolds(s)) {
+    // The guided tour holds drop-offs, the day clock and care decay so a new player can learn at their own pace.
+    const regen = 2 * wageRecovery(f.wage) * (1 + caps(f).staffBoost) * seconds;
+    return withFac(s, { ...f, staff: f.staff.map((st) => ({ ...st, energy: clamp(st.energy + regen) })) });
+  }
   const { fun, appeal } = funAppeal(f);
   const staffBoost = caps(f).staffBoost;
   const dirtFactor = f.cleanliness < 40 ? 1.6 : 1;
