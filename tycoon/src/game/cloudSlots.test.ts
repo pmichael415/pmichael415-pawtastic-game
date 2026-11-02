@@ -88,3 +88,22 @@ describe("signing in on a phone: what happens to each game", () => {
     expect(slotHash("daycare", s)).toBe(slotHash("daycare", { ...s, lastSeen: 12345 }));
   });
 });
+
+describe("purchases never travel in cloud saves (free progress only)", () => {
+  const O = "00000000-0000-4000-8000-00000000000a";
+  it("the uploaded Daycare slot carries no power-ups and no delivery log", () => {
+    const s: GameState = { ...newGame(0, "2026-11-02"), recessPowerups: { shield: 7, life: 3 }, deliveries: { applied: [O], done: [] } };
+    const up = daycareOf(s);
+    expect(up.recessPowerups).toEqual({ shield: 0, life: 0 });
+    expect(up.deliveries).toEqual({ applied: [], done: [] });
+  });
+  it("restoring a Daycare slot keeps this device's power-ups and delivery log", () => {
+    const local: GameState = { ...newGame(0, "2026-11-02"), recessPowerups: { shield: 2, life: 1 }, deliveries: { applied: [], done: [O] } };
+    const cloud: GameState = { ...newGame(0, "2026-11-02"), coins: 9999, recessPowerups: { shield: 50, life: 50 }, deliveries: { applied: [], done: [] } };
+    const r = withDaycare(local, cloud);
+    expect(r.coins).toBe(9999);
+    expect(r.recessPowerups).toEqual({ shield: 2, life: 1 });
+    expect(r.deliveries).toEqual({ applied: [], done: [O] });
+    expect(withDaycare(null, cloud).recessPowerups).toEqual({ shield: 0, life: 0 });
+  });
+});

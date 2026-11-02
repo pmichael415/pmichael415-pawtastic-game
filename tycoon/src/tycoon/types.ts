@@ -1,3 +1,4 @@
+import type { DeliveryLog } from "@/lib/purchases/delivery";
 // PAWtastic Daycare Tycoon (new engine) — state types. Everything here is plain data: saves are JSON.
 import type { Dog, GroupId, Regular, Staff, Stats } from "@/game/engine";
 
@@ -143,6 +144,8 @@ export type TycoonState = {
   bestProfit: number;
   pendingLevel: number | null;
   weekly: TWeekly | null;
+  /** Purchases added to this save (ids) — see src/lib/purchases/delivery.ts. */
+  deliveries: DeliveryLog;
 };
 
 export type TResult = { ok: true; state: TycoonState; msg?: string; earned?: number } | { ok: false; error: string };

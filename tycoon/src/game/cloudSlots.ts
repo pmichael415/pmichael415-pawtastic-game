@@ -25,17 +25,22 @@ const int = (v: unknown, lo: number, hi: number) => {
 };
 
 // ---------- slicing the phone's progress into per-game saves, and merging them back ----------
-/** The Daycare save: the whole game state except Recess Rush's own fields (kept neutral). */
+/**
+ * The Daycare save: the whole game state except Recess Rush's own fields (kept neutral) and purchases. Cloud saves
+ * are free progress only: bought power-ups and the delivery log never travel, so a restore can't copy a purchase.
+ */
 export function daycareOf(s: GameState): GameState {
-  return { ...s, recessBest: 0, recessDay: "", recessCoinsToday: 0 };
+  return { ...s, recessBest: 0, recessDay: "", recessCoinsToday: 0, recessPowerups: { shield: 0, life: 0 }, deliveries: { applied: [], done: [] } };
 }
-/** Load a Daycare save onto this phone, keeping this phone's Recess Rush progress. */
+/** Load a Daycare save onto this phone, keeping this phone's Recess Rush progress and its purchases. */
 export function withDaycare(local: GameState | null, cloud: GameState): GameState {
   return {
     ...cloud,
     recessBest: local?.recessBest ?? 0,
     recessDay: local?.recessDay ?? "",
     recessCoinsToday: local?.recessCoinsToday ?? 0,
+    recessPowerups: local?.recessPowerups ?? { shield: 0, life: 0 },
+    deliveries: local?.deliveries ?? { applied: [], done: [] },
     lastSeen: Date.now(),
   };
 }

@@ -8,6 +8,9 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { checkAchievements, newGame, nyDateKey, parseSave, rollMissionDay, rollWeek, tick, weekKey, welcomeBack, type GameState, type Result } from "./engine";
+import { applyHubContents } from "./purchases";
+import { confirmed, planDeliveries, type Delivery, type DeliveryStep } from "@/lib/purchases/delivery";
+import { createSaveGuard } from "@/lib/purchases/saveGuard";
 
 const KEY = "pawtastic-tycoon-save-v1";
 export const todayKey = () => nyDateKey();
@@ -31,11 +34,61 @@ function load(): GameState {
   return newGame(Date.now(), todayKey());
 }
 
-function persist(s: GameState) {
+/** The stored save, parsed, without side effects (no setting aside). */
+function readStored(): GameState | null {
+  try {
+    const raw = localStorage.getItem(KEY);
+    return raw ? parseSave(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+const guard = createSaveGuard<GameState>(KEY, readStored);
+
+function persist(s: GameState, force = false) {
+  // Another tab stored purchases this one doesn't have: take its save instead of writing over it.
+  const adopt = force ? null : guard.check(s);
+  if (adopt) {
+    snap = { ...snap, state: adopt };
+    emit();
+    return;
+  }
   try {
     localStorage.setItem(KEY, JSON.stringify({ ...s, lastSeen: Date.now() }));
   } catch {
     /* storage full / blocked */
+  }
+}
+
+/**
+ * Adds reserved deliveries (Recess Rush power-ups) to the latest stored save and writes it once, with their ids.
+ * ok=false (and nothing changed) if the write fails, so the caller must not confirm.
+ */
+export function applyDeliveries(batch: Delivery[]): { ok: boolean; ids: string[]; steps: DeliveryStep[] } {
+  const base = readStored() ?? snap.state ?? newGame(Date.now(), todayKey());
+  const { steps, log } = planDeliveries(base.deliveries, batch);
+  let next = base;
+  for (const step of steps) next = applyHubContents(next, step.contents, step.sign);
+  next = { ...next, deliveries: log };
+  const recorded = new Set([...log.applied, ...log.done]);
+  const ids = batch.map((d) => d.id).filter((id) => recorded.has(id));
+  const changed = steps.length > 0 || log.applied.length !== base.deliveries.applied.length;
+  if (changed && !guard.deliveryWrite(JSON.stringify({ ...next, lastSeen: Date.now() }))) return { ok: false, ids: [], steps: [] };
+  if (snap.state) {
+    snap = { ...snap, state: next };
+    emit();
+  }
+  return { ok: true, ids, steps };
+}
+
+/** After the server confirmed them: ids move from applied to done (best effort; they dedupe either way). */
+export function confirmDeliveries(ids: string[]) {
+  const base = readStored() ?? snap.state;
+  if (!base) return;
+  const next = { ...base, deliveries: confirmed(base.deliveries, ids) };
+  if (guard.deliveryWrite(JSON.stringify({ ...next, lastSeen: Date.now() })) && snap.state) {
+    snap = { ...snap, state: next };
+    emit();
   }
 }
 
@@ -124,7 +177,7 @@ export const gameStore = {
 
 /** Save a game made elsewhere (cloud download). Updates the running game too, so it can't be overwritten. */
 export function save(s: GameState) {
-  persist(s);
+  persist(s, true); // a cloud restore the player chose replaces the save as a whole
   if (snap.state) commit(s);
 }
 

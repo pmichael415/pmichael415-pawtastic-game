@@ -1,4 +1,5 @@
 // Pure game rules for PAWtastic Tycoon. No browser APIs here so it can be tested.
+import { parseDeliveryLog, type DeliveryLog } from "@/lib/purchases/delivery";
 
 export const SAVE_VERSION = 4;
 
@@ -162,6 +163,10 @@ export type GameState = {
   teamChangedAt: number;
   /** Progress through the team's story adventure (fictional chapters). */
   adventure: { team: SiteId; chapter: number; base: Stats } | null;
+  /** Recess Rush power-ups bought in the hub (Shield Starts, Extra Lives), used one each per run. */
+  recessPowerups: { shield: number; life: number };
+  /** Purchases added to this save (ids) — see src/lib/purchases/delivery.ts. */
+  deliveries: DeliveryLog;
 };
 
 export const emptyStats = (): Stats => ({ admitted: 0, baths: 0, plays: 0, earned: 0, checkouts: 0, cleans: 0, boarders: 0, shares: 0, runs: 0, scuffles: 0 });
@@ -205,6 +210,8 @@ export function newGame(now: number, day: string): GameState {
     team: null,
     teamChangedAt: 0,
     adventure: null,
+    recessPowerups: { shield: 0, life: 0 },
+    deliveries: { applied: [], done: [] },
   };
 }
 
@@ -974,6 +981,9 @@ export function parseSave(raw: unknown): GameState | null {
   st.adventure = isObj(adv) && isSiteId(adv['team']) && typeof adv['chapter'] === "number" && Number.isInteger(adv['chapter']) && adv['chapter'] >= 0 && adv['chapter'] <= ADVENTURES[adv['team']].chapters.length
     ? { team: adv['team'], chapter: adv['chapter'], base: statsOf(adv['base']) }
     : null;
+  const pu = isObj(raw['recessPowerups']) ? raw['recessPowerups'] : {};
+  st.recessPowerups = { shield: Math.floor(num(pu['shield'], 0, 0, 9999)), life: Math.floor(num(pu['life'], 0, 0, 9999)) };
+  st.deliveries = parseDeliveryLog(raw['deliveries']);
   st.dayBase = isObj(raw['dayBase']) ? statsOf(raw['dayBase']) : { ...st.stats };
   st.weekKey = typeof raw['weekKey'] === "string" ? raw['weekKey'].slice(0, 10) : "";
   st.weekBase = isObj(raw['weekBase']) ? statsOf(raw['weekBase']) : { ...st.stats };

@@ -1,3 +1,4 @@
+import { parseDeliveryLog } from "@/lib/purchases/delivery";
 // PAWtastic Daycare Tycoon — new game and safe save loading (spec §4.8).
 import { BREEDS, GUESTBOOK_MAX, emptyStats, type GroupId, type Regular, type Staff, type Stats } from "@/game/engine";
 import { ENTRANCE, FLOORS, MAX_DOORS, MAX_ROOMS, PARCELS, PRICE_DEFAULTS, PRICE_RANGES, START_COINS, WALL_COLORS } from "./catalog";
@@ -52,6 +53,7 @@ export function newTycoon(now: number): TycoonState {
     bestProfit: 0,
     pendingLevel: null,
     weekly: null,
+    deliveries: { applied: [], done: [] },
   };
 }
 
@@ -334,6 +336,7 @@ export function parseTycoon(raw: unknown): TycoonState | null {
     bestProfit: num(raw["bestProfit"], 0),
     pendingLevel: typeof raw["pendingLevel"] === "number" ? raw["pendingLevel"] : null,
     weekly: parseWeekly(raw["weekly"]),
+    deliveries: parseDeliveryLog(raw["deliveries"]),
   };
 }
 

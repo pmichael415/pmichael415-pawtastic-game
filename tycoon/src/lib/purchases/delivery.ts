@@ -79,3 +79,12 @@ export function withLock<T>(name: string, fn: () => Promise<T> | T): Promise<T> 
   chains.set(name, next.catch(() => undefined));
   return next;
 }
+
+export const APPLIED_MAX = 2000;
+/** A save's delivery log, validated: only well-formed ids, no duplicates, bounded. Anything else loads empty. */
+export function parseDeliveryLog(raw: unknown): DeliveryLog {
+  const ids = (x: unknown, max: number) =>
+    Array.isArray(x) ? [...new Set(x.filter((v): v is string => typeof v === "string" && UUID.test(v)))].slice(-max) : [];
+  const o = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  return { applied: ids(o["applied"], APPLIED_MAX), done: ids(o["done"], DONE_MAX) };
+}

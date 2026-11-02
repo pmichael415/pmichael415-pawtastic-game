@@ -12,6 +12,9 @@ import { checkTrophies, type Trophy } from "./trophies";
 import { rollWeekly } from "./weekly";
 import { weekKey } from "@/game/engine";
 import type { TDog, TResult, TycoonState } from "./types";
+import { applyTycoonContents } from "./purchases";
+import { confirmed, planDeliveries, type Delivery, type DeliveryStep } from "@/lib/purchases/delivery";
+import { createSaveGuard } from "@/lib/purchases/saveGuard";
 
 export const KEY = "pawtastic-daycare-next-v1";
 export const TICK_MS = 250;
@@ -40,11 +43,61 @@ function load(): TycoonState {
   return newTycoon(Date.now());
 }
 
+/** The stored save, parsed, without side effects (no setting aside). */
+function readStored(): TycoonState | null {
+  try {
+    const raw = localStorage.getItem(KEY);
+    return raw ? parseTycoon(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+const guard = createSaveGuard<TycoonState>(KEY, readStored);
+
 function persist(s: TycoonState) {
+  // Another tab stored purchases this one doesn't have: take its save instead of writing over it.
+  const adopt = guard.check(s);
+  if (adopt) {
+    snap = { ...snap, state: adopt };
+    emit();
+    return;
+  }
   try {
     localStorage.setItem(KEY, JSON.stringify({ ...s, lastSeen: Date.now() }));
   } catch {
     /* storage full / blocked */
+  }
+}
+
+/**
+ * Adds reserved deliveries to the latest stored save and writes it once, with their ids (spec: "Delivery: reserve,
+ * apply, confirm"). ok=false (and nothing changed) if the write fails, so the caller must not confirm.
+ */
+export function applyDeliveries(batch: Delivery[]): { ok: boolean; ids: string[]; steps: DeliveryStep[] } {
+  const base = readStored() ?? snap.state ?? newTycoon(Date.now());
+  const { steps, log } = planDeliveries(base.deliveries, batch);
+  let next = base;
+  for (const step of steps) next = applyTycoonContents(next, step.contents, step.sign);
+  next = { ...next, deliveries: log };
+  const recorded = new Set([...log.applied, ...log.done]);
+  const ids = batch.map((d) => d.id).filter((id) => recorded.has(id));
+  const changed = steps.length > 0 || log.applied.length !== base.deliveries.applied.length;
+  if (changed && !guard.deliveryWrite(JSON.stringify({ ...next, lastSeen: Date.now() }))) return { ok: false, ids: [], steps: [] };
+  if (snap.state) {
+    snap = { ...snap, state: next };
+    emit();
+  }
+  return { ok: true, ids, steps };
+}
+
+/** After the server confirmed them: ids move from applied to done (best effort; they dedupe either way). */
+export function confirmDeliveries(ids: string[]) {
+  const base = readStored() ?? snap.state;
+  if (!base) return;
+  const next = { ...base, deliveries: confirmed(base.deliveries, ids) };
+  if (guard.deliveryWrite(JSON.stringify({ ...next, lastSeen: Date.now() })) && snap.state) {
+    snap = { ...snap, state: next };
+    emit();
   }
 }
 
