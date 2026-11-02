@@ -24,7 +24,11 @@
   returns to the hub's `/graduation`. Server side: `pmichael415/pawtastic-graduation` ecff9ec (allows only the hub's
   three addresses; staff routes and the webhook stay closed). See `docs/graduation-hub/README.md`. If the hub can't
   reach that server, the copy falls back to free play with a link to Graduation Day's site.
-- The home page's Weekly Challenge card now opens the hub's Graduation Day page.
+- The home page's Weekly Challenge card now opens the hub's Graduation Day page. The Shop and "So close!" (out of
+  moves) purchases work inside the hub: Stripe opens in the whole tab and the player comes back to the same level.
+- Browser checks: daycare 36, games 35, hub 33, notify 20, teams 27, cloud 25, Graduation in the hub 35 (against a
+  stand-in for Graduation Day's server). Tycoon 30/31: the 30-dog frame-rate check measured 28–30 fps in this
+  container's software renderer (30.4–32.5 before the container restarted, same code); real phones use their GPU.
 - Not verified here: this session can't reach the lovable.app sites, so the live hub ↔ Graduation Day connection
   and a real purchase from the hub haven't been tried. The owner makes the first real purchase.
 

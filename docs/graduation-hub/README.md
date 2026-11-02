@@ -53,10 +53,11 @@ sign-in email opens the hub instead of Graduation Day's site. Typing the code wo
 ## Tests
 
 - `src/lib/game/hub.test.ts` (in the patch): 5 tests, passing against the current Graduation Day files.
-- `tycoon/qa/e2e-graduation-hub.cjs`: 27 browser checks. `tools/mock-pay-server.mjs` with `MOCK_HUB_ORIGINS` acts as
+- `tycoon/qa/e2e-graduation-hub.cjs`: 35 browser checks. `tools/mock-pay-server.mjs` with `MOCK_HUB_ORIGINS` acts as
   the patched server, and without it as today's server (the game must stay free play). Covered: Weekly Challenge
   replayed after signing in, leaderboard, checkout in the whole tab, return to the hub, Treats added once,
-  a cancelled checkout, and the email sign-in link.
+  a cancelled checkout, the email sign-in link, and buying Treats from "So close!" (out of moves, 0 Treats) and then
+  finishing the same level with +5 moves.
 
   Playwright answers the browser's permission check (OPTIONS) itself, so that check is covered by `hub.test.ts`
   and a direct request to the mock, not by the browser run.

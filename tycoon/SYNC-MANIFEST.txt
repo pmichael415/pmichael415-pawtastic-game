@@ -2,7 +2,7 @@
 # Source: github.com/pmichael415/pmichael415-pawtastic-game, folder tycoon/. Base: Lovable c3a69bd.
 # Format: <sha256>  <path>. Deleted files: none. Never sync: .env, public/favicon.png, src/assets/daycare-room.jpg
 e599ab68a4396e76aa8e74acec336fc0b3823c2623f6adf8d71e4f4bad97e00c  AGENTS.md
-a6d4e21bc35307cbb54feec6dadcc03ec3fd7b9707ac95a98df12c1c97b406e7  STATUS.md
+7890aafbe1ebe8990105d1c16b66e722108ee07825328ac7fafa15e733fed09d  STATUS.md
 348265738741c144534b7800fbad3d256ff24408cd0f373937682f5bfb0b6674  SYNC-TO-LOVABLE.md
 f598064c91cb302932fb4fe1ec164a5256ee536f336fa9ac93f227e362b34776  bun.lock
 623a9bc248c5c051f02d7a423bceeadc0345f26a5a976e031e7d6b5d51b5d2e4  drizzle/manual/notify_schedule.sql
@@ -40,7 +40,7 @@ ea6b6bdaaee814894b7428a24abbdb373e88678ee9671ef28d6d6f41af1a5f60  public/manifes
 f8abbb5a40b9bb4ac60b0f22d5b2bc7881a7b2da5b3a585305bcf1a19f174654  qa/e2e-cloud.cjs
 832ee3f06987b70376b2c531e6657ecb62fea9d2912e7b46ecbc8ddfea836f85  qa/e2e-daycare.cjs
 977967fbbb78ab8cfb3b85c00991cedf59027c667a23a95723ff19f272bc748b  qa/e2e-games.cjs
-58db8dfb1ff590444002fcd0a5c943ebaa1fbcd378fe7686bc97146feb7517df  qa/e2e-graduation-hub.cjs
+1b6968f58c32d9f403a14eb057d3a8d4db624e931516deabe264595f7fcf3c95  qa/e2e-graduation-hub.cjs
 1910d8ecfa36b5dbe6072b185fd1794d991c4719036ffeb0aaf8dd44607b47b6  qa/e2e-hub.cjs
 d009ececa8309de9725c4819a45956da9a63c63880b2b55d1b0713df5b3a9d3e  qa/e2e-notify.cjs
 f780b8319047341d5db6e51e7a9d7da2fe945c93f033710b4f286442429fd53b  qa/e2e-teams.cjs
@@ -71,8 +71,8 @@ cd0732be673a2766a77f62051606a25cdee3d334aa2f9fa336d9eb3fe1281df5  scripts/make-s
 ffa32d1e0f98f9f2e1c1507a0c28cb6c682de1ff1a407049b4e2206b3ddc8b52  src/components/game/EmailUpdates.test.tsx
 3bcca960a2bfcf74c8ab69f26b542a580546e8753b9b34e233b95864792d0f7a  src/components/game/EmailUpdates.tsx
 5b621f8e2ffc994147045878fd964d1f08f41ffeb0ea74b0683201d0d9a90013  src/components/game/GameHeader.tsx
-26fb2729ab1201f8eb4324f68ce1744ea79771eaaaa29e5a9aeaa97e8cc2a9a7  src/components/game/GraduationWeeklyCard.test.tsx
-d37a27d6bd62b37fe2b5ddb7fbe5337766035e69bf49f8f922779f67aeb43e10  src/components/game/GraduationWeeklyCard.tsx
+f1ca536b0ddd47be76ce69d20b39419d5cd115d9db2738b6bb954af6e692422d  src/components/game/GraduationWeeklyCard.test.tsx
+f098f4f260ff82ff845fa0232b1252294abd925bff386c0a418aba6d552663ac  src/components/game/GraduationWeeklyCard.tsx
 cc33c888a60d30f9c6a05c8a956f24ac98d079b8c79c6569783411b9dc3cd5fd  src/components/game/NotifyCard.test.tsx
 138a00d0b4bb2e56b8e4f2cb8d2eaf90245a66ab225412904d76613abc0288bf  src/components/game/NotifyCard.tsx
 3d73df0bb85b832ff6593c36362bda63bf9fee1dd3ba37a183f15ee0a023265e  src/components/game/NotifySettings.tsx
