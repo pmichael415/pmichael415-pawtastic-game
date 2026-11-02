@@ -3,6 +3,9 @@
 import { caps } from "./connect";
 import type { Facility, Room, RoomType, TDog } from "./types";
 
+/** A bath runs this many game minutes (charged at pickup on the receipt, or prepaid at check-in). */
+export const BATH_MIN = 40;
+
 const TYPE_NAME: Record<RoomType, string> = { lobby: "Lobby", playroom: "Playroom", calm: "Calm-Down Room", bath: "Bath Room", boarding: "Boarding Room", staff: "Staff Room" };
 
 /** "Lobby", "Playroom" (or "Playroom 2" when there are several), "Bath Room"… */

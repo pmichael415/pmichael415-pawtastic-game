@@ -510,7 +510,9 @@ function parseJob(x: unknown, f: Facility): Job | null {
   if (!to || (dog && !f.dogs.some((d) => d.id === dog)) || (room && !f.rooms.some((r) => r.uid === room)) || (tub && !f.items.some((i) => i.uid === tub))) return null;
   const kind = x["kind"] as Job["kind"];
   if ((kind === "clean" && !room) || (kind !== "clean" && !dog) || (kind === "bath" && !tub)) return null;
-  return { kind, dog, room, tub, phase: x["phase"] === "work" ? "work" : "walk", left: clamp(num(x["left"], 0), 0, 240), total: clamp(num(x["total"], 1), 1, 240), to };
+  const bed = ref("bed");
+  if (bed && !f.items.some((i) => i.uid === bed)) return null;
+  return { kind, dog, room, tub, ...(bed ? { bed } : {}), phase: x["phase"] === "work" ? "work" : "walk", left: clamp(num(x["left"], 0), 0, 240), total: clamp(num(x["total"], 1), 1, 240), to };
 }
 /** Running baths each stand in a tub: keep a saved tub if it's still a free tub, else the next free one. */
 function withTubs(f: Facility, dogs: TDog[]): TDog[] {

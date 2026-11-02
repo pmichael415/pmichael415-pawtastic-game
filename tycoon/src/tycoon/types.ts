@@ -146,7 +146,7 @@ export type Focus = "pickups" | "arrivals" | "neediest" | "newest" | "soonest" |
 export type JobKind = "checkin" | "pickup" | "play" | "bath" | "clean";
 export type Tile = { c: number; r: number };
 /** One job: walking to `to`, then working there. `left` is game minutes left in the current phase. */
-export type Job = { kind: JobKind; dog: string | null; room: string | null; tub: string | null; phase: "walk" | "work"; left: number; total: number; to: Tile };
+export type Job = { kind: JobKind; dog: string | null; room: string | null; tub: string | null; bed?: string | null; phase: "walk" | "work"; left: number; total: number; to: Tile };
 /** A team member. Phil (the founder) helps when you tap; hired staff take a role and do it on their own. */
 export type TStaff = Staff & {
   founder?: boolean;

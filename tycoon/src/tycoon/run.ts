@@ -34,7 +34,8 @@ import { fac, withFac } from "./state";
 import { tourHolds } from "./tour";
 import { LAST_DROPOFF, fmtTime, logVisit, newVisit, visitOf } from "./visit";
 import { assessVisit } from "./assess";
-import { bathQueue, freeTub, roomCleanOf, roomOfDog, setRoomClean } from "./rooms";
+import { runStaff, supervised } from "./team";
+import { BATH_MIN, bathQueue, freeTub, roomCleanOf, roomOfDog, setRoomClean } from "./rooms";
 import { adjustRep, referralBoost, repDeltaFor, reviewFactor, reviewFor } from "./reputation";
 import type { Facility, Mood, Outcome, Room, TDog, TPlace, TRegular, TResult, TycoonState } from "./types";
 
@@ -311,8 +312,7 @@ function bathBlock(f: Facility, which: "bath" | "exitBath"): string | null {
   return null;
 }
 
-/** A bath runs this many game minutes (charged at pickup on the receipt, or prepaid at check-in). */
-export const BATH_MIN = 40;
+export { BATH_MIN } from "./rooms";
 
 /** Starts a bath: staff time now, the pup comes out clean after BATH_MIN game minutes. Never paid here. */
 export function bath(s: TycoonState, dogId: string): TResult {
@@ -570,7 +570,7 @@ export function tick(s: TycoonState, seconds: number, rand: () => number = Math.
   const startedIn: Room[] = [];
   for (const room of f.rooms) {
     if (room.type !== "playroom" || !roomAtRisk(f, room) || scuffles.some((x) => x.room === room.uid)) continue;
-    if (rand() < SCUFFLE_CHANCE_PER_SEC * seconds) {
+    if (rand() < SCUFFLE_CHANCE_PER_SEC * seconds * (supervised(f, room.uid) ? 0.5 : 1)) {
       scuffles.push({ room: room.uid });
       startedIn.push(room);
       started++;
@@ -609,7 +609,7 @@ export function tick(s: TycoonState, seconds: number, rand: () => number = Math.
     if (r.ok) out = r.state;
   }
   f = fac(out);
-  if (!f.open) return out;
+  if (!f.open) return runStaff(out, seconds * GAME_MIN_PER_SEC);
 
   // The clock and drop-offs. Fractional seconds accumulate; arrivals roll once per whole game minute crossed.
   const baseChance = () => {
@@ -648,7 +648,7 @@ export function tick(s: TycoonState, seconds: number, rand: () => number = Math.
       if (r.ok) out = r.state; // lobby full → the customer politely rebooks, no penalty
     }
   }
-  return out;
+  return runStaff(out, seconds * GAME_MIN_PER_SEC);
 }
 
 /** Returning after time away: no decay, no expenses, staff fully rested, a small capped welcome bonus. */
