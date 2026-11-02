@@ -140,6 +140,7 @@ describe("owners don't wait forever, and nobody stays overnight by accident", ()
     s = withFac(s, { ...fac(s), dogs: fac(s).dogs.map((d) => (d.id === id ? { ...d, visit: { ...d.visit!, pickup: 17 * 60 + 30 } } : d)) });
     s = ok(createArrival(at(s, 9 * 60), () => 0.95, true)); // a boarder
     const boarder = fac(s).dogs.at(-1)!.id;
+    s = ok(checkIn(s, boarder)); // a checked-in boarder (a family ignored at the desk for hours would leave)
     s = nextDay(at(s, 17 * 60 + 50));
     expect(fac(s).day).toBe(2);
     expect(dog(s, id)).toBeUndefined();

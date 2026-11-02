@@ -1,5 +1,6 @@
 // PAWtastic Daycare Tycoon — how a visit went, judged only from what happened (service design, "Satisfaction,
 // receipt, complaints"). Pure: the receipt, any complaints, satisfaction and the owner's mood.
+import { DESK_GIVES_UP, DESK_IMPATIENT } from "./waiting";
 import { roomCleanOf, roomName, roomOfDog } from "./rooms";
 import { bathPay } from "./business";
 import { funAppeal, tip } from "./effects";
@@ -58,6 +59,9 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
   if (roomCleanOf(f, own) < DIRTY_BELOW) add("dirty", `${own ? roomName(f, own) : "The daycare"} looked dirty.`, 15);
   if (ownerWait > OWNER_PATIENCE) add("wait", `${v.owner} waited ${ownerWait} minutes at pickup.`, ownerWait >= 60 ? 25 : 15);
   if (v.waitedLobby > 60) sat -= 10;
+  // ignored at the desk (never checked in): a real wait complaint — a turn-away never gets here, it's free
+  const deskWait = !dog.checkedIn ? (v.arrivedDay === f.day ? Math.max(0, Math.round(now - v.arrived)) : v.waitedLobby) : 0;
+  if (deskWait >= DESK_IMPATIENT) add("wait", `${v.owner} waited ${deskWait} minutes at the front desk and nobody checked ${dog.name} in.`, deskWait >= DESK_GIVES_UP ? 40 : 20);
   if (v.scuffle) sat -= 20;
   if (!safe && (!provided || dog.happiness < 45)) add("attention", provided ? `${dog.name} seemed unhappy — not enough attention.` : dog.checkedIn ? `${dog.name} never got a playroom.` : `${dog.name} was never checked in.`, 0);
 

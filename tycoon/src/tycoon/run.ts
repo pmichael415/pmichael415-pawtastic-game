@@ -35,6 +35,7 @@ import { tourHolds } from "./tour";
 import { LAST_DROPOFF, fmtTime, logVisit, newVisit, visitOf } from "./visit";
 import { assessVisit } from "./assess";
 import { runStaff, supervised } from "./team";
+import { DESK_GIVES_UP } from "./waiting";
 import { BATH_MIN, bathQueue, freeTub, roomCleanOf, roomOfDog, setRoomClean } from "./rooms";
 import { adjustRep, referralBoost, repDeltaFor, reviewFactor, reviewFor } from "./reputation";
 import type { Facility, Mood, Outcome, Room, TDog, TPlace, TRegular, TResult, TycoonState } from "./types";
@@ -507,6 +508,11 @@ function pickups(s: TycoonState): TycoonState {
   for (const d of f.dogs) {
     const v = visitOf(f, d);
     const g = fac(out);
+    if (!d.checkedIn && d.place.kind === "lobby" && v.arrivedDay === g.day && g.clockMin - v.arrived >= DESK_GIVES_UP) {
+      const r = settle(out, d.id, "left"); // ignored at the desk for an hour: they take their pup home
+      if (r.ok) out = r.state;
+      continue;
+    }
     if (v.finishing && d.bathed) {
       const r = settle(out, d.id, "finished");
       if (r.ok) out = r.state;
