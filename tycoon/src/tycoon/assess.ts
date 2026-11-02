@@ -1,5 +1,6 @@
 // PAWtastic Daycare Tycoon — how a visit went, judged only from what happened (service design, "Satisfaction,
 // receipt, complaints"). Pure: the receipt, any complaints, satisfaction and the owner's mood.
+import { roomCleanOf, roomName, roomOfDog } from "./rooms";
 import { bathPay } from "./business";
 import { funAppeal, tip } from "./effects";
 import { visitOf } from "./visit";
@@ -53,7 +54,8 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
     if (prepaidBath) add("billing", `${v.owner} prepaid a bath, but ${still}.`, 25);
     else add("bath", `${still[0]!.toUpperCase()}${still.slice(1)}.`, 25);
   }
-  if (f.cleanliness < DIRTY_BELOW) add("dirty", "The rooms looked dirty.", 15);
+  const own = roomOfDog(f, dog);
+  if (roomCleanOf(f, own) < DIRTY_BELOW) add("dirty", `${own ? roomName(f, own) : "The daycare"} looked dirty.`, 15);
   if (ownerWait > OWNER_PATIENCE) add("wait", `${v.owner} waited ${ownerWait} minutes at pickup.`, ownerWait >= 60 ? 25 : 15);
   if (v.waitedLobby > 60) sat -= 10;
   if (v.scuffle) sat -= 20;

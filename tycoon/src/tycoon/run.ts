@@ -34,6 +34,7 @@ import { fac, withFac } from "./state";
 import { tourHolds } from "./tour";
 import { LAST_DROPOFF, fmtTime, logVisit, newVisit, visitOf } from "./visit";
 import { assessVisit } from "./assess";
+import { roomCleanOf, roomOfDog, setRoomClean } from "./rooms";
 import { adjustRep, referralBoost, repDeltaFor, reviewFactor, reviewFor } from "./reputation";
 import type { Facility, Mood, Outcome, Room, TDog, TPlace, TRegular, TResult, TycoonState } from "./types";
 
@@ -289,7 +290,8 @@ export function playtime(s: TycoonState, dogId: string): TResult {
   const loves = fav === "fetch" || fav === "tug" || fav === "zoomies" || fav === "cuddles";
   const g = playGain(f, dog);
   let nf = setDog(st, dogId, (d) => ({ ...d, happiness: clamp(d.happiness + g.total), clean: clamp(d.clean - 10), played: d.played + 1 }));
-  nf = bump({ ...nf, cleanliness: clamp(nf.cleanliness - 4) }, "plays");
+  const playRoom = roomOfDog(nf, dog);
+  nf = bump(setRoomClean(nf, (v, r) => (r.uid === playRoom ? v - 4 : v)), "plays");
   // Credit the top item with its own share only (what its card promised); with no item, the daycare's general fun.
   const helped = g.topItem && g.topShare > 0 ? ` (+${g.topShare} from your ${g.topItem})` : g.fromFun > 0 ? ` (+${g.fromFun} from your daycare's fun)` : "";
   const said = loves ? `${dog.name} loved it — ${FAVORITE_LABEL[fav]} is their favorite!` : `${dog.name} had a blast!`;
@@ -342,10 +344,10 @@ function runBaths(s: TycoonState, f: Facility, gameMin: number): Facility {
 
 export function clean(s: TycoonState): TResult {
   const f = fac(s);
-  if (f.cleanliness >= 100) return { ok: false, error: "Already sparkling!" };
+  if (f.rooms.every((r) => roomCleanOf(f, r.uid) >= 100)) return { ok: false, error: "Already sparkling!" };
   const st = spendStaff(f, 10);
   if (!st) return tired;
-  const nf = bump({ ...st, cleanliness: clamp(st.cleanliness + 35) }, "cleans");
+  const nf = bump(setRoomClean(st, (v) => v + 35), "cleans");
   return { ok: true, state: gainXp(withFac(s, nf), XP.clean), msg: "Floors mopped!" };
 }
 
@@ -545,7 +547,7 @@ export function tick(s: TycoonState, seconds: number, rand: () => number = Math.
   }
   const { fun, appeal } = funAppeal(f);
   const staffBoost = caps(f).staffBoost;
-  const dirtFactor = f.cleanliness < 40 ? 1.6 : 1;
+  const dirtFactor = (d: TDog) => (roomCleanOf(f, roomOfDog(f, d)) < 40 ? 1.6 : 1);
 
   // Scuffles: only playrooms holding a mismatched pup can start one; they end once the mismatch leaves.
   let scuffles = [...f.scuffles];
@@ -567,16 +569,15 @@ export function tick(s: TycoonState, seconds: number, rand: () => number = Math.
   const decay = decayMultiplier(fun);
   const dogs = f.dogs.map((d) => ({
     ...d,
-    happiness: clamp(d.happiness - (0.5 + (inScuffle(d) ? 1.5 : 0)) * seconds * decay * dirtFactor),
+    happiness: clamp(d.happiness - (0.5 + (inScuffle(d) ? 1.5 : 0)) * seconds * decay * dirtFactor(d)),
     clean: clamp(d.clean - 0.25 * seconds),
   }));
   // Reputation no longer drifts with time: a scuffle costs −3 when it starts (recorded), visits do the rest.
   const regen = 2 * wageRecovery(f.wage) * (1 + staffBoost) * seconds;
   f = {
-    ...f,
+    ...setRoomClean(f, (v, r) => v - 0.08 * f.dogs.filter((d) => roomOfDog(f, d) === r.uid).length * seconds),
     dogs,
     scuffles,
-    cleanliness: clamp(f.cleanliness - 0.08 * f.dogs.length * seconds),
     staff: f.staff.map((st) => ({ ...st, energy: clamp(st.energy + regen) })),
     stats: started ? { ...f.stats, scuffles: (f.stats.scuffles ?? 0) + started } : f.stats,
   };
