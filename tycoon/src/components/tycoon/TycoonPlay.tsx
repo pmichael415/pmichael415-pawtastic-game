@@ -174,7 +174,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
   }, [outcomesLen]);
   useEffect(() => {
     if (!receipt) return;
-    const t = setTimeout(() => setReceipt(null), 8000);
+    const t = setTimeout(() => setReceipt(null), 6000);
     return () => clearTimeout(t);
   }, [receipt]);
   const ownersHere = f.dogs.filter((d) => d.visit?.ownerHere != null).map((d) => d.id).join(",");

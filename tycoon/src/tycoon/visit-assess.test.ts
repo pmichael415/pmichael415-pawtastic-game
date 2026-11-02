@@ -61,6 +61,12 @@ describe("what goes wrong, and only when it did", () => {
     expect(a.complaints.map((c) => c.kind)).toEqual(["wait"]);
     expect(a.complaints[0]!.text).toMatch(/45 minutes/);
   });
+  it("an owner who waited an hour (and gave up) is never pleased, however happy the pup", () => {
+    const f = base();
+    const a = assessVisit({ ...f, clockMin: 17 * 60 }, pup(f, { happiness: 100 }), {});
+    expect(a.satisfaction).toBeLessThanOrEqual(55);
+    expect(["disappointed", "upset"]).toContain(a.mood);
+  });
   it("checked in but never given a playroom: daycare not charged, an attention complaint", () => {
     const f = base();
     const a = assessVisit(f, pup(f, { place: { kind: "lobby" }, played: 0, happiness: 50 }), {});

@@ -54,7 +54,7 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
     else add("bath", `${still[0]!.toUpperCase()}${still.slice(1)}.`, 25);
   }
   if (f.cleanliness < DIRTY_BELOW) add("dirty", "The rooms looked dirty.", 15);
-  if (ownerWait > OWNER_PATIENCE) add("wait", `${v.owner} waited ${ownerWait} minutes at pickup.`, 15);
+  if (ownerWait > OWNER_PATIENCE) add("wait", `${v.owner} waited ${ownerWait} minutes at pickup.`, ownerWait >= 60 ? 25 : 15);
   if (v.waitedLobby > 60) sat -= 10;
   if (v.scuffle) sat -= 20;
   if (!safe && (!provided || dog.happiness < 45)) add("attention", provided ? `${dog.name} seemed unhappy — not enough attention.` : dog.checkedIn ? `${dog.name} never got a playroom.` : `${dog.name} was never checked in.`, 0);
@@ -84,6 +84,8 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
     sat -= k === "bath" || k === "billing" ? 5 : k === "attention" ? 3 : 0;
     complaints.push({ kind: k, text: FINISHED_TEXT[k], penalty: 0, remedy: "finish", resolved: true });
   }
+  // an hour's wait (the owner gave up) is never a pleasant pickup, however happy the pup
+  if (ownerWait >= 60) sat = Math.min(sat, 55);
   sat = Math.max(0, Math.min(100, Math.round(sat)));
   const mood = moodOf(sat);
 

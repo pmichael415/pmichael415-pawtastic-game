@@ -4,7 +4,7 @@ import { act, renderHook } from "@testing-library/react";
 
 vi.mock("sonner", () => ({ toast: Object.assign(() => {}, { success: () => {}, error: () => {} }) }));
 
-import { LEASE_KEY, LEASE_STALE_MS, claimLease } from "./lease";
+import { LEASE_KEY, LEASE_STALE_MS, claimLease, tabId } from "./lease";
 import { KEY, tycoonStore, useTycoon } from "./store";
 import { fac, withFac } from "./state";
 import { ok, richState } from "./testkit";
@@ -24,6 +24,11 @@ describe("the lease", () => {
     expect(claimLease(st, "B", 3000 + LEASE_STALE_MS + 1)).toBe(true);
     expect(claimLease(st, "A", 3000 + LEASE_STALE_MS + 2)).toBe(false);
     expect(claimLease(st, "A", 3000 + LEASE_STALE_MS + 3, true)).toBe(true);
+  });
+  it("a tab keeps its id across reloads (so a reload doesn't lock itself out)", () => {
+    sessionStorage.clear();
+    const a = tabId();
+    expect(tabId()).toBe(a);
   });
   it("a broken lease value counts as free", () => {
     const st = mem();
@@ -55,6 +60,16 @@ describe("a second tab", () => {
     expect(JSON.parse(localStorage.getItem(LEASE_KEY)!).tab).not.toBe("other-tab");
     act(() => vi.advanceTimersByTime(3000));
     expect(fac(tycoonStore.getState()!).clockMin).toBeGreaterThan(clock);
+    unmount();
+  });
+  it("takes over by itself when the other tab goes away (its lease goes stale)", () => {
+    const s = ok(setOpen(richState(), true));
+    localStorage.setItem(KEY, JSON.stringify(withFac(s, { ...fac(s), clockMin: 9 * 60 })));
+    localStorage.setItem(LEASE_KEY, JSON.stringify({ tab: "closed-tab", at: Date.now() }));
+    const { result, unmount } = renderHook(() => useTycoon());
+    expect(result.current.spectator).toBe(true);
+    act(() => vi.advanceTimersByTime(LEASE_STALE_MS + 3000));
+    expect(result.current.spectator).toBe(false);
     unmount();
   });
 });

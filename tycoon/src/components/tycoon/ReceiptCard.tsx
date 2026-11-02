@@ -7,11 +7,12 @@ import { Receipt } from "./PickupSheet";
 
 export function ReceiptCard({ outcome, onClose }: { outcome: Outcome; onClose: () => void }) {
   return (
-    <section aria-label="Receipt" className="fixed inset-x-0 z-50 mx-auto max-w-md px-3" style={{ bottom: "calc(4.5rem + env(safe-area-inset-bottom))" }}>
-      <div className="rounded-2xl border border-border bg-card p-3 shadow-pop">
+    // Taps pass through the card (only its close button takes them), so it never blocks the daycare underneath.
+    <section aria-label="Receipt" className="pointer-events-none fixed inset-x-0 z-50 mx-auto max-w-md px-3" style={{ bottom: "calc(4.5rem + env(safe-area-inset-bottom))" }}>
+      <div className="rounded-2xl border border-border bg-card/95 p-3 shadow-pop">
         <div className="flex items-start gap-2">
           <p className="min-w-0 flex-1 text-sm font-semibold text-secondary">{outcomeLine(outcome)}</p>
-          <button type="button" aria-label="Close receipt" onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground">
+          <button type="button" aria-label="Close receipt" onClick={onClose} className="pointer-events-auto grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground">
             <X className="h-4 w-4" />
           </button>
         </div>

@@ -34,3 +34,29 @@ export function heldElsewhere(st: Store, tab: string, now: number): boolean {
 }
 
 export const newTabId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `t${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`);
+
+const TAB_KEY = "pawtastic-daycare-next-tab";
+/** This tab's id, kept for the life of the tab (sessionStorage survives a reload), so a reload keeps its own lease. */
+export function tabId(): string {
+  try {
+    const have = sessionStorage.getItem(TAB_KEY);
+    if (have) return have;
+    const id = newTabId();
+    sessionStorage.setItem(TAB_KEY, id);
+    return id;
+  } catch {
+    return newTabId();
+  }
+}
+
+/** Lets the lease go (this tab is closing), so another tab can take over at once. */
+export function releaseLease(st: Store, tab: string) {
+  const cur = read(st);
+  if (cur && cur.tab === tab) {
+    try {
+      st.setItem(LEASE_KEY, JSON.stringify({ tab, at: 0 }));
+    } catch {
+      /* ignore */
+    }
+  }
+}

@@ -65,6 +65,9 @@ describe("pickup on screen", () => {
     const bonusBefore = fac(now()).ledger.at(-1)?.income.bonus ?? 0;
     const pay = within(sheet).getByRole("button", { name: /say goodbye/ });
     fireEvent.click(pay);
+    // the sheet stays a moment showing it's paid, so a quick second tap can't fall through to what's underneath
+    expect(within(sheet).getByRole("button", { name: /Paid — goodbye/ })).toBeTruthy();
+    expect((within(sheet).getByRole("button", { name: /Paid — goodbye/ }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(pay); // a second tap does nothing
     expect(fac(now()).dogs).toHaveLength(0);
     expect(fac(now()).outcomes).toHaveLength(1);

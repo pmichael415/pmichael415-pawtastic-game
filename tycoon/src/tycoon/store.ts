@@ -17,7 +17,7 @@ import type { TDog, TResult, TycoonState } from "./types";
 import { applyTycoonContents } from "./purchases";
 import { confirmed, planDeliveries, type Delivery, type DeliveryStep } from "@/lib/purchases/delivery";
 import { createSaveGuard } from "@/lib/purchases/saveGuard";
-import { LEASE_REFRESH_MS, claimLease, heldElsewhere, newTabId } from "./lease";
+import { LEASE_REFRESH_MS, claimLease, heldElsewhere, releaseLease, tabId } from "./lease";
 
 export const KEY = "pawtastic-daycare-next-v1";
 export const TICK_MS = 250;
@@ -58,7 +58,7 @@ function readStored(): TycoonState | null {
 const guard = createSaveGuard<TycoonState>(KEY, readStored);
 
 // ---------- one tab plays (the lease): only the leading tab runs the clock and writes the save ----------
-const TAB = newTabId();
+const TAB = typeof window !== "undefined" ? tabId() : "server";
 let leading = true;
 let leaseTimer: ReturnType<typeof setInterval> | null = null;
 const storage = () => (typeof localStorage !== "undefined" ? localStorage : null);
@@ -230,9 +230,20 @@ function watchLease() {
         snap = { ...snap, spectator: true };
         emit();
       } else claimLease(st, TAB, Date.now());
+    } else if (!heldElsewhere(st, TAB, Date.now())) {
+      // the other tab went away: play here, from its latest save
+      playHere();
     }
   }, LEASE_REFRESH_MS);
+  if (!pagehideWired && typeof window !== "undefined") {
+    pagehideWired = true;
+    window.addEventListener("pagehide", () => {
+      const s = storage();
+      if (leading && s) releaseLease(s, TAB);
+    });
+  }
 }
+let pagehideWired = false;
 
 /** "Play here": take over from another tab, picking up its latest save. */
 export function playHere() {

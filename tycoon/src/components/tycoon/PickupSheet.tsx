@@ -15,12 +15,17 @@ type Act = (fn: (s: TycoonState) => TResult, opts?: ActOpts) => ActResult;
 
 export function PickupSheet({ state, dogId, exitBath, act, onClose }: { state: TycoonState; dogId: string; exitBath: boolean; act: Act; onClose: () => void }) {
   const [said, setSaid] = useState<string[]>([]);
+  const [paid, setPaid] = useState(false);
   const paying = useRef(false);
+  const last = useRef<{ dog: NonNullable<ReturnType<typeof fac>["dogs"][number]>; view: ReturnType<typeof pickupView> } | null>(null);
   const f = fac(state);
-  const dog = f.dogs.find((d) => d.id === dogId);
-  if (!dog) return null;
+  const live = f.dogs.find((d) => d.id === dogId);
+  // once paid, the sheet shows its last view for a moment (the pup has gone home) so a second tap can't fall through
+  if (live) last.current = { dog: live, view: pickupView(state, dogId, exitBath) };
+  if (!last.current) return null;
+  const dog = last.current.dog;
   const v = visitOf(f, dog);
-  const { assessment: a, options } = pickupView(state, dogId, exitBath);
+  const { assessment: a, options } = last.current.view;
   const daycare = a.lines.find((l) => l.key === "daycare")?.amount ?? 0;
   const label = (kind: ComplaintKind, r: RemedyKind) =>
     r === "finish"
@@ -36,8 +41,10 @@ export function PickupSheet({ state, dogId, exitBath, act, onClose }: { state: T
     if (paying.current) return; // one checkout, however many taps
     paying.current = true;
     const r = act((s) => checkout(s, dogId, exitBath));
-    if (r.ok) onClose();
-    else paying.current = false;
+    if (r.ok) {
+      setPaid(true);
+      setTimeout(onClose, 700);
+    } else paying.current = false;
   };
   const total = a.total;
   return (
@@ -69,8 +76,8 @@ export function PickupSheet({ state, dogId, exitBath, act, onClose }: { state: T
           ))}
         </div>
         <Receipt lines={a.lines} total={total} />
-        <Button className="mt-3 h-12 w-full font-display" disabled={!!v.finishing} onClick={pay}>
-          {v.finishing ? "Waiting for the bath…" : total > 0 ? `Charge ${total} & say goodbye` : total === 0 ? "No charge — say goodbye" : `Refund ${-total} & say goodbye`}
+        <Button className="mt-3 h-12 w-full font-display" disabled={!!v.finishing || paid} onClick={pay}>
+          {paid ? "Paid — goodbye!" : v.finishing ? "Waiting for the bath…" : total > 0 ? `Charge ${total} & say goodbye` : total === 0 ? "No charge — say goodbye" : `Refund ${-total} & say goodbye`}
         </Button>
         {v.finishing && <p className="mt-2 text-center text-xs text-muted-foreground">{dog.name} goes home with {v.owner} as soon as the bath is done.</p>}
       </SheetContent>
