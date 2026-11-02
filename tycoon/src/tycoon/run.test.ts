@@ -67,8 +67,14 @@ describe("check-in", () => {
     expect(createArrival(setF(a, { clockMin: 14 * 60 }), r).ok).toBe(true);
   });
   it("arrivals never overflow the lobby's waiting spots", () => {
-    const s = tick(opened(), 300, () => 0);
-    expect(lobbyDogs(fac(s))).toHaveLength(4); // 2 + 2 for the bench
+    // (owners now come back for their pups, so the lobby also empties again: check the most it ever held)
+    let s = opened();
+    let most = 0;
+    for (let i = 0; i < 300; i++) {
+      s = tick(s, 1, () => 0);
+      most = Math.max(most, lobbyDogs(fac(s)).length);
+    }
+    expect(most).toBe(4); // 2 + 2 for the bench
   });
 });
 
@@ -174,8 +180,11 @@ describe("care", () => {
     expect(fac(c).dogs).toHaveLength(0);
     expect(fac(c).guestBook[0]).toMatchObject({ name: "Pup a", visits: 1 });
     expect(fac(c).ledger.at(-1)).toMatchObject({ checkouts: 1, income: { daycare: 32 } });
-    const happy = inPlay(guidedBuild(newTycoon(0)), { happiness: 85 });
+    // +5 XP for a delighted family (happy and played with), not for happiness alone
+    const happy = inPlay(guidedBuild(newTycoon(0)), { happiness: 85, played: 1 });
     expect(ok(checkout(happy, "a", false)).xp).toBe(happy.xp + 15);
+    const noPlay = inPlay(guidedBuild(newTycoon(0)), { happiness: 85 });
+    expect(ok(checkout(noPlay, "a", false)).xp).toBe(noPlay.xp + 10);
   });
   it("only pups leaving a playroom or bed pay; the lobby and calm-down room send them home free", () => {
     const s = withDogs(opened(), [dog("a"), dog("b", { place: { kind: "calm", room: roomOfType(opened(), "calm").uid } })]);

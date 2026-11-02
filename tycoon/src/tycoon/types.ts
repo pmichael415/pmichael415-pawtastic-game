@@ -104,6 +104,28 @@ export type Visit = {
   safeMove: boolean;
   /** The owner agreed to wait while this service is finished. */
   finishing: "bath" | null;
+  /** How the player answered each complaint (one answer per complaint). */
+  remedies: Partial<Record<ComplaintKind, RemedyKind>>;
+  /** Coins already paid at check-in for prepaid services (what a refund gives back). */
+  paid: number;
+};
+export type ComplaintKind = "wait" | "bath" | "billing" | "attention" | "dirty";
+export type RemedyKind = "finish" | "refund" | "credit" | "explain";
+export type Mood = "delighted" | "content" | "disappointed" | "upset";
+/** How a visit ended: what was billed, how the family felt, what went wrong and how it was answered. */
+export type Outcome = {
+  dog: string;
+  owner: string;
+  day: number;
+  min: number;
+  how: "checkout" | "left" | "dayend" | "finished";
+  mood: Mood;
+  satisfaction: number;
+  total: number;
+  lines: { label: string; amount: number }[];
+  complaints: { kind: ComplaintKind; text: string; remedy: RemedyKind | null; resolved: boolean }[];
+  repDelta: number;
+  review: Review | null;
 };
 export type TDog = Omit<Dog, "site" | "place" | "x" | "y"> & {
   place: TPlace;
@@ -123,7 +145,7 @@ export type Wage = "lean" | "standard" | "generous";
 export type Supplies = "basic" | "premium";
 export type CampaignId = "flyers" | "online" | "openhouse";
 export type IncomeKey = "daycare" | "boarding" | "baths" | "exitBaths" | "tips" | "bonus";
-export type ExpenseKey = "wages" | "upkeep" | "supplies" | "marketing" | "building";
+export type ExpenseKey = "wages" | "upkeep" | "supplies" | "marketing" | "building" | "refunds";
 
 export type DayLedger = { day: number; income: Record<IncomeKey, number>; expenses: Record<ExpenseKey, number>; checkIns: number; checkouts: number };
 export type TReport = {
@@ -166,6 +188,8 @@ export type Facility = {
   reviews: Review[];
   /** A 5★ review's referrals: more drop-offs until this day ends (null when none). */
   referralUntil: number | null;
+  /** The latest pickups and how they went (newest last). */
+  outcomes: Outcome[];
 };
 
 export type WeeklyStat = "checkouts" | "plays" | "admitted" | "baths" | "boarders";

@@ -21,7 +21,7 @@ export const wageRecovery = (wage: Wage) => ({ lean: 0.8, standard: 1, generous:
 // ---------- the ledger ----------
 
 const zeroIncome = (): Record<IncomeKey, number> => ({ daycare: 0, boarding: 0, baths: 0, exitBaths: 0, tips: 0, bonus: 0 });
-const zeroExpenses = (): Record<ExpenseKey, number> => ({ wages: 0, upkeep: 0, supplies: 0, marketing: 0, building: 0 });
+const zeroExpenses = (): Record<ExpenseKey, number> => ({ wages: 0, upkeep: 0, supplies: 0, marketing: 0, building: 0, refunds: 0 });
 const emptyDay = (day: number): DayLedger => ({ day, income: zeroIncome(), expenses: zeroExpenses(), checkIns: 0, checkouts: 0 });
 
 /** Today's ledger entry (a fresh one if today has none yet). */

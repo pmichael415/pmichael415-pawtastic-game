@@ -6,7 +6,7 @@ import { roomContaining, validRoomAt, validThingAt } from "./build";
 import { thingTiles } from "./grid";
 import { WEEKLY_GOALS, WEEKLY_STATS } from "./weekly";
 import type { Tour, TourBeat, TWeekly, WeeklyStat } from "./types";
-import type { CampaignId, DayLedger, Door, Facility, ParcelId, Placed, Prices, RepEntry, Review, Room, RoomType, Service, TDog, TPlace, TRegular, TycoonState, Visit } from "./types";
+import type { CampaignId, ComplaintKind, DayLedger, Door, Facility, Mood, Outcome, ParcelId, Placed, Prices, RemedyKind, RepEntry, Review, Room, RoomType, Service, TDog, TPlace, TRegular, TycoonState, Visit } from "./types";
 import { defaultVisit } from "./visit";
 
 export const SAVE_VERSION = 1 as const;
@@ -40,6 +40,7 @@ export function newFacility(name: string): Facility {
     repLog: [],
     reviews: [],
     referralUntil: null,
+    outcomes: [],
   };
 }
 
@@ -187,8 +188,45 @@ function withVisit(x: Record<string, unknown>, f: Facility, d: { name: string; b
       scuffle: bool(v["scuffle"], false),
       safeMove: bool(v["safeMove"], false),
       finishing: v["finishing"] === "bath" ? "bath" : null,
+      remedies: parseRemedies(v["remedies"]),
+      paid: Math.max(0, Math.min(1000, Math.round(num(v["paid"], 0)))),
     },
   };
+}
+const COMPLAINTS: ComplaintKind[] = ["wait", "bath", "billing", "attention", "dirty"];
+const REMEDIES: RemedyKind[] = ["finish", "refund", "credit", "explain"];
+function parseRemedies(x: unknown): Partial<Record<ComplaintKind, RemedyKind>> {
+  const out: Partial<Record<ComplaintKind, RemedyKind>> = {};
+  if (!isObj(x)) return out;
+  for (const k of COMPLAINTS) if (REMEDIES.includes(x[k] as RemedyKind)) out[k] = x[k] as RemedyKind;
+  return out;
+}
+const MOODS: Mood[] = ["delighted", "content", "disappointed", "upset"];
+const HOWS: Outcome["how"][] = ["checkout", "left", "dayend", "finished"];
+function parseOutcomes(x: unknown): Outcome[] {
+  if (!Array.isArray(x)) return [];
+  const out: Outcome[] = [];
+  for (const o of x.slice(-30)) {
+    if (!isObj(o) || typeof o["dog"] !== "string" || !MOODS.includes(o["mood"] as Mood)) continue;
+    out.push({
+      dog: str(o["dog"], "Pup"),
+      owner: str(o["owner"], "A customer"),
+      day: Math.max(1, int(o["day"], 1)),
+      min: minute(o["min"], 0),
+      how: HOWS.includes(o["how"] as Outcome["how"]) ? (o["how"] as Outcome["how"]) : "checkout",
+      mood: o["mood"] as Mood,
+      satisfaction: clamp(num(o["satisfaction"], 50), 0, 100),
+      total: Math.round(num(o["total"], 0)),
+      lines: (Array.isArray(o["lines"]) ? o["lines"] : []).filter((l): l is Record<string, unknown> => isObj(l) && typeof l["label"] === "string").map((l) => ({ label: (l["label"] as string).slice(0, 80), amount: Math.round(num(l["amount"], 0)) })).slice(0, 12),
+      complaints: (Array.isArray(o["complaints"]) ? o["complaints"] : [])
+        .filter((c): c is Record<string, unknown> => isObj(c) && COMPLAINTS.includes(c["kind"] as ComplaintKind))
+        .map((c) => ({ kind: c["kind"] as ComplaintKind, text: str(c["text"], ""), remedy: REMEDIES.includes(c["remedy"] as RemedyKind) ? (c["remedy"] as RemedyKind) : null, resolved: bool(c["resolved"], false) }))
+        .slice(0, 6),
+      repDelta: clamp(num(o["repDelta"], 0), -20, 20),
+      review: parseReviews([o["review"]])[0] ?? null,
+    });
+  }
+  return out;
 }
 
 const parseStats = (x: unknown): Stats => {
@@ -208,7 +246,7 @@ function parseLedger(x: unknown): DayLedger[] {
     out.push({
       day: int(e["day"], 0),
       income: { daycare: num(inc["daycare"], 0), boarding: num(inc["boarding"], 0), baths: num(inc["baths"], 0), exitBaths: num(inc["exitBaths"], 0), tips: num(inc["tips"], 0), bonus: num(inc["bonus"], 0) },
-      expenses: { wages: num(exp["wages"], 0), upkeep: num(exp["upkeep"], 0), supplies: num(exp["supplies"], 0), marketing: num(exp["marketing"], 0), building: num(exp["building"], 0) },
+      expenses: { wages: num(exp["wages"], 0), upkeep: num(exp["upkeep"], 0), supplies: num(exp["supplies"], 0), marketing: num(exp["marketing"], 0), building: num(exp["building"], 0), refunds: num(exp["refunds"], 0) },
       checkIns: Math.max(0, int(e["checkIns"], 0)),
       checkouts: Math.max(0, int(e["checkouts"], 0)),
     });
@@ -331,6 +369,7 @@ function parseFacility(x: unknown): Facility | null {
   f.repLog = parseRepLog(x["repLog"]);
   f.reviews = parseReviews(x["reviews"]);
   f.referralUntil = typeof x["referralUntil"] === "number" ? Math.max(0, int(x["referralUntil"], 0)) : null;
+  f.outcomes = parseOutcomes(x["outcomes"]);
   f.open = bool(x["open"], false);
   const pr = isObj(x["prices"]) ? x["prices"] : {};
   const prices = { ...PRICE_DEFAULTS };

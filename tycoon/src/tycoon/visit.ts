@@ -32,6 +32,8 @@ export function defaultVisit(f: Facility, d: Pick<TDog, "name" | "breed" | "boar
     scuffle: false,
     safeMove: false,
     finishing: null,
+    remedies: {},
+    paid: 0,
   };
 }
 
@@ -62,6 +64,8 @@ export function newVisit(f: Facility, d: Pick<TDog, "name" | "breed" | "boarding
     scuffle: false,
     safeMove: false,
     finishing: null,
+    remedies: {},
+    paid: 0,
   };
 }
 

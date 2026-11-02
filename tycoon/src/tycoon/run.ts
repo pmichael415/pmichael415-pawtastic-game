@@ -31,7 +31,8 @@ import { XP, gainXp } from "./progress";
 import { fac, withFac } from "./state";
 import { tourHolds } from "./tour";
 import { fmtTime, logVisit, newVisit, visitOf } from "./visit";
-import type { Facility, Room, TDog, TPlace, TResult, TycoonState } from "./types";
+import { assessVisit } from "./assess";
+import type { Facility, Mood, Outcome, Room, TDog, TPlace, TRegular, TResult, TycoonState } from "./types";
 
 const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
 const gone = { ok: false as const, error: "That pup already went home." };
@@ -157,7 +158,7 @@ export function checkIn(s: TycoonState, dogId: string): TResult {
   const v = visitOf(f, dog);
   // A prepaid package is paid now, once (pickup never charges it again; a refund is a remedy if it isn't done).
   const prepaidBath = v.prepaid.includes("bath") ? bathPay(f) : 0;
-  const visit = logVisit({ ...v, checkedInAt: Math.floor(f.clockMin) }, `Checked in ${fmtTime(f.clockMin)}${prepaidBath ? ` — bath prepaid (${prepaidBath})` : ""}`);
+  const visit = logVisit({ ...v, checkedInAt: Math.floor(f.clockMin), paid: v.paid + prepaidBath }, `Checked in ${fmtTime(f.clockMin)}${prepaidBath ? ` — bath prepaid (${prepaidBath})` : ""}`);
   let nf = setDog(f, dogId, (d) => ({ ...d, checkedIn: true, happiness: clamp(d.happiness + extra), visit }));
   nf = bump(bump(nf, "admitted"), "boarders", dog.boarding ? 1 : 0);
   let st = gainXp(countToday(withFac(s, nf), "checkIns"), XP.checkIn);
@@ -339,45 +340,149 @@ export function clean(s: TycoonState): TResult {
   return { ok: true, state: gainXp(withFac(s, nf), XP.clean), msg: "Floors mopped!" };
 }
 
+export const OWNER_GIVES_UP = 60; // game minutes an owner waits at pickup before taking the pup home
+export const CREDIT_SHARE = 0.5; // a future credit is worth half a daycare day
+
+const MOOD_LINE: Record<Mood, (owner: string, dog: string, why: string) => string> = {
+  delighted: (o, d) => `${o} is delighted — ${d} had a great day!`,
+  content: (o, d) => `${o} picked up ${d} — a good day.`,
+  disappointed: (o, d, why) => `${o} is disappointed: ${why}`,
+  upset: (o, d, why) => `${o} is upset: ${why}`,
+};
+
 /**
- * Checkout from a playroom or boarding bed pays the daycare price by happiness (plus tip, boarding and exit bath) and
- * builds friendship. From the lobby or calm-down room the pup goes home free of charge, so dog spots stay what earns.
+ * The end of a visit, exactly once: the itemized bill from assessVisit (with the player's remedies), the family's
+ * reaction, loyalty and the record of how it went. `how`: the player checked them out, the owner gave up waiting,
+ * the day ended, or a service was finished while they waited. A pup already gone can't be settled again.
  */
-export function checkout(s: TycoonState, dogId: string, exitBath: boolean): TResult {
+export function settle(s: TycoonState, dogId: string, how: Outcome["how"], exitBath = false): TResult {
   const f = fac(s);
   const dog = findDog(f, dogId);
-  if (!dog) return gone;
-  if (!dog.checkedIn) return { ok: false, error: `${dog.name} hasn't been checked in yet.` };
-  if (inActiveScuffle(f, dog)) return { ok: false, error: `Separate the scuffle in ${dog.name}'s room first.` };
-  if (dog.place.kind === "lobby" || dog.place.kind === "calm") {
-    // No playroom or bed today: the owner takes the pup home at no charge. No pay, no XP, no penalty.
-    const nf = { ...f, dogs: f.dogs.filter((d) => d.id !== dogId) };
-    return done(withFac(s, nf), `${dog.name} went home — no charge, since they didn't get a playroom${dog.boarding ? " or bed" : ""} today.`);
+  if (!dog) return { ok: false, error: "That pup already went home — the bill was settled." };
+  const v = visitOf(f, dog);
+  if (how === "checkout") {
+    if (!dog.checkedIn) return { ok: false, error: `${dog.name} hasn't been checked in yet — turn them away politely instead.` };
+    if (v.finishing) return { ok: false, error: `${v.owner} is waiting while ${dog.name} finishes the bath.` };
+    if (inActiveScuffle(f, dog)) return { ok: false, error: `Separate the scuffle in ${dog.name}'s room first.` };
   }
   let st: Facility = f;
-  if (exitBath) {
+  const doExit = exitBath && how === "checkout" && (dog.place.kind === "room" || dog.place.kind === "bed");
+  if (doExit) {
     const why = bathBlock(f, "exitBath");
     if (why) return { ok: false, error: why };
     const used = spendStaff(f, 15);
     if (!used) return tired;
     st = bump(used, "baths");
   }
-  const pay = checkoutPay(f, dog, exitBath);
-  // Guest book: happy, well-cared-for visits build friendship. Milestones pay a one-time bonus.
-  const prev = f.guestBook.find((g) => g.name === dog.name && g.breed === dog.breed) ?? null;
-  const gain = Math.round(dog.happiness / 10) + (dog.bathed || exitBath ? 2 : 0) + (dog.played > 0 ? 2 : 0);
-  const friendship = Math.min(100, (prev?.friendship ?? 0) + gain);
-  const entry: Regular = { name: dog.name, breed: dog.breed, size: dog.size, temper: dog.temper, visits: Math.max(dog.visits ?? 1, (prev?.visits ?? 0) + 1), friendship, lastDay: f.day };
-  const guestBook = [entry, ...f.guestBook.filter((g) => !(g.name === dog.name && g.breed === dog.breed))].slice(0, GUESTBOOK_MAX);
-  const before = friendshipLevel(prev?.friendship ?? 0);
-  const after = friendshipLevel(friendship);
-  const milestone = after.min > before.min ? after : null;
-  const bonus = milestone?.bonus ?? 0;
-  st = bump(bump({ ...st, dogs: st.dogs.filter((d) => d.id !== dogId), guestBook }, "checkouts"), "earned", pay.total + bonus);
-  let out = earn(countToday(withFac(s, st), "checkouts"), bonus ? { ...pay.parts, bonus: (pay.parts.bonus ?? 0) + bonus } : pay.parts);
-  out = gainXp(out, XP.checkout + (dog.happiness >= 80 ? XP.happyCheckout : 0));
-  const r = done(out, milestone ? `${dog.name} went home happy — you're now ${milestone.label}s! 💙 +${bonus} bonus` : `${dog.name} went home happy! +${pay.total}`);
-  return r.ok ? { ...r, earned: pay.total + bonus + (r.earned ?? 0) } : r;
+  const prev = st.guestBook.find((g) => g.name === dog.name && g.breed === dog.breed) ?? null;
+  const a = assessVisit(st, dog, { exitBath: doExit, credit: prev?.credit ?? 0 });
+  const unresolved = a.complaints.filter((c) => !c.resolved);
+
+  // loyalty: friendship grows with how the visit felt; a credit is owed; an upset family with nothing fixed stays away
+  let guestBook = st.guestBook;
+  let bonus = 0;
+  let milestone: ReturnType<typeof friendshipLevel> | null = null;
+  if (dog.checkedIn) {
+    const gain = Math.round(a.satisfaction / 10) + (dog.bathed || doExit ? 2 : 0) + (dog.played > 0 ? 2 : 0);
+    const friendship = Math.min(100, (prev?.friendship ?? 0) + gain);
+    const credit = v.remedies && Object.values(v.remedies).includes("credit") ? Math.round(f.prices.daycare * CREDIT_SHARE) : 0;
+    const entry: TRegular = {
+      name: dog.name,
+      breed: dog.breed,
+      size: dog.size,
+      temper: dog.temper,
+      visits: Math.max(dog.visits ?? 1, (prev?.visits ?? 0) + 1),
+      friendship,
+      lastDay: f.day,
+      sat: a.satisfaction,
+      ...(credit ? { credit } : {}),
+      ...(a.mood === "upset" && unresolved.length ? { lostUntil: f.day + 3 } : {}),
+    };
+    guestBook = [entry, ...st.guestBook.filter((g) => !(g.name === dog.name && g.breed === dog.breed))].slice(0, GUESTBOOK_MAX);
+    const before = friendshipLevel(prev?.friendship ?? 0);
+    const after = friendshipLevel(friendship);
+    milestone = after.min > before.min ? after : null;
+    bonus = milestone?.bonus ?? 0;
+  }
+  const outcome: Outcome = {
+    dog: dog.name,
+    owner: v.owner,
+    day: f.day,
+    min: Math.floor(f.clockMin),
+    how,
+    mood: a.mood,
+    satisfaction: a.satisfaction,
+    total: a.total,
+    lines: a.lines.map((l) => ({ label: l.label, amount: l.amount })),
+    complaints: a.complaints.map((c) => ({ kind: c.kind, text: c.text, remedy: c.remedy, resolved: c.resolved })),
+    repDelta: 0,
+    review: null,
+  };
+  // a served visit (a playroom or bed) counts as a checkout and earns XP; a pup sent home unserved doesn't
+  const served = dog.checkedIn && a.lines.some((l) => l.key === "daycare");
+  st = { ...st, dogs: st.dogs.filter((d) => d.id !== dogId), guestBook, outcomes: [...(st.outcomes ?? []), outcome].slice(-30) };
+  if (served) st = bump(bump(st, "checkouts"), "earned", Math.max(0, a.total) + bonus);
+  let out = withFac(s, st);
+  if (served) out = countToday(out, "checkouts");
+  const parts = bonus ? { ...a.parts, bonus: (a.parts.bonus ?? 0) + bonus } : a.parts;
+  out = earn(out, parts);
+  if (a.total < 0) out = payRefund(out, -a.total);
+  if (served) out = gainXp(out, XP.checkout + (a.mood === "delighted" ? XP.happyCheckout : 0));
+  const why = unresolved[0]?.text ?? a.complaints[0]?.text ?? "it wasn't the day they hoped for.";
+  const said = MOOD_LINE[a.mood](v.owner, dog.name, why);
+  const paid = a.total > 0 ? ` Paid ${a.total}.` : a.total === 0 ? " There's no charge." : ` Refunded ${-a.total}.`;
+  const r = done(out, milestone ? `${said}${paid} You're now ${milestone.label}s! 💙 +${bonus} bonus` : `${said}${paid}`);
+  return r.ok ? { ...r, earned: Math.max(0, a.total) + bonus + (r.earned ?? 0) } : r;
+}
+
+/** A refund larger than the day's bill: paid back to the family (it can take coins below zero, like any bill). */
+function payRefund(s: TycoonState, amount: number): TycoonState {
+  const f = fac(s);
+  const ledger = f.ledger.length ? f.ledger.map((d, i) => (i === f.ledger.length - 1 ? { ...d, expenses: { ...d.expenses, refunds: d.expenses.refunds + amount } } : d)) : f.ledger;
+  return withFac({ ...s, coins: s.coins - amount }, { ...f, ledger });
+}
+
+/** The player checks a pup out at the desk (see settle). */
+export function checkout(s: TycoonState, dogId: string, exitBath: boolean): TResult {
+  return settle(s, dogId, "checkout", exitBath);
+}
+
+/**
+ * Owners come back at pickup time (and wait), give up after OWNER_GIVES_UP minutes, and a pup whose bath the owner
+ * waited for goes home as soon as it's done. Called every game minute while open.
+ */
+function pickups(s: TycoonState): TycoonState {
+  let out = s;
+  const f = fac(s);
+  for (const d of f.dogs) {
+    const v = visitOf(f, d);
+    const g = fac(out);
+    if (v.finishing && d.bathed) {
+      const r = settle(out, d.id, "finished");
+      if (r.ok) out = r.state;
+      continue;
+    }
+    const due = v.pickupDay < g.day || (v.pickupDay === g.day && g.clockMin >= v.pickup);
+    if (!due || v.finishing) continue;
+    if (v.ownerHere === null) {
+      out = withFac(out, { ...g, dogs: g.dogs.map((x) => (x.id === d.id ? { ...x, visit: logVisit({ ...v, ownerHere: Math.floor(g.clockMin) }, `${v.owner} arrived for pickup ${fmtTime(g.clockMin)}`) } : x)) });
+    } else if (g.clockMin - v.ownerHere >= OWNER_GIVES_UP) {
+      const r = settle(out, d.id, "left");
+      if (r.ok) out = r.state;
+    }
+  }
+  return out;
+}
+
+/** 18:00: every family that hasn't collected their daycare pup does now (boarders stay for their morning pickup). */
+function dayEndPickups(s: TycoonState): TycoonState {
+  let out = s;
+  for (const d of fac(s).dogs) {
+    if (d.boarding) continue;
+    const r = settle(out, d.id, "dayend");
+    if (r.ok) out = r.state;
+  }
+  return out;
 }
 
 export function hireStaff(s: TycoonState): TResult {
@@ -466,13 +571,14 @@ export function tick(s: TycoonState, seconds: number, rand: () => number = Math.
     const whole = Math.abs(clock - Math.round(clock)) < 1e-9;
     if (whole) clock = Math.round(clock);
     if (clock >= DAY_CLOSE) {
-      out = closeDay(withFac(out, { ...g, clockMin: DAY_CLOSE }));
+      out = closeDay(dayEndPickups(withFac(out, { ...g, clockMin: DAY_CLOSE })));
       const h = fac(out);
       out = withFac(out, { ...h, clockMin: DAY_OPEN, rush: { day: h.day, peak: 0, since: null, awarded: false } });
       chance = baseChance();
       continue;
     }
     out = withFac(out, { ...g, clockMin: clock });
+    if (whole) out = pickups(out);
     if (!whole || !lobbyStatus(clock).open) continue;
     if (rand() < chance) {
       const c = caps(fac(out));

@@ -68,6 +68,15 @@ describe("what goes wrong, and only when it did", () => {
     expect(line(a, /^Daycare/)!.label).toMatch(/not provided/);
     expect(a.complaints.map((c) => c.kind)).toContain("attention");
   });
+  it("boarding is billed only when the pup had a boarding bed", () => {
+    const f = base();
+    const lobby = assessVisit(f, pup(f, { boarding: true, place: { kind: "lobby" }, played: 0 }), {});
+    expect(line(lobby, /^Boarding/)!.amount).toBe(0);
+    expect(line(lobby, /^Boarding/)!.label).toMatch(/no bed/);
+    const bed = f.items.find((i) => i.kind === "boarding_bed")!;
+    const slept = assessVisit(f, pup(f, { boarding: true, place: { kind: "bed", room: bed.room!, bed: bed.uid } }), {});
+    expect(line(slept, /^Boarding/)!.amount).toBe(f.prices.boarding);
+  });
   it("dirty rooms are noticed", () => {
     const f = { ...base(), cleanliness: 30 };
     expect(assessVisit(f, pup(f), {}).complaints.map((c) => c.kind)).toEqual(["dirty"]);

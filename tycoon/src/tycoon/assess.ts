@@ -3,11 +3,10 @@
 import { bathPay } from "./business";
 import { funAppeal, tip } from "./effects";
 import { visitOf } from "./visit";
-import type { Facility, IncomeKey, TDog } from "./types";
+import type { ComplaintKind, Facility, IncomeKey, Mood, RemedyKind, TDog } from "./types";
 
-export type Mood = "delighted" | "content" | "disappointed" | "upset";
-export type ComplaintKind = "wait" | "bath" | "billing" | "attention" | "dirty";
-export type Complaint = { kind: ComplaintKind; text: string; penalty: number };
+export type { ComplaintKind, Mood, RemedyKind };
+export type Complaint = { kind: ComplaintKind; text: string; penalty: number; remedy: RemedyKind | null; resolved: boolean };
 export type ReceiptLine = { label: string; amount: number; key?: IncomeKey };
 export type Assessment = {
   lines: ReceiptLine[];
@@ -41,7 +40,7 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
   const praise: string[] = [];
   const complaints: Complaint[] = [];
   const add = (kind: ComplaintKind, text: string, penalty: number) => {
-    complaints.push({ kind, text, penalty });
+    complaints.push({ kind, text, penalty, remedy: v.remedies[kind] ?? null, resolved: false });
     sat -= penalty;
   };
   if (dog.played > 0) {
@@ -58,7 +57,33 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
   if (ownerWait > OWNER_PATIENCE) add("wait", `${v.owner} waited ${ownerWait} minutes at pickup.`, 15);
   if (v.waitedLobby > 60) sat -= 10;
   if (v.scuffle) sat -= 20;
-  if (!safe && (!provided || dog.happiness < 45)) add("attention", provided ? `${dog.name} seemed unhappy — not enough attention.` : `${dog.name} never got a playroom.`, 0);
+  if (!safe && (!provided || dog.happiness < 45)) add("attention", provided ? `${dog.name} seemed unhappy — not enough attention.` : dog.checkedIn ? `${dog.name} never got a playroom.` : `${dog.name} was never checked in.`, 0);
+
+  // ---- the player's answers: completing the service, a refund, a credit — or just an explanation ----
+  const daycareCharge = safe || !provided ? 0 : Math.round(f.prices.daycare * (0.6 + (0.4 * dog.happiness) / 100));
+  const refunds: { label: string; amount: number }[] = [];
+  for (const c of complaints) {
+    if (c.remedy === "refund") {
+      const amt = refundFor(c.kind, v.paid, daycareCharge);
+      if (amt > 0) refunds.push({ label: `Refund — ${REFUND_LABEL[c.kind]}`, amount: -amt });
+      sat += 20;
+      c.resolved = true;
+    } else if (c.remedy === "credit") {
+      sat += 12;
+      c.resolved = true;
+    } else if (c.remedy === "explain") {
+      if (c.kind === "wait" && ownerWait <= 45) {
+        sat += 5;
+        c.resolved = true;
+      }
+    } else if (c.remedy === "finish") c.resolved = true;
+  }
+  // a service completed while the owner waited: the complaint is gone, the extra wait is a small cost
+  for (const k of ["bath", "billing", "attention", "dirty"] as ComplaintKind[]) {
+    if (v.remedies[k] !== "finish" || complaints.some((c) => c.kind === k)) continue;
+    sat -= k === "bath" || k === "billing" ? 5 : k === "attention" ? 3 : 0;
+    complaints.push({ kind: k, text: FINISHED_TEXT[k], penalty: 0, remedy: "finish", resolved: true });
+  }
   sat = Math.max(0, Math.min(100, Math.round(sat)));
   const mood = moodOf(sat);
 
@@ -73,23 +98,41 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
     else lines.push({ label: prepaidBath ? "Bath — prepaid, not done" : "Bath — not done (not charged)", amount: 0 });
   }
   if (opts.exitBath) lines.push({ label: "Exit bath", amount: f.prices.exitBath, key: "exitBaths" });
-  if (dog.boarding) lines.push({ label: "Boarding", amount: f.prices.boarding, key: "boarding" });
+  if (dog.boarding) lines.push(dog.place.kind === "bed" ? { label: "Boarding", amount: f.prices.boarding, key: "boarding" } : { label: "Boarding — no bed provided (no charge)", amount: 0 });
   const t = tip(funAppeal(f).appeal);
   const tipNow = mood === "delighted" ? t : mood === "content" ? Math.floor(t / 2) : 0;
   if (tipNow > 0) lines.push({ label: "Tip", amount: tipNow, key: "tips" });
   const subtotal = lines.reduce((n, l) => n + l.amount, 0);
   const credit = Math.min(subtotal, Math.max(0, Math.round(opts.credit ?? 0)));
   if (credit > 0) lines.push({ label: "Credit from last visit", amount: -credit });
+  for (const r of refunds) lines.push(r);
+  const refunded = -refunds.reduce((n, r) => n + r.amount, 0);
 
-  // income parts (the credit comes off daycare first, then the rest)
+  // income parts: the credit and refunds come off daycare first, then the rest (a bigger refund is paid out)
   const parts: Partial<Record<IncomeKey, number>> = {};
   for (const l of lines) if (l.key && l.amount > 0) parts[l.key] = (parts[l.key] ?? 0) + l.amount;
-  let owed = credit;
+  let owed = credit + refunded;
   for (const k of ["daycare", "baths", "boarding", "exitBaths", "tips"] as IncomeKey[]) {
     if (!owed || !parts[k]) continue;
     const take = Math.min(owed, parts[k]!);
     parts[k] = parts[k]! - take;
     owed -= take;
   }
-  return { lines, total: subtotal - credit, parts, satisfaction: sat, mood, complaints, praise };
+  return { lines, total: subtotal - credit - refunded, parts, satisfaction: sat, mood, complaints, praise };
+}
+
+const REFUND_LABEL: Record<ComplaintKind, string> = { wait: "the wait", bath: "the bath", billing: "prepaid bath not done", attention: "not enough attention", dirty: "dirty rooms" };
+const FINISHED_TEXT: Record<ComplaintKind, string> = {
+  wait: "",
+  bath: "The bath was finished while the owner waited.",
+  billing: "The prepaid bath was finished while the owner waited.",
+  attention: "A quick playtime before going home.",
+  dirty: "The rooms were mopped before pickup.",
+};
+/** What a refund gives back for each complaint (0 when there's nothing to refund). */
+export function refundFor(kind: ComplaintKind, paid: number, daycareCharge: number): number {
+  if (kind === "billing") return paid;
+  if (kind === "bath") return 0; // nothing was charged for it
+  if (kind === "attention") return Math.round(daycareCharge * 0.5);
+  return Math.round(daycareCharge * 0.25);
 }

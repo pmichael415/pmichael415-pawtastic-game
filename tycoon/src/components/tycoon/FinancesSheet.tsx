@@ -22,7 +22,7 @@ const TABS = ["Summary", "Prices", "Staff", "Upkeep", "Marketing"] as const;
 type Tab = (typeof TABS)[number];
 
 const INCOME: [IncomeKey, string][] = [["daycare", "Daycare"], ["boarding", "Boarding"], ["baths", "Baths"], ["exitBaths", "Exit baths"], ["tips", "Tips"], ["bonus", "Bonuses"]];
-const EXPENSES: [ExpenseKey, string][] = [["wages", "Wages"], ["upkeep", "Upkeep"], ["supplies", "Supplies"], ["marketing", "Marketing"], ["building", "Building"]];
+const EXPENSES: [ExpenseKey, string][] = [["wages", "Wages"], ["upkeep", "Upkeep"], ["supplies", "Supplies"], ["marketing", "Marketing"], ["building", "Building"], ["refunds", "Refunds"]];
 const PROFIT = "#2a78d6";
 const LOSS = "#d0473f";
 

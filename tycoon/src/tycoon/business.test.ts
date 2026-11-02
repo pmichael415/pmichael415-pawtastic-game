@@ -93,7 +93,7 @@ describe("expenses", () => {
   it("closeDay with 1 standard staff, upkeep 30 and 8 basic check-ins charges 40 + 30 + 16 = 86", () => {
     let s = bare([room(1500)]);
     for (let i = 0; i < 8; i++) s = countToday(s, "checkIns");
-    expect(dayExpenses(fac(s))).toEqual({ wages: 40, upkeep: 30, supplies: 16, marketing: 0, building: 0 });
+    expect(dayExpenses(fac(s))).toEqual({ wages: 40, upkeep: 30, supplies: 16, marketing: 0, building: 0, refunds: 0 });
     const t = closeDay(s);
     expect(t.coins).toBe(3000 - 86);
     expect(fac(t).report).toMatchObject({ day: 1, income: 0, expenses: 86, profit: -86, record: false, admitted: 8 });
