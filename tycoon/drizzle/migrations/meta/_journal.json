@@ -64,6 +64,13 @@
       "when": 1793650000000,
       "tag": "0008_tycoon_events",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793700000000,
+      "tag": "0009_purchases",
+      "breakpoints": true
     }
   ]
 }

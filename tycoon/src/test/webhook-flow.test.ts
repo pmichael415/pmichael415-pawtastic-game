@@ -275,12 +275,13 @@ describe("one Stripe account shared by every PAWtastic game", () => {
 
   it("hub checkouts are tagged as PAWtastic Games (checkout and payment), so Stripe shows which game sold what", async () => {
     const { checkoutParams } = await import("@/lib/payments/verify");
-    const { PAID_PRODUCTS } = await import("@/lib/catalog");
-    const p = checkoutParams(PAID_PRODUCTS[0]!, U1, "https://play.example.com");
+    const { productById } = await import("@/lib/catalog");
+    const product = productById("blue-ribbon-style")!;
+    const p = checkoutParams(product, U1, "https://play.example.com");
     expect(p.get("metadata[game]")).toBe("pawtastic-games-hub");
     expect(p.get("payment_intent_data[metadata][game]")).toBe("pawtastic-games-hub");
     expect(p.get("payment_intent_data[metadata][user_id]")).toBe(U1);
-    expect(p.get("payment_intent_data[metadata][product_id]")).toBe(PAID_PRODUCTS[0]!.id);
+    expect(p.get("payment_intent_data[metadata][product_id]")).toBe("blue-ribbon-style");
     expect(p.get("line_items[0][price_data][product_data][name]")).toBe("PAWtastic Games · Blue Ribbon Style Pack");
     expect(p.get("line_items[0][price_data][unit_amount]")).toBe("299");
     expect(p.get("success_url")).toBe("https://play.example.com/shop?checkout=returned");

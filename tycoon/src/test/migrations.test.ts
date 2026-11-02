@@ -61,6 +61,7 @@ describe("migrations", () => {
       "0006_game_saves.sql",
       "0007_notifications.sql",
       "0008_tycoon_events.sql",
+      "0009_purchases.sql",
     ]);
   });
 });
