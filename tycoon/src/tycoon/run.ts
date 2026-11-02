@@ -26,7 +26,7 @@ import {
 import type { Regular, Stats } from "@/game/engine";
 import { bathPay, campaignBoost, checkoutPay, closeDay, countToday, demand, earn, fairPrice, refuses, spend, wageRecovery } from "./business";
 import { canOpen, caps, roomStatus } from "./connect";
-import { arrivalMultiplier, decayMultiplier, funAppeal, playBonus } from "./effects";
+import { arrivalMultiplier, decayMultiplier, funAppeal, playGain } from "./effects";
 import { XP, gainXp } from "./progress";
 import { fac, withFac } from "./state";
 import { tourHolds } from "./tour";
@@ -256,10 +256,13 @@ export function playtime(s: TycoonState, dogId: string): TResult {
   if (!st) return tired;
   const fav = personalityOf(dog).favorite;
   const loves = fav === "fetch" || fav === "tug" || fav === "zoomies" || fav === "cuddles";
-  const gain = (fav === "cuddles" ? 30 : loves ? 35 : 25) + playBonus(funAppeal(f).fun);
-  let nf = setDog(st, dogId, (d) => ({ ...d, happiness: clamp(d.happiness + gain), clean: clamp(d.clean - 10), played: d.played + 1 }));
+  const g = playGain(f, dog);
+  let nf = setDog(st, dogId, (d) => ({ ...d, happiness: clamp(d.happiness + g.total), clean: clamp(d.clean - 10), played: d.played + 1 }));
   nf = bump({ ...nf, cleanliness: clamp(nf.cleanliness - 4) }, "plays");
-  return { ok: true, state: gainXp(withFac(s, nf), XP.playtime), msg: loves ? `${dog.name} loved it — ${FAVORITE_LABEL[fav]} is their favorite!` : `${dog.name} had a blast!` };
+  const extra = g.total - g.base;
+  const helped = extra > 0 ? ` (+${extra} from your ${g.topItem ?? "daycare's fun"})` : "";
+  const said = loves ? `${dog.name} loved it — ${FAVORITE_LABEL[fav]} is their favorite!` : `${dog.name} had a blast!`;
+  return { ok: true, state: gainXp(withFac(s, nf), XP.playtime), msg: said + helped };
 }
 
 /** Why a bath or exit bath can't happen right now (null if it can). */
