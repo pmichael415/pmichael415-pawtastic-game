@@ -35,11 +35,21 @@ describe("the hub catalog", () => {
     expect(productById("power-pack")?.contents).toEqual({ shieldStarts: 10, extraLives: 10 });
   });
   it("returns each buyer to the game it belongs to", () => {
-    for (const id of ["coins-2500", "coins-8000", "coins-20000", "coins-50000", "coins-150000", "deluxe-daycare-decor"])
+    for (const id of [
+      "coins-2500",
+      "coins-8000",
+      "coins-20000",
+      "coins-50000",
+      "coins-150000",
+      "deluxe-daycare-decor",
+    ])
       expect(productById(id)).toMatchObject({ game: "daycare-next", returnPath: "/daycare-next" });
     for (const id of ["shield-starts-5", "extra-lives-5", "power-pack", "runner-looks"])
       expect(productById(id)).toMatchObject({ game: "recess", returnPath: "/recess" });
-    expect(productById("blue-ribbon-style")).toMatchObject({ game: "daycare", returnPath: "/daycare" });
+    expect(productById("blue-ribbon-style")).toMatchObject({
+      game: "daycare",
+      returnPath: "/daycare",
+    });
   });
   it("looks are entitlements without contents; consumables are deliveries with contents", () => {
     for (const p of PAID_PRODUCTS) {
@@ -48,11 +58,17 @@ describe("the hub catalog", () => {
         expect(entitles(p) && !delivers(p)).toBe(true);
       } else {
         expect(p.kind).toBe("consumable");
-        expect(p.contents && Object.values(p.contents).every((n) => Number.isInteger(n) && n > 0)).toBe(true);
+        expect(
+          p.contents && Object.values(p.contents).every((n) => Number.isInteger(n) && n > 0),
+        ).toBe(true);
         expect(delivers(p) && !entitles(p)).toBe(true);
       }
     }
-    expect(["blue-ribbon-style", "deluxe-daycare-decor", "runner-looks"].map((id) => productById(id)?.kind)).toEqual(["looks", "looks", "looks"]);
+    expect(
+      ["blue-ribbon-style", "deluxe-daycare-decor", "runner-looks"].map(
+        (id) => productById(id)?.kind,
+      ),
+    ).toEqual(["looks", "looks", "looks"]);
   });
   it("knows nothing it doesn't sell", () => {
     expect(productById("free-stuff")).toBeUndefined();

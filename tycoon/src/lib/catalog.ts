@@ -32,7 +32,12 @@ export type PaidProduct = {
   returnPath: ReturnPath;
 };
 
-const coins = (id: ProductId, n: number, cents: number, name = `${n.toLocaleString("en-US")} Coins`): PaidProduct => ({
+const coins = (
+  id: ProductId,
+  n: number,
+  cents: number,
+  name = `${n.toLocaleString("en-US")} Coins`,
+): PaidProduct => ({
   id,
   game: "daycare-next",
   kind: "consumable",
@@ -123,7 +128,8 @@ export const PAID_PRODUCTS: PaidProduct[] = [
 ];
 
 export const PRODUCT_IDS = PAID_PRODUCTS.map((p) => p.id) as [ProductId, ...ProductId[]];
-export const productById = (id: string): PaidProduct | undefined => PAID_PRODUCTS.find((p) => p.id === id);
+export const productById = (id: string): PaidProduct | undefined =>
+  PAID_PRODUCTS.find((p) => p.id === id);
 /** Permanent purchases live in `entitlements`; consumables become `deliveries`. */
 export const entitles = (p: PaidProduct) => p.kind === "looks";
 export const delivers = (p: PaidProduct) => p.kind === "consumable";

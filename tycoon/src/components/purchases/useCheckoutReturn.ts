@@ -10,16 +10,23 @@ import { liveCollect, liveOwned } from "@/lib/purchases/live";
 export const CANCELLED = "Checkout cancelled — nothing was charged.";
 export const ON_ITS_WAY = "Payment received — your purchase is on its way";
 
-const plural = (n: number, one: string, many: string) => `+${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
+const plural = (n: number, one: string, many: string) =>
+  `+${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
 /** "+8,000 coins added", "+10 Shield Starts and +10 Extra Lives added". */
 export function addedMessage(steps: DeliveryStep[]): string {
-  let coins = 0, shields = 0, lives = 0;
+  let coins = 0,
+    shields = 0,
+    lives = 0;
   for (const s of steps.filter((x) => x.sign === 1)) {
     coins += Number(s.contents.coins) || 0;
     shields += Number(s.contents.shieldStarts) || 0;
     lives += Number(s.contents.extraLives) || 0;
   }
-  const parts = [coins && plural(coins, "coin", "coins"), shields && plural(shields, "Shield Start", "Shield Starts"), lives && plural(lives, "Extra Life", "Extra Lives")].filter(Boolean);
+  const parts = [
+    coins && plural(coins, "coin", "coins"),
+    shields && plural(shields, "Shield Start", "Shield Starts"),
+    lives && plural(lives, "Extra Life", "Extra Lives"),
+  ].filter(Boolean);
   return `${parts.join(" and ")} added`;
 }
 
@@ -40,12 +47,18 @@ export function useCheckoutReturn(game: GameId, opts: Opts = {}) {
     params.delete("checkout");
     params.delete("item");
     const rest = params.toString();
-    window.history.replaceState(window.history.state, "", window.location.pathname + (rest ? `?${rest}` : "") + window.location.hash);
+    window.history.replaceState(
+      window.history.state,
+      "",
+      window.location.pathname + (rest ? `?${rest}` : "") + window.location.hash,
+    );
     if (status === "cancelled") {
       toast(CANCELLED);
       return;
     }
-    const collect = opts.collect ?? (game === "daycare" ? async () => ({ added: [], pending: false }) : () => liveCollect(game));
+    const collect =
+      opts.collect ??
+      (game === "daycare" ? async () => ({ added: [], pending: false }) : () => liveCollect(game));
     const refresh = opts.refresh ?? liveOwned;
     const tries = opts.tries ?? 6;
     const delayMs = opts.delayMs ?? 2000;

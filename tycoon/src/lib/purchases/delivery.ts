@@ -20,7 +20,10 @@ const magnitude = (c: Contents): Contents =>
  * a reversal of one never applied here records both, so that delivery can never apply later. Every id is checked
  * against `applied` and `done`, so a delivery applies once however often it is returned.
  */
-export function planDeliveries(log: DeliveryLog, batch: Delivery[]): { steps: DeliveryStep[]; log: DeliveryLog } {
+export function planDeliveries(
+  log: DeliveryLog,
+  batch: Delivery[],
+): { steps: DeliveryStep[]; log: DeliveryLog } {
   const seen = new Set([...log.applied, ...log.done]);
   const added: string[] = [];
   const steps: DeliveryStep[] = [];
@@ -73,10 +76,16 @@ export function installationId(storage: Storage = globalThis.localStorage): stri
 const chains = new Map<string, Promise<unknown>>();
 export function withLock<T>(name: string, fn: () => Promise<T> | T): Promise<T> {
   const locks = (globalThis.navigator as Navigator | undefined)?.locks;
-  const run = (): Promise<T> => (locks ? (locks.request(name, async () => await fn()) as Promise<T>) : Promise.resolve().then(fn));
+  const run = (): Promise<T> =>
+    locks
+      ? (locks.request(name, async () => await fn()) as Promise<T>)
+      : Promise.resolve().then(fn);
   const prev = chains.get(name) ?? Promise.resolve();
   const next = prev.then(run, run) as Promise<T>;
-  chains.set(name, next.catch(() => undefined));
+  chains.set(
+    name,
+    next.catch(() => undefined),
+  );
   return next;
 }
 
@@ -84,7 +93,12 @@ export const APPLIED_MAX = 2000;
 /** A save's delivery log, validated: only well-formed ids, no duplicates, bounded. Anything else loads empty. */
 export function parseDeliveryLog(raw: unknown): DeliveryLog {
   const ids = (x: unknown, max: number) =>
-    Array.isArray(x) ? [...new Set(x.filter((v): v is string => typeof v === "string" && UUID.test(v)))].slice(-max) : [];
-  const o = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+    Array.isArray(x)
+      ? [...new Set(x.filter((v): v is string => typeof v === "string" && UUID.test(v)))].slice(
+          -max,
+        )
+      : [];
+  const o =
+    raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
   return { applied: ids(o["applied"], APPLIED_MAX), done: ids(o["done"], DONE_MAX) };
 }

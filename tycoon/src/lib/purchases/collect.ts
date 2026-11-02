@@ -14,7 +14,10 @@ export type CollectDeps = {
   confirm: (ids: string[]) => void;
 };
 
-export async function collectDeliveries(game: CollectGame, deps: CollectDeps): Promise<{ added: DeliveryStep[]; pending: boolean }> {
+export async function collectDeliveries(
+  game: CollectGame,
+  deps: CollectDeps,
+): Promise<{ added: DeliveryStep[]; pending: boolean }> {
   const installation = deps.installation();
   if (!installation) return { added: [], pending: false };
   return withLock(`pawtastic-delivery-${game}`, async () => {

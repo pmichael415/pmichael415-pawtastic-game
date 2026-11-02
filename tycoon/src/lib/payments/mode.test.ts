@@ -23,7 +23,8 @@ describe("the hub Shop is live", () => {
     expect(PAYMENT_MODE).toBe("live");
   });
   it("accepts only live keys", () => {
-    for (const key of ["sk_live_abc", "rk_live_abc"]) expect(paymentsConfig({ ...env, STRIPE_SECRET_KEY: key }).ready).toBe(true);
+    for (const key of ["sk_live_abc", "rk_live_abc"])
+      expect(paymentsConfig({ ...env, STRIPE_SECRET_KEY: key }).ready).toBe(true);
     for (const key of ["sk_test_abc", "rk_test_abc", "pk_live_abc", "whatever"]) {
       const c = paymentsConfig({ ...env, STRIPE_SECRET_KEY: key });
       expect(c.ready).toBe(false);
@@ -36,9 +37,17 @@ describe("the hub Shop is live", () => {
   });
   it("grants only for payments made in the same mode", () => {
     expect(validatePaidEvent({ ...paid, livemode: true })).toEqual({ ok: true });
-    expect(validatePaidEvent({ ...paid, livemode: false })).toEqual({ ok: false, reason: "wrong payment mode" });
-    expect(validatePaidEvent({ ...paid, sessionId: "cs_test_1", livemode: false }, "test")).toEqual({ ok: true });
-    expect(validatePaidEvent({ ...paid, livemode: true }, "test")).toEqual({ ok: false, reason: "wrong payment mode" });
+    expect(validatePaidEvent({ ...paid, livemode: false })).toEqual({
+      ok: false,
+      reason: "wrong payment mode",
+    });
+    expect(validatePaidEvent({ ...paid, sessionId: "cs_test_1", livemode: false }, "test")).toEqual(
+      { ok: true },
+    );
+    expect(validatePaidEvent({ ...paid, livemode: true }, "test")).toEqual({
+      ok: false,
+      reason: "wrong payment mode",
+    });
   });
   it("a purchase counts only in the mode it was made in", () => {
     expect(sessionPrefix("live")).toBe("cs_live_");

@@ -7,5 +7,11 @@ export function applyHubContents(s: GameState, c: Contents, sign: 1 | -1): GameS
   const shield = Math.floor(Number(c.shieldStarts) || 0);
   const life = Math.floor(Number(c.extraLives) || 0);
   if (!shield && !life) return s;
-  return { ...s, recessPowerups: { shield: clamp(s.recessPowerups.shield + sign * shield), life: clamp(s.recessPowerups.life + sign * life) } };
+  return {
+    ...s,
+    recessPowerups: {
+      shield: clamp(s.recessPowerups.shield + sign * shield),
+      life: clamp(s.recessPowerups.life + sign * life),
+    },
+  };
 }

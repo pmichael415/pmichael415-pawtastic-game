@@ -1,6 +1,10 @@
 // The live wiring for collecting purchases: this installation, the server's reserve/confirm calls and each game's
 // save store. Tests use collectDeliveries with stand-ins instead.
-import { ackDeliveries, listEntitlements, reserveDeliveries } from "@/lib/payments/payments.functions";
+import {
+  ackDeliveries,
+  listEntitlements,
+  reserveDeliveries,
+} from "@/lib/payments/payments.functions";
 import * as tycoon from "@/tycoon/store";
 import * as hub from "@/game/store";
 import { collectDeliveries, type CollectGame } from "./collect";

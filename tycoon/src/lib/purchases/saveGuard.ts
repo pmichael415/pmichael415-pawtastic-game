@@ -10,7 +10,10 @@ export function hasUnknownDeliveries(stored: DeliveryLog, mine: DeliveryLog): bo
   return [...stored.applied, ...stored.done].some((id) => !known.has(id));
 }
 
-export function createSaveGuard<S extends { deliveries: DeliveryLog }>(key: string, readStored: () => S | null) {
+export function createSaveGuard<S extends { deliveries: DeliveryLog }>(
+  key: string,
+  readStored: () => S | null,
+) {
   const revKey = `${key}-rev`;
   const readRev = () => {
     try {
