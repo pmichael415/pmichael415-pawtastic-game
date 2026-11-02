@@ -80,8 +80,8 @@ const mockState = (server) => fetch(`${server}/mock/state`).then((r) => r.json()
 // exactly what is being tested. So: answers from the patched mock must carry the hub's address themselves
 // (recorded in `seen`), and the unpatched server's answers are marked as allowed for Graduation Day's own site
 // only — to the browser that is the same refusal as today's real server, which sends no such header.
-async function contextFor(browser, server, seen, { unpatched = false } = {}) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+async function contextFor(browser, server, seen, { unpatched = false, touch = false } = {}) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: touch });
   await ctx.route(`${SITE}/**`, async (route) => {
     const req = route.request();
     const response = await route.fetch({ url: req.url().replace(SITE, server) });
@@ -265,6 +265,75 @@ async function contextFor(browser, server, seen, { unpatched = false } = {}) {
     page.url(),
   );
   await ctx.close();
+
+  // 2b. Out of moves ("So close!") with no Treats: buy Treats through Stripe from inside the hub, come back,
+  // and finish the same level. Mirrors tools/e2e-out-of-moves.cjs (Graduation Day's own site).
+  {
+    const KEY = "pawtastic-gd-wallet-v1";
+    const wallet = (p) => p.evaluate((k) => JSON.parse(localStorage.getItem(k)), KEY);
+    const treats = (w) => w.treats.free + w.treats.converted + w.treats.paid;
+    const c3 = await contextFor(browser, PATCHED, [], { touch: true });
+    const p3 = await c3.newPage();
+    p3.on("pageerror", (e) => errors.push(`so close: ${e.message}`));
+    await p3.goto(`${HUB}/graduation`, { waitUntil: "networkidle" });
+    let g = await gameFrame(p3);
+    await serverOn(g);
+    await g.fill("input[type=text]", "Pepper");
+    await g.click("text=Start school");
+    await closeSheets(g);
+    // Into level 1 (debug screen), one shuffle so the board is saved, then save it as lost with 0 Treats.
+    const w0 = await wallet(p3);
+    w0.inventory.boosters.shuffle = 1;
+    await p3.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, JSON.stringify(w0)]);
+    await g.goto(`${HUB}/graduation/index.html?debug=1&screen=level&level=1`, { waitUntil: "networkidle" });
+    await g.waitForTimeout(1200);
+    await g.click('button[aria-label^="Shuffle"]', { force: true });
+    await g.waitForTimeout(1000);
+    const lost = await wallet(p3);
+    Object.assign(lost.activeLevel.snapshot, { movesLeft: 0, status: "lost" });
+    lost.treats = { free: 0, converted: 0, paid: 0 };
+    await p3.goto(`${HUB}/help`, { waitUntil: "networkidle" }); // no game open that could save over the edit
+    await p3.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, JSON.stringify(lost)]);
+    await p3.goto(`${HUB}/graduation`, { waitUntil: "networkidle" });
+    g = await gameFrame(p3);
+    await serverOn(g);
+    await g.waitForTimeout(800);
+    await g.click('button:has-text("Continue Level")', { force: true });
+    await g.waitForSelector('.sheet h2:text-is("So close!")', { timeout: 8000 });
+    const buy = await g.$('.sheet button:has-text("Get 55 Treats for $2.99")');
+    check(buy, 'so close: out of moves with 0 Treats offers 55 Treats for $2.99 inside the hub');
+    await buy.click({ force: true });
+    await g.waitForTimeout(500);
+    const confirm = await g.$$eval(".sheet", (els) => els.map((e) => e.innerText).join(" | "));
+    check(!/demo — no real charge/i.test(confirm) && /Continue to checkout/.test(confirm), "so close: the real checkout confirmation (not a demo grant)");
+    await g.click('.sheet button:has-text("Continue to checkout")', { force: true });
+    await g.waitForSelector("#signin-email", { timeout: 8000 });
+    await g.fill("#signin-email", "stuck@example.com");
+    await g.click('.sheet button:text-is("Email me a code")');
+    await g.waitForSelector("#signin-code");
+    await g.fill("#signin-code", "123456");
+    await g.click('.sheet button:text-is("Sign in")');
+    // After signing in the game reloads and carries on to Stripe by itself, in the whole tab.
+    await p3.waitForURL(/\/mock-stripe\/checkout\//, { timeout: 20000 });
+    check(/55 Treats/.test(await p3.innerText("#item")), "so close: Stripe opens for 55 Treats in the whole tab");
+    await Promise.all([p3.waitForURL(/\/graduation/, { timeout: 15000 }), p3.click("#pay")]);
+    g = await gameFrame(p3);
+    check(await toast(g, /Treats|added|thank/i), "so close: back in the hub, the purchase is confirmed");
+    await p3.waitForTimeout(1500);
+    let w = await wallet(p3);
+    check(treats(w) === 55, "so close: the 55 Treats arrive", `treats ${treats(w)}`);
+    await g.click('button:has-text("Continue Level")', { force: true });
+    await g.waitForSelector('.sheet h2:text-is("So close!")', { timeout: 8000 });
+    const moves = await g.$('.sheet button:has-text("+5 moves")');
+    check(moves, 'so close: now offers +5 moves');
+    const box = await moves.boundingBox();
+    await p3.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await p3.waitForTimeout(800);
+    w = await wallet(p3);
+    check(!(await g.$('.sheet h2:text-is("So close!")')) && treats(w) === 35 && w.activeLevel?.snapshot?.movesLeft === 5 && w.activeLevel.snapshot.status === "playing",
+      "so close: +5 moves bought with 20 Treats, and the same level carries on", `treats ${treats(w)}, moves ${w.activeLevel?.snapshot?.movesLeft}`);
+    await c3.close();
+  }
 
   // 3. The email sign-in link, opened on the hub's Graduation page.
   {
