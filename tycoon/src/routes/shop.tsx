@@ -4,7 +4,6 @@ import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Lock, RefreshCw, UserRound } from "lucide-react";
 import { useSession } from "@/lib/auth";
-import { createCheckout, getPaymentsStatus } from "@/lib/payments/payments.functions";
 import { useEntitlements } from "@/lib/entitlements";
 import { NAVY_STAR, PAID_ITEMS, type PaidItemId } from "@/lib/paidVisuals";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,10 @@ import { FREE_COSMETICS, type GameState } from "@/game/engine";
 import { updateSave } from "@/game/store";
 import { DogSprite } from "@/game/sprites";
 import { GameHeader } from "@/components/game/GameHeader";
-import { PAID_PRODUCTS, formatPrice } from "@/lib/catalog";
+import { productById, type PaidProduct } from "@/lib/catalog";
+import { ShopProducts } from "@/components/shop/ShopProducts";
+import { BuySheet } from "@/components/purchases/BuySheet";
+import { useCheckoutReturn } from "@/components/purchases/useCheckoutReturn";
 import { track } from "@/lib/analytics";
 
 export const Route = createFileRoute("/shop")({
@@ -32,12 +34,12 @@ function Shop() {
   const [preview, setPreview] = useState<string | null>(null);
   useEffect(() => setS(updateSave((x) => x)), []);
   const { user } = useSession();
-  const [pay, setPay] = useState<{ ready: boolean; reason: string | null }>({ ready: false, reason: "Checking…" });
+  const [buying, setBuying] = useState<PaidProduct | null>(null);
+  useCheckoutReturn("daycare"); // looks bought here confirm through the account; games collect their own on open
   const ent = useEntitlements();
   const owned = ent.status === "ready" ? [...ent.owned] : null;
   const [busy, setBusy] = useState(false);
   const [paidPreview, setPaidPreview] = useState<PaidItemId | null>(null);
-  useEffect(() => { getPaymentsStatus().then(setPay).catch(() => setPay({ ready: false, reason: "Unavailable" })); }, []);
   const restore = async () => {
     setBusy(true);
     try {
@@ -46,19 +48,6 @@ function Shop() {
       if (n === null) toast.error("Couldn't check purchases — try again");
       else toast.success(n ? `Restored ${n} pack(s)` : "No purchases found on this account");
     } finally { setBusy(false); }
-  };
-  const buy = async (productId: "blue-ribbon-style" | "deluxe-daycare-decor") => {
-    setBusy(true);
-    track("checkout_start", { product: productId });
-    try {
-      const r = await createCheckout({ data: { productId, returnTo: "/shop" } });
-      if (r.ok) window.location.href = r.url;
-      else {
-        // Keep the reason readable, and record it (key-masked, no personal data) so a refused checkout can be diagnosed.
-        track("client_error", { where: "/shop checkout", message: r.error.replace(/^Checkout could not be started — /, "") });
-        toast.error(r.error, { duration: 15000 });
-      }
-    } catch { toast.error("Checkout unavailable"); } finally { setBusy(false); }
   };
   if (!s) return null;
   const equip = (id: string | null) => setS(updateSave((x) => ({ ...x, equipped: id && x.cosmetics.includes(id) ? id : null })));
@@ -101,19 +90,13 @@ function Shop() {
         </div>
       </section>
 
-      <section>
-        <h2 className="font-display text-lg font-bold text-secondary">Optional cosmetic packs</h2>
-        <p className="text-xs text-muted-foreground">Proposed launch prices. Cosmetic only — every room, upgrade and location is free to earn in-game.</p>
-        <div className="mt-2 grid gap-3">
-          {/* Until the Shop tab is regrouped (purchases plan, Task 11), it shows only the two original packs. */}
-          {PAID_PRODUCTS.filter((p): p is typeof p & { id: "blue-ribbon-style" | "deluxe-daycare-decor" } => p.id === "blue-ribbon-style" || p.id === "deluxe-daycare-decor").map((p) => (
-            <article key={p.id} className="rounded-2xl border border-primary/40 bg-card p-4 shadow-soft">
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="font-display text-lg font-bold text-secondary">{p.name}</h3>
-                <span className="rounded-full bg-secondary px-3 py-1 font-display font-bold text-secondary-foreground">{formatPrice(p)}</span>
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">{p.blurb}</p>
-              <ul className="mt-2 flex flex-wrap gap-1">{p.items.map((i) => <li key={i} className="rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-secondary">{i}</li>)}</ul>
+      <section aria-label="In-game purchases">
+        <h2 className="font-display text-lg font-bold text-secondary">In-game purchases</h2>
+        <ShopProducts
+          owned={ent.status === "ready" ? ent.owned : null}
+          onBuy={setBuying}
+          extra={(p) =>
+            p.kind === "looks" ? (
               <div className="mt-2 grid gap-1.5">
                 {PAID_ITEMS.filter((it) => it.pack === p.id).map((it) => {
                   const mine = ent.status === "ready" && ent.owned.has(p.id);
@@ -130,28 +113,17 @@ function Shop() {
                     </div>
                   );
                 })}
+                {(p.id === "deluxe-daycare-decor" || p.id === "blue-ribbon-style") && (
+                  <Button asChild variant="secondary" className="min-h-11 w-full" onClick={() => track("shop_preview", { item: `${p.id}-3d` })}>
+                    <Link to="/daycare" search={{ preview: p.id === "deluxe-daycare-decor" ? "deluxe" : "ribbon" }}>👀 Preview in my 3D daycare</Link>
+                  </Button>
+                )}
               </div>
-              <Button asChild variant="secondary" className="mt-2 min-h-11 w-full" onClick={() => track("shop_preview", { item: `${p.id}-3d` })}>
-                <Link to="/daycare" search={{ preview: p.id === "deluxe-daycare-decor" ? "deluxe" : "ribbon" }}>👀 Preview in my 3D daycare</Link>
-              </Button>
-              {ent.status === "ready" && ent.owned.has(p.id) ? (
-                <p className="mt-2 text-center text-sm font-bold text-success">✓ Owned on your account (server-verified)</p>
-              ) : ent.status === "loading" && user ? (
-                <Button className="mt-3 w-full" size="lg" disabled>Checking purchases…</Button>
-              ) : ent.status === "error" ? (
-                <Button className="mt-3 w-full" size="lg" variant="outline" disabled={busy} onClick={restore}>Couldn't verify purchases — retry</Button>
-              ) : pay.ready && user ? (
-                <Button className="mt-3 w-full" size="lg" disabled={busy} onClick={() => buy(p.id)}>Buy (test mode) {formatPrice(p)}</Button>
-              ) : (
-                <>
-                  <Button className="mt-3 w-full" size="lg" disabled><Lock /> {pay.ready ? "Sign in to buy" : "Purchases coming soon"}</Button>
-                  {!pay.ready && pay.reason && <p className="mt-1 text-center text-[11px] font-medium text-muted-foreground">Locked: {pay.reason}. Nothing can be charged.</p>}
-                </>
-              )}
-            </article>
-          ))}
-        </div>
+            ) : null
+          }
+        />
       </section>
+      {buying && <BuySheet product={buying} returnTo="/shop" open onClose={() => setBuying(null)} />}
 
       <section className="rounded-2xl border border-border bg-card p-4 shadow-soft">
         <h2 className="font-display text-lg font-bold text-secondary">Account & purchases</h2>
@@ -160,7 +132,7 @@ function Shop() {
           {user ? <Button variant="secondary" asChild><Link to="/account"><UserRound /> Account</Link></Button> : <Button variant="secondary" asChild><Link to="/account"><UserRound /> Sign in</Link></Button>}
           <Button variant="outline" disabled={!user || busy} onClick={restore}><RefreshCw /> Restore purchases</Button>
         </div>
-        <p className="mt-2 text-[11px] font-medium text-muted-foreground">Owned packs: {owned === null ? (!user ? "sign in to see" : ent.status === "error" ? "couldn't verify" : "checking…") : owned.length ? owned.map((id) => PAID_PRODUCTS.find((x) => x.id === id)?.name).join(", ") : "none"}. Game coins have no cash value and can't buy packs.</p>
+        <p className="mt-2 text-[11px] font-medium text-muted-foreground">Owned packs: {owned === null ? (!user ? "sign in to see" : ent.status === "error" ? "couldn't verify" : "checking…") : owned.length ? owned.map((id) => productById(id)?.name ?? id).join(", ") : "none"}. Game coins have no cash value and can't buy packs.</p>
       </section>
     </main>
   );
