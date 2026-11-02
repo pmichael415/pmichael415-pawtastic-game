@@ -94,3 +94,17 @@ export async function fetchStandings(): Promise<Standings | null> {
 export function recessRunTeamPoints(team: SiteId | null | undefined): number {
   return addTeamPoints(team, RECESS_TEAM_POINTS, "recess");
 }
+
+/** Graduation Day: a flat amount on a New York day with at least one newly cleared level (bought moves can't raise it). */
+export const GRAD_TEAM_POINTS = 6;
+const GRAD_KEY = "pawtastic-team-grad-v1";
+export function gradTeamPoints(team: SiteId | null | undefined, newLevels: number, day: string, storage: Storage = localStorage): number {
+  if (newLevels <= 0 || (team !== "hawthorne" && team !== "hillsdale")) return 0;
+  try {
+    if (storage.getItem(GRAD_KEY) === day) return 0;
+    storage.setItem(GRAD_KEY, day);
+  } catch {
+    return 0;
+  }
+  return addTeamPoints(team, GRAD_TEAM_POINTS, "graduation");
+}

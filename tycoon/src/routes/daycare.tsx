@@ -13,6 +13,7 @@ import {
   Play,
   RotateCcw,
   Share2,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -92,6 +93,8 @@ import { DogChip, Reason, Row, Meter, type Looks } from "@/components/game/parts
 import { AreaPanel, CarePanel, FrontDesk, type Run } from "@/components/game/CarePanel";
 import { DaycareStage, type FocusPrompt, type StageHandle } from "@/components/game/DaycareStage";
 import { GameHeader } from "@/components/game/GameHeader";
+import { PupStyleSheet } from "@/components/game/PupStyleSheet";
+import { useCheckoutReturn } from "@/components/purchases/useCheckoutReturn";
 import type { FocusTarget, RoomHint, WorldPick } from "@/world/renderer";
 import { setSettings, useSettings } from "@/lib/settings";
 import { useShareContext } from "@/components/game/ShareSheet";
@@ -174,7 +177,10 @@ function Daycare() {
     const t = setTimeout(() => navigate({ search: {} }), 90_000);
     return () => clearTimeout(t);
   }, [preview, navigate]);
-  const { visuals: pv } = useEntitlements();
+  const ent = useEntitlements();
+  const pv = ent.visuals;
+  const [style, setStyle] = useState(false);
+  useCheckoutReturn("daycare");
   const [sel, setSel] = useState<string | null>(null);
   const [area, setArea] = useState<AreaSel | null>(null);
   const [confirm, setConfirm] = useState<{ dog: Dog; g: GroupId; warn: string } | null>(null);
@@ -576,6 +582,18 @@ function Daycare() {
       style={{ paddingBottom: sheetOpen ? "min(62svh, 560px)" : undefined }}
     >
       <GameHeader title="Daycare" subtitle={`${siteName} · rep ${Math.round(state.reputation)}`} />
+      <div className="mt-2 flex justify-end">
+        <Button variant="outline" className="min-h-11" onClick={() => setStyle(true)}>
+          <Sparkles /> Pup style
+        </Button>
+      </div>
+      <PupStyleSheet
+        open={style}
+        onClose={() => setStyle(false)}
+        owned={ent.status === "ready" && ent.owned.has("blue-ribbon-style")}
+        on={{ "ribbon-collar": pv["ribbon-collar"], "navy-star-bandana": pv["navy-star-bandana"], "sparkle-trail": pv["sparkle-trail"] }}
+        onToggle={(id, on) => ent.toggle(id, on)}
+      />
 
       {preview && (
         <div

@@ -111,3 +111,17 @@ describe("referral rewards", () => {
     );
   });
 });
+
+describe("Graduation Day team points can't be bought", () => {
+  it("a flat 6 on a New York day with at least one new level, however many", async () => {
+    const { GRAD_TEAM_POINTS, gradTeamPoints, teamPointsToday } = await import("@/lib/team");
+    localStorage.clear();
+    expect(GRAD_TEAM_POINTS).toBe(6);
+    expect(gradTeamPoints("hillsdale", 3, "2026-11-02")).toBe(6);
+    expect(gradTeamPoints("hillsdale", 5, "2026-11-02")).toBe(0); // already given today
+    expect(gradTeamPoints("hillsdale", 0, "2026-11-03")).toBe(0); // no new level
+    expect(gradTeamPoints("hillsdale", 1, "2026-11-03")).toBe(6); // a new day
+    expect(gradTeamPoints(null, 4, "2026-11-04")).toBe(0);
+    expect(teamPointsToday()).toBeGreaterThanOrEqual(6);
+  });
+});

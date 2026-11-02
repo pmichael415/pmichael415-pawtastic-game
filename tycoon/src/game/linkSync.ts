@@ -2,7 +2,8 @@
 import { checkAchievements, linkProgress, type Cosmetic } from "./engine";
 import { updateSave } from "./store";
 import { readGraduationFromStorage } from "@/lib/graduation";
-import { addTeamPoints } from "@/lib/team";
+import { gradTeamPoints } from "@/lib/team";
+import { nyDateKey } from "./engine";
 
 export function syncGraduation(): { newCosmetics: Cosmetic[]; newAchievements: string[] } {
   const g = readGraduationFromStorage();
@@ -20,6 +21,6 @@ export function syncGraduation(): { newCosmetics: Cosmetic[]; newAchievements: s
     out = { newCosmetics: r.newCosmetics, newAchievements: a.unlocked.map((x) => x.label) };
     return a.state;
   });
-  if (newLevels > 0) addTeamPoints(team, newLevels * 2, "graduation"); // capped per event and per day
+  gradTeamPoints(team, newLevels, nyDateKey()); // flat per day: bought moves can't raise team scores
   return out;
 }
