@@ -19,7 +19,7 @@ export function beatText(beat: TourBeat, c: Controls, x: BeatCtx): { title: stri
         action: c === "list" ? `${x.first} is waiting at the Front desk — tap Check in.` : `${tapDog(c, x.first)}, then Check in.`,
       };
     case "place":
-      return { title: `Find ${x.first} a playroom`, action: `${tapDog(c, x.first)}, then Move to ${x.group}. Pups play with others their size and energy.` };
+      return { title: `Find ${x.first} a playroom`, action: `${tapDog(c, x.first)}, then “To ${x.group}”. Pups play with others their size and energy.` };
     case "play":
       return { title: "Playtime!", action: `${tapDog(c, x.first)}, then Playtime. Happy pups pay more at pick-up.` };
     case "checkout":
@@ -27,7 +27,7 @@ export function beatText(beat: TourBeat, c: Controls, x: BeatCtx): { title: stri
     case "upgrade":
       return {
         title: "Your first upgrade",
-        action: c === "3d" ? "Pick one below, then tap Place and a highlighted square." : "Pick one below, then tap Place — it goes in the first free spot.",
+        action: "Pick one below — it goes in the first free spot, and you can move it later.",
       };
     case "benefit":
       return { title: "See what it does", action: `${x.second} is here. Check her in, find her a playroom and give her playtime — watch the bonus from your ${x.upgrade}.` };

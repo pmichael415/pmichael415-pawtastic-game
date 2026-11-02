@@ -22,7 +22,8 @@ type Props = {
   pickMode: PickMode;
   looks?: WorldLooks;
   onPick: (p: TPick | null) => void;
-  onUnavailable?: () => void;
+  /** 3D can't run here: "no-webgl" (the browser lacks WebGL) or "failed" (the 3D view couldn't start). */
+  onUnavailable?: (reason: "no-webgl" | "failed") => void;
   children?: React.ReactNode;
 };
 
@@ -48,7 +49,7 @@ export const TycoonStage = forwardRef<TycoonStageHandle, Props>(function TycoonS
         if (cancelled || !canvasRef.current) return;
         if (!m.webglAvailable()) {
           setStatus("unavailable");
-          latest.current.onUnavailable?.();
+          latest.current.onUnavailable?.("no-webgl");
           return;
         }
         world = new m.TycoonWorld(canvasRef.current, {
@@ -66,7 +67,7 @@ export const TycoonStage = forwardRef<TycoonStageHandle, Props>(function TycoonS
       .catch(() => {
         if (!cancelled) {
           setStatus("unavailable");
-          latest.current.onUnavailable?.();
+          latest.current.onUnavailable?.("failed");
         }
       });
     return () => {

@@ -5,12 +5,15 @@ import { GUIDE_STEPS, claimGuide, guideProgress, guideVisible, markPainted, skip
 import type { ActOpts, ActResult } from "@/tycoon/store";
 import type { TResult, TycoonState } from "@/tycoon/types";
 import { GUIDE_REWARD } from "@/tycoon/catalog";
+import { guideText, type Controls } from "@/tycoon/controls";
 
 export function GuideCard({
   state,
   act,
   set,
+  controls = "3d",
 }: {
+  controls?: Controls;
   state: TycoonState;
   act: (fn: (s: TycoonState) => TResult, opts?: ActOpts) => ActResult;
   set: (fn: (s: TycoonState) => TycoonState) => void;
@@ -26,7 +29,7 @@ export function GuideCard({
             {checks[i] ? <Check className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-label="done" /> : <Circle className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-label="to do" />}
             <div className="min-w-0">
               <p className="font-semibold text-secondary">{g.title}</p>
-              {i + 1 === step && <p className="text-sm text-muted-foreground">{g.detail}</p>}
+              {i + 1 === step && <p className="text-sm text-muted-foreground">{guideText(i + 1, controls)}</p>}
               {i + 1 === step && i === 3 && (
                 <Button size="sm" variant="ghost" className="mt-1 h-11 px-2" onClick={() => set(markPainted)}>
                   Skip this step

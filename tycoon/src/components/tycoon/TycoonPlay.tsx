@@ -1,7 +1,7 @@
 // The playable new Daycare Tycoon: status bar, guide, 3D stage with build mode and edit panels, and the list view.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Box, Hammer, Loader2 } from "lucide-react";
+import { Hammer, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { setSettings, useSettings } from "@/lib/settings";
 import { useEntitlementsMaybe } from "@/lib/entitlements";
@@ -16,6 +16,15 @@ import { liveCollect } from "@/lib/purchases/live";
 import { BuySheet } from "@/components/purchases/BuySheet";
 import { addedMessage, useCheckoutReturn } from "@/components/purchases/useCheckoutReturn";
 import { DaycareShop } from "./DaycareShop";
+import { CoachBubble } from "./CoachBubble";
+import { FallbackNotice, type FallbackReason } from "./FallbackNotice";
+import { GoalsStrip } from "./GoalsStrip";
+import { StartCard } from "./StartCard";
+import { TycoonMap } from "./TycoonMap";
+import { GUIDE_REWARD } from "@/tycoon/catalog";
+import type { Controls } from "@/tycoon/controls";
+import { isFreshSave } from "@/tycoon/start";
+import { startTour, tourHolds } from "@/tycoon/tour";
 import { lobbyDogs } from "@/tycoon/run";
 import { music, sound } from "@/tycoon/sound";
 import type { Facility, TDog } from "@/tycoon/types";
@@ -73,7 +82,7 @@ function dogTile(f: Facility, d: TDog): { c: number; r: number } | null {
 
 function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonState; act: Act; set: (fn: (s: TycoonState) => TycoonState) => void; paused: boolean; setPaused: (p: boolean) => void }) {
   const settings = useSettings();
-  const [no3d, setNo3d] = useState(false);
+  const [no3d, setNo3d] = useState<FallbackReason | null>(null);
   const [building, setBuilding] = useState(false);
   const [sel, setSel] = useState<Sel>(null);
   const [askSell, setAskSell] = useState(false);
@@ -81,10 +90,22 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
   const [finances, setFinances] = useState(false);
   const [shop, setShop] = useState(false);
   const [buyDecor, setBuyDecor] = useState(false);
+  // Purchase prompts wait until the guided tour reaches free play (spec §6); the hub Shop tab is always there.
+  const holding = tourHolds(state);
   useEffect(() => {
-    onGetCoins(() => setShop(true));
+    onGetCoins(holding ? null : () => setShop(true));
     return () => onGetCoins(null);
-  }, []);
+  }, [holding]);
+  const tourDone = !!state.tour?.done;
+  const wasDone = useRef(tourDone);
+  useEffect(() => {
+    if (tourDone && !wasDone.current) {
+      toast.success(`Guide complete! +${GUIDE_REWARD} coins — drop-offs and the day clock start now.`);
+      if (!settings.reducedMotion) fx("confetti", "hud");
+    }
+    wasDone.current = tourDone;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tourDone]);
   useCheckoutReturn("daycare-next");
   // Purchases waiting for this game are collected when a signed-in player opens it (not on a return from Stripe,
   // which useCheckoutReturn handles and reports).
@@ -159,6 +180,7 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
     };
   }, [settings.music]);
   const show3d = settings.view !== "list" && !no3d;
+  const controls: Controls = settings.view === "list" ? "list" : no3d ? "map" : "3d";
   const ent = useEntitlementsMaybe();
   const star = !!ent?.visuals["navy-star-bandana"];
   const looks = useMemo(() => (star ? { bandana: "#1c2f52" } : {}), [star]);
@@ -182,11 +204,9 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
   const paintTarget = painting ? f.rooms.find((r) => r.uid === painting) ?? null : null;
 
   return (
-    <div className="space-y-3">
-      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} onShop={() => setShop(true)} />
-      <MoneyBanner state={state} />
-      <GuideCard state={state} act={act} set={set} />
-      <WeeklyCard state={state} act={act} />
+    <div className="space-y-3" style={{ paddingBottom: sel ? "min(48svh, 440px)" : undefined }}>
+      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} {...(holding ? {} : { onShop: () => setShop(true) })} />
+      {isFreshSave(state) && <StartCard onPick={(mode) => set((s) => startTour(s, mode, Date.now()))} />}
       {show3d && (
         <Button
           variant={building ? "default" : "outline"}
@@ -202,25 +222,35 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
         </Button>
       )}
       {show3d && building && <BuildToolbar b={b} state={state} act={act} onBuyPack={() => setBuyDecor(true)} />}
-      {show3d ? (
-        <TycoonStage
-          ref={stage}
-          state={state}
-          selected={sel?.id ?? null}
-          ghost={building ? b.ghost : null}
-          looks={looks}
-          overlay={building}
-          pickMode={building ? b.pickMode : "objects"}
-          onPick={onPick}
-          onUnavailable={() => setNo3d(true)}
-        />
-      ) : (
-        !no3d && (
-          <Button variant="outline" className="h-11 w-full" onClick={() => setSettings({ view: "overhead" })}>
-            <Box className="mr-2 h-4 w-4" /> Show the 3D view
-          </Button>
-        )
-      )}
+      {!show3d && <FallbackNotice reason={no3d ?? "list"} onRetry={() => (no3d ? setNo3d(null) : setSettings({ view: "overhead" }))} />}
+      <div className="relative">
+        {show3d ? (
+          <TycoonStage
+            ref={stage}
+            state={state}
+            selected={sel?.id ?? null}
+            ghost={building ? b.ghost : null}
+            looks={looks}
+            overlay={building}
+            pickMode={building ? b.pickMode : "objects"}
+            onPick={onPick}
+            onUnavailable={(reason) => setNo3d(reason)}
+          />
+        ) : (
+          no3d && <TycoonMap state={state} selected={sel?.id ?? null} onPick={onPick} />
+        )}
+        {(show3d || no3d) && !building && (
+          <div className="pointer-events-none absolute inset-x-2 bottom-2">
+            <div className="pointer-events-auto">
+              <CoachBubble state={state} controls={controls} act={act} set={set} />
+            </div>
+          </div>
+        )}
+      </div>
+      {!show3d && !no3d && <CoachBubble state={state} controls={controls} act={act} set={set} />}
+      {sel && (
+        <div className="fixed inset-x-0 z-40 mx-auto max-w-xl px-2" style={{ bottom: "calc(4rem + env(safe-area-inset-bottom))" }}>
+          <div data-testid="panel-sheet" className="max-h-[min(48svh,440px)] overflow-y-auto overscroll-contain rounded-t-2xl shadow-pop">
       {pickedDog && <DogPanel f={f} dog={pickedDog} act={act} />}
       {sel && sel.kind !== "dog" && (
         <EditPanel
@@ -243,6 +273,13 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
           onClose={() => setSel(null)}
         />
       )}
+          </div>
+        </div>
+      )}
+      {!holding && <GoalsStrip state={state} />}
+      {!state.tour && <GuideCard state={state} act={act} set={set} controls={controls} />}
+      <WeeklyCard state={state} act={act} />
+      <MoneyBanner state={state} />
       <PaintSheet
         room={paintTarget}
         onClose={() => setPainting(null)}

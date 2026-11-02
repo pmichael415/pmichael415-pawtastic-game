@@ -9,6 +9,7 @@ import { buyLand, placeFirstFree } from "./build";
 import { createArrival, tick, welcomeBack } from "./run";
 import { fac, newTycoon, parseTycoon, withFac } from "./state";
 import { checkTrophies, type Trophy } from "./trophies";
+import { syncTour } from "./tour";
 import { rollWeekly } from "./weekly";
 import { weekKey } from "@/game/engine";
 import type { TDog, TResult, TycoonState } from "./types";
@@ -127,6 +128,8 @@ function report(prev: TycoonState | null, next: TycoonState, checkGuide: boolean
 
 function commit(next: TycoonState | null, opts: { paused?: boolean; checkGuide?: boolean } = {}) {
   const prev = snap.state;
+  // The guided tour catches up with every change (an action, a tick, a load): next beat, scripted pups, reward.
+  if (next) next = syncTour(next, Date.now()).state;
   snap = { state: next, paused: opts.paused ?? snap.paused };
   if (next) {
     persist(next);
@@ -218,7 +221,7 @@ export const tycoonStore = {
     if (!r.ok) return r;
     const { state, unlocked } = checkTrophies(r.state);
     commit(state, { checkGuide: true });
-    return { ...r, state, unlocked };
+    return { ...r, state: snap.state ?? state, unlocked };
   },
   set(fn: (s: TycoonState) => TycoonState) {
     if (snap.state) commit(fn(snap.state), { checkGuide: true });

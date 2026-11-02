@@ -1,0 +1,27 @@
+import { describe, expect, it } from "vitest";
+import { caps } from "./connect";
+import { fac, newTycoon } from "./state";
+import { ok } from "./testkit";
+import { startTour } from "./tour";
+import { buildPlayroomFor, playroomCost, restAtHome } from "./tourActions";
+
+describe("the tour's one-tap choices", () => {
+  it("builds a working Large & Active playroom with a dog spot, for exactly the cost shown", () => {
+    const s = startTour({ ...newTycoon(0), coins: 5000 }, "quick", 0);
+    const cost = playroomCost(s, "large-active")!;
+    expect(cost).toBeGreaterThan(200);
+    const after = ok(buildPlayroomFor(s, "large-active"));
+    const room = caps(fac(after)).playrooms.find((p) => p.room.group === "large-active");
+    expect(room?.spots).toBe(1);
+    const spentBefore = fac(s).rooms.reduce((n, r) => n + r.spent, 0) + fac(s).items.reduce((n, i) => n + i.spent, 0);
+    const spentAfter = fac(after).rooms.reduce((n, r) => n + r.spent, 0) + fac(after).items.reduce((n, i) => n + i.spent, 0);
+    expect(spentAfter - spentBefore).toBe(cost);
+  });
+  it("letting a pup rest sends them home free, from the lobby, with no pay", () => {
+    const s = startTour(newTycoon(0), "quick", 0);
+    const r = restAtHome(s, fac(s).dogs[0]!.id);
+    expect(r.ok && fac(r.state).dogs).toEqual([]);
+    expect(r.ok && r.state.coins).toBe(s.coins);
+    expect(r.ok && fac(r.state).stats.checkouts).toBe(0);
+  });
+});
