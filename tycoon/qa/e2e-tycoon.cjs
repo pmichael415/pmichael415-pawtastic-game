@@ -261,7 +261,10 @@ async function guidedStart(s, label) {
     const bars = await page.locator('svg[role="img"] path').count();
     check('3 game days later the profit chart has a bar per day', bars >= 3, `${bars} bars, day ${(await f()).day}`);
     await page.keyboard.press('Escape');
-  } catch (e) { check('finance checks ran', false, String(e).split('\n')[0]); }
+  } catch (e) {
+    check('finance checks ran', false, String(e).split('\n').filter((x) => /Timeout|waiting for|resolved|intercepts|not/.test(x)).slice(0, 5).join(' / '));
+    await page.screenshot({ path: require('path').join(__dirname, 'out', 'tycoon-finance-error.png') }).catch(() => {});
+  }
 
   // below zero, land, level-up
   try {
