@@ -10,6 +10,31 @@
 | Live game database (Lovable Cloud / Supabase) | Migrations 0002–0005 applied on 1 Nov (each in its own transaction, recorded in `drizzle.__drizzle_migrations` with the file hash, so they won't run twice). Checked: 6 migrations recorded, events table private (RLS on, no anon/player access), team totals start at 0. |
 | Customer app (app.pawtasticacademy.com), its database and Stripe | Not touched. |
 
+## Update — new Daycare Stage A: the first 15 minutes, the world first, a 2D map without 3D (2 Nov)
+
+- **Built and tested in this session; NOT in the Lovable hub project and NOT published.** Report:
+  `docs/superpowers/2026-11-02-tycoon-stage-a-report.md`; rulings: `docs/superpowers/2026-11-02-tycoon-stage-a-rulings.md`.
+- **What a new player gets:**
+  - Quick start or Build from scratch, then a guided tour, one step at a time:
+    - Biscuit, then a payout;
+    - a Toy Bin or Play Yard, with its price and benefit shown first;
+    - Daisy, who shows the benefit;
+    - Rocket, a free-or-build decision;
+    - next goals.
+  - No shop prompts or level-up pop-ups until the tour ends.
+  - The guide sits above the daycare.
+  - Without 3D, a 2D map with a plain explanation.
+  - A home page card for the new Daycare.
+  - Tour measurement, with its own build label (`2026-11-02.tycoon-stage-a`); read-only queries in
+    `tycoon/docs/tycoon-tour-measurement.sql`.
+- **Tests:**
+  - unit 690/690; typecheck clean; build OK;
+  - new onboarding browser checks 100/100 (iPhone 13 and desktop; 3D and no WebGL);
+  - every existing browser suite passes when run on its own.
+- **Not verified:** real phones, real 3D hardware, the published site, real players. No Stage A player data exists
+  yet.
+- **Next:** Stage B (activities, dog likes, staff roles), plan `docs/superpowers/plans/2026-11-02-tycoon-stage-b.md`.
+
 ## Update — emails on brand (2 Nov)
 
 - Owner: "The emails need to be within brand." Every Graduation Day email (Weekly Challenge prize, sign-in code,

@@ -58,11 +58,16 @@ Today's Daycare (`/daycare`), Recess Rush, Graduation Day, saves and purchases a
 
 | Check | Result |
 |---|---|
-| Unit tests (`npx vitest run`) | RESULT_VITEST |
-| Typecheck (`npx tsc --noEmit -p .`) | RESULT_TSC |
-| Production build (`npx vite build`) | RESULT_BUILD |
-| New: `qa/e2e-onboarding.cjs` — iPhone 13 and 1280 × 800 desktop; 3D and Chromium with WebGL disabled; both decision branches; Build from scratch to the first payout; reload mid-tour | RESULT_ONBOARDING |
-| Existing browser suites | RESULT_SUITES |
+| Unit tests (`npx vitest run`) | **690 / 690 pass** (94 files) |
+| Typecheck (`npx tsc --noEmit -p .`) | clean |
+| Production build (`npx vite build`) | builds |
+| New: `qa/e2e-onboarding.cjs` — iPhone 13 and 1280 × 800 desktop; 3D and Chromium with WebGL disabled; both decision branches; Build from scratch to the first payout; reload mid-tour | **100 / 100 pass** |
+| Existing browser suites, each run on its own | Tycoon 37/37 (adapted to the start card); hub 37/37; games 35/35; today's Daycare 36/36; teams 27/27; cloud saves 25/25; notifications 20/20; Graduation Day in the hub 35/35; purchases (Stripe stand-in) 34/34 |
+
+Some suites failed when several ran at once on the same dev server (the Tycoon iPhone run and frame rate, one Recess
+Rush check). The purchases run also failed once, when the dev server reloaded mid-run. All of them pass when run on
+their own. The frame-rate check (≥ 30 fps with 12 rooms, 200 things and 30 pups) uses the software renderer, so it
+depends on machine load.
 
 The onboarding checks found five phone problems, and each was fixed test-first:
 1. The level-up overlay covered Biscuit right after Quick start.
@@ -76,7 +81,13 @@ The onboarding checks found five phone problems, and each was fixed test-first:
 These times are from a script tapping as fast as the page allows. They show that nothing forces a wait, but they
 are **not** how long a person takes. Milliseconds from tapping Quick start (or Build from scratch):
 
-TIMINGS_TABLE
+| Run | Biscuit arrives | Checked in | First payout | Upgrade placed | Goals (tour done) |
+|---|---|---|---|---|---|
+| iPhone 13 · 3D | 0.3 s | 1.3 s | 2.3 s | 4.7 s | 6.7 s |
+| Desktop · 3D (with a reload mid-tour) | 0.5 s | 1.5 s | 4.6 s | 7.3 s | 8.1 s |
+| iPhone 13 · map, no WebGL (with a reload) | 0.1 s | 0.6 s | 2.3 s | 3.4 s | 4.0 s |
+| Desktop · map, no WebGL | 0.2 s | 0.5 s | 0.9 s | 1.9 s | 3.0 s |
+| iPhone 13 · map · Build from scratch | built and open: 4.0 s | — | 5.3 s | — | — |
 
 The targets ("meet a dog by 1 minute, first payout by 2, first upgrade by 5, a decision by 10, a next goal by 15")
 are about people, and only real play data can show them. The queries in `tycoon/docs/tycoon-tour-measurement.sql`
@@ -112,6 +123,33 @@ There is **no Stage A player data**, because Stage A isn't published.
   drag-building is covered by the older `qa/e2e-tycoon.cjs`.
 - **Old guide events.** The older building checklist's step events are not sent while a tour runs, since that
   checklist is hidden.
+
+## Independent review (fresh reviewer, whole branch)
+
+The review found no Critical issues and no risk to saves. Its five Important findings are fixed, each test-first,
+plus five Minor ones re-graded as Important because a player would notice them:
+- A player short of coins at the first upgrade could only skip the guide. Now "Not now — carry on" moves on and
+  still pays the guide reward. It is measured as `upgrade_passed`.
+- The 3D build catalog showed paid "Get it" rows during the tour. During the tour, paid items you don't own aren't
+  listed.
+- A brand-new save showed the start card next to the old checklist, the Shop, "Get coins" and Build. Now only the
+  start card shows.
+- Building from scratch in 3D hid the building step. The step line now stays above the build tools.
+- "Let Rocket rest (free)" counted a check-in, which costs supplies. It's now free.
+- The playtime message credited the Toy Bin with +9 when its card promised +6. It now credits each item's own share.
+- "Return" events guessed "3d" for the controls. They now leave the field out until the screen knows.
+- An empty panel stayed open after a pup went home. It now closes.
+- Map pup markers were small. Each now has a bigger invisible tap area.
+- The map and list building steps said "Tap Build", but there is no Build button in those views. They now point at
+  the Build list's Place buttons.
+
+Left for later (small): parsing hand-edited saves; quick start on an old save with only outdoor items; screen-reader
+announcements; render cost of the decision price; and a few copy points, including the home card's "Start from an
+empty lot".
+
+**Balance note for the owner:** furniture now adds to playtime in its own room. Each Fun point gives +3 happiness,
+capped at +12. This also applies to existing saves; the Water Bowl, for example, adds +3. The seeded first-week
+balance test is green.
 
 ## Next
 
