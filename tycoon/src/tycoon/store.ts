@@ -9,9 +9,10 @@ import { buyLand, placeFirstFree } from "./build";
 import { createArrival, tick, welcomeBack } from "./run";
 import { fac, newTycoon, parseTycoon, withFac } from "./state";
 import { checkTrophies, type Trophy } from "./trophies";
-import { syncTour } from "./tour";
+import { TOUR_ORDER, syncTour } from "./tour";
 import { rollWeekly } from "./weekly";
-import { weekKey } from "@/game/engine";
+import { nyDateKey, weekKey } from "@/game/engine";
+import type { Controls } from "./controls";
 import type { TDog, TResult, TycoonState } from "./types";
 import { applyTycoonContents } from "./purchases";
 import { confirmed, planDeliveries, type Delivery, type DeliveryStep } from "@/lib/purchases/delivery";
@@ -111,13 +112,44 @@ let lastTick = 0;
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
+// ---------- measuring the guided tour (spec §3.8): start, each beat reached, skip, return ----------
+let controls: Controls = "3d";
+/** The playing screen says which controls the player has (3D, the 2D map or the list), for the tour's events. */
+export function setTourControls(c: Controls) {
+  controls = c;
+}
+
+function reportTour(prev: TycoonState | null, next: TycoonState) {
+  const a = prev?.tour ?? null;
+  const b = next.tour;
+  if (!b) return;
+  const base = { mode: b.mode, controls, sec: Math.max(0, Math.round((Date.now() - b.startedAt) / 1000)) };
+  if (!a) track("tycoon_guide", { beat: "start", ...base });
+  if (b.skipped) {
+    if (!a?.skipped) track("tycoon_guide", { beat: "skipped", at: b.beat, ...base });
+    return;
+  }
+  // Every beat passed since the last change, in order (one change can pass several); "meet" is the start itself.
+  const from = a && !a.skipped ? TOUR_ORDER.indexOf(a.beat) : 0;
+  const to = TOUR_ORDER.indexOf(b.beat);
+  for (let i = Math.max(1, from + 1); i <= to; i++) track("tycoon_guide", { beat: TOUR_ORDER[i]!, ...base });
+}
+
+/** Whole New York calendar days between two times (0 on the same day). */
+function daysBetween(from: number, to: number): number {
+  const day = (ms: number) => Date.parse(`${nyDateKey(ms)}T00:00:00Z`);
+  return Math.max(0, Math.round((day(to) - day(from)) / 86_400_000));
+}
+
 /** Events that follow from a state change: a finished game day, and guide steps newly done. */
 function report(prev: TycoonState | null, next: TycoonState, checkGuide: boolean) {
+  if (prev) reportTour(prev, next);
   const before = prev ? fac(prev).report : null;
   const after = fac(next).report;
   if (after && after !== before && after.day !== before?.day)
     track("tycoon_day", { day: after.day, income: after.income, expenses: after.expenses });
-  if (checkGuide && prev && guideVisible(prev)) {
+  // The building checklist is hidden while there's a tour, so its step events would describe nothing on screen.
+  if (checkGuide && prev && !next.tour && guideVisible(prev)) {
     const a = guideProgress(prev).checks;
     const b = guideProgress(next).checks;
     b.forEach((done, i) => {
@@ -176,7 +208,10 @@ function activate(): { bonus: number; weekly: number } {
   users++;
   setOnLevel((n) => track("tycoon_level", { level: n }));
   if (users > 1 && snap.state) return { bonus: 0, weekly: 0 };
-  const { state, bonus } = welcomeBack(load(), Date.now());
+  const loaded = load();
+  const days = readStored() ? daysBetween(loaded.lastSeen, Date.now()) : 0;
+  if (days > 0) track("tycoon_guide", { beat: "return", days, tour: !loaded.tour ? "none" : loaded.tour.done ? "done" : loaded.tour.skipped ? "skipped" : loaded.tour.beat, controls });
+  const { state, bonus } = welcomeBack(loaded, Date.now());
   commit(state, { paused: false });
   const weekly = checkWeek(true);
   startClock();

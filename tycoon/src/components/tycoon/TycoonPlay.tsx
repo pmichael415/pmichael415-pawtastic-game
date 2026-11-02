@@ -10,7 +10,7 @@ import { setOwnedPaid } from "@/tycoon/paid";
 import { paintRoom } from "@/tycoon/build";
 import { markPainted } from "@/tycoon/guide";
 import { fac } from "@/tycoon/state";
-import { onGetCoins, tycoonStore, useTycoon, type ActOpts, type ActResult } from "@/tycoon/store";
+import { onGetCoins, setTourControls, tycoonStore, useTycoon, type ActOpts, type ActResult } from "@/tycoon/store";
 import { productById } from "@/lib/catalog";
 import { liveCollect } from "@/lib/purchases/live";
 import { BuySheet } from "@/components/purchases/BuySheet";
@@ -181,6 +181,7 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
   }, [settings.music]);
   const show3d = settings.view !== "list" && !no3d;
   const controls: Controls = settings.view === "list" ? "list" : no3d ? "map" : "3d";
+  useEffect(() => setTourControls(controls), [controls]);
   const ent = useEntitlementsMaybe();
   const star = !!ent?.visuals["navy-star-bandana"];
   const looks = useMemo(() => (star ? { bandana: "#1c2f52" } : {}), [star]);
