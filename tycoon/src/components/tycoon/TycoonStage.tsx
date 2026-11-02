@@ -22,10 +22,24 @@ type Props = {
   pickMode: PickMode;
   looks?: WorldLooks;
   onPick: (p: TPick | null) => void;
-  /** 3D can't run here: "no-webgl" (the browser lacks WebGL) or "failed" (the 3D view couldn't start). */
-  onUnavailable?: (reason: "no-webgl" | "failed") => void;
+  /** 3D can't run here, and why — with details for diagnosis (nothing personal). */
+  onUnavailable?: (reason: Unavailable, details: Diagnostics) => void;
   children?: React.ReactNode;
 };
+
+export type Unavailable = "no-webgl" | "load-failed" | "renderer-error" | "context-lost";
+export type Diagnostics = { reason: Unavailable; message: string; browser: string; renderer: string | null };
+
+/** The graphics renderer's name, if the browser shares it (for "Copy details"). */
+function rendererName(): string | null {
+  try {
+    const gl = document.createElement("canvas").getContext("webgl") as WebGLRenderingContext | null;
+    const ext = gl?.getExtension("WEBGL_debug_renderer_info");
+    return gl && ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : null;
+  } catch {
+    return null;
+  }
+}
 
 export const TycoonStage = forwardRef<TycoonStageHandle, Props>(function TycoonStage(props, ref) {
   const settings = useSettings();
@@ -44,34 +58,51 @@ export const TycoonStage = forwardRef<TycoonStageHandle, Props>(function TycoonS
   useEffect(() => {
     let cancelled = false;
     let world: TycoonWorld | null = null;
+    const canvas = canvasRef.current;
+    const fail = (reason: Unavailable, err?: unknown) => {
+      if (cancelled) return;
+      world?.dispose();
+      world = null;
+      worldRef.current = null;
+      setStatus("unavailable");
+      const details: Diagnostics = {
+        reason,
+        message: err instanceof Error ? err.message.slice(0, 200) : err ? String(err).slice(0, 200) : "",
+        browser: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 160) : "",
+        renderer: reason === "no-webgl" ? null : rendererName(),
+      };
+      track("client_error", { where: "tycoon-3d", reason });
+      latest.current.onUnavailable?.(reason, details);
+    };
+    const lost = (e: Event) => {
+      e.preventDefault();
+      fail("context-lost", "The graphics context was lost");
+    };
+    canvas?.addEventListener("webglcontextlost", lost);
     import("@/tycoon/render/world")
       .then((m) => {
         if (cancelled || !canvasRef.current) return;
-        if (!m.webglAvailable()) {
-          setStatus("unavailable");
-          latest.current.onUnavailable?.("no-webgl");
-          return;
+        if (!m.webglAvailable()) return fail("no-webgl");
+        try {
+          world = new m.TycoonWorld(canvasRef.current, {
+            onPick: (p) => latest.current.onPick(p),
+            reducedMotion: settings.reducedMotion,
+            lowPower: settings.lowPower,
+          });
+          const s = latest.current;
+          world.setSnapshot({ state: s.state, selected: s.selected, ghost: s.ghost, overlay: s.overlay, looks: s.looks ?? {}, pickMode: s.pickMode });
+          world.resetCamera();
+        } catch (e) {
+          return fail("renderer-error", e);
         }
-        world = new m.TycoonWorld(canvasRef.current, {
-          onPick: (p) => latest.current.onPick(p),
-          reducedMotion: settings.reducedMotion,
-          lowPower: settings.lowPower,
-        });
-        const s = latest.current;
-        world.setSnapshot({ state: s.state, selected: s.selected, ghost: s.ghost, overlay: s.overlay, looks: s.looks ?? {}, pickMode: s.pickMode });
-        world.resetCamera();
         worldRef.current = world;
         if (import.meta.env.DEV) (window as unknown as { __tycoonWorld?: TycoonWorld }).__tycoonWorld = world;
         setStatus("ready");
       })
-      .catch(() => {
-        if (!cancelled) {
-          setStatus("unavailable");
-          latest.current.onUnavailable?.("failed");
-        }
-      });
+      .catch((e) => fail("load-failed", e));
     return () => {
       cancelled = true;
+      canvas?.removeEventListener("webglcontextlost", lost);
       world?.dispose();
       worldRef.current = null;
     };
@@ -90,7 +121,7 @@ export const TycoonStage = forwardRef<TycoonStageHandle, Props>(function TycoonS
         tabIndex={0}
         aria-label="Overhead view of your daycare. Drag to pan, pinch or use the zoom buttons, tap a pup, room or square."
         className="block w-full touch-none outline-none focus-visible:ring-4 focus-visible:ring-accent"
-        style={{ height: "clamp(300px, 52svh, 540px)" }}
+        style={{ height: "clamp(320px, 62svh, 620px)" }}
       />
       {status === "loading" && <div className="absolute inset-0 grid place-items-center bg-sky font-display text-lg font-bold text-secondary">Building your daycare…</div>}
       <div className="absolute bottom-2 right-2 flex flex-col gap-2">

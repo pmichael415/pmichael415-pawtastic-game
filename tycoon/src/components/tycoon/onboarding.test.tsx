@@ -8,11 +8,11 @@ vi.mock("sonner", () => ({
   toast: Object.assign(() => {}, { success: () => {}, error: () => {}, warning: () => {}, info: () => {} }),
 }));
 let emit: (p: TPick | null) => void = () => {};
-let unavailable: ((reason: "no-webgl" | "failed") => void) | undefined;
+let unavailable: ((reason: "no-webgl" | "renderer-error") => void) | undefined;
 vi.mock("@/components/tycoon/TycoonStage", async () => {
   const React = await import("react");
   return {
-    TycoonStage: React.forwardRef(function Stub(props: { onPick: (p: TPick | null) => void; onUnavailable?: (r: "no-webgl" | "failed") => void }, ref) {
+    TycoonStage: React.forwardRef(function Stub(props: { onPick: (p: TPick | null) => void; onUnavailable?: (r: "no-webgl" | "renderer-error") => void }, ref) {
       React.useImperativeHandle(ref, () => ({ fx: () => {}, resetCamera: () => {}, debug: () => null }));
       emit = props.onPick;
       unavailable = props.onUnavailable;

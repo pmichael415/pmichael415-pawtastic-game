@@ -18,6 +18,7 @@ import { addedMessage, useCheckoutReturn } from "@/components/purchases/useCheck
 import { DaycareShop } from "./DaycareShop";
 import { CoachBubble } from "./CoachBubble";
 import { FallbackNotice, type FallbackReason } from "./FallbackNotice";
+import type { Diagnostics } from "./TycoonStage";
 import { GoalsStrip } from "./GoalsStrip";
 import { StartCard } from "./StartCard";
 import { TycoonMap } from "./TycoonMap";
@@ -92,6 +93,8 @@ function dogTile(f: Facility, d: TDog): { c: number; r: number } | null {
 function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, playHere = () => {} }: { state: TycoonState; act: Act; set: (fn: (s: TycoonState) => TycoonState) => void; paused: boolean; setPaused: (p: boolean) => void; spectator?: boolean; playHere?: () => void }) {
   const settings = useSettings();
   const [no3d, setNo3d] = useState<FallbackReason | null>(null);
+  const [diag, setDiag] = useState<Diagnostics | null>(null);
+  const [stageKey, setStageKey] = useState(0); // "Try 3D again" mounts a fresh 3D view
   const [building, setBuilding] = useState(false);
   const [sel, setSel] = useState<Sel>(null);
   const [askSell, setAskSell] = useState(false);
@@ -312,7 +315,18 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
       {/* Building from scratch: the current building step stays on screen while you build. */}
       {show3d && building && holding && state.tour?.beat === "meet" && <CoachBubble state={state} controls={controls} act={act} set={set} compact />}
       {show3d && building && <BuildToolbar b={b} state={state} act={act} onBuyPack={() => setBuyDecor(true)} hidePaid={holding} />}
-      {!show3d && <FallbackNotice reason={no3d ?? "list"} onRetry={() => (no3d ? setNo3d(null) : setSettings({ view: "overhead" }))} />}
+      {!show3d && (
+        <FallbackNotice
+          reason={no3d ?? "list"}
+          details={diag}
+          onRetry={() => {
+            if (!no3d) return setSettings({ view: "overhead" });
+            setNo3d(null);
+            setDiag(null);
+            setStageKey((k) => k + 1);
+          }}
+        />
+      )}
       {/* The coach sits right above the daycare (never over it) — on a phone it would hide the pups. */}
       {!building && (
         <div ref={coachRef} className="scroll-mt-2">
@@ -322,6 +336,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
       <div className="relative">
         {show3d ? (
           <TycoonStage
+            key={stageKey}
             ref={stage}
             state={state}
             selected={sel?.id ?? null}
@@ -330,7 +345,10 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
             overlay={building}
             pickMode={building ? b.pickMode : "objects"}
             onPick={onPick}
-            onUnavailable={(reason) => setNo3d(reason)}
+            onUnavailable={(reason, details) => {
+              setNo3d(reason);
+              setDiag(details);
+            }}
           />
         ) : (
           no3d && <TycoonMap state={state} selected={sel?.id ?? null} onPick={onPick} />
