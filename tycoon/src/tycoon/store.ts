@@ -17,6 +17,7 @@ import type { TDog, TResult, TycoonState } from "./types";
 import { applyTycoonContents } from "./purchases";
 import { confirmed, planDeliveries, type Delivery, type DeliveryStep } from "@/lib/purchases/delivery";
 import { createSaveGuard } from "@/lib/purchases/saveGuard";
+import { LEASE_REFRESH_MS, claimLease, heldElsewhere, newTabId } from "./lease";
 
 export const KEY = "pawtastic-daycare-next-v1";
 export const TICK_MS = 250;
@@ -56,7 +57,14 @@ function readStored(): TycoonState | null {
 }
 const guard = createSaveGuard<TycoonState>(KEY, readStored);
 
+// ---------- one tab plays (the lease): only the leading tab runs the clock and writes the save ----------
+const TAB = newTabId();
+let leading = true;
+let leaseTimer: ReturnType<typeof setInterval> | null = null;
+const storage = () => (typeof localStorage !== "undefined" ? localStorage : null);
+
 function persist(s: TycoonState) {
+  if (!leading) return; // another tab is playing: never write over its save
   // Another tab stored purchases this one doesn't have: take its save instead of writing over it.
   const adopt = guard.check(s);
   if (adopt) {
@@ -104,8 +112,8 @@ export function confirmDeliveries(ids: string[]) {
 }
 
 // ---------- the store ----------
-type Snapshot = { state: TycoonState | null; paused: boolean };
-let snap: Snapshot = { state: null, paused: false };
+type Snapshot = { state: TycoonState | null; paused: boolean; spectator: boolean };
+let snap: Snapshot = { state: null, paused: false, spectator: false };
 let users = 0;
 let timer: ReturnType<typeof setInterval> | null = null;
 let lastTick = 0;
@@ -168,7 +176,7 @@ function commit(next: TycoonState | null, opts: { paused?: boolean; checkGuide?:
   const prev = snap.state;
   // The guided tour catches up with every change (an action, a tick, a load): next beat, scripted pups, reward.
   if (next) next = syncTour(next, Date.now()).state;
-  snap = { state: next, paused: opts.paused ?? snap.paused };
+  snap = { state: next, paused: opts.paused ?? snap.paused, spectator: snap.spectator };
   if (next) {
     persist(next);
     report(prev, next, opts.checkGuide ?? false);
@@ -199,7 +207,7 @@ function startClock() {
     // Clamp so a throttled background tab can't fast-forward the day.
     const sec = Math.min(1, Math.max(0, (now - lastTick) / 1000));
     lastTick = now;
-    if (!snap.state || snap.paused || sec <= 0) return;
+    if (!snap.state || snap.paused || !leading || sec <= 0) return;
     commit(tick(snap.state, sec * speed));
     checkWeek();
   }, TICK_MS);
@@ -210,10 +218,41 @@ function stopClock() {
 }
 
 /** Load once per activation and welcome the player back. Returns the welcome bonus and any weekly reward paid. */
+/** Keeps the lease fresh while leading; notices when another tab took over (this one then watches). */
+function watchLease() {
+  if (leaseTimer) return;
+  leaseTimer = setInterval(() => {
+    const st = storage();
+    if (!st) return;
+    if (leading) {
+      if (heldElsewhere(st, TAB, Date.now())) {
+        leading = false;
+        snap = { ...snap, spectator: true };
+        emit();
+      } else claimLease(st, TAB, Date.now());
+    }
+  }, LEASE_REFRESH_MS);
+}
+
+/** "Play here": take over from another tab, picking up its latest save. */
+export function playHere() {
+  const st = storage();
+  if (st) claimLease(st, TAB, Date.now(), true);
+  leading = true;
+  const fresh = readStored();
+  snap = { ...snap, spectator: false };
+  if (fresh) commit(fresh, { paused: false });
+  else emit();
+}
+
 function activate(): { bonus: number; weekly: number } {
   users++;
   setOnLevel((n) => track("tycoon_level", { level: n }));
   if (users > 1 && snap.state) return { bonus: 0, weekly: 0 };
+  const st = storage();
+  leading = st ? claimLease(st, TAB, Date.now()) : true;
+  snap = { ...snap, spectator: !leading };
+  watchLease();
   const loaded = load();
   const days = readStored() ? daysBetween(loaded.lastSeen, Date.now()) : 0;
   if (days > 0) track("tycoon_guide", { beat: "return", days, tour: !loaded.tour ? "none" : loaded.tour.done ? "done" : loaded.tour.skipped ? "skipped" : loaded.tour.beat, ...withControls() });
@@ -227,9 +266,11 @@ function deactivate() {
   users = Math.max(0, users - 1);
   if (users > 0) return;
   stopClock();
+  if (leaseTimer) clearInterval(leaseTimer);
+  leaseTimer = null;
   setOnLevel(null);
   if (snap.state) persist(snap.state);
-  snap = { state: null, paused: false };
+  snap = { state: null, paused: false, spectator: false };
 }
 
 export type ActResult = TResult & { unlocked?: Trophy[] };
@@ -276,12 +317,13 @@ export const tycoonStore = {
   },
   /** Test helper: replace state without touching timers. */
   _reset(s: TycoonState | null) {
-    snap = { state: s, paused: false };
+    leading = true;
+    snap = { state: s, paused: false, spectator: false };
     emit();
   },
 };
 
-const SERVER_SNAPSHOT: Snapshot = { state: null, paused: false };
+const SERVER_SNAPSHOT: Snapshot = { state: null, paused: false, spectator: false };
 
 export function useTycoon() {
   const current = useSyncExternalStore(tycoonStore.subscribe, tycoonStore.getSnapshot, () => SERVER_SNAPSHOT);
@@ -325,7 +367,7 @@ export function useTycoon() {
   const set = useCallback((fn: (s: TycoonState) => TycoonState) => tycoonStore.set(fn), []);
   const setPaused = useCallback((p: boolean | ((p: boolean) => boolean)) => tycoonStore.setPaused(typeof p === "function" ? p(snap.paused) : p), []);
 
-  return { state: current.state, act, set, paused: current.paused, setPaused };
+  return { state: current.state, act, set, paused: current.paused, setPaused, spectator: current.spectator, playHere };
 }
 
 // ---------- DEV-only test hooks for qa/e2e-tycoon.cjs (never in production builds) ----------

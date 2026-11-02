@@ -65,7 +65,7 @@ function useOwnedPaid(): ReadonlySet<PaidItemId> {
 }
 
 export function TycoonPlay() {
-  const { state, act, set, paused, setPaused } = useTycoon();
+  const { state, act, set, paused, setPaused, spectator, playHere } = useTycoon();
   const owned = useOwnedPaid();
   // The engine reads ownership from memory while this page runs; it fails closed when the page goes away.
   setOwnedPaid(owned);
@@ -76,7 +76,7 @@ export function TycoonPlay() {
         <Loader2 className="h-6 w-6 animate-spin" aria-label="Loading your daycare" />
       </div>
     );
-  return <Play state={state} act={act} set={set} paused={paused} setPaused={setPaused} />;
+  return <Play state={state} act={act} set={set} paused={paused} setPaused={setPaused} spectator={spectator} playHere={playHere} />;
 }
 
 /** Where a pup is, as a square (for effects). */
@@ -89,7 +89,7 @@ function dogTile(f: Facility, d: TDog): { c: number; r: number } | null {
   return room ? { c: room.c + Math.floor(room.w / 2), r: room.r + Math.floor(room.d / 2) } : null;
 }
 
-function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonState; act: Act; set: (fn: (s: TycoonState) => TycoonState) => void; paused: boolean; setPaused: (p: boolean) => void }) {
+function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, playHere = () => {} }: { state: TycoonState; act: Act; set: (fn: (s: TycoonState) => TycoonState) => void; paused: boolean; setPaused: (p: boolean) => void; spectator?: boolean; playHere?: () => void }) {
   const settings = useSettings();
   const [no3d, setNo3d] = useState<FallbackReason | null>(null);
   const [building, setBuilding] = useState(false);
@@ -286,6 +286,12 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
   return (
     <CheckoutContext.Provider value={onCheckout}>
     <div className="space-y-3" style={{ paddingBottom: sel ? "min(48svh, 440px)" : undefined }}>
+      {spectator && (
+        <section aria-label="Open in another tab" className="flex items-center gap-3 rounded-2xl border border-accent bg-card p-3 shadow-soft">
+          <p className="min-w-0 flex-1 text-sm text-secondary">Your daycare is open in another tab, so time and costs run there — not here.</p>
+          <Button className="h-11 shrink-0" onClick={playHere}>Play here</Button>
+        </section>
+      )}
       <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} onReputation={() => setRepOpen(true)} {...(quiet ? {} : { onShop: () => setShop(true) })} />
       {isFreshSave(state) && <StartCard onPick={(mode) => set((s) => startTour(s, mode, Date.now()))} />}
       {/* During the tour Build waits (one thing at a time), except while building from scratch. */}
