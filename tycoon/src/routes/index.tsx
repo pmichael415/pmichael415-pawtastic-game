@@ -93,14 +93,19 @@ function Hub() {
         to="/daycare"
         cta={started ? "Continue your daycare" : "Open your daycare"}
       />
-      <Link to="/daycare-next" className="-mt-1 flex min-h-11 flex-col items-center justify-center rounded-xl px-4 py-1 text-center text-sm font-semibold text-primary underline-offset-2 hover:underline">
-        <span>Try the new Daycare (preview): build your own from an empty lot →</span>
+      <section aria-labelledby="new-daycare-title" className="rounded-2xl border-2 border-accent bg-card p-4 shadow-soft">
+        <p className="text-xs font-bold uppercase tracking-wide text-accent-foreground">Preview</p>
+        <h2 id="new-daycare-title" className="font-display text-lg font-bold text-secondary">New: build your own PAWtastic daycare</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Start from an empty lot: meet your first pup, collect your first payment, pick an upgrade and grow from there. Your current Daycare above stays exactly as it is.</p>
         {tw && (
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <p className="mt-1 text-xs font-medium text-muted-foreground">
             This week: {tw.goal.label} · {tw.progress}/{tw.target} · +{tw.goal.reward} coins
-          </span>
+          </p>
         )}
-      </Link>
+        <Button asChild className="mt-3 h-12 w-full font-display">
+          <Link to="/daycare-next">Play the new Daycare <ArrowRight /></Link>
+        </Button>
+      </section>
       <GameCard
         icon={Gamepad2}
         eyebrow="Arcade"
