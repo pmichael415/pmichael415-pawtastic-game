@@ -5,6 +5,8 @@
 //   node tools/mock-pay-server.mjs <folder with the built page> [port]
 //   Serves the folder at /play/. Env: MOCK_PAYMENTS=0 turns payments off; MOCK_LOSE_PAYMENTS=1
 //   makes "Pay" succeed without recording the purchase (to test "Purchase not delivered").
+//   MOCK_HUB_ORIGINS=http://127.0.0.1:5173 acts like the server with docs/graduation-hub/ applied: that address
+//   (the PAWtastic Games hub) may call the game API from the browser, and its buyers return to its /graduation.
 //   Test helpers: GET /mock/state, POST /mock/refund { email, product }.
 
 import { weekKey, weekEndsAt, replayChallenge } from '../src/engine/challenge.js';
@@ -17,6 +19,7 @@ const [dir = 'dist', port = '8790'] = process.argv.slice(2);
 const PAYMENTS = process.env.MOCK_PAYMENTS !== '0';
 const LOSE = process.env.MOCK_LOSE_PAYMENTS === '1';
 const CODE = '123456';
+const HUB_ORIGINS = (process.env.MOCK_HUB_ORIGINS || '').split(',').filter(Boolean);
 const PUBLISHABLE = 'sb_publishable_mock_key';
 const CATALOG = {
   pack55: { cents: 299, name: '55 Treats' }, pack100: { cents: 499, name: '100 Treats' },
@@ -104,12 +107,28 @@ function record(session) {
 }
 const reportsBy = new Map();
 const devices = []; // player counter hellos
+const portalBack = new Map(); // user id → where the portal's "Return" goes
 
 createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const origin = `http://${req.headers.host}`;
     const path = url.pathname;
+    // The hub (docs/graduation-hub/hub.ts): CORS for the game API, never for staff. Real Lovable Cloud auth
+    // answers any address, so /auth/v1/ does too.
+    const from = req.headers.origin;
+    const hub = from && from !== origin && HUB_ORIGINS.includes(from) ? from : null;
+    const gameApi = path.startsWith('/api/public/game/') && !/^\/api\/public\/game\/staff(\/|$)/.test(path);
+    const corsFor = hub && gameApi ? hub : from && path.startsWith('/auth/v1/') ? from : null;
+    if (corsFor) {
+      res.setHeader('access-control-allow-origin', corsFor);
+      res.setHeader('vary', 'Origin');
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, { 'access-control-allow-methods': 'GET, POST, PUT, OPTIONS', 'access-control-allow-headers': 'accept, authorization, content-type, apikey, x-client-info', 'access-control-max-age': '600' });
+        return res.end();
+      }
+    }
+    const back = hub ? `${hub}/graduation` : `${origin}/play/index.html`;
 
     if (path === '/api/public/game/config') {
       // MOCK_CONFIG_DELAY_MS: a slow server (the real one checks Stripe first), for tools/e2e-slow-config.cjs.
@@ -304,7 +323,7 @@ createServer(async (req, res) => {
         const spent = mine.filter(p => new Date(p.at).toISOString().slice(0, 7) === month).reduce((n, p) => n + p.cents, 0);
         if (spent + CATALOG[product].cents > 10000) return send(res, 400, { error: 'monthly-cap' });
         const id = `cs_test_${randomUUID().slice(0, 8)}`;
-        db.sessions.set(id, { id, userId: user.id, product, success: `${origin}/play/index.html?checkout=success&session_id=${id}`, cancel: `${origin}/play/index.html?checkout=cancel` });
+        db.sessions.set(id, { id, userId: user.id, product, success: `${back}?checkout=success&session_id=${id}`, cancel: `${back}?checkout=cancel` });
         return send(res, 200, { url: `${origin}/mock-stripe/checkout/${id}` });
       }
       if (path === '/api/public/game/account' && req.method === 'GET') {
@@ -318,7 +337,7 @@ createServer(async (req, res) => {
         for (const p of db.purchases) if (p.userId === user.id) { if (claimed.includes(p.id)) p.claimed = true; if (refunds.includes(p.id)) p.refundAcked = true; }
         return send(res, 200, { ok: true });
       }
-      if (path === '/api/public/game/portal' && req.method === 'POST') return send(res, 200, { url: `${origin}/mock-stripe/portal/${encodeURIComponent(user.id)}` });
+      if (path === '/api/public/game/portal' && req.method === 'POST') { portalBack.set(user.id, back); return send(res, 200, { url: `${origin}/mock-stripe/portal/${encodeURIComponent(user.id)}` }); }
       return send(res, 404, { error: 'not-found' });
     }
 
@@ -342,9 +361,9 @@ createServer(async (req, res) => {
       if (req.method === 'POST') {
         const s = db.subs.get(userId);
         if (s) s.cancelAtPeriodEnd = true;
-        return redirect(res, `${origin}/play/index.html`);
+        return redirect(res, portalBack.get(userId) || `${origin}/play/index.html`);
       }
-      return html(res, `<h1>Stripe (mock) customer portal</h1><form method="post"><button id="cancel-sub">Cancel subscription</button></form><a id="return" href="/play/index.html">Return</a>`);
+      return html(res, `<h1>Stripe (mock) customer portal</h1><form method="post"><button id="cancel-sub">Cancel subscription</button></form><a id="return" href="${portalBack.get(userId) || '/play/index.html'}">Return</a>`);
     }
 
     // Test helpers.
@@ -383,8 +402,10 @@ createServer(async (req, res) => {
 
     // The front desk's referral page.
     if (path === '/staff/index.html' || path === '/staff/') {
-      try { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(await readFile(join(dir, 'staff.html'))); }
-      catch { return send(res, 404, { error: 'not-found' }); }
+      let page;
+      try { page = await readFile(join(dir, 'staff.html')); } catch { return send(res, 404, { error: 'not-found' }); }
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      return res.end(page);
     }
 
     // The built page at /play/.

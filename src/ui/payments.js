@@ -2,6 +2,7 @@
 // customer portal for the Pup Pass, adding what was paid for, and "Report a problem".
 // Only used when the local backend carries a payments client (src/net/pay-api.js).
 
+import { openOutside } from '../net/embed.js';
 import { h, fill } from './dom.js';
 import { appCodeMenuItem } from './app-signin.js';
 import { confirmPurchase } from './purchase.js';
@@ -157,7 +158,7 @@ export async function startCheckout(app, product, { confirmed = false } = {}) {
     return;
   }
   if (typeof res.url !== 'string' || !safeUrl(res.url)) { app.toast(payError('server')); return; }
-  await leave(app, () => location.assign(res.url));
+  await leave(app, () => openOutside(res.url));
 }
 
 /** A checkout started before signing in, picked up after the reload. */
@@ -176,7 +177,7 @@ export async function openPortal(app) {
   app.toast('Opening your account on Stripe…');
   const res = await pay.portal();
   if (!res.ok || typeof res.url !== 'string' || !safeUrl(res.url)) { app.toast(payError(res.ok ? 'server' : res.error)); return; }
-  await leave(app, () => location.assign(res.url));
+  await leave(app, () => openOutside(res.url));
 }
 
 function thanksText(p) {

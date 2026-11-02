@@ -9,6 +9,7 @@ import { createWallet } from './economy/wallet.js';
 import { createLocalBackend, DEMO_FEATURES, FREE_PLAY_FEATURES, PAID_FEATURES } from './backend/local.js';
 import { openPayments } from './net/pay-api.js';
 import { startPlayerCount, DEVICE_KEY } from './net/player-count.js';
+import { apiBase } from './net/embed.js';
 import { afterOpen, readCheckoutReturn } from './ui/payments.js';
 import { initInstall } from './ui/install.js';
 import { captureReferral, confirmFriendCode, referralNews } from './ui/referral.js';
@@ -88,7 +89,11 @@ const startApp = ({ storagePersistent, jar = null, pay = null, flushSave = null 
 async function bootLocal() {
   // The public site's own server: real purchases (Stripe), buyers' saved games and reports.
   // Null anywhere else (claude.ai, a file on disk), where the game stays as it was.
-  const pay = freePlay ? await openPayments() : null;
+  // Inside the PAWtastic Games hub, the page names Graduation Day's own server (allowlisted in net/embed.js).
+  const base = apiBase();
+  const pay = freePlay ? await openPayments(base ? { base, redirectPath: '/graduation' } : {}) : null;
+  // The hub shows the Weekly Challenge card only when the server answered (otherwise its copy stays free play).
+  if (pay) document.documentElement.classList.add('server-on');
   const checkoutReturn = pay ? readCheckoutReturn() : { checkout: null, sessionId: null };
   // Inside claude.ai the saved game also lives on the player's account, so an app that forgets
   // its storage (the Claude phone app) picks up where they left off. On the public site the same
@@ -118,7 +123,7 @@ async function bootLocal() {
   // Invite a friend: confirm an invite link's code, and tell the player about free baths they earned.
   if (pay?.accounts) { confirmFriendCode(app).catch(() => {}); referralNews(app).catch(() => {}); offerAppCode(app).catch(() => {}); competeOnOpen(app).catch(() => {}); }
   // Player counter for PAWtastic's weekly numbers: a random id, once a day, in the background.
-  if (pay) startPlayerCount({ store: createLocalStorage(DEVICE_KEY) });
+  if (pay) startPlayerCount({ store: createLocalStorage(DEVICE_KEY), base });
 }
 
 async function bootServerMode() {

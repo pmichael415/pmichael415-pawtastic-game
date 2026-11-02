@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { GameHeader } from "@/components/game/GameHeader";
 import { GraduationWeeklyCard } from "@/components/game/GraduationWeeklyCard";
@@ -10,6 +10,7 @@ import {
   type GraduationProgress,
 } from "@/lib/graduation";
 import { syncGraduation } from "@/game/linkSync";
+import { graduationFrame } from "@/lib/graduationFrame";
 import { useShareContext } from "@/components/game/ShareSheet";
 
 export const Route = createFileRoute("/graduation")({
@@ -28,7 +29,45 @@ export const Route = createFileRoute("/graduation")({
 
 function Graduation() {
   const [p, setP] = useState<GraduationProgress | null>(null);
+  // Set after mount: Stripe's return and an email sign-in link are handed to the game (lib/graduationFrame).
+  const [src, setSrc] = useState<string | null>(null);
+  // The game marks <html class="server-on"> once Graduation Day's own server answers (sign-in, Shop, Weekly Challenge).
+  const [serverOn, setServerOn] = useState(false);
+  const frame = useRef<HTMLIFrameElement>(null);
   useShareContext("graduation", null);
+  useEffect(() => {
+    const f = graduationFrame(
+      import.meta.env.BASE_URL,
+      window.location.search,
+      window.location.hash,
+    );
+    if (f.moved) {
+      try {
+        window.history.replaceState(
+          window.history.state,
+          "",
+          window.location.pathname + f.hubSearch + f.hubHash,
+        );
+      } catch {
+        /* the game still gets it */
+      }
+    }
+    setSrc(f.src);
+  }, []);
+  const watchServer = () => {
+    let tries = 0;
+    const look = () => {
+      let on = false;
+      try {
+        on = !!frame.current?.contentDocument?.documentElement.classList.contains("server-on");
+      } catch {
+        on = false;
+      }
+      if (on) return setServerOn(true);
+      if (++tries < 24) window.setTimeout(look, 500);
+    };
+    look();
+  };
   useEffect(() => {
     const refresh = () => {
       setP(readGraduationFromStorage());
@@ -58,10 +97,13 @@ function Graduation() {
       style={{ height: "calc(100svh - 4rem - env(safe-area-inset-bottom))" }}
     >
       <GameHeader title="Graduation Day" subtitle={sub} />
-      {!import.meta.env["VITE_REVIEW_BUILD"] && <GraduationWeeklyCard from="graduation" slim />}
+      {!import.meta.env["VITE_REVIEW_BUILD"] && !serverOn && (
+        <GraduationWeeklyCard from="graduation" slim />
+      )}
       <p className="mt-1.5 px-1 text-[11px] font-medium text-muted-foreground">
-        Free play here. Treats stay in Graduation Day; achievements and bandanas are shared with
-        your daycare.
+        {serverOn
+          ? "The Shop and Weekly Challenge use Graduation Day's own sign-in. Treats stay in Graduation Day; achievements and bandanas are shared with your daycare."
+          : "Free play here. Treats stay in Graduation Day; achievements and bandanas are shared with your daycare."}
       </p>
       {import.meta.env["VITE_REVIEW_BUILD"] ? (
         <div className="mt-2 rounded-2xl border border-border bg-card p-5 text-center shadow-soft">
@@ -82,8 +124,10 @@ function Graduation() {
         </div>
       ) : (
         <iframe
+          ref={frame}
           title="Graduation Day match-3 game"
-          src={`${import.meta.env.BASE_URL}graduation/index.html`}
+          src={src ?? undefined}
+          onLoad={src ? watchServer : undefined}
           allow="autoplay; fullscreen"
           className="mt-1.5 w-full flex-1 rounded-2xl border border-border bg-card shadow-soft"
         />

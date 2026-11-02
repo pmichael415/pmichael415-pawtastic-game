@@ -1,0 +1,207 @@
+diff --git a/src/lib/game/checkout.server.ts b/src/lib/game/checkout.server.ts
+index 16f5898..4742cb2 100644
+--- a/src/lib/game/checkout.server.ts
++++ b/src/lib/game/checkout.server.ts
+@@ -1,6 +1,7 @@
+ import { z } from 'zod';
+ import { admin, ApiError, body, ensure, json, viewer } from './api.server';
+ import { approvedOrigin, CATALOG, isProduct, PAYMENT_MODE } from './payments';
++import { returnBase } from './hub';
+ import { stripeCall, verifyAccount } from './stripe.server';
+ 
+ export async function customer(user: {id:string;email?:string}) {
+@@ -41,7 +42,7 @@ export async function checkout(request:Request) {
+   await verifyAccount();
+   const parsed = z.object({product:z.string().max(40)}).strict().parse(await body(request,1024));
+   if (!isProduct(parsed.product)) throw new ApiError(400,'unknown-product');
+-  const product = parsed.product; const price = CATALOG[product]; const origin = approvedOrigin(request);
++  const product = parsed.product; const price = CATALOG[product]; const back = returnBase(request, approvedOrigin(request));
+   const customerId = await customer(user);
+   await reconcile(user.id);
+   const db = await admin();
+@@ -49,7 +50,7 @@ export async function checkout(request:Request) {
+   const reservation = z.object({id:z.string().uuid().optional(),error:z.string().optional()}).parse(reserved.data);
+   if (reservation.error) throw new ApiError(400,reservation.error);
+   if (!reservation.id) throw new ApiError(500,'server-error');
+-  const fields:Record<string,string> = {customer:customerId,mode:product==='pass'?'subscription':'payment',client_reference_id:`${user.id}:${product}`,'metadata[user_id]':user.id,'metadata[product]':product,'metadata[game]':'pawtastic-graduation','metadata[reservation_id]':reservation.id,'line_items[0][quantity]':'1','line_items[0][price_data][currency]':'usd','line_items[0][price_data][unit_amount]':String(price.cents),'line_items[0][price_data][product_data][name]':price.name,success_url:`${origin}/play/index.html?checkout=success&session_id={CHECKOUT_SESSION_ID}`,cancel_url:`${origin}/play/index.html?checkout=cancel`,expires_at:String(Math.floor(Date.now()/1000)+1800)};
++  const fields:Record<string,string> = {customer:customerId,mode:product==='pass'?'subscription':'payment',client_reference_id:`${user.id}:${product}`,'metadata[user_id]':user.id,'metadata[product]':product,'metadata[game]':'pawtastic-graduation','metadata[reservation_id]':reservation.id,'line_items[0][quantity]':'1','line_items[0][price_data][currency]':'usd','line_items[0][price_data][unit_amount]':String(price.cents),'line_items[0][price_data][product_data][name]':price.name,success_url:`${back}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,cancel_url:`${back}?checkout=cancel`,expires_at:String(Math.floor(Date.now()/1000)+1800)};
+   // The game's webhook set intentionally excludes delayed-payment success events.
+   fields['payment_method_types[0]']='card';
+   fields['metadata[mode]']=PAYMENT_MODE;
+@@ -67,6 +68,6 @@ export async function portal(request:Request) {
+   const setup = await verifyAccount();
+   const db = await admin();const result = await db.from('game_mode_customers').select('stripe_customer_id').eq('user_id',user.id).eq('mode',PAYMENT_MODE).maybeSingle();ensure(result);
+   if (!result.data) throw new ApiError(400,'no-customer');
+-  const session = await stripeCall('/billing_portal/sessions','POST',{customer:result.data.stripe_customer_id,configuration:setup.portal_id,return_url:`${approvedOrigin(request)}/play/index.html`});
++  const session = await stripeCall('/billing_portal/sessions','POST',{customer:result.data.stripe_customer_id,configuration:setup.portal_id,return_url:returnBase(request, approvedOrigin(request))});
+   return json({url:session['url']});
+ }
+\ No newline at end of file
+diff --git a/src/lib/game/hub.test.ts b/src/lib/game/hub.test.ts
+new file mode 100644
+index 0000000..cfc2782
+--- /dev/null
++++ b/src/lib/game/hub.test.ts
+@@ -0,0 +1,68 @@
++import { describe, expect, it } from 'vitest';
++import { HUB_ORIGINS, hubOrigin, preflight, returnBase, withCors } from './hub';
++
++const SITE = 'https://pawtastic-graduation.lovable.app';
++const HUB = 'https://paw-sitive-playhouse-rush.lovable.app';
++const req = (path: string, init: RequestInit & { origin?: string } = {}) => {
++  const headers = new Headers(init.headers);
++  if (init.origin) headers.set('Origin', init.origin);
++  return new Request(`${SITE}${path}`, { ...init, headers });
++};
++
++describe('the PAWtastic Games hub', () => {
++  it('lists exactly the hub addresses the owner publishes', () => {
++    expect(HUB_ORIGINS).toEqual([
++      'https://paw-sitive-playhouse-rush.lovable.app',
++      'https://id-preview--acd6158e-ca42-414d-a979-e8b24d27b4b1.lovable.app',
++      'https://play.pawtasticacademy.com',
++    ]);
++  });
++  it('recognises only an allowlisted Origin, never this site itself', () => {
++    expect(hubOrigin(req('/api/public/game/config', { origin: HUB }))).toBe(HUB);
++    expect(hubOrigin(req('/api/public/game/config', { origin: 'https://attacker.invalid' }))).toBeNull();
++    expect(hubOrigin(req('/api/public/game/config', { origin: `${HUB}.attacker.invalid` }))).toBeNull();
++    expect(hubOrigin(req('/api/public/game/config'))).toBeNull();
++    expect(hubOrigin(new Request('https://play.pawtasticacademy.com/x', { headers: { Origin: 'https://play.pawtasticacademy.com' } }))).toBeNull();
++  });
++  it('answers the browser permission check for the game API, from the hub only', () => {
++    const ok = preflight(req('/api/public/game/checkout', { method: 'OPTIONS', origin: HUB }))!;
++    expect(ok.status).toBe(204);
++    expect(ok.headers.get('Access-Control-Allow-Origin')).toBe(HUB);
++    expect(ok.headers.get('Access-Control-Allow-Headers')).toMatch(/authorization/);
++    expect(ok.headers.get('Access-Control-Allow-Headers')).toMatch(/content-type/);
++    expect(ok.headers.get('Access-Control-Allow-Methods')).toMatch(/PUT/);
++    expect(ok.headers.get('Access-Control-Allow-Credentials')).toBeNull();
++    expect(ok.headers.get('Vary')).toBe('Origin');
++    // Everything else goes on to the app as before.
++    expect(preflight(req('/api/public/game/checkout', { method: 'OPTIONS', origin: 'https://attacker.invalid' }))).toBeNull();
++    expect(preflight(req('/api/public/game/checkout', { method: 'POST', origin: HUB }))).toBeNull();
++    expect(preflight(req('/api/public/stripe/webhook', { method: 'OPTIONS', origin: HUB }))).toBeNull();
++    expect(preflight(req('/api/public/game/staff', { method: 'OPTIONS', origin: HUB }))).toBeNull();
++    expect(preflight(req('/api/public/game/staff/prizes', { method: 'OPTIONS', origin: HUB }))).toBeNull();
++    expect(preflight(req('/staff', { method: 'OPTIONS', origin: HUB }))).toBeNull();
++  });
++  it('lets the hub read game API answers, unchanged otherwise', async () => {
++    const answer = () => Response.json({ payments: true }, { status: 201, headers: { 'Cache-Control': 'no-store' } });
++    const opened = withCors(req('/api/public/game/config', { origin: HUB }), answer());
++    expect(opened.status).toBe(201);
++    expect(opened.headers.get('Access-Control-Allow-Origin')).toBe(HUB);
++    expect(opened.headers.get('Cache-Control')).toBe('no-store');
++    expect(await opened.json()).toEqual({ payments: true });
++    for (const r of [
++      req('/api/public/game/config', { origin: 'https://attacker.invalid' }),
++      req('/api/public/game/config'),
++      req('/api/public/game/staff', { origin: HUB }),
++      req('/api/public/stripe/webhook', { origin: HUB }),
++      req('/play/index.html', { origin: HUB }),
++    ]) {
++      const same = answer();
++      expect(withCors(r, same)).toBe(same);
++    }
++  });
++  it('sends a buyer back where they bought: the hub, or this site', () => {
++    expect(returnBase(req('/api/public/game/checkout', { method: 'POST', origin: HUB }), SITE)).toBe(`${HUB}/graduation`);
++    expect(returnBase(req('/api/public/game/checkout', { method: 'POST', origin: SITE }), SITE)).toBe(`${SITE}/play/index.html`);
++    expect(returnBase(req('/api/public/game/checkout', { method: 'POST', origin: 'https://attacker.invalid' }), SITE)).toBe(`${SITE}/play/index.html`);
++    expect(returnBase(req('/api/public/game/checkout', { method: 'POST' }), SITE)).toBe(`${SITE}/play/index.html`);
++  });
++});
+diff --git a/src/lib/game/hub.ts b/src/lib/game/hub.ts
+new file mode 100644
+index 0000000..bea621e
+--- /dev/null
++++ b/src/lib/game/hub.ts
+@@ -0,0 +1,61 @@
++// The PAWtastic Games hub plays a copy of Graduation Day from its own address and uses this server for
++// sign-in, cloud saves, the Weekly Challenge, the leaderboard and the Shop. Browsers only let a page read
++// another site's answers when that site says so (CORS), so this file says so for the hub's addresses only.
++// Sign-in travels as a bearer token, never a cookie, so a hub page can only act for a player who signed in
++// on that page. Staff routes and the Stripe webhook stay closed to it.
++export const HUB_ORIGINS = [
++  'https://paw-sitive-playhouse-rush.lovable.app',
++  'https://id-preview--acd6158e-ca42-414d-a979-e8b24d27b4b1.lovable.app',
++  'https://play.pawtasticacademy.com',
++];
++const GAME_API = '/api/public/game/';
++const STAFF_API = '/api/public/game/staff';
++
++/** The hub address a browser request came from, or null (no Origin, this site itself, or anything else). */
++export function hubOrigin(request: Request): string | null {
++  const origin = request.headers.get('origin');
++  if (!origin || !HUB_ORIGINS.includes(origin)) return null;
++  if (origin === new URL(request.url).origin) return null;
++  return origin;
++}
++
++function gameApi(request: Request) {
++  const path = new URL(request.url).pathname;
++  if (!path.startsWith(GAME_API)) return false;
++  return !(path === STAFF_API || path.startsWith(`${STAFF_API}/`));
++}
++
++function corsHeaders(origin: string): Record<string, string> {
++  return {
++    'Access-Control-Allow-Origin': origin,
++    'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
++    'Access-Control-Allow-Headers': 'accept, authorization, content-type',
++    'Access-Control-Max-Age': '600',
++    Vary: 'Origin',
++  };
++}
++
++/** The browser's permission check (OPTIONS) from the hub, answered here; null for every other request. */
++export function preflight(request: Request): Response | null {
++  if (request.method !== 'OPTIONS' || !gameApi(request)) return null;
++  const origin = hubOrigin(request);
++  return origin ? new Response(null, { status: 204, headers: corsHeaders(origin) }) : null;
++}
++
++/** Lets the hub read this server's game API answers. Every other response is returned untouched. */
++export function withCors(request: Request, response: Response): Response {
++  const origin = gameApi(request) ? hubOrigin(request) : null;
++  if (!origin) return response;
++  const headers = new Headers(response.headers);
++  for (const [key, value] of Object.entries(corsHeaders(origin))) headers.set(key, value);
++  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
++}
++
++/**
++ * Where Stripe sends the buyer back: the hub's Graduation Day page when they bought inside the hub, otherwise
++ * this site's game. `approved` is approvedOrigin(request), this site's own checked address.
++ */
++export function returnBase(request: Request, approved: string): string {
++  const hub = hubOrigin(request);
++  return hub ? `${hub}/graduation` : `${approved}/play/index.html`;
++}
+diff --git a/src/server.ts b/src/server.ts
+index 20500c7..c1c3ea2 100644
+--- a/src/server.ts
++++ b/src/server.ts
+@@ -2,6 +2,7 @@ import "./lib/error-capture";
+ 
+ import { consumeLastCapturedError } from "./lib/error-capture";
+ import { renderErrorPage } from "./lib/error-page";
++import { preflight, withCors } from "./lib/game/hub";
+ 
+ type ServerEntry = {
+   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
+@@ -46,10 +47,13 @@ function isH3SwallowedErrorBody(body: string): boolean {
+ 
+ export default {
+   async fetch(request: Request, env: unknown, ctx: unknown) {
++    // The PAWtastic Games hub's copy of the game calls the game API from its own address (lib/game/hub.ts).
++    const early = preflight(request);
++    if (early) return early;
+     try {
+       const handler = await getServerEntry();
+       const response = await handler.fetch(request, env, ctx);
+-      return await normalizeCatastrophicSsrResponse(response);
++      return withCors(request, await normalizeCatastrophicSsrResponse(response));
+     } catch (error) {
+       console.error(error);
+       return new Response(renderErrorPage(), {
