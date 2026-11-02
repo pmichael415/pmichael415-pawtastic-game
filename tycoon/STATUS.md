@@ -10,6 +10,30 @@
 | Live game database (Lovable Cloud / Supabase) | Migrations 0002–0005 applied on 1 Nov (each in its own transaction, recorded in `drizzle.__drizzle_migrations` with the file hash, so they won't run twice). Checked: 6 migrations recorded, events table private (RLS on, no anon/player access), team totals start at 0. |
 | Customer app (app.pawtasticacademy.com), its database and Stripe | Not touched. |
 
+## Update — in-game purchases, phase 1 built and tested; NOT live yet (2 Nov)
+
+- **What's built (plan `docs/superpowers/plans/2026-11-02-in-game-purchases.md`, spec rev 3):** the new Daycare's
+  coin packs (2,500 / 8,000 / 20,000 / 50,000 / Mega Vault 150,000) and Deluxe Daycare Decor; Recess Rush's
+  power-ups (5 Shield Starts, 5 Extra Lives, Power Pack) and Runner Looks; Blue Ribbon Style from "Pup style" in
+  today's Daycare; the Shop tab grouped by game. Live-only payment mode; test-mode data never counts.
+- **Delivery across devices (owner's correction 1):** each coin or power-up purchase is reserved on the server for
+  one account and one installation before it is added; the game writes the balance and the purchase id in one save
+  write under a lock, then confirms. Tabs, retries, crashes and failed confirmations can't add it twice; another
+  phone gets nothing; a refund takes it back once. Cloud saves never carry bought items.
+- **Team scores:** flat points per run/day, so purchases can't raise them. **Graduation Day:** no monthly spending
+  limit by default (a player can still choose $5–$100) — pushed to its repo (559f423), not published.
+- **Tests:** unit 614/614; Graduation Day node 30/30; browser: purchases 29/29 (against development-only Stripe and
+  database stand-ins), hub 37, games 35, daycare 36, teams 27, cloud 25, notify 20, Graduation in the hub 35,
+  tycoon 30/31 (the known frame-rate check in this container).
+- **Bugs found and fixed while testing:** backing out of a game checkout and buying the same pack from the Shop within
+  a minute failed ("Checkout could not be started" — Stripe's repeat-request key); tapping a pup in today's Daycare 3D
+  view on a phone also pressed "Move to recovery room" in the sheet it opened; the Shop, Recess and today's Daycare
+  no longer load the new Daycare's engine at start-up.
+- **Not done yet:** Stripe test-mode harness (`qa/stripe-test`) is written but SKIPPED here — it needs a test-mode key
+  as `STRIPE_TEST_SECRET_KEY` and network access to Stripe. Migration 0009 is not applied to the Daycare database and
+  the code is not synced to the Lovable project: both wait for the owner's go-ahead to publish (a Publish before
+  0009 would break checkout). Live payment verification is a separate milestone.
+
 ## Update — new Daycare preview, and Graduation Day's Weekly Challenge, leaderboard and Shop in the hub (2 Nov)
 
 - **New Daycare (preview) at `/daycare-next`:** the build-your-own daycare (rooms, grounds, business, levels,
