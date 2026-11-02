@@ -1,10 +1,14 @@
 // One pup and everything staff can do for it right now.
-import { useState } from "react";
+
+/** How the playing screen checks a pup out (the pickup sheet when there's a complaint); falls back to checking out. */
+export const CheckoutContext = createContext<((dogId: string, exitBath: boolean) => void) | null>(null);
+import { createContext, useContext, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { BREEDS, groupName, groupOf, traitLabel } from "@/game/engine";
 import { bathPay, checkoutPay } from "@/tycoon/business";
 import { caps } from "@/tycoon/connect";
-import { assignBed, assignRoom, bath, checkIn, checkout, inActiveScuffle, playtime, roomDogs, toCalm } from "@/tycoon/run";
+import { assignBed, assignRoom, bath, checkIn, checkout, inActiveScuffle, playtime, roomDogs, toCalm, turnAway } from "@/tycoon/run";
+import { fmtTime, visitOf } from "@/tycoon/visit";
 import { ROOM_TYPE_NAMES } from "@/tycoon/catalog";
 import type { ActOpts, ActResult } from "@/tycoon/store";
 import type { Facility, TDog, TResult, TycoonState } from "@/tycoon/types";
@@ -32,6 +36,10 @@ function Meter({ label, value }: { label: string; value: number }) {
 
 export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) {
   const [confirmRoom, setConfirmRoom] = useState<string | null>(null);
+  const onCheckout = useContext(CheckoutContext);
+  const leave = (exitBath: boolean) => (onCheckout ? onCheckout(dog.id, exitBath) : act((s) => checkout(s, dog.id, exitBath)));
+  const v = visitOf(f, dog);
+  const waited = v.ownerHere === null ? 0 : Math.max(0, Math.round(f.clockMin - v.ownerHere));
   const c = caps(f);
   const scuffle = inActiveScuffle(f, dog);
   const placed = dog.place.kind === "room" || dog.place.kind === "bed";
@@ -52,6 +60,17 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
           {dog.visits > 1 ? ` · visit #${dog.visits}` : ""}
         </span>
       </div>
+      <p className="text-xs text-secondary">
+        Booked {v.requests.join(" + ")}
+        {v.prepaid.length ? ` (${v.prepaid.join(", ")} prepaid)` : ""} · {v.owner} · pickup {v.pickupDay > f.day ? "tomorrow " : ""}{fmtTime(v.pickup)}
+      </p>
+      {v.ownerHere !== null && (
+        <p role="status" className="mt-1 rounded-lg bg-accent/40 px-2 py-1 text-xs font-semibold text-secondary">
+          {v.owner} is here for pickup{waited ? ` — waiting ${waited} min` : ""}
+        </p>
+      )}
+      {v.finishing && <p className="mt-1 rounded-lg bg-sky px-2 py-1 text-xs font-semibold text-secondary">{v.owner} is waiting for the bath to finish</p>}
+      {!!dog.bathing && <p className="mt-1 text-xs text-muted-foreground">In the bath — {Math.ceil(dog.bathing)} min left</p>}
       <p className="text-xs text-muted-foreground">{placeLabel(f, dog)}{scuffle ? " · ⚠️ scuffle" : ""}</p>
       <div className="mt-1 space-y-0.5">
         <Meter label="Happy" value={dog.happiness} />
@@ -61,6 +80,11 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
         {!dog.checkedIn && (
           <Button className={btn} onClick={() => act((s) => checkIn(s, dog.id))}>
             Check in {dog.name}
+          </Button>
+        )}
+        {!dog.checkedIn && (
+          <Button variant="ghost" className={btn} onClick={() => act((s) => turnAway(s, dog.id))}>
+            Can't take today
           </Button>
         )}
         {dog.checkedIn && !dog.boarding && dog.place.kind !== "room" &&
@@ -100,18 +124,18 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
           </Button>
         )}
         {dog.checkedIn && (
-          <Button variant="outline" className={btn} aria-label={placed ? "Check out" : "Send home (no charge)"} onClick={() => act((s) => checkout(s, dog.id, false))}>
+          <Button variant="outline" className={btn} aria-label={placed ? "Check out" : "Check out (nothing to charge)"} disabled={!!v.finishing} onClick={() => leave(false)}>
             {placed ? (
               <>
                 Check out <span className="ml-1 text-xs text-primary">+{checkoutPay(f, dog, false).total}</span>
               </>
             ) : (
-              "Send home (no charge)"
+              "Check out (nothing to charge)"
             )}
           </Button>
         )}
-        {dog.checkedIn && placed && c.bath && (
-          <Button variant="outline" className={btn} aria-label="Exit bath + check out" onClick={() => act((s) => checkout(s, dog.id, true))}>
+        {dog.checkedIn && placed && c.bath && !v.finishing && (
+          <Button variant="outline" className={btn} aria-label="Exit bath + check out" onClick={() => leave(true)}>
             Exit bath + check out <span className="ml-1 text-xs text-primary">+{checkoutPay(f, dog, true).total}</span>
           </Button>
         )}

@@ -18,6 +18,7 @@ export function RunHud({
   paused,
   setPaused,
   onFinances,
+  onReputation,
   onShop,
 }: {
   state: TycoonState;
@@ -25,6 +26,8 @@ export function RunHud({
   paused: boolean;
   setPaused: (p: boolean) => void;
   onFinances?: () => void;
+  /** Opens why reputation moved, the reviews and recent pickups. */
+  onReputation?: () => void;
   onShop?: () => void;
 }) {
   const f = fac(state);
@@ -34,6 +37,8 @@ export function RunHud({
   const pct = Math.round(((state.xp - lo) / (hi - lo)) * 100);
   const open = canOpen(f);
   const lobby = lobbyStatus(f.clockMin);
+  const recent = (f.reviews ?? []).slice(-10);
+  const stars = recent.length ? (recent.reduce((n, r) => n + r.stars, 0) / recent.length).toFixed(1) : "";
   const toggle = (v: boolean) =>
     act((s) => setOpen(s, v), v ? { event: { name: "tycoon_open", props: { day: f.day } } } : {});
 
@@ -75,6 +80,11 @@ export function RunHud({
           <span role="status" className="rounded-full bg-accent px-2 py-0.5 text-xs font-bold text-accent-foreground">
             Rush hour!
           </span>
+        )}
+        {onReputation && (
+          <button type="button" onClick={onReputation} aria-label={`Reputation ${Math.round(f.reputation)}${stars ? `, ${stars} stars` : ""}`} className="-my-2 min-h-11 rounded-xl px-2 text-xs font-bold text-secondary hover:bg-muted">
+            Rep {Math.round(f.reputation)}{stars ? ` · ★${stars}` : ""}
+          </button>
         )}
         <label className="ml-auto flex items-center gap-2 font-semibold text-secondary">
           {f.open ? "Open" : "Closed"}

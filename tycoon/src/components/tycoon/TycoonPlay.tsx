@@ -35,7 +35,16 @@ import { DayReport } from "./DayReport";
 import { FinancesSheet } from "./FinancesSheet";
 import { MoneyBanner } from "./MoneyBanner";
 import { SignCard } from "./SignCard";
-import { DogPanel } from "./DogPanel";
+import { CheckoutContext, DogPanel } from "./DogPanel";
+import { PickupSheet } from "./PickupSheet";
+import { ReceiptCard } from "./ReceiptCard";
+import { ReputationSheet } from "./ReputationSheet";
+import { BlockersCard } from "./BlockersCard";
+import { incomeBlockers } from "@/tycoon/blockers";
+import { pickupView } from "@/tycoon/pickup";
+import { checkout } from "@/tycoon/run";
+import { today } from "@/tycoon/business";
+import type { Outcome } from "@/tycoon/types";
 import { EditPanel } from "./EditPanel";
 import { GuideCard } from "./GuideCard";
 import { WeeklyCard } from "./WeeklyCard";
@@ -149,6 +158,48 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
   useEffect(() => {
     if (selGone) setSel(null);
   }, [selGone]);
+  // ---- pickup: the sheet for complaints, a receipt for every visit that ends, the owner's arrival ----
+  const [pickup, setPickup] = useState<{ id: string; exitBath: boolean } | null>(null);
+  const [repOpen, setRepOpen] = useState(false);
+  const [receipt, setReceipt] = useState<Outcome | null>(null);
+  const seenOutcomes = useRef<number | null>(null);
+  const outcomesLen = (f.outcomes ?? []).length;
+  useEffect(() => {
+    if (seenOutcomes.current !== null && outcomesLen > seenOutcomes.current) setReceipt(f.outcomes.at(-1) ?? null);
+    seenOutcomes.current = outcomesLen;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [outcomesLen]);
+  useEffect(() => {
+    if (!receipt) return;
+    const t = setTimeout(() => setReceipt(null), 8000);
+    return () => clearTimeout(t);
+  }, [receipt]);
+  const ownersHere = f.dogs.filter((d) => d.visit?.ownerHere != null).map((d) => d.id).join(",");
+  const seenOwners = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const here = new Set(ownersHere ? ownersHere.split(",") : []);
+    if (seenOwners.current)
+      for (const id of here)
+        if (!seenOwners.current.has(id)) {
+          const d = f.dogs.find((x) => x.id === id);
+          if (d?.visit) {
+            toast(`${d.visit.owner} is here to pick up ${d.name}`);
+            sound.play("checkin");
+          }
+        }
+    seenOwners.current = here;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownersHere]);
+  const onCheckout = (id: string, exitBath: boolean) => {
+    const st = tycoonStore.getState();
+    if (!st || !fac(st).dogs.some((d) => d.id === id)) return;
+    const view = pickupView(st, id, exitBath);
+    if (view.assessment.complaints.some((c) => !c.remedy)) setPickup({ id, exitBath });
+    else act((s) => checkout(s, id, exitBath));
+  };
+  const blockers = incomeBlockers(state);
+  const stalled = blockers.length > 0 && (state.coins < 0 || blockers.some((b) => /^(group-|full-|lobby-full)/.test(b.id)) || (f.open && f.clockMin >= 10 * 60 && Object.values(today(f).income).every((n) => !n)));
+
   const fx: FxFn = (k, at) => stage.current?.fx(k, at);
   /** Every action, plus its sound and effect: coins fly at checkout, building thunks, selling pops, upgrades sparkle. */
   const act: Act = (fn, opts) => {
@@ -233,8 +284,9 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
   const paintTarget = painting ? f.rooms.find((r) => r.uid === painting) ?? null : null;
 
   return (
+    <CheckoutContext.Provider value={onCheckout}>
     <div className="space-y-3" style={{ paddingBottom: sel ? "min(48svh, 440px)" : undefined }}>
-      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} {...(quiet ? {} : { onShop: () => setShop(true) })} />
+      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} onReputation={() => setRepOpen(true)} {...(quiet ? {} : { onShop: () => setShop(true) })} />
       {isFreshSave(state) && <StartCard onPick={(mode) => set((s) => startTour(s, mode, Date.now()))} />}
       {/* During the tour Build waits (one thing at a time), except while building from scratch. */}
       {show3d && !preTour && (!holding || state.tour?.beat === "meet") && (
@@ -306,6 +358,7 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
           </div>
         </div>
       )}
+      {stalled && !holding && <BlockersCard blockers={blockers} />}
       {!quiet && <GoalsStrip state={state} />}
       {!state.tour && !preTour && <GuideCard state={state} act={act} set={set} controls={controls} />}
       <WeeklyCard state={state} act={act} />
@@ -334,6 +387,9 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
       <DaycareShop open={shop} onClose={() => setShop(false)} owned={entForShop?.owned ?? new Set()} />
       {buyDecor && <BuySheet product={productById("deluxe-daycare-decor")!} returnTo="/daycare-next" open onClose={() => setBuyDecor(false)} />}
       <DayReport state={state} set={set} onFinances={() => setFinances(true)} />
+      {pickup && <PickupSheet state={state} dogId={pickup.id} exitBath={pickup.exitBath} act={act} onClose={() => setPickup(null)} />}
+      {repOpen && <ReputationSheet f={f} onClose={() => setRepOpen(false)} />}
+      {receipt && <ReceiptCard outcome={receipt} onClose={() => setReceipt(null)} />}
       {/* Held during the guided tour (the level and its coins are already earned): nothing covers the first pup. */}
       {!holding && <LevelUp
         state={state}
@@ -352,5 +408,6 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
         }}
       />
     </div>
+    </CheckoutContext.Provider>
   );
 }

@@ -453,6 +453,14 @@ export function settle(s: TycoonState, dogId: string, how: Outcome["how"], exitB
   return r.ok ? { ...r, earned: Math.max(0, a.total) + bonus + (r.earned ?? 0) } : r;
 }
 
+const MOOD_FACE: Record<Mood, string> = { delighted: "😊", content: "🙂", disappointed: "😕", upset: "😠" };
+/** What the family said at pickup, for the receipt and toasts. */
+export function outcomeLine(o: Outcome): string {
+  const why = o.complaints.find((c) => !c.resolved)?.text ?? o.complaints[0]?.text ?? "it wasn't the day they hoped for.";
+  const left = o.how === "left" ? " (they gave up waiting and took them home)" : o.how === "dayend" ? " (collected at closing)" : "";
+  return `${MOOD_FACE[o.mood]} ${MOOD_LINE[o.mood](o.owner, o.dog, why)}${left}`;
+}
+
 /** A refund larger than the day's bill: paid back to the family (it can take coins below zero, like any bill). */
 function payRefund(s: TycoonState, amount: number): TycoonState {
   const f = fac(s);
