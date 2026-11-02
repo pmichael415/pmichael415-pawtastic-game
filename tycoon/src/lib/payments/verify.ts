@@ -199,12 +199,13 @@ export function stripeApi(): string {
 }
 
 /**
- * Idempotency-Key for creating a checkout: a quick retry of the same request (same buyer, product and return page,
- * within the same minute) gets the same session back. The return page is part of the key because Stripe refuses a
- * reused key whose parameters differ (success_url and cancel_url name the return page).
+ * Idempotency-Key for creating a checkout: a retry of the same buy attempt (a second tap, a dropped connection) gets
+ * the same session back; every new attempt — each time a buy sheet opens — gets its own, so the same pack can be
+ * bought again straight away. The return page is part of the key because Stripe refuses a reused key whose
+ * parameters differ (success_url and cancel_url name the return page).
  */
-export const checkoutIdempotencyKey = (userId: string, productId: string, returnTo: string, nowMs: number): string =>
-  `${userId}-${productId}-${returnTo}-${Math.floor(nowMs / 60000)}`;
+export const checkoutIdempotencyKey = (userId: string, productId: string, returnTo: string, attempt: string): string =>
+  `${userId}-${productId}-${returnTo}-${attempt}`;
 
 /** Headers for a Stripe API call; pass an idempotency key for form POSTs. */
 export function stripeHeaders(key: string, idempotencyKey?: string): Record<string, string> {

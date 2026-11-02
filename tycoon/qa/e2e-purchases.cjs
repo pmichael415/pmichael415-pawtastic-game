@@ -133,7 +133,7 @@ const calls = []; // recent server-function answers, printed if something throws
     await page.getByRole("dialog").getByRole("button", { name: `Buy ${price}` }).tap();
     await page.waitForURL(/127\.0\.0\.1:8899\/pay\//, { timeout: 15000 });
     const id = page.url().split("/pay/")[1];
-    await page.getByRole("button", { name: how }).tap();
+    await page.getByRole("button", { name: how, exact: true }).tap();
     await page.waitForURL((u) => u.href.startsWith(BASE), { timeout: 20000 });
     return id;
   }
@@ -208,6 +208,32 @@ const calls = []; // recent server-function answers, printed if something throws
   check("after a refund, the next open takes the 8,000 coins back", (await coins(A)) === c2 - 8000, `${c2} → ${await coins(A)}`);
   const d2 = await sql("SELECT status FROM public.deliveries WHERE source = 'reversal' AND user_id = $1", [UID]);
   check("…as one reversal, delivered once", d2.length === 1 && d2[0].status === "delivered", JSON.stringify(d2));
+
+  // ---------- Stripe confirms after the player is back (review finding), and the same pack twice in a row ----------
+  await openNext(A);
+  const c3 = await coins(A);
+  await openSheet(A, A.getByRole("button", { name: "Daycare Shop" }));
+  await A.getByRole("button", { name: "20,000 Coins, $5.99" }).tap();
+  await payOn(A, "$5.99", "Pay (Stripe confirms late)");
+  check("a late confirmation: the game keeps checking and says '+20,000 coins added'", await seen(A, "+20,000 coins added", 25000));
+  await A.waitForTimeout(500);
+  check("…+20,000 in the counter", (await coins(A)) === c3 + 20000, `${c3} → ${await coins(A)}`);
+  await openSheet(A, A.getByRole("button", { name: "Daycare Shop" }));
+  await A.getByRole("button", { name: "Deluxe Daycare Decor, $6.99" }).tap();
+  await payOn(A, "$6.99", "Pay (Stripe confirms late)");
+  check("a look confirmed late: 'Deluxe Daycare Decor unlocked'", await seen(A, "Deluxe Daycare Decor unlocked", 25000));
+  await openSheet(A, A.getByRole("button", { name: "Daycare Shop" }));
+  check("…and the Daycare Shop shows it Owned without a reload", await A.getByRole("region", { name: "Items & themes" }).getByText("Owned").waitFor({ timeout: 8000 }).then(() => true, () => false));
+  await A.keyboard.press("Escape");
+  const c4 = await coins(A);
+  for (let i = 0; i < 2; i++) {
+    await openSheet(A, A.getByRole("button", { name: "Daycare Shop" }));
+    await A.getByRole("button", { name: "2,500 Coins, $0.99" }).tap();
+    await payOn(A, "$0.99");
+    await seen(A, "+2,500 coins added");
+    await A.waitForTimeout(800);
+  }
+  check("the same pack bought twice in a row is two purchases: +5,000", (await coins(A)) === c4 + 5000, `${c4} → ${await coins(A)}`);
 
   // ---------- Recess Rush: power-ups and runner looks ----------
   await A.goto(BASE + "/recess", { waitUntil: "domcontentloaded" });

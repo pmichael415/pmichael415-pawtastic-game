@@ -28,14 +28,15 @@ describe("checkout retry within the idempotency window", () => {
     expect(reconcileSession({ ...want, product_id: "deluxe-daycare-decor" }, want)).toBe("mismatch");
     expect(reconcileSession({ ...want, amount: 1 }, want)).toBe("mismatch");
   });
-  it("a retry of the same request reuses one key; a different return page or a later minute gets a new one", () => {
-    // Stripe refuses a reused key whose parameters differ (the return page is in success_url/cancel_url), so backing
-    // out of a game's checkout and buying the same pack from the Shop tab straight away must not reuse the key.
-    const t = Date.UTC(2026, 10, 2, 15, 0, 10);
-    expect(checkoutIdempotencyKey("u1", "coins-2500", "/daycare-next", t)).toBe(checkoutIdempotencyKey("u1", "coins-2500", "/daycare-next", t + 30_000));
-    expect(checkoutIdempotencyKey("u1", "coins-2500", "/shop", t)).not.toBe(checkoutIdempotencyKey("u1", "coins-2500", "/daycare-next", t));
-    expect(checkoutIdempotencyKey("u1", "coins-2500", "/daycare-next", t)).not.toBe(checkoutIdempotencyKey("u1", "coins-2500", "/daycare-next", t + 60_000));
-    expect(checkoutIdempotencyKey("u1", "coins-2500", "/shop", t)).not.toBe(checkoutIdempotencyKey("u2", "coins-2500", "/shop", t));
+  it("a retry of the same buy attempt reuses one key; a new attempt or another return page gets a new one", () => {
+    // Stripe refuses a reused key whose parameters differ (the return page is in success_url/cancel_url), and returns
+    // the first session again for an identical one — so buying the same pack twice needs a new key each time.
+    const a = "0b7d9d6e-2c51-4b9e-9a1f-3c2f1d0e4a11";
+    const b = "5f3e2d1c-4b5a-4c6d-8e7f-9a0b1c2d3e4f";
+    expect(checkoutIdempotencyKey("u1", "coins-2500", "/daycare-next", a)).toBe(checkoutIdempotencyKey("u1", "coins-2500", "/daycare-next", a));
+    expect(checkoutIdempotencyKey("u1", "coins-2500", "/daycare-next", a)).not.toBe(checkoutIdempotencyKey("u1", "coins-2500", "/daycare-next", b));
+    expect(checkoutIdempotencyKey("u1", "coins-2500", "/shop", a)).not.toBe(checkoutIdempotencyKey("u1", "coins-2500", "/daycare-next", a));
+    expect(checkoutIdempotencyKey("u1", "coins-2500", "/shop", a)).not.toBe(checkoutIdempotencyKey("u2", "coins-2500", "/shop", a));
   });
   it("delayed payments are handled via async_payment_succeeded", () => {
     expect(GRANTING_EVENTS).toContain("checkout.session.async_payment_succeeded");

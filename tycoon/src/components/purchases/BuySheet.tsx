@@ -35,6 +35,11 @@ export function BuySheet({
   const { user } = useSession();
   const [ready, setReady] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
+  // One id per buy attempt: retries in this sheet reuse it (one Stripe session); opening the sheet again starts a new one.
+  const [attempt, setAttempt] = useState(() => crypto.randomUUID());
+  useEffect(() => {
+    if (open) setAttempt(crypto.randomUUID());
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     let live = true;
@@ -50,7 +55,7 @@ export function BuySheet({
     setBusy(true);
     track("checkout_start", { product: product.id });
     try {
-      const r = await createCheckout({ data: { productId: product.id, returnTo } });
+      const r = await createCheckout({ data: { productId: product.id, returnTo, attempt } });
       if (r.ok) go(r.url);
       else {
         track("client_error", {

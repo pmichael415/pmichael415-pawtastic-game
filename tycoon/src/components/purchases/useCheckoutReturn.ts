@@ -1,11 +1,12 @@
 // Coming back from Stripe (spec: "Buying inside a game"): the return address carries ?checkout=returned|cancelled
 // and &item=<product>. Stripe's confirmation can reach our server a little after the buyer is back, so the game
 // keeps collecting for a short while, says what arrived, or that the purchase is on its way.
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { productById, type GameId } from "@/lib/catalog";
+import { productById, type GameId, type PaidProduct } from "@/lib/catalog";
 import type { DeliveryStep } from "@/lib/purchases/delivery";
 import { liveCollect, liveOwned } from "@/lib/purchases/live";
+import { useEntitlementsMaybe } from "@/lib/entitlements";
 
 export const CANCELLED = "Checkout cancelled — nothing was charged.";
 export const ON_ITS_WAY = "Payment received — your purchase is on its way";
@@ -38,56 +39,74 @@ type Opts = {
 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// The return being checked on, for this page visit. It lives outside the component because the game can re-mount
+// right after the return (seen in the browser): the new copy carries on checking, and the result is reported once.
+type PendingReturn = { game: GameId; item: PaidProduct | null; done: boolean };
+let pending: PendingReturn | null = null;
+
 export function useCheckoutReturn(game: GameId, opts: Opts = {}) {
+  // The page's own record of what the account owns (Equip vs Buy) is refreshed when a look is confirmed late.
+  const ent = useEntitlementsMaybe();
+  const refreshPage = useRef(ent?.refresh);
+  refreshPage.current = ent?.refresh;
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const status = params.get("checkout");
-    if (status !== "returned" && status !== "cancelled") return;
-    const item = productById(params.get("item") ?? "");
-    params.delete("checkout");
-    params.delete("item");
-    const rest = params.toString();
-    window.history.replaceState(
-      window.history.state,
-      "",
-      window.location.pathname + (rest ? `?${rest}` : "") + window.location.hash,
-    );
-    if (status === "cancelled") {
-      toast(CANCELLED);
-      return;
+    if (status === "returned" || status === "cancelled") {
+      const item = productById(params.get("item") ?? "") ?? null;
+      params.delete("checkout");
+      params.delete("item");
+      const rest = params.toString();
+      window.history.replaceState(
+        window.history.state,
+        "",
+        window.location.pathname + (rest ? `?${rest}` : "") + window.location.hash,
+      );
+      if (status === "cancelled") {
+        pending = null;
+        toast(CANCELLED);
+        return;
+      }
+      pending = { game, item, done: false };
     }
+    const p = pending;
+    if (!p || p.done || p.game !== game) return;
+    const item = p.item;
     const collect =
       opts.collect ??
       (game === "daycare" ? async () => ({ added: [], pending: false }) : () => liveCollect(game));
     const refresh = opts.refresh ?? liveOwned;
     const tries = opts.tries ?? 6;
     const delayMs = opts.delayMs ?? 2000;
+    const report = (say: () => void) => {
+      if (p.done) return;
+      p.done = true;
+      say();
+    };
     let stopped = false;
     void (async () => {
-      for (let i = 0; i < tries && !stopped; i++) {
+      for (let i = 0; i < tries && !stopped && !p.done; i++) {
         if (i) await sleep(delayMs);
-        if (stopped) return;
+        if (stopped || p.done) return;
         if (!item || item.kind === "consumable") {
           const r = await collect().catch(() => ({ added: [] as DeliveryStep[], pending: true }));
-          if (r.added.some((s) => s.sign === 1)) {
-            toast.success(addedMessage(r.added));
-            return;
-          }
+          // Reported even if this copy was re-mounted meanwhile: it was added, and only once.
+          if (r.added.some((s) => s.sign === 1)) return report(() => toast.success(addedMessage(r.added)));
         }
         if (!item || item.kind === "looks") {
           const owned = await refresh().catch(() => null);
           if (item && owned?.has(item.id)) {
-            toast.success(`${item.name} unlocked`);
-            return;
+            await refreshPage.current?.().catch(() => null);
+            return report(() => toast.success(`${item.name} unlocked`));
           }
         }
       }
-      if (!stopped) toast(ON_ITS_WAY);
+      if (!stopped) report(() => toast(ON_ITS_WAY));
     })();
     return () => {
       stopped = true;
     };
-    // Runs once per page load: the return address is read and removed straight away.
+    // The return address is read and removed on the first run; later runs (a re-mount) carry on from `pending`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 }

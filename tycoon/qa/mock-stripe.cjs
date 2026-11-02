@@ -13,6 +13,7 @@
 //   POST /v1/refunds payment_intent=    → a full refund: a charge.refunded event
 //   GET  /pay/<id>                      → a pay page with Pay and Back
 //   POST /pay/<id>/pay                  → checkout.session.completed (signed, to the hub webhook), then on to success_url
+//   POST /pay/<id>/pay-late             → on to success_url first; checkout.session.completed follows 4 s later
 //   POST /pay/<id>/back                 → checkout.session.expired (signed, to the hub webhook), then on to cancel_url
 //   POST /mock/refund {session}         → as /v1/refunds, for a session id; answers with the hub's reply
 //   GET  /mock/sessions                 → every session made, for checks
@@ -92,6 +93,7 @@ const payPage = (s) => `<!doctype html><meta name="viewport" content="width=devi
 <body style="font-family:sans-serif;padding:16px"><h1>Stripe stand-in (no real money)</h1>
 <p>${s.name} · $${(s.amount_total / 100).toFixed(2)}</p>
 <form method="post" action="/pay/${s.id}/pay"><button style="min-height:44px;width:100%">Pay</button></form>
+<form method="post" action="/pay/${s.id}/pay-late" style="margin-top:12px"><button style="min-height:44px;width:100%">Pay (Stripe confirms late)</button></form>
 <form method="post" action="/pay/${s.id}/back" style="margin-top:12px"><button style="min-height:44px;width:100%">Back</button></form>
 </body>`;
 
@@ -132,11 +134,18 @@ http.createServer(async (req, res) => {
       await refund(s);
       return send(res, 200, { id: `re_mock_${s.id.slice(-6)}`, object: "refund", status: "succeeded", payment_intent: pi, amount: s.amount_total });
     }
-    const pay = /^\/pay\/([\w]+)(?:\/(pay|back))?$/.exec(url.pathname);
+    const pay = /^\/pay\/([\w]+)(?:\/(pay|pay-late|back))?$/.exec(url.pathname);
     if (pay) {
       const s = sessions.get(pay[1]);
       if (!s) return send(res, 404, "<p>No such session</p>");
       if (!pay[2]) return send(res, 200, payPage(s));
+      if (pay[2] === "pay-late") {
+        // The buyer is back in the game before Stripe's confirmation reaches the hub (it arrives 4 s later).
+        s.payment_intent = `pi_mock_${s.id.slice(-6)}_${n}`;
+        s.state = "paid";
+        setTimeout(() => postEvent("checkout.session.completed", sessionObject(s, { payment_status: "paid", payment_intent: s.payment_intent, status: "complete" })).then((r) => (s.webhook = r), () => {}), 4000);
+        return backTo(res, s.success_url);
+      }
       if (pay[2] === "pay") {
         s.payment_intent = `pi_mock_${s.id.slice(-6)}_${n}`;
         const r = await postEvent("checkout.session.completed", sessionObject(s, { payment_status: "paid", payment_intent: s.payment_intent, status: "complete" }));

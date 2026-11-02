@@ -7,10 +7,28 @@
 ALTER TABLE public.checkout_sessions ADD COLUMN IF NOT EXISTS mode text NOT NULL DEFAULT 'live';
 ALTER TABLE public.checkout_sessions ADD CONSTRAINT checkout_sessions_mode_check CHECK (mode IN ('test','live'));
 UPDATE public.checkout_sessions SET mode = 'test' WHERE id NOT LIKE 'cs\_live\_%';
+-- The mode follows Stripe's session id: the app published before this phase inserts without a mode, and its test
+-- checkouts must stay test. No default; a missing mode is taken from the id, and a contradicting one is refused.
+ALTER TABLE public.checkout_sessions ALTER COLUMN mode DROP DEFAULT;
+CREATE OR REPLACE FUNCTION public.checkout_session_mode_from_id() RETURNS trigger
+LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+  IF NEW.mode IS NULL THEN
+    NEW.mode := CASE WHEN NEW.id LIKE 'cs\_live\_%' THEN 'live' ELSE 'test' END;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS checkout_sessions_mode_from_id ON public.checkout_sessions;
+CREATE TRIGGER checkout_sessions_mode_from_id BEFORE INSERT ON public.checkout_sessions
+  FOR EACH ROW EXECUTE FUNCTION public.checkout_session_mode_from_id();
+ALTER TABLE public.checkout_sessions ADD CONSTRAINT checkout_sessions_mode_matches_id
+  CHECK ((mode = 'live') = (id LIKE 'cs\_live\_%'));
 
 ALTER TABLE public.entitlements ADD COLUMN IF NOT EXISTS mode text NOT NULL DEFAULT 'live';
 ALTER TABLE public.entitlements ADD CONSTRAINT entitlements_mode_check CHECK (mode IN ('test','live'));
 UPDATE public.entitlements SET mode = 'test' WHERE checkout_session_id NOT LIKE 'cs\_live\_%';
+ALTER TABLE public.entitlements ALTER COLUMN mode DROP DEFAULT; -- written only by grant_purchase, which names it
 ALTER TABLE public.entitlements DROP CONSTRAINT IF EXISTS entitlements_user_id_product_id_key;
 ALTER TABLE public.entitlements ADD CONSTRAINT entitlements_user_product_mode_key UNIQUE (user_id, product_id, mode);
 
@@ -163,7 +181,7 @@ BEGIN
 END;
 $$;
 
--- ---------- older callers: same signatures, mode taken from the checkout row ----------
+-- ---------- older callers: same signatures; the mode follows the session id (test unless cs_live_) ----------
 CREATE OR REPLACE FUNCTION public.grant_entitlement(_event_id text, _session_id text, _user_id uuid, _product_id text, _amount int, _currency text, _payment_intent text DEFAULT NULL)
 RETURNS text
 LANGUAGE sql
@@ -171,7 +189,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT public.grant_purchase(_event_id, _session_id, _user_id, _product_id, _amount, _currency, _payment_intent,
-    coalesce((SELECT mode FROM public.checkout_sessions WHERE id = _session_id), 'live'), true, NULL, NULL);
+    CASE WHEN _session_id LIKE 'cs\_live\_%' THEN 'live' ELSE 'test' END, true, NULL, NULL);
 $$;
 CREATE OR REPLACE FUNCTION public.revoke_entitlement_for_refund(_event_id text, _payment_intent text)
 RETURNS text
@@ -180,7 +198,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT public.refund_purchase(_event_id, _payment_intent,
-    coalesce((SELECT mode FROM public.checkout_sessions WHERE payment_intent = _payment_intent LIMIT 1), 'live'));
+    coalesce((SELECT mode FROM public.checkout_sessions WHERE payment_intent = _payment_intent LIMIT 1), 'test'));
 $$;
 
 REVOKE ALL ON FUNCTION public.grant_purchase(text, text, uuid, text, int, text, text, text, boolean, text, jsonb) FROM PUBLIC, anon, authenticated;

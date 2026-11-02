@@ -248,6 +248,36 @@ describe("test data never counts live", () => {
       { coins: 999 },
     ]);
   });
+  it("the published app (older code, no mode given) keeps its test checkouts in test: their looks never show live", async () => {
+    // The app published before this phase inserts sessions without a mode and grants through the old wrapper.
+    await q(
+      `INSERT INTO public.checkout_sessions(id, user_id, product_id, amount, currency) VALUES ('cs_test_old_app', $1, 'blue-ribbon-style', 299, 'usd')`,
+      [U2],
+    );
+    expect((await q<{ mode: string }>(`SELECT mode FROM public.checkout_sessions WHERE id = 'cs_test_old_app'`))[0]!.mode).toBe("test");
+    expect(
+      (await q<{ r: string }>(
+        `SELECT public.grant_entitlement('evt_old_app', 'cs_test_old_app', $1, 'blue-ribbon-style', 299, 'usd', 'pi_old_app') r`,
+        [U2],
+      ))[0]!.r,
+    ).toBe("granted");
+    const owned = await q<{ mode: string }>(
+      `SELECT mode FROM public.entitlements WHERE user_id = $1 AND product_id = 'blue-ribbon-style' AND revoked_at IS NULL`,
+      [U2],
+    );
+    expect(owned.map((r) => r.mode)).toEqual(["test"]);
+    expect((await q<{ r: string }>(`SELECT public.revoke_entitlement_for_refund('evt_old_refund', 'pi_old_app') r`))[0]!.r).toBe("revoked");
+    expect((await q(`SELECT 1 FROM public.entitlements WHERE user_id = $1 AND product_id = 'blue-ribbon-style' AND revoked_at IS NULL`, [U2])).length).toBe(0);
+  });
+  it("a live checkout from the published app is live, and a mode that contradicts the session id is refused", async () => {
+    await q(
+      `INSERT INTO public.checkout_sessions(id, user_id, product_id, amount, currency) VALUES ('cs_live_old_app', $1, 'runner-looks', 199, 'usd')`,
+      [U2],
+    );
+    expect((await q<{ mode: string }>(`SELECT mode FROM public.checkout_sessions WHERE id = 'cs_live_old_app'`))[0]!.mode).toBe("live");
+    await expect(session("cs_test_says_live", U2, "runner-looks", 199, "live")).rejects.toThrow();
+    await expect(session("cs_live_says_test", U2, "runner-looks", 199, "test")).rejects.toThrow();
+  });
   it("only the service role can reserve, confirm or read deliveries", async () => {
     for (const role of ["anon", "authenticated"]) {
       await db.exec(`SET ROLE ${role}`);

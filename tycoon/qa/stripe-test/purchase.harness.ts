@@ -105,7 +105,7 @@ describe("a coin pack through Stripe test mode, from checkout to refund", () => 
     session = await stripe("/v1/checkout/sessions", {
       method: "POST",
       form: checkoutParams(product, user, ORIGIN, "/daycare-next"),
-      idem: checkoutIdempotencyKey(user, product.id, "/daycare-next", Date.now()),
+      idem: checkoutIdempotencyKey(user, product.id, "/daycare-next", randomUUID()),
     });
     expect(String(session["id"])).toMatch(/^cs_test_/);
     expect(session["livemode"]).toBe(false);

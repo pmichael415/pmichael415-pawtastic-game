@@ -181,9 +181,23 @@ export function save(s: GameState) {
   if (snap.state) commit(s);
 }
 
+/**
+ * "Start over": a new daycare, but what was bought stays — Recess Rush power-ups and the delivery list, so a purchase
+ * collected on this phone can't be lost or added twice (as with cloud restores, see cloudSlots.withDaycare).
+ */
 export function resetSave() {
-  localStorage.removeItem(KEY);
-  if (snap.state) commit(newGame(Date.now(), todayKey()), false);
+  const old = readStored() ?? snap.state;
+  const fresh: GameState = {
+    ...newGame(Date.now(), todayKey()),
+    ...(old ? { recessPowerups: old.recessPowerups, deliveries: old.deliveries } : {}),
+  };
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    /* storage blocked */
+  }
+  if (snap.state) commit(fresh, false);
+  else persist(fresh, true);
 }
 
 /** Read-modify-write helper for other screens (Recess Rush, share). Goes through the live game if it's running. */

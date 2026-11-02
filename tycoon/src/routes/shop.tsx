@@ -12,7 +12,7 @@ import { updateSave } from "@/game/store";
 import { DogSprite } from "@/game/sprites";
 import { GameHeader } from "@/components/game/GameHeader";
 import { productById, type PaidProduct } from "@/lib/catalog";
-import { ShopProducts } from "@/components/shop/ShopProducts";
+import { SHOP_SUBTITLE, ShopProducts } from "@/components/shop/ShopProducts";
 import { BuySheet } from "@/components/purchases/BuySheet";
 import { useCheckoutReturn } from "@/components/purchases/useCheckoutReturn";
 import { track } from "@/lib/analytics";
@@ -20,10 +20,10 @@ import { track } from "@/lib/analytics";
 export const Route = createFileRoute("/shop")({
   head: () => ({
     meta: [
-      { title: "Style Shop & Inventory | PAWtastic Tycoon" },
-      { name: "description", content: "Equip free bandanas earned in Recess Rush and preview optional cosmetic packs for PAWtastic Tycoon." },
-      { property: "og:title", content: "Style Shop & Inventory | PAWtastic Tycoon" },
-      { property: "og:description", content: "Free earned cosmetics plus optional cosmetic packs (coming soon)." },
+      { title: "Shop: coins, power-ups & looks | PAWtastic Games" },
+      { name: "description", content: "Coins for the new Daycare, power-ups and looks for Recess Rush, and looks for your pups — real money, charged by Stripe. Bandanas you earned in Recess Rush are here too, free." },
+      { property: "og:title", content: "Shop: coins, power-ups & looks | PAWtastic Games" },
+      { property: "og:description", content: "Coins, power-ups and looks for the PAWtastic games, plus free bandanas earned by playing." },
     ],
   }),
   component: Shop,
@@ -58,7 +58,7 @@ function Shop() {
 
   return (
     <main className="space-y-4 px-3 pt-3">
-      <GameHeader title="Style Shop" subtitle="Cosmetics only" />
+      <GameHeader title="Shop" subtitle={SHOP_SUBTITLE} />
 
       <section className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-soft">
         <div className="grid h-24 w-24 place-items-center rounded-2xl bg-sky"><DogSprite breed={0} size={80} bandana={color} star={showStar} collar={showCollar} /></div>

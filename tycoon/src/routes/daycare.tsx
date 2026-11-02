@@ -1402,7 +1402,7 @@ function TeamAdventure({ state, onClaim }: { state: GameState; onClaim: () => vo
           </div>
         </>
       ) : (
-        <p className="text-xs text-muted-foreground">You earned the Team {nameOfSite(state.team)} Bandana — equip it in the Style Shop.</p>
+        <p className="text-xs text-muted-foreground">You earned the Team {nameOfSite(state.team)} Bandana — equip it in the Shop.</p>
       )}
     </section>
   );

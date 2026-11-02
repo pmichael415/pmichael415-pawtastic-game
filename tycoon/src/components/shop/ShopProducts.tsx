@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { PAID_PRODUCTS, formatPrice, type GameId, type PaidProduct } from "@/lib/catalog";
 
+export const SHOP_SUBTITLE = "Coins, power-ups and looks";
+
 export const SHOP_GROUPS: { game: GameId; title: string; blurb: string }[] = [
   { game: "daycare-next", title: "New Daycare", blurb: "Coins go straight into your daycare." },
   { game: "recess", title: "Recess Rush", blurb: "Power-ups are used one per run; looks are yours to keep." },

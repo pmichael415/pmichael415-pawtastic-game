@@ -37,6 +37,6 @@ describe("Pup style", () => {
     render(<PupStyleSheet open onClose={() => {}} owned={false} on={off} onToggle={() => {}} go={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: "Buy the Blue Ribbon Style Pack, $2.99" }));
     fireEvent.click(await screen.findByRole("button", { name: "Buy $2.99" }));
-    await vi.waitFor(() => expect(createCheckout).toHaveBeenCalledWith({ data: { productId: "blue-ribbon-style", returnTo: "/daycare" } }));
+    await vi.waitFor(() => expect(createCheckout).toHaveBeenCalledWith({ data: { productId: "blue-ribbon-style", returnTo: "/daycare", attempt: expect.any(String) } }));
   });
 });

@@ -39,7 +39,7 @@ export const listEntitlements = createServerFn({ method: "GET" })
 /** Creates a checkout session in PAYMENT_MODE. Fails closed when not configured or the key is in the other mode. */
 export const createCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ productId: z.enum(PRODUCT_IDS), returnTo: z.enum(["/daycare-next", "/recess", "/daycare", "/shop"]) }).parse(input))
+  .inputValidator((input: unknown) => z.object({ productId: z.enum(PRODUCT_IDS), returnTo: z.enum(["/daycare-next", "/recess", "/daycare", "/shop"]), attempt: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const cfg = paymentsConfig(serverPaymentsEnv());
     if (!cfg.ready) return { ok: false as const, error: cfg.reason };
@@ -59,7 +59,7 @@ export const createCheckout = createServerFn({ method: "POST" })
     try {
       res = await fetch(`${stripeApi()}/v1/checkout/sessions`, {
         method: "POST",
-        headers: stripeHeaders(cfg.key, checkoutIdempotencyKey(context.userId, product.id, data.returnTo, Date.now())),
+        headers: stripeHeaders(cfg.key, checkoutIdempotencyKey(context.userId, product.id, data.returnTo, data.attempt)),
         body,
       });
     } catch {
