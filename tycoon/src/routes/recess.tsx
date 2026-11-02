@@ -4,7 +4,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Pause, Play, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { applyRun, checkAchievements, FREE_COSMETICS, mulberry, recessCoinsLeft, recessItemKind, recessSpawnInterval, seedFrom, RECESS_DAILY_COIN_CAP, RECESS_RUN_COIN_CAP } from "@/game/engine";
+import { applyRun, checkAchievements, FREE_COSMETICS, mulberry, recessCoinsLeft, recessItemKind, recessSpawnInterval, seedFrom, startRun, RECESS_DAILY_COIN_CAP, RECESS_RUN_COIN_CAP } from "@/game/engine";
 import { peekSave, todayKey, updateSave } from "@/game/store";
 import { useEntitlements } from "@/lib/entitlements";
 import { LOGO_URL } from "@/game/sprites";
@@ -12,7 +12,12 @@ import { shareCard } from "@/game/share";
 import { GameHeader } from "@/components/game/GameHeader";
 import { track } from "@/lib/analytics";
 import { myReferralCode } from "@/lib/referral";
-import { addTeamPoints } from "@/lib/team";
+import { recessRunTeamPoints } from "@/lib/team";
+import { productById } from "@/lib/catalog";
+import { liveCollect } from "@/lib/purchases/live";
+import { BuySheet } from "@/components/purchases/BuySheet";
+import { addedMessage, useCheckoutReturn } from "@/components/purchases/useCheckoutReturn";
+import { RunStart, type RunStartBuy } from "@/components/recess/RunStart";
 import { goodMoment } from "@/lib/notify/prompt";
 import { useShareContext } from "@/components/game/ShareSheet";
 
@@ -50,17 +55,59 @@ function Recess() {
   const shareRef = useRef<() => void>(() => {});
   const runShare = useCallback(() => shareRef.current(), []);
   useShareContext("recess", { label: "🏆 Share my Recess Rush challenge", run: runShare });
-  const { visuals } = useEntitlements();
+  const ent = useEntitlements();
+  const { visuals } = ent;
   const trailRef = useRef(false);
   trailRef.current = visuals["sparkle-trail"];
+  const rainbowRef = useRef(false);
+  rainbowRef.current = visuals["rainbow-trail"];
+  const capeRef = useRef(false);
+  capeRef.current = visuals["rocket-cape"];
+  // Power-ups bought in the hub (collected into this phone's save), switched on per run.
+  const [counts, setCounts] = useState({ shield: 0, life: 0 });
+  const [use, setUse] = useState({ shield: false, life: false });
+  const [buy, setBuy] = useState<RunStartBuy | null>(null);
+  const refreshCounts = useCallback(() => setCounts(peekSave().recessPowerups), []);
+  const collect = useCallback(async () => {
+    const r = await liveCollect("recess");
+    refreshCounts();
+    return r;
+  }, [refreshCounts]);
+  useCheckoutReturn("recess", { collect });
+  const [returning] = useState(() => typeof window !== "undefined" && /[?&]checkout=/.test(window.location.search));
+  const signedIn = ent.status !== "guest" && ent.status !== "loading";
+  useEffect(() => {
+    refreshCounts();
+    if (!signedIn || returning) return;
+    let live = true;
+    collect()
+      .then((r) => {
+        if (live && r.added.some((x) => x.sign === 1)) toast.success(addedMessage(r.added));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [signedIn, returning, collect, refreshCounts]);
   const g = useRef({ lane: 1, items: [] as Item[], t: 0, spawn: 0, score: 0, lives: 3, shield: false, rand: mulberry(1), flash: 0 });
 
   const teamRef = useRef<"hawthorne" | "hillsdale" | null>(null);
   useEffect(() => { const s = peekSave(); setBest(s.recessBest); setLeft(recessCoinsLeft(s, todayKey())); teamRef.current = s.team; }, []);
 
   const start = () => {
-    g.current = { lane: 1, items: [], t: 0, spawn: 0, score: 0, lives: 3, shield: false, rand: mulberry(seedFrom("recess-" + runSeed)), flash: 0 };
-    setHud({ score: 0, time: DUR, lives: 3, shield: false });
+    // Switched-on power-ups are used now (one of each at most, only if one is left).
+    let lives = 3;
+    let shield = false;
+    if (use.shield || use.life)
+      updateSave((st) => {
+        const r = startRun(st, use);
+        lives = r.lives;
+        shield = r.shield;
+        return r.state;
+      });
+    refreshCounts();
+    g.current = { lane: 1, items: [], t: 0, spawn: 0, score: 0, lives, shield, rand: mulberry(seedFrom("recess-" + runSeed)), flash: 0 };
+    setHud({ score: 0, time: DUR, lives, shield });
     setPhase("run");
   };
   const move = (d: number) => { g.current.lane = Math.max(0, Math.min(2, g.current.lane + d)); };
@@ -92,7 +139,7 @@ function Recess() {
     setLeft(recessCoinsLeft(s, day));
     track("recess_run", { score, coins, capped, rejected: !!rejected });
     if (!rejected) {
-      addTeamPoints(s.team, Math.max(1, Math.floor(score / 50)), "recess");
+      recessRunTeamPoints(s.team); // flat per run: power-ups can't raise team scores
       setTimeout(() => goodMoment(), 1500); // after the result toasts: maybe offer notifications
     }
     const msg = rejected ?? (coins > 0 ? `+${coins} daycare coins${capped ? " (daily coin limit reached)" : ""}` : "Daily coin limit reached — runs still count for your best score and bandanas.");
@@ -147,6 +194,15 @@ function Recess() {
       });
       const dx = laneX(st.lane);
       if (st.shield) { ctx.strokeStyle = "#0057A7"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(dx, dogY, 34, 0, Math.PI * 2); ctx.stroke(); }
+      if (rainbowRef.current) {
+        const colors = ["#e53935", "#fb8c00", "#fdd835", "#43a047", "#1e88e5", "#8e24aa"];
+        colors.forEach((c, k) => { ctx.globalAlpha = 0.85 - k * 0.12; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(dx + Math.sin(st.t * 8 + k) * 6, dogY + 28 + k * 11, 7 - k * 0.6, 0, Math.PI * 2); ctx.fill(); });
+        ctx.globalAlpha = 1;
+      }
+      if (capeRef.current) {
+        const flap = Math.sin(st.t * 16) * 5;
+        ctx.fillStyle = "#d7263d"; ctx.beginPath(); ctx.moveTo(dx - 4, dogY - 12); ctx.lineTo(dx + 26, dogY + 6 + flap); ctx.lineTo(dx - 2, dogY + 16); ctx.closePath(); ctx.fill();
+      }
       if (trailRef.current) { ctx.font = "20px sans-serif"; for (let k = 1; k <= 3; k++) { ctx.globalAlpha = 0.8 - k * 0.2; ctx.fillText("✨", dx + Math.sin(st.t * 10 + k) * 8, dogY + 26 + k * 16); } ctx.globalAlpha = 1; }
       ctx.font = "48px sans-serif"; ctx.globalAlpha = st.flash > 0 ? 0.4 : 1;
       ctx.save(); ctx.translate(dx, dogY + Math.sin(st.t * 18) * 3); ctx.scale(-1, 1); ctx.fillText("🐕", 0, 0); ctx.restore();
@@ -221,6 +277,18 @@ function Recess() {
           </div>
         )}
       </div>
+
+      {(phase === "ready" || phase === "over") && (
+        <RunStart
+          counts={counts}
+          use={use}
+          onUse={(k, on) => setUse((u) => ({ ...u, [k]: on }))}
+          onBuy={setBuy}
+          looks={{ owned: ent.status === "ready" && ent.owned.has("runner-looks"), "rainbow-trail": visuals["rainbow-trail"], "rocket-cape": visuals["rocket-cape"] }}
+          onEquip={(id, on) => ent.toggle(id, on)}
+        />
+      )}
+      {buy && <BuySheet product={productById(buy)!} returnTo="/recess" open onClose={() => setBuy(null)} />}
 
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Button size="lg" variant="secondary" className="h-16" aria-label="Move left" onPointerDown={(e) => { e.stopPropagation(); move(-1); }}><ChevronLeft className="!size-9" /></Button>

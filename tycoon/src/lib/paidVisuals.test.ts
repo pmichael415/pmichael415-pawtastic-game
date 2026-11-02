@@ -15,7 +15,18 @@ describe("paid visuals come only from server entitlements", () => {
   });
   it("owning one pack only enables that pack's items, and only when equipped", () => {
     const v = activePaidVisuals(allOn, "ready", new Set(["blue-ribbon-style"]));
-    expect(v).toEqual({ "ribbon-collar": true, "navy-star-bandana": true, "sparkle-trail": true, "deluxe-decor": false });
+    expect(v).toEqual({ "ribbon-collar": true, "navy-star-bandana": true, "sparkle-trail": true, "deluxe-decor": false, "rainbow-trail": false, "rocket-cape": false });
     expect(activePaidVisuals({}, "ready", new Set(["blue-ribbon-style"]))["ribbon-collar"]).toBe(false);
   });
 });
+
+describe("Runner Looks (Recess Rush)", () => {
+  it("the Rainbow Trail and the Rocket Cape come with the Runner Looks pack, switched on by the player", () => {
+    const on = { "rainbow-trail": true, "rocket-cape": true } as const;
+    const v = activePaidVisuals(on, "ready", new Set(["runner-looks"]));
+    expect([v["rainbow-trail"], v["rocket-cape"]]).toEqual([true, true]);
+    const none = activePaidVisuals(on, "ready", new Set(["blue-ribbon-style"]));
+    expect([none["rainbow-trail"], none["rocket-cape"]]).toEqual([false, false]);
+  });
+});
+

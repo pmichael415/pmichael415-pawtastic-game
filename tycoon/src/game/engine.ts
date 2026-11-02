@@ -885,6 +885,19 @@ export function recessMaxScore(seed: string): number {
   return (treats + 3) * RECESS_TREAT_POINTS + RECESS_DURATION * RECESS_TIME_POINTS_PER_SEC + 5;
 }
 
+/**
+ * Starting a Recess Rush run with bought power-ups: a switched-on Shield Start begins the run shielded, a
+ * switched-on Extra Life gives 4 lives instead of 3. Each is used only if one is left. The run's score check
+ * (recessMaxScore) is unchanged: power-ups help a run survive, they can't add treats the course doesn't have.
+ */
+export function startRun(s: GameState, use: { shield: boolean; life: boolean }): { state: GameState; lives: 3 | 4; shield: boolean } {
+  const shield = use.shield && s.recessPowerups.shield > 0;
+  const life = use.life && s.recessPowerups.life > 0;
+  if (!shield && !life) return { state: s, lives: 3, shield: false };
+  const left = { shield: s.recessPowerups.shield - (shield ? 1 : 0), life: s.recessPowerups.life - (life ? 1 : 0) };
+  return { state: { ...s, recessPowerups: left }, lives: life ? 4 : 3, shield };
+}
+
 export function recessCoinsLeft(s: GameState, day: string): number {
   const used = s.recessDay === day ? s.recessCoinsToday : 0;
   return Math.max(0, RECESS_DAILY_COIN_CAP - used);

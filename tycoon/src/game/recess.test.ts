@@ -57,3 +57,25 @@ describe("Recess Rush rewards are capped and validated", () => {
     expect(recessCoinsLeft(t, "d1")).toBe(0);
   });
 });
+
+describe("Recess Rush power-ups (bought in the hub)", () => {
+  it("switched-on power-ups are used at the start: 4 lives and a shield, one of each", async () => {
+    const { startRun } = await import("./engine");
+    const s = { ...newGame(0, "2026-11-02"), recessPowerups: { shield: 1, life: 1 } };
+    const r = startRun(s, { shield: true, life: true });
+    expect(r.lives).toBe(4);
+    expect(r.shield).toBe(true);
+    expect(r.state.recessPowerups).toEqual({ shield: 0, life: 0 });
+  });
+  it("nothing is used when none are left, or when they're switched off", async () => {
+    const { startRun } = await import("./engine");
+    const empty = newGame(0, "2026-11-02");
+    const r = startRun(empty, { shield: true, life: true });
+    expect([r.lives, r.shield]).toEqual([3, false]);
+    expect(r.state).toBe(empty);
+    const some = { ...empty, recessPowerups: { shield: 5, life: 5 } };
+    const off = startRun(some, { shield: false, life: false });
+    expect([off.lives, off.shield]).toEqual([3, false]);
+    expect(off.state).toBe(some);
+  });
+});

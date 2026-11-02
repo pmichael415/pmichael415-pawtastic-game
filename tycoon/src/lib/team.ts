@@ -31,6 +31,9 @@ function read(): { day: string; total: number } {
 
 export const teamPointsToday = () => read().total;
 
+/** A finished Recess Rush run: a flat amount, so bought power-ups (better runs) can't raise team scores. */
+export const RECESS_TEAM_POINTS = 5;
+
 /** Adds points for the player's team (if they have one). Returns how many counted after today's cap. */
 export function addTeamPoints(
   team: SiteId | null | undefined,
@@ -85,4 +88,9 @@ export async function fetchStandings(): Promise<Standings | null> {
   } catch {
     return null;
   }
+}
+
+/** Team points for one finished Recess Rush run (flat, whatever the score). */
+export function recessRunTeamPoints(team: SiteId | null | undefined): number {
+  return addTeamPoints(team, RECESS_TEAM_POINTS, "recess");
 }

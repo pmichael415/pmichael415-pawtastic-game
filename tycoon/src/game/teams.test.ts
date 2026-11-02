@@ -121,3 +121,15 @@ describe("saves", () => {
     expect(bad).toMatchObject({ team: null, home: "hawthorne", adventure: null });
   });
 });
+
+describe("team points can't be bought", () => {
+  it("a finished Recess Rush run gives a flat 5 team points, whatever the score", async () => {
+    const { RECESS_TEAM_POINTS, recessRunTeamPoints, teamPointsToday } = await import("@/lib/team");
+    localStorage.clear();
+    expect(RECESS_TEAM_POINTS).toBe(5);
+    expect(recessRunTeamPoints("hawthorne")).toBe(5);
+    expect(recessRunTeamPoints("hawthorne")).toBe(5);
+    expect(teamPointsToday()).toBe(10);
+    expect(recessRunTeamPoints(null)).toBe(0);
+  });
+});
