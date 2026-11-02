@@ -30,6 +30,7 @@ import { arrivalMultiplier, decayMultiplier, funAppeal, playGain } from "./effec
 import { XP, gainXp } from "./progress";
 import { fac, withFac } from "./state";
 import { tourHolds } from "./tour";
+import { fmtTime, logVisit, newVisit, visitOf } from "./visit";
 import type { Facility, Room, TDog, TPlace, TResult, TycoonState } from "./types";
 
 const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
@@ -140,6 +141,7 @@ export function createArrival(s: TycoonState, rand: () => number, boarding = fal
     played: 0,
     bathed: false,
   };
+  dog.visit = newVisit(f, dog, rand, !!c.bath);
   const hello = reg ? `${dog.name} is back for visit #${dog.visits} (${friendshipLevel(reg.friendship).label})! Check them in at the desk.` : `${dog.name} was dropped off — check them in at the front desk.`;
   const next = withFac({ ...s, seq: s.seq + 1 }, { ...f, dogs: [...f.dogs, dog] });
   return { ok: true, state: trackRush(next).state, msg: hello };
@@ -152,10 +154,15 @@ export function checkIn(s: TycoonState, dogId: string): TResult {
   if (!dog) return gone;
   if (dog.checkedIn) return { ok: false, error: `${dog.name} is already checked in.` };
   const extra = f.supplies === "premium" ? PREMIUM_HAPPY : 0;
-  let nf = setDog(f, dogId, (d) => ({ ...d, checkedIn: true, happiness: clamp(d.happiness + extra) }));
+  const v = visitOf(f, dog);
+  // A prepaid package is paid now, once (pickup never charges it again; a refund is a remedy if it isn't done).
+  const prepaidBath = v.prepaid.includes("bath") ? bathPay(f) : 0;
+  const visit = logVisit({ ...v, checkedInAt: Math.floor(f.clockMin) }, `Checked in ${fmtTime(f.clockMin)}${prepaidBath ? ` — bath prepaid (${prepaidBath})` : ""}`);
+  let nf = setDog(f, dogId, (d) => ({ ...d, checkedIn: true, happiness: clamp(d.happiness + extra), visit }));
   nf = bump(bump(nf, "admitted"), "boarders", dog.boarding ? 1 : 0);
-  const st = gainXp(countToday(withFac(s, nf), "checkIns"), XP.checkIn);
-  return { ok: true, state: st, msg: `${dog.name} is checked in!` };
+  let st = gainXp(countToday(withFac(s, nf), "checkIns"), XP.checkIn);
+  if (prepaidBath) st = earn(st, { baths: prepaidBath });
+  return { ok: true, state: st, msg: `${dog.name} is checked in!${prepaidBath ? ` ${v.owner} prepaid the bath (+${prepaidBath}).` : ""}`, ...(prepaidBath ? { earned: prepaidBath } : {}) };
 }
 
 // ---------- placing pups ----------

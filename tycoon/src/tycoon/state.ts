@@ -1,12 +1,13 @@
 import { parseDeliveryLog } from "@/lib/purchases/delivery";
 // PAWtastic Daycare Tycoon — new game and safe save loading (spec §4.8).
-import { BREEDS, GUESTBOOK_MAX, emptyStats, type GroupId, type Regular, type Staff, type Stats } from "@/game/engine";
+import { BREEDS, GUESTBOOK_MAX, emptyStats, type GroupId, type Staff, type Stats } from "@/game/engine";
 import { ENTRANCE, FLOORS, MAX_DOORS, MAX_ROOMS, PARCELS, PRICE_DEFAULTS, PRICE_RANGES, START_COINS, WALL_COLORS } from "./catalog";
 import { roomContaining, validRoomAt, validThingAt } from "./build";
 import { thingTiles } from "./grid";
 import { WEEKLY_GOALS, WEEKLY_STATS } from "./weekly";
 import type { Tour, TourBeat, TWeekly, WeeklyStat } from "./types";
-import type { CampaignId, DayLedger, Door, Facility, ParcelId, Placed, Prices, Room, RoomType, TDog, TPlace, TycoonState } from "./types";
+import type { CampaignId, DayLedger, Door, Facility, ParcelId, Placed, Prices, RepEntry, Review, Room, RoomType, Service, TDog, TPlace, TRegular, TycoonState, Visit } from "./types";
+import { defaultVisit } from "./visit";
 
 export const SAVE_VERSION = 1 as const;
 export const DAY_OPEN_MIN = 7 * 60;
@@ -36,6 +37,9 @@ export function newFacility(name: string): Facility {
     scuffles: [],
     report: null,
     rush: { day: 1, peak: 0, since: null, awarded: false },
+    repLog: [],
+    reviews: [],
+    referralUntil: null,
   };
 }
 
@@ -150,6 +154,40 @@ function parseDog(x: unknown, f: Facility): TDog | null {
     boarding: bool(x["boarding"], false),
     played: Math.max(0, int(x["played"], 0)),
     bathed: bool(x["bathed"], false),
+    ...withVisit(x, f, { name: str(x["name"], "Pup"), breed, boarding: bool(x["boarding"], false), checkedIn: bool(x["checkedIn"], false) }),
+  };
+}
+
+const SERVICES: Service[] = ["daycare", "bath", "boarding"];
+const minute = (v: unknown, d: number) => clamp(int(v, d), 0, 24 * 60);
+/** A pup's visit and running bath from the save; a missing or broken visit becomes a plain daycare one. */
+function withVisit(x: Record<string, unknown>, f: Facility, d: { name: string; breed: number; boarding: boolean; checkedIn: boolean }): { visit: Visit; bathing: number | null } {
+  const bathing = typeof x["bathing"] === "number" && x["bathing"] > 0 ? Math.min(240, x["bathing"]) : null;
+  const v = isObj(x["visit"]) ? x["visit"] : null;
+  const fallback = defaultVisit(f, d);
+  if (!v || typeof v["owner"] !== "string" || !Array.isArray(v["requests"])) return { visit: fallback, bathing };
+  const requests = [...new Set((v["requests"] as unknown[]).filter((r): r is Service => SERVICES.includes(r as Service)))];
+  if (!requests.includes("daycare")) requests.unshift("daycare");
+  const prepaid = Array.isArray(v["prepaid"]) ? [...new Set((v["prepaid"] as unknown[]).filter((r): r is Service => requests.includes(r as Service)))] : [];
+  const pickupDay = Math.max(1, int(v["pickupDay"], fallback.pickupDay));
+  return {
+    bathing,
+    visit: {
+      owner: v["owner"].trim().slice(0, 24) || fallback.owner,
+      requests,
+      prepaid,
+      arrivedDay: Math.max(1, int(v["arrivedDay"], f.day)),
+      arrived: minute(v["arrived"], fallback.arrived),
+      pickupDay,
+      pickup: minute(v["pickup"], fallback.pickup),
+      ownerHere: typeof v["ownerHere"] === "number" ? minute(v["ownerHere"], 0) : null,
+      waitedLobby: Math.max(0, num(v["waitedLobby"], 0)),
+      checkedInAt: typeof v["checkedInAt"] === "number" ? minute(v["checkedInAt"], 0) : null,
+      history: Array.isArray(v["history"]) ? (v["history"] as unknown[]).filter((h): h is string => typeof h === "string").map((h) => h.slice(0, 140)).slice(-12) : [],
+      scuffle: bool(v["scuffle"], false),
+      safeMove: bool(v["safeMove"], false),
+      finishing: v["finishing"] === "bath" ? "bath" : null,
+    },
   };
 }
 
@@ -179,7 +217,7 @@ function parseLedger(x: unknown): DayLedger[] {
 }
 
 /** A guest-book entry with everything an arrival needs, or null. */
-function parseRegular(x: unknown): Regular | null {
+function parseRegular(x: unknown): TRegular | null {
   if (!isObj(x) || typeof x["name"] !== "string") return null;
   const breed = int(x["breed"], -1);
   const size = x["size"] === "small" || x["size"] === "large" ? x["size"] : null;
@@ -193,7 +231,25 @@ function parseRegular(x: unknown): Regular | null {
     visits: Math.max(1, int(x["visits"], 1)),
     friendship: clamp(num(x["friendship"], 0), 0, 100),
     lastDay: Math.max(0, int(x["lastDay"], 0)),
+    ...(typeof x["sat"] === "number" ? { sat: clamp(x["sat"], 0, 100) } : {}),
+    ...(typeof x["credit"] === "number" && x["credit"] > 0 ? { credit: Math.min(500, Math.round(x["credit"])) } : {}),
+    ...(typeof x["lostUntil"] === "number" ? { lostUntil: Math.max(0, int(x["lostUntil"], 0)) } : {}),
   };
+}
+
+function parseRepLog(x: unknown): RepEntry[] {
+  if (!Array.isArray(x)) return [];
+  return x
+    .filter((e): e is Record<string, unknown> => isObj(e) && typeof e["reason"] === "string" && typeof e["delta"] === "number")
+    .map((e) => ({ day: Math.max(1, int(e["day"], 1)), min: minute(e["min"], 0), delta: clamp(num(e["delta"], 0), -20, 20), reason: (e["reason"] as string).slice(0, 140) }))
+    .slice(-40);
+}
+function parseReviews(x: unknown): Review[] {
+  if (!Array.isArray(x)) return [];
+  return x
+    .filter((e): e is Record<string, unknown> => isObj(e) && typeof e["text"] === "string")
+    .map((e) => ({ day: Math.max(1, int(e["day"], 1)), stars: clamp(int(e["stars"], 3), 1, 5) as Review["stars"], owner: str(e["owner"], "A customer"), dog: str(e["dog"], "their pup"), text: (e["text"] as string).slice(0, 200) }))
+    .slice(-30);
 }
 
 /**
@@ -271,7 +327,10 @@ function parseFacility(x: unknown): Facility | null {
   f.reputation = clamp(num(x["reputation"], 80), 40, 100);
   f.cleanliness = clamp(num(x["cleanliness"], 100), 0, 100);
   f.stats = parseStats(x["stats"]);
-  f.guestBook = (Array.isArray(x["guestBook"]) ? x["guestBook"] : []).map(parseRegular).filter((g): g is Regular => !!g).slice(0, GUESTBOOK_MAX);
+  f.guestBook = (Array.isArray(x["guestBook"]) ? x["guestBook"] : []).map(parseRegular).filter((g): g is TRegular => !!g).slice(0, GUESTBOOK_MAX);
+  f.repLog = parseRepLog(x["repLog"]);
+  f.reviews = parseReviews(x["reviews"]);
+  f.referralUntil = typeof x["referralUntil"] === "number" ? Math.max(0, int(x["referralUntil"], 0)) : null;
   f.open = bool(x["open"], false);
   const pr = isObj(x["prices"]) ? x["prices"] : {};
   const prices = { ...PRICE_DEFAULTS };

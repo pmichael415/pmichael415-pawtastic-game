@@ -81,7 +81,42 @@ export type TPlace =
   | { kind: "calm"; room: string }
   | { kind: "bed"; room: string; bed: string };
 
-export type TDog = Omit<Dog, "site" | "place" | "x" | "y"> & { place: TPlace };
+/** What a customer books. Exit baths are offered at pickup, not booked. */
+export type Service = "daycare" | "bath" | "boarding";
+/** One visit: the customer, what they booked, when they come back, and what happened (service design, "The visit"). */
+export type Visit = {
+  owner: string;
+  requests: Service[];
+  /** Paid at check-in (a prepaid package); never charged again at pickup. */
+  prepaid: Service[];
+  arrivedDay: number;
+  arrived: number;
+  pickupDay: number;
+  pickup: number;
+  /** Game minute the owner arrived for pickup (null while they're away). */
+  ownerHere: number | null;
+  /** Game minutes the pup waited at the desk before check-in. */
+  waitedLobby: number;
+  checkedInAt: number | null;
+  history: string[];
+  scuffle: boolean;
+  /** Moved to calm down to keep everyone safe (never held against the visit). */
+  safeMove: boolean;
+  /** The owner agreed to wait while this service is finished. */
+  finishing: "bath" | null;
+};
+export type TDog = Omit<Dog, "site" | "place" | "x" | "y"> & {
+  place: TPlace;
+  /** Missing only on pups made before visits existed; visitOf() fills it in. */
+  visit?: Visit;
+  /** Game minutes left in a bath that's running (null or missing when none). */
+  bathing?: number | null;
+};
+/** Why reputation moved, for the Reputation panel. */
+export type RepEntry = { day: number; min: number; delta: number; reason: string };
+export type Review = { day: number; stars: 1 | 2 | 3 | 4 | 5; owner: string; dog: string; text: string };
+/** A guest-book entry: the pup, plus how the family felt last time, any credit owed, and if they've stopped coming. */
+export type TRegular = Regular & { sat?: number; credit?: number; lostUntil?: number };
 
 export type Prices = { daycare: number; boarding: number; bath: number; exitBath: number };
 export type Wage = "lean" | "standard" | "generous";
@@ -115,7 +150,7 @@ export type Facility = {
   reputation: number;
   cleanliness: number;
   stats: Stats;
-  guestBook: Regular[];
+  guestBook: TRegular[];
   open: boolean;
   prices: Prices;
   wage: Wage;
@@ -125,6 +160,12 @@ export type Facility = {
   scuffles: { room: string }[];
   report: TReport | null;
   rush: { day: number; peak: number; since: number | null; awarded: boolean };
+  /** The latest reputation changes and why (newest last). */
+  repLog: RepEntry[];
+  /** Public reviews (newest last). */
+  reviews: Review[];
+  /** A 5★ review's referrals: more drop-offs until this day ends (null when none). */
+  referralUntil: number | null;
 };
 
 export type WeeklyStat = "checkouts" | "plays" | "admitted" | "baths" | "boarders";
