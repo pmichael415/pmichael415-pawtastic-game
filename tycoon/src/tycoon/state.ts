@@ -5,7 +5,7 @@ import { ENTRANCE, FLOORS, MAX_DOORS, MAX_ROOMS, PARCELS, PRICE_DEFAULTS, PRICE_
 import { roomContaining, validRoomAt, validThingAt } from "./build";
 import { thingTiles } from "./grid";
 import { WEEKLY_GOALS, WEEKLY_STATS } from "./weekly";
-import type { TWeekly, WeeklyStat } from "./types";
+import type { Tour, TourBeat, TWeekly, WeeklyStat } from "./types";
 import type { CampaignId, DayLedger, Door, Facility, ParcelId, Placed, Prices, Room, RoomType, TDog, TPlace, TycoonState } from "./types";
 
 export const SAVE_VERSION = 1 as const;
@@ -54,6 +54,7 @@ export function newTycoon(now: number): TycoonState {
     pendingLevel: null,
     weekly: null,
     deliveries: { applied: [], done: [] },
+    tour: null,
   };
 }
 
@@ -337,7 +338,21 @@ export function parseTycoon(raw: unknown): TycoonState | null {
     pendingLevel: typeof raw["pendingLevel"] === "number" ? raw["pendingLevel"] : null,
     weekly: parseWeekly(raw["weekly"]),
     deliveries: parseDeliveryLog(raw["deliveries"]),
+    tour: parseTour(raw["tour"]),
   };
+}
+
+const TOUR_BEATS: TourBeat[] = ["meet", "checkin", "place", "play", "checkout", "upgrade", "benefit", "decision", "goals"];
+/** The guided tour, or null if missing or anything about it looks wrong. */
+function parseTour(x: unknown): Tour | null {
+  if (!isObj(x)) return null;
+  const mode = x["mode"];
+  const beat = x["beat"];
+  const upgrade = x["upgrade"] ?? null;
+  if (mode !== "quick" && mode !== "scratch") return null;
+  if (!TOUR_BEATS.includes(beat as TourBeat)) return null;
+  if (upgrade !== null && upgrade !== "toy_bin" && upgrade !== "play_yard") return null;
+  return { mode, beat: beat as TourBeat, startedAt: num(x["startedAt"], 0), upgrade, done: bool(x["done"], false), skipped: bool(x["skipped"], false) };
 }
 
 /** This week's challenge, or null (a fresh one starts) if anything about it looks wrong. */

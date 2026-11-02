@@ -131,6 +131,11 @@ export type WeeklyStat = "checkouts" | "plays" | "admitted" | "baths" | "boarder
 /** This week's challenge: the goal, stats when the week started, and whether its reward was claimed. */
 export type TWeekly = { week: string; goal: string; base: Record<WeeklyStat, number>; baseDay: number; claimed: boolean };
 
+// ---- the guided tour (Stage A, docs/superpowers/specs/2026-11-02-tycoon-replayability-design.md §3.2) ----
+export type TourBeat = "meet" | "checkin" | "place" | "play" | "checkout" | "upgrade" | "benefit" | "decision" | "goals";
+export type TourUpgrade = "toy_bin" | "play_yard";
+export type Tour = { mode: "quick" | "scratch"; beat: TourBeat; startedAt: number; upgrade: TourUpgrade | null; done: boolean; skipped: boolean };
+
 export type TycoonState = {
   v: 1;
   coins: number;
@@ -146,6 +151,8 @@ export type TycoonState = {
   weekly: TWeekly | null;
   /** Purchases added to this save (ids) — see src/lib/purchases/delivery.ts. */
   deliveries: DeliveryLog;
+  /** The guided tour; null when it hasn't started (or the save predates it). */
+  tour: Tour | null;
 };
 
 export type TResult = { ok: true; state: TycoonState; msg?: string; earned?: number } | { ok: false; error: string };
