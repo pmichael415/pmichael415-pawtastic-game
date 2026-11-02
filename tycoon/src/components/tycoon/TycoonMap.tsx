@@ -58,6 +58,8 @@ const LABEL_SIZE = 0.38;
 const fit = (text: string, width: number) => (text.length * LABEL_SIZE * 0.55 > width - 0.2 ? { textLength: width - 0.2, lengthAdjust: "spacingAndGlyphs" as const } : {});
 
 function dogStatus(f: Facility, d: TDog): string {
+  if (d.visit?.ownerHere != null || d.visit?.finishing) return `${d.visit.owner} is here for pickup`;
+  if (d.bathing) return "in the bath";
   if (!d.checkedIn) return "waiting to check in";
   if (inActiveScuffle(f, d)) return "needs help";
   if (d.place.kind === "calm") return "calming down";
@@ -224,6 +226,11 @@ export function TycoonMap({ state, selected, onPick }: { state: TycoonState; sel
               {/* an invisible, bigger hit area so a finger finds the pup easily */}
               <circle data-hit="1" r={0.9} fill="transparent" />
               <circle r={on ? 0.48 : 0.4} fill={dogColor(f, d)} stroke="#FFFFFF" strokeWidth={0.1} />
+              {d.bathing ? (
+                <text x={0.45} y={-0.2} fontSize={0.5} aria-hidden>🛁</text>
+              ) : d.visit?.ownerHere != null || d.visit?.finishing ? (
+                <text x={0.42} y={0.2} fontSize={0.55} aria-hidden>🧍</text>
+              ) : null}
               <text y={-0.55} fontSize={0.45} fontWeight={700} textAnchor="middle" fill="#312721" fontFamily="DM Sans, system-ui, sans-serif">
                 {d.name}
               </text>

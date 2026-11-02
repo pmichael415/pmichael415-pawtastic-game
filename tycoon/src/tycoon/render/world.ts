@@ -124,6 +124,8 @@ export class TycoonWorld {
   private entranceSign: THREE.Object3D | null = null;
   private dogs = new Map<string, DogActor>();
   private staff = new Map<string, StaffActor>();
+  /** Families at the lobby for pickup (keyed by the pup's id); they walk out with their pup. */
+  private owners = new Map<string, StaffActor & { leaving: boolean }>();
   private effects: Fx[] = [];
   private ring: THREE.Mesh;
   private raf = 0;
@@ -185,6 +187,7 @@ export class TycoonWorld {
     this.syncGhost(s.ghost);
     this.syncDogs(f, s.selected);
     this.syncStaff(f);
+    this.syncOwners(f);
     this.syncRing(f, s.selected);
   }
 
@@ -526,6 +529,34 @@ export class TycoonWorld {
       }
   }
 
+  /** Owners stand in front of the desk while they wait for pickup; when their pup leaves, they walk out together. */
+  private syncOwners(f: Facility) {
+    const counter = f.items.find((i) => i.kind === "front_counter");
+    const at = counter ? thingCenter(counter.kind, counter.c, counter.r, counter.rot) : tileCenter(ENTRANCE.c, ENTRANCE.r - 1);
+    const waiting = f.dogs.filter((d) => d.visit && (d.visit.ownerHere !== null || d.visit.finishing));
+    waiting.forEach((d, i) => {
+      const to = { x: at.x - 1 + (i % 4) * 0.75, z: at.z + 1.2 + Math.floor(i / 4) * 0.7 };
+      let a = this.owners.get(d.id);
+      if (!a) {
+        const coats = ["#c46a4a", "#4f8a5b", "#8a5fa8", "#d29a2e", "#5b7c99", "#a34d6d"];
+        const rig = buildPerson(coats[(d.visit!.owner.charCodeAt(0) + d.visit!.owner.length) % coats.length]!, d.visit!.owner.length * 7 + 3, false);
+        const door = tileCenter(ENTRANCE.c, ENTRANCE.r);
+        rig.root.position.set(door.x, 0.06, door.z + 1);
+        this.scene.add(rig.root);
+        a = { rig, pos: { x: door.x, z: door.z + 1 }, to, leaving: false };
+        this.owners.set(d.id, a);
+      }
+      a.to = to;
+      a.leaving = false;
+    });
+    const out = tileCenter(ENTRANCE.c, ENTRANCE.r);
+    for (const [id, a] of this.owners) {
+      if (waiting.some((d) => d.id === id)) continue;
+      a.leaving = true;
+      a.to = { x: out.x, z: out.z + 3 };
+    }
+  }
+
   private syncRing(f: Facility, selected: string | null) {
     this.ring.visible = false;
     if (!selected) return;
@@ -600,6 +631,16 @@ export class TycoonWorld {
       s.pos.x += (s.to.x - s.pos.x) * Math.min(1, dt * 4);
       s.pos.z += (s.to.z - s.pos.z) * Math.min(1, dt * 4);
       s.rig.root.position.set(s.pos.x, 0.06, s.pos.z);
+    }
+    for (const [id, o] of this.owners) {
+      o.pos.x += (o.to.x - o.pos.x) * Math.min(1, dt * 2);
+      o.pos.z += (o.to.z - o.pos.z) * Math.min(1, dt * 2);
+      o.rig.root.position.set(o.pos.x, 0.06, o.pos.z);
+      o.rig.root.rotation.y = Math.atan2(o.to.x - o.pos.x, o.to.z - o.pos.z) || o.rig.root.rotation.y;
+      if (o.leaving && Math.hypot(o.to.x - o.pos.x, o.to.z - o.pos.z) < 0.3) {
+        this.scene.remove(o.rig.root);
+        this.owners.delete(id);
+      }
     }
   }
 
@@ -750,6 +791,7 @@ export class TycoonWorld {
       paths: this.paths.children.length,
       dogs: [...this.dogs.values()].map((a) => ({ id: a.id, x: a.pos.x, z: a.pos.z })),
       staff: this.staff.size,
+      owners: this.owners.size,
       target: { x: this.target.x, z: this.target.z },
       distance: this.distance,
       frameMs: this.frameMs,

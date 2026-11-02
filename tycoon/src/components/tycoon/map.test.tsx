@@ -53,6 +53,13 @@ describe("the 2D map", () => {
     // the starter lot is columns 10–26 and rows 16–28; half a square of margin, kept inside the 36 × 28 grid
     expect(screen.getByRole("group", { name: "Your daycare from above" }).getAttribute("viewBox")).toBe("9.5 15.5 17 12.5");
   });
+  it("shows an owner waiting for pickup, and a pup in the bath", () => {
+    const d0 = f.dogs[0]!;
+    const st = { ...s, facilities: { f1: { ...f, dogs: [{ ...d0, visit: { ...d0.visit!, owner: "Taylor", ownerHere: 900 } }, { ...d0, id: "z", name: "Suds", bathing: 20, visit: { ...d0.visit!, ownerHere: null } }] } } };
+    render(<TycoonMap state={st} selected={null} onPick={() => {}} />);
+    expect(screen.getByRole("button", { name: "Biscuit, Taylor is here for pickup" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Suds, in the bath" })).toBeTruthy();
+  });
   it("marks the selected pup", () => {
     render(<TycoonMap state={s} selected={f.dogs[0]!.id} onPick={() => {}} />);
     expect(screen.getByRole("button", { name: "Biscuit, waiting to check in" }).getAttribute("aria-pressed")).toBe("true");
