@@ -58,11 +58,18 @@ const check = (n, ok, d = '') => { ok ? pass++ : fail++; out.push(`${ok ? 'PASS'
   check('after the daily cap, runs pay 0 coins but still count', s.coins === 500 && s.stats.runs === 1);
   check('the player is told why', await page.getByText(/Daily coin limit reached/).first().isVisible());
 
-  // Shop: locked with a reason; 3D preview is labelled and temporary
+  // Shop: every product grouped by game with its price; a guest is asked to sign in before paying; 3D preview is
+  // labelled and temporary (buying itself is covered by qa/e2e-purchases.cjs)
   await fresh(undefined, '/shop');
-  check('paid packs show "Purchases coming soon" (no live charging)', (await page.getByRole('button', { name: /Purchases coming soon/ }).count()) === 2);
-  check('the lock reason is visible', await page.getByText(/Locked: Payment provider not configured yet/).first().isVisible());
-  await page.getByRole('link', { name: /Preview in my 3D daycare/ }).last().tap();
+  for (const g of ['New Daycare', "Recess Rush", "Today's Daycare"]) check(`the Shop has a ${g} section`, await page.getByRole('region', { name: g }).isVisible());
+  check('every product has a Buy button with its price', (await page.getByRole('button', { name: /^Buy \$\d+\.\d\d$/ }).count()) === 11);
+  const buy = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Deluxe Daycare Decor' }) }).getByRole('button', { name: 'Buy $6.99' });
+  for (let i = 0; i < 6 && !(await page.getByRole('dialog').isVisible()); i++) { await buy.tap(); await page.waitForTimeout(500); }
+  check('a guest is asked to sign in before buying', await page.getByRole('dialog').getByRole('link', { name: 'Sign in to buy' }).isVisible());
+  check('the buy sheet says it is real money', await page.getByRole('dialog').getByText('Real money — charged by Stripe to your card.').isVisible());
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  await page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Deluxe Daycare Decor' }) }).getByRole('link', { name: /Preview in my 3D daycare/ }).tap();
   await page.waitForURL(/preview=deluxe/);
   await page.waitForTimeout(1500);
   check('3D preview is clearly labelled as not owned', await page.getByText(/Previewing Deluxe Daycare Decor for 90 seconds — not owned, not saved/).isVisible());

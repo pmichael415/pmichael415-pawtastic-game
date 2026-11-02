@@ -1,6 +1,7 @@
 // The new Daycare Tycoon in 3D. It never owns rules or state: every snapshot is drawn from the same TycoonState the
 // list view uses, and taps are reported back as picks (a dog, a room, a thing, a tile or a wall edge).
 import * as THREE from "three";
+import { swallowNextClick } from "@/lib/ghostClick";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { buildDog, buildPerson, coatFor, makeEmojiSprite, makeSign, makeTag, mat, part, GEO, type DogRig, type PersonRig, type Tag } from "@/world/models";
 import { COLS, ENTRANCE, PARCELS, ROWS, TILE } from "../catalog";
@@ -690,7 +691,11 @@ export class TycoonWorld {
     if (this.pointers.size < 2) this.pinch0 = 0;
     if (!p) return;
     const moved = Math.hypot(e.clientX - p.sx, e.clientY - p.sy);
-    if (moved < 10 && performance.now() - p.t < 600 && this.pointers.size === 0) this.pick(e.clientX, e.clientY);
+    if (moved < 10 && performance.now() - p.t < 600 && this.pointers.size === 0) {
+      // A finger's follow-up click must not press a button in the panel this tap opens.
+      if (e.pointerType !== "mouse") swallowNextClick(window, e.clientX, e.clientY);
+      this.pick(e.clientX, e.clientY);
+    }
   };
   private onWheel = (e: WheelEvent) => {
     e.preventDefault();

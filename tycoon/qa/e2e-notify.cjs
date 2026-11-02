@@ -67,7 +67,9 @@ async function playRun(page, name) {
   await page.bringToFront(); // the game pauses in a page that isn't visible
   const start = page.getByRole('button', { name: /Start run/ });
   await start.waitFor({ timeout: 15000 });
+  // A server-rendered button shows before the page has started; keep tapping until the run begins.
   await start.tap();
+  for (let i = 0; i < 20 && (await start.isVisible()); i++) { await page.waitForTimeout(500); await start.tap().catch(() => {}); }
   try {
     await page.locator('text=/⏱ \\d+s/').waitFor({ timeout: 10000 });
     await page.getByRole('button', { name: /^Run again|Share & challenge/ }).first().waitFor({ timeout: 90000 });

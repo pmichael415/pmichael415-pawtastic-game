@@ -2,6 +2,7 @@
 // engine's GameState says (same object the list view and saves use), and every tap/interaction is
 // reported back to React, which runs the engine action. Both camera modes share this one scene.
 import * as THREE from "three";
+import { swallowNextClick } from "@/lib/ghostClick";
 import type { Dog, GameState, GroupId, SiteId } from "@/game/engine";
 import {
   GROUPS,
@@ -1437,8 +1438,11 @@ export class DaycareWorld {
     if (this.pointers.size < 2) this.pinch0 = 0;
     if (!p) return;
     const moved = Math.hypot(e.clientX - p.sx, e.clientY - p.sy);
-    if (moved < 10 && performance.now() - p.t < 600 && this.pointers.size === 0)
+    if (moved < 10 && performance.now() - p.t < 600 && this.pointers.size === 0) {
+      // A finger's follow-up click must not press a button in the sheet this tap opens.
+      if (e.pointerType !== "mouse") swallowNextClick(window, e.clientX, e.clientY);
       this.pick(e.clientX, e.clientY);
+    }
   };
   private onWheel = (e: WheelEvent) => {
     if (this.mode !== "overhead") return;
