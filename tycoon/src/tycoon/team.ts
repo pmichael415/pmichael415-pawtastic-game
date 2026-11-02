@@ -3,7 +3,7 @@
 // billing and rules stay identical. They never make the consequential calls: mismatched placements, complaints,
 // refusals, exit baths, scuffles and prices stay with the player. Pure; `tick` calls runStaff.
 import { ENTRANCE } from "./catalog";
-import { groupOf, MAX_STAFF } from "@/game/engine";
+import { groupOf, hireCost, MAX_STAFF } from "@/game/engine";
 import { WAGES } from "./business";
 import { caps } from "./connect";
 import { pickupView } from "./pickup";
@@ -97,6 +97,8 @@ export function recommendRole(f: Facility): Role {
 }
 
 export const canHire = (f: Facility) => f.staff.length < MAX_STAFF;
+/** The next hire's sign-on fee. */
+export const hireCostFor = (f: Facility) => hireCost(f.staff.length);
 
 // ---------- where things are ----------
 

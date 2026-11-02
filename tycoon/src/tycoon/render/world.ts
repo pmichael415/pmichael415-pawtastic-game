@@ -9,8 +9,11 @@ import { connectedRooms, roomStatus } from "../connect";
 import { containsTile, roomTiles, thingTiles, tileAtWorld, tileCenter } from "../grid";
 import { fac } from "../state";
 import { inActiveScuffle } from "../run";
+import { findPath } from "../paths";
+import { staffStatus } from "../team";
+import { waitStage } from "../waiting";
 import { isActive, ownedPaid } from "../paid";
-import type { Door, Facility, Rot, Side, TDog, ThingKind, TycoonState } from "../types";
+import type { Door, Facility, Rot, Side, TDog, ThingKind, TStaff, TycoonState } from "../types";
 import { buildPath, buildRoom, buildThing, doorEdgeKeys, ghostMaterial, WALL_H } from "./models";
 
 export type TPick =
@@ -18,7 +21,8 @@ export type TPick =
   | { kind: "edge"; c: number; r: number; side: Side }
   | { kind: "room"; uid: string }
   | { kind: "thing"; uid: string }
-  | { kind: "dog"; id: string };
+  | { kind: "dog"; id: string }
+  | { kind: "staff"; id: string };
 export type Ghost =
   | { kind: "room"; c: number; r: number; w: number; d: number; ok: boolean; label: string }
   | { kind: "door"; room: string; door: Door; ok: boolean }
@@ -37,8 +41,11 @@ const LARGE = 1.12;
 const EDGE_PICK = 0.35;
 const LOT = { x0: -36, x1: -36 + TILE * COLS, z0: -36, z1: -36 + TILE * ROWS };
 
-type DogActor = { id: string; rig: DogRig; tag: Tag; pos: { x: number; z: number }; to: { x: number; z: number }; heading: number; phase: number; size: number; important?: boolean };
-type StaffActor = { rig: PersonRig; pos: { x: number; z: number }; to: { x: number; z: number } };
+type DogMode = "idle" | "play" | "bath" | "rest" | "wait";
+type DogActor = { id: string; rig: DogRig; tag: Tag; tagText?: string; pos: { x: number; z: number }; to: { x: number; z: number }; heading: number; phase: number; size: number; important?: boolean; mode?: DogMode };
+type XZ = { x: number; z: number };
+/** A person in the world. Staff follow `path` (door to door) to their job; `work` says what they're doing there. */
+type StaffActor = { rig: PersonRig; pos: XZ; to: XZ; path?: XZ[]; key?: string; tag?: Tag; tagText?: string; work?: string | null; heading?: number; status?: string };
 type Fx = { sprite: THREE.Sprite; born: number; life: number; from: THREE.Vector3; rise: number; drift: number };
 
 /**
@@ -488,11 +495,25 @@ export class TycoonWorld {
         a = { id: d.id, rig, tag, pos: { x: start.x, z: start.z }, to, heading: 0, phase: Math.random() * 6, size };
         this.dogs.set(d.id, a);
       }
-      a.to = to;
+      // A pup in the bath stands in its tub for the whole bath; a pup being played with bounces; beds and the calm room rest.
+      const tub = d.bathing && d.bathTub ? f.items.find((i) => i.uid === d.bathTub) : null;
+      a.to = tub ? thingCenter(tub.kind, tub.c, tub.r, tub.rot) : to;
+      const played = f.staff.some((st) => st.job?.kind === "play" && st.job.phase === "work" && st.job.dog === d.id);
+      a.mode = tub ? "bath" : played ? "play" : !d.checkedIn ? "wait" : d.place.kind === "bed" || d.place.kind === "calm" ? "rest" : "idle";
       a.rig.bandana.visible = !!this.snap?.looks.bandana;
       if (this.snap?.looks.bandana) (a.rig.bandana as THREE.Mesh).material = mat(this.snap.looks.bandana);
-      const tone = selected === d.id ? "selected" : inActiveScuffle(f, d) ? "alert" : !d.checkedIn ? "waiting" : d.place.kind === "calm" ? "calm" : "default";
-      a.tag.set(d.name, !d.checkedIn ? "check in" : `${Math.round(d.happiness)}% happy`, tone);
+      const wait = waitStage(f, d);
+      const tone = selected === d.id ? "selected" : inActiveScuffle(f, d) || wait?.stage === "upset" ? "alert" : wait ? "waiting" : d.place.kind === "calm" ? "calm" : "default";
+      const sub = wait
+        ? wait.kind === "dropoff"
+          ? wait.stage === "upset" ? `upset · leaves in ${wait.leavesIn} min` : `${wait.stage === "impatient" ? "impatient" : "waiting"} · ${wait.minutes} min`
+          : `${d.visit!.owner} ${wait.stage === "upset" ? "upset" : "waiting"} · ${wait.minutes} min`
+        : d.bathing ? `in the bath · ${Math.ceil(d.bathing)} min` : !d.checkedIn ? "check in" : `${Math.round(d.happiness)}% happy`;
+      const text = `${d.name}|${sub}|${tone}`;
+      if (a.tagText !== text) {
+        a.tag.set(d.name, sub, tone);
+        a.tagText = text;
+      }
       a.important = tone !== "default" && tone !== "calm";
     }
     for (const [id, a] of this.dogs)
@@ -504,29 +525,94 @@ export class TycoonWorld {
       }
   }
 
-  private syncStaff(f: Facility) {
-    const counter = f.items.find((i) => i.kind === "front_counter");
+  /** Where a team member stands: at their job (desk, beside the pup, beside the tub, in the room) or their home spot. */
+  private staffSpot(f: Facility, st: TStaff, i: number): XZ {
+    const counter = f.items.find((it) => it.kind === "front_counter");
     const at = counter ? thingCenter(counter.kind, counter.c, counter.r, counter.rot) : tileCenter(ENTRANCE.c, ENTRANCE.r - 1);
+    const desk = { x: at.x - 0.8 + (i % 3) * 0.7, z: at.z - (counter ? 1.1 : 0) - Math.floor(i / 3) * 0.6 };
+    const roomMid = (uid: string | undefined | null): XZ | null => {
+      const r = uid ? f.rooms.find((x) => x.uid === uid) : null;
+      if (!r) return null;
+      const a = tileCenter(r.c, r.r);
+      const b = tileCenter(r.c + r.w - 1, r.r + r.d - 1);
+      return { x: (a.x + b.x) / 2 + ((i % 2) - 0.5) * 0.8, z: (a.z + b.z) / 2 + 0.4 };
+    };
+    const tubSpot = (uid: string | null | undefined): XZ | null => {
+      const t = uid ? f.items.find((x) => x.uid === uid) : null;
+      if (!t) return null;
+      const c = thingCenter(t.kind, t.c, t.r, t.rot);
+      return { x: c.x + 0.2, z: c.z + 1.05 };
+    };
+    const j = st.job;
+    if (j) {
+      if (j.kind === "checkin" || j.kind === "pickup") return desk;
+      if (j.kind === "bath") return tubSpot(j.tub) ?? desk;
+      if (j.kind === "play") {
+        const dog = j.dog ? this.dogs.get(j.dog) : null;
+        if (dog) return { x: dog.to.x + 0.75, z: dog.to.z + 0.35 };
+      }
+      if (j.kind === "clean") return roomMid(j.room) ?? desk;
+      const t = tileCenter(j.to.c, j.to.r);
+      return { x: t.x, z: t.z };
+    }
+    if (st.role === "bath") return tubSpot(f.items.find((x) => x.kind === "bath_tub" || x.kind === "deluxe_tub")?.uid) ?? desk;
+    if (st.role === "attendant") return roomMid(st.rooms?.[0] ?? f.rooms.find((r) => r.type === "playroom")?.uid) ?? desk;
+    if (st.role === "cleaner") return roomMid(f.rooms.find((r) => r.type === "lobby")?.uid) ?? desk;
+    return desk;
+  }
+
+  private syncStaff(f: Facility) {
     const seen = new Set<string>();
+    const selected = this.snap?.selected ?? null;
     f.staff.forEach((st, i) => {
       seen.add(st.id);
-      const to = { x: at.x - 0.8 + i * 0.7, z: at.z - (counter ? 1.1 : 0) - Math.floor(i / 3) * 0.6 };
+      const to = this.staffSpot(f, st, i);
       let a = this.staff.get(st.id);
       if (!a) {
-        const rig = buildPerson("#0057A7", i * 13 + 5, true);
+        const rig = buildPerson(st.founder ? "#0057A7" : ["#0057A7", "#2f8f6b", "#c4572e", "#7a4fb0", "#d29a2e"][i % 5]!, i * 13 + 5, true);
         rig.root.position.set(to.x, 0.06, to.z);
-        rig.root.rotation.y = 0;
+        rig.root.userData["staff"] = st.id;
         this.scene.add(rig.root);
-        a = { rig, pos: { ...to }, to };
+        const tag = makeTag(2.1);
+        rig.root.add(tag.sprite);
+        tag.sprite.position.set(0, 2.45, 0);
+        a = { rig, pos: { ...to }, to, tag, heading: 0 };
         this.staff.set(st.id, a);
       }
+      const j = st.job;
+      const key = `${j?.kind ?? "-"}|${j?.dog ?? ""}|${j?.tub ?? ""}|${j?.room ?? ""}|${Math.round(to.x * 4)},${Math.round(to.z * 4)}`;
+      if (a.key !== key) {
+        a.key = key;
+        a.path = this.route(f, a.pos, to);
+      }
       a.to = to;
+      a.work = j && j.phase === "work" ? j.kind : null;
+      const status = staffStatus(f, st);
+      a.status = status.text;
+      const short = status.text.length > 30 ? status.text.slice(0, 29) + "…" : status.text;
+      const tone = selected === st.id ? "selected" : status.tone === "needs" ? "alert" : status.tone === "busy" ? "default" : "calm";
+      const text = `${st.name}|${short}|${tone}`;
+      if (a.tagText !== text) {
+        a.tag!.set(st.name, short, tone);
+        a.tagText = text;
+      }
     });
     for (const [id, a] of this.staff)
       if (!seen.has(id)) {
         this.scene.remove(a.rig.root);
+        a.tag?.dispose();
         this.staff.delete(id);
       }
+  }
+
+  /** A walking route through doors (never walls); straight there if no route exists. */
+  private route(f: Facility, from: XZ, to: XZ): XZ[] {
+    const a = tileAtWorld(from.x, from.z);
+    const b = tileAtWorld(to.x, to.z);
+    if (!a || !b) return [to];
+    const tiles = findPath(f, a, b);
+    if (!tiles || tiles.length < 2) return [to];
+    return [...tiles.slice(1, -1).map((t) => tileCenter(t.c, t.r)), to];
   }
 
   /** Owners stand in front of the desk while they wait for pickup; when their pup leaves, they walk out together. */
@@ -623,14 +709,35 @@ export class TycoonWorld {
       // Zoomed out, only pups that need you keep their name tags (less clutter, fewer layers to draw).
       a.tag.sprite.visible = this.distance <= 30 || !!a.important;
       const p = this.t * (moving ? 10 : 3) + a.phase;
-      a.rig.tail.rotation.z = calm ? 0 : Math.sin(p * (moving ? 1 : 2.5)) * 0.6;
-      a.rig.body.position.y = calm ? 0 : moving ? Math.abs(Math.sin(p)) * 0.05 : Math.sin(p * 0.5) * 0.012;
+      const m = moving ? "walk" : a.mode ?? "idle";
+      a.rig.tail.rotation.z = calm ? 0 : Math.sin(p * (m === "play" ? 4 : moving ? 1 : m === "rest" ? 0.6 : 2.5)) * (m === "rest" ? 0.25 : 0.6);
+      a.rig.body.position.y = m === "rest" || m === "wait" ? -0.09 * a.size : calm ? 0 : m === "play" ? Math.abs(Math.sin(p * 2.2)) * 0.22 : m === "bath" ? -0.05 + Math.sin(p * 0.7) * 0.02 : moving ? Math.abs(Math.sin(p)) * 0.05 : Math.sin(p * 0.5) * 0.012;
       if (a.id === this.snap?.selected) this.ring.position.set(a.pos.x, 0.09, a.pos.z);
     }
     for (const s of this.staff.values()) {
-      s.pos.x += (s.to.x - s.pos.x) * Math.min(1, dt * 4);
-      s.pos.z += (s.to.z - s.pos.z) * Math.min(1, dt * 4);
+      // Door to door along the route (about the engine's walking pace); hurry if their work has already started.
+      const next = s.path?.[0] ?? s.to;
+      const dx = next.x - s.pos.x;
+      const dz = next.z - s.pos.z;
+      const dist = Math.hypot(dx, dz);
+      const walking = dist > 0.05;
+      if (calm) {
+        s.pos = { ...s.to };
+        s.path = [];
+      } else if (walking) {
+        const step = Math.min(dist, (s.work ? 9 : 4.2) * dt);
+        s.pos.x += (dx / dist) * step;
+        s.pos.z += (dz / dist) * step;
+        s.heading = Math.atan2(dx, dz);
+      } else if (s.path?.length) s.path.shift();
       s.rig.root.position.set(s.pos.x, 0.06, s.pos.z);
+      if (s.heading !== undefined) s.rig.root.rotation.y = s.heading;
+      const swing = calm ? 0 : walking ? Math.sin(this.t * 9) * 0.6 : 0;
+      s.rig.legs.forEach((l, i) => (l.rotation.x = i % 2 ? -swing : swing));
+      const busy = !walking && !calm && s.work;
+      const arm = busy ? (s.work === "play" ? Math.sin(this.t * 7) * 1.1 - 0.6 : s.work === "clean" ? Math.sin(this.t * 4) * 0.7 - 0.4 : s.work === "bath" ? Math.sin(this.t * 6) * 0.4 - 0.9 : Math.sin(this.t * 3) * 0.15 - 0.3) : -swing * 0.8;
+      s.rig.arms.forEach((l, i) => (l.rotation.x = i % 2 && !busy ? -arm : arm));
+      s.tag && (s.tag.sprite.visible = this.distance <= 30 || s.tagText?.endsWith("|selected") === true || s.tagText?.endsWith("|alert") === true);
     }
     for (const [id, o] of this.owners) {
       o.pos.x += (o.to.x - o.pos.x) * Math.min(1, dt * 2);
@@ -675,6 +782,14 @@ export class TycoonWorld {
         const px = Math.hypot(rect.left + ((v.x + 1) / 2) * rect.width - clientX, rect.top + ((1 - v.y) / 2) * rect.height - clientY);
         if (px < 38 && (!best || px < best.px)) best = { id, px };
       }
+      let person: { id: string; px: number } | null = null;
+      for (const [id, a] of this.staff) {
+        const v = new THREE.Vector3(a.pos.x, 1.2, a.pos.z).project(this.camera);
+        if (v.z > 1) continue;
+        const px = Math.hypot(rect.left + ((v.x + 1) / 2) * rect.width - clientX, rect.top + ((1 - v.y) / 2) * rect.height - clientY);
+        if (px < 34 && (!person || px < person.px)) person = { id, px };
+      }
+      if (person && (!best || person.px < best.px)) return this.opts.onPick({ kind: "staff", id: person.id });
       if (best) return this.opts.onPick({ kind: "dog", id: best.id });
     }
     const hit = this.ray.ray.intersectPlane(this.ground, new THREE.Vector3());
@@ -789,8 +904,9 @@ export class TycoonWorld {
       rooms: this.rooms.children.length,
       things: this.things.children.length,
       paths: this.paths.children.length,
-      dogs: [...this.dogs.values()].map((a) => ({ id: a.id, x: a.pos.x, z: a.pos.z })),
+      dogs: [...this.dogs.values()].map((a) => ({ id: a.id, x: a.pos.x, z: a.pos.z, to: a.to, mode: a.mode ?? "idle" })),
       staff: this.staff.size,
+      people: [...this.staff.entries()].map(([id, a]) => ({ id, x: a.pos.x, z: a.pos.z, to: a.to, work: a.work ?? null, status: a.status ?? "", walking: (a.path?.length ?? 0) > 0 || Math.hypot(a.to.x - a.pos.x, a.to.z - a.pos.z) > 0.1 })),
       owners: this.owners.size,
       target: { x: this.target.x, z: this.target.z },
       distance: this.distance,

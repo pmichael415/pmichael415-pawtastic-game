@@ -151,7 +151,7 @@ describe("the tour's choices", () => {
     expect(fac(now()).dogs.some((d) => d.name === "Rocket")).toBe(false);
     expect(now().tour?.done).toBe(true);
     expect(now().coins).toBeGreaterThanOrEqual(coins); // nothing charged; the guide reward is paid
-    expect(screen.getByRole("region", { name: "Next goals" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Objectives" })).toBeTruthy(); // one next objective and one longer-term goal (staff design §7)
     expect(screen.getByRole("button", { name: "Daycare Shop" })).toBeTruthy();
     expect(screen.getByRole("dialog", { name: /Level \d+!/ })).toBeTruthy(); // the held level-up shows now
   });

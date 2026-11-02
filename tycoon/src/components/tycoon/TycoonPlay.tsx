@@ -19,7 +19,13 @@ import { DaycareShop } from "./DaycareShop";
 import { CoachBubble } from "./CoachBubble";
 import { FallbackNotice, type FallbackReason } from "./FallbackNotice";
 import type { Diagnostics } from "./TycoonStage";
-import { GoalsStrip } from "./GoalsStrip";
+import { ExpansionCard } from "./ExpansionCard";
+import { ObjectiveBar } from "./ObjectiveBar";
+import { StaffPanel } from "./StaffPanel";
+import { TeamSheet } from "./TeamSheet";
+import { TodayStrip } from "./TodayStrip";
+import { objectives } from "@/tycoon/objectives";
+import { waitStage } from "@/tycoon/waiting";
 import { StartCard } from "./StartCard";
 import { TycoonMap } from "./TycoonMap";
 import { GUIDE_REWARD } from "@/tycoon/catalog";
@@ -56,7 +62,7 @@ import { RunHud } from "./RunHud";
 import { TycoonStage, type TycoonStageHandle } from "./TycoonStage";
 
 type Act = (fn: (s: TycoonState) => TResult, opts?: ActOpts) => ActResult;
-type Sel = { kind: "room" | "thing" | "dog"; id: string } | null;
+type Sel = { kind: "room" | "thing" | "dog" | "staff"; id: string } | null;
 
 /** Owned paid visuals from fresh server entitlements (never from the save). Empty for guests and on errors. */
 function useOwnedPaid(): ReadonlySet<PaidItemId> {
@@ -157,13 +163,43 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
   const stage = useRef<TycoonStageHandle>(null);
   const f = fac(state);
   // A panel whose pup went home (or whose room or item is gone) closes instead of staying empty.
-  const selGone = !!sel && (sel.kind === "dog" ? !f.dogs.some((d) => d.id === sel.id) : sel.kind === "room" ? !f.rooms.some((r) => r.uid === sel.id) : !f.items.some((i) => i.uid === sel.id));
+  const selGone = !!sel && (sel.kind === "dog" ? !f.dogs.some((d) => d.id === sel.id) : sel.kind === "staff" ? !f.staff.some((x) => x.id === sel.id) : sel.kind === "room" ? !f.rooms.some((r) => r.uid === sel.id) : !f.items.some((i) => i.uid === sel.id));
   useEffect(() => {
     if (selGone) setSel(null);
   }, [selGone]);
   // ---- pickup: the sheet for complaints, a receipt for every visit that ends, the owner's arrival ----
   const [pickup, setPickup] = useState<{ id: string; exitBath: boolean } | null>(null);
   const [repOpen, setRepOpen] = useState(false);
+  const [teamOpen, setTeamOpen] = useState(false);
+  const [expandOpen, setExpandOpen] = useState(false);
+  const [expandSaved, setExpandSaved] = useState(false);
+  // Fair warnings for families kept waiting (staff design §4), and staff who need the player — each said once.
+  const warned = useRef(new Map<string, string>());
+  useEffect(() => {
+    if (tourHolds(state)) return;
+    const g = fac(state);
+    for (const d of g.dogs) {
+      const w = waitStage(g, d);
+      if (!w || w.stage === "waiting") continue;
+      const key = `${w.kind}:${w.stage}`;
+      if (warned.current.get(d.id) === key) continue;
+      warned.current.set(d.id, key);
+      const owner = d.visit?.owner ?? "A family";
+      const msg =
+        w.kind === "dropoff"
+          ? w.stage === "impatient" ? `${owner} has waited ${w.minutes} min to drop off ${d.name}.` : `${owner} is upset — check ${d.name} in or turn them away. They'll leave in ${w.leavesIn} min.`
+          : w.stage === "impatient" ? `${owner} has waited ${w.minutes} min for ${d.name} — they'll mention it.` : `${owner} will leave in ${w.leavesIn} min — check ${d.name} out.`;
+      if (w.stage === "upset") toast.warning(msg);
+      else toast(msg);
+    }
+    for (const st of g.staff) {
+      if (!st.note || !/needs you/.test(st.note)) continue;
+      const key = `note:${st.note}`;
+      if (warned.current.get(st.id) === key) continue;
+      warned.current.set(st.id, key);
+      toast.info(`${st.name}: ${st.note}`);
+    }
+  }, [state]);
   const [receipt, setReceipt] = useState<Outcome | null>(null);
   // keyed on the latest outcome itself (the record keeps only the last 30, so its length stops growing)
   const lastOut = f.outcomes?.at(-1) ?? null;
@@ -281,11 +317,12 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
       setSel(null);
       return setSign(p.uid);
     }
-    setSel(p.kind === "dog" ? { kind: "dog", id: p.id } : { kind: p.kind, id: p.uid });
+    setSel(p.kind === "dog" || p.kind === "staff" ? { kind: p.kind, id: p.id } : { kind: p.kind, id: p.uid });
     sound.play("select");
   };
 
   const pickedDog = sel?.kind === "dog" ? f.dogs.find((d) => d.id === sel.id) ?? null : null;
+  const pickedStaff = sel?.kind === "staff" ? f.staff.find((x) => x.id === sel.id) ?? null : null;
   const paintTarget = painting ? f.rooms.find((r) => r.uid === painting) ?? null : null;
 
   return (
@@ -297,7 +334,8 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
           <Button className="h-11 shrink-0" onClick={playHere}>Play here</Button>
         </section>
       )}
-      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} onReputation={() => setRepOpen(true)} {...(quiet ? {} : { onShop: () => setShop(true) })} />
+      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} onReputation={() => setRepOpen(true)} onTeam={() => setTeamOpen(true)} {...(quiet ? {} : { onShop: () => setShop(true) })} />
+      {!quiet && <TodayStrip state={state} onOpen={() => setFinances(true)} />}
       {isFreshSave(state) && <StartCard onPick={(mode) => set((s) => startTour(s, mode, Date.now()))} />}
       {/* During the tour Build waits (one thing at a time), except while building from scratch. */}
       {show3d && !preTour && (!holding || state.tour?.beat === "meet") && (
@@ -360,7 +398,17 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
         <div className="fixed inset-x-0 z-40 mx-auto max-w-xl px-2" style={{ bottom: "calc(4rem + env(safe-area-inset-bottom))" }}>
           <div data-testid="panel-sheet" className="max-h-[min(48svh,440px)] overflow-y-auto overscroll-contain rounded-t-2xl shadow-pop">
       {pickedDog && <DogPanel f={f} dog={pickedDog} act={act} />}
-      {sel && sel.kind !== "dog" && (
+      {pickedStaff && (
+        <StaffPanel
+          f={f}
+          st={pickedStaff}
+          onManage={() => {
+            setSel(null);
+            setTeamOpen(true);
+          }}
+        />
+      )}
+      {sel && sel.kind !== "dog" && sel.kind !== "staff" && (
         <EditPanel
           state={state}
           sel={{ kind: sel.kind, id: sel.id }}
@@ -385,7 +433,17 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
         </div>
       )}
       {stalled && !holding && <BlockersCard blockers={blockers} />}
-      {!quiet && <GoalsStrip state={state} />}
+      {!quiet && <ObjectiveBar state={state} onAction={(a) => (a === "team" ? setTeamOpen(true) : a === "expand" ? setExpandOpen(true) : a === "finances" ? setFinances(true) : setBuilding(true))} />}
+      {!quiet && (expandOpen || (objectives(state).next.action === "expand" && !expandSaved)) && (
+        <ExpansionCard
+          state={state}
+          act={act}
+          onSave={() => {
+            setExpandSaved(true);
+            setExpandOpen(false);
+          }}
+        />
+      )}
       {!state.tour && !preTour && <GuideCard state={state} act={act} set={set} controls={controls} />}
       <WeeklyCard state={state} act={act} />
       <MoneyBanner state={state} />
@@ -415,6 +473,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
       <DayReport state={state} set={set} onFinances={() => setFinances(true)} />
       {pickup && <PickupSheet state={state} dogId={pickup.id} exitBath={pickup.exitBath} act={act} onClose={() => setPickup(null)} />}
       {repOpen && <ReputationSheet f={f} onClose={() => setRepOpen(false)} />}
+      {teamOpen && <TeamSheet state={state} act={act} onClose={() => setTeamOpen(false)} />}
       {receipt && <ReceiptCard outcome={receipt} onClose={() => setReceipt(null)} />}
       {/* Held during the guided tour (the level and its coins are already earned): nothing covers the first pup. */}
       {!holding && <LevelUp

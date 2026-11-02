@@ -200,7 +200,7 @@ async function quickRun(browser, dev, { decision, map = false, reload = false, t
     }
     at.goals = Date.now() - t0;
     check(`${L}: the tour finishes (${decision} branch)`, (await s.tour())?.done === true);
-    check(`${L}: the next goals show`, (await s.page.getByRole('region', { name: 'Next goals' }).count()) === 1);
+    check(`${L}: the next objective and longer-term goal show`, (await s.page.getByRole('region', { name: 'Objectives' }).count()) === 1);
     check(`${L}: the shop is back after the tour`, await s.shopShown());
     const covered = await s.page.evaluate(() => {
       const g = document.querySelector('section[aria-label="Guide"]');

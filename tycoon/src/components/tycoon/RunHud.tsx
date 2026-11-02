@@ -19,6 +19,7 @@ export function RunHud({
   setPaused,
   onFinances,
   onReputation,
+  onTeam,
   onShop,
 }: {
   state: TycoonState;
@@ -28,6 +29,7 @@ export function RunHud({
   onFinances?: () => void;
   /** Opens why reputation moved, the reviews and recent pickups. */
   onReputation?: () => void;
+  onTeam?: () => void;
   onShop?: () => void;
 }) {
   const f = fac(state);
@@ -84,6 +86,11 @@ export function RunHud({
         {onReputation && (
           <button type="button" onClick={onReputation} aria-label={`Reputation ${Math.round(f.reputation)}${stars ? `, ${stars} stars` : ""}`} className="-my-2 min-h-11 rounded-xl px-2 text-xs font-bold text-secondary hover:bg-muted">
             Rep {Math.round(f.reputation)}{stars ? ` · ★${stars}` : ""}
+          </button>
+        )}
+        {onTeam && (
+          <button type="button" onClick={onTeam} aria-label={`Team, ${f.staff.length} ${f.staff.length === 1 ? "person" : "people"}`} className="-my-2 min-h-11 rounded-xl px-2 text-xs font-bold text-secondary hover:bg-muted">
+            Team {f.staff.length}
           </button>
         )}
         <label className="ml-auto flex items-center gap-2 font-semibold text-secondary">

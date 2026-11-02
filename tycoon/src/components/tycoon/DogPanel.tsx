@@ -11,6 +11,9 @@ import { ROOM_TYPE_NAMES } from "@/tycoon/catalog";
 import type { ActOpts, ActResult } from "@/tycoon/store";
 import type { Facility, TDog, TResult, TycoonState } from "@/tycoon/types";
 import { assessVisit } from "@/tycoon/assess";
+import { roomCleanOf, roomName, roomOfDog } from "@/tycoon/rooms";
+import { responsibleFor } from "@/tycoon/team";
+import { STAGE_WORDS, waitStage } from "@/tycoon/waiting";
 
 /** How the playing screen checks a pup out (the pickup sheet when there's a complaint); falls back to checking out. */
 export const CheckoutContext = createContext<((dogId: string, exitBath: boolean) => void) | null>(null);
@@ -49,6 +52,14 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
   const scuffle = inActiveScuffle(f, dog);
   const placed = dog.place.kind === "room" || dog.place.kind === "bed";
   const btn = "h-11";
+  const wait = waitStage(f, dog);
+  const room = roomOfDog(f, dog);
+  const needs = [
+    !dog.checkedIn && "check-in",
+    dog.checkedIn && !placed && dog.place.kind !== "calm" && (dog.boarding ? "a boarding bed" : "a playroom"),
+    placed && !dog.bathing && (dog.played === 0 || dog.happiness < 70) && "play",
+    v.requests.includes("bath") && !dog.bathed && !dog.bathing && "a bath (booked)",
+  ].filter((x): x is string => !!x);
 
   const assign = (roomUid: string, confirm = false) => {
     const r = act((s) => assignRoom(s, dog.id, roomUid, confirm));
@@ -76,7 +87,17 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
       )}
       {v.finishing && <p className="mt-1 rounded-lg bg-sky px-2 py-1 text-xs font-semibold text-secondary">{v.owner} is waiting for the bath to finish</p>}
       {!!dog.bathing && <p className="mt-1 text-xs text-muted-foreground">In the bath — {Math.ceil(dog.bathing)} min left</p>}
+      {wait && wait.stage !== "waiting" && (
+        <p role="note" className={`mt-1 rounded-lg px-2 py-1 text-xs font-semibold ${wait.stage === "upset" ? "bg-destructive/15 text-destructive" : "bg-accent/40 text-secondary"}`}>
+          {wait.kind === "dropoff" ? `${v.owner}: ${STAGE_WORDS[wait.stage].toLowerCase()} at the desk — ${wait.minutes} min` : `${v.owner}: ${STAGE_WORDS[wait.stage].toLowerCase()} at pickup`}
+          {wait.stage === "upset" ? ` · leaves in ${wait.leavesIn} min` : ""}
+        </p>
+      )}
       <p className="text-xs text-muted-foreground">{placeLabel(f, dog)}{scuffle ? " · ⚠️ scuffle" : ""}</p>
+      <p className="text-xs text-secondary">
+        {room ? `${roomName(f, room)} · ${Math.round(roomCleanOf(f, room))}% clean · ` : ""}Needs: {needs.length ? needs.join(", ") : "nothing right now"}
+      </p>
+      <p className="text-xs text-secondary">Looked after by {responsibleFor(f, dog)}</p>
       <div className="mt-1 space-y-0.5">
         <Meter label="Happy" value={dog.happiness} />
         <Meter label="Clean" value={dog.clean} />
