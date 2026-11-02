@@ -259,6 +259,7 @@ export function playtime(s: TycoonState, dogId: string): TResult {
   if (dog.place.kind === "calm") return { ok: false, error: `${dog.name} is calming down — move them to a matching playroom first.` };
   if (inActiveScuffle(f, dog)) return { ok: false, error: `Separate the scuffle in ${dog.name}'s room first.` };
   if (dog.place.kind === "lobby") return { ok: false, error: `${dog.name} is still in the lobby — assign a playroom${dog.boarding ? " or boarding bed" : ""} first.` };
+  if (dog.bathing) return { ok: false, error: `${dog.name} is in the bath — playtime after.` };
   const st = spendStaff(f, 10);
   if (!st) return tired;
   const fav = personalityOf(dog).favorite;
@@ -279,25 +280,41 @@ function bathBlock(f: Facility, which: "bath" | "exitBath"): string | null {
   return null;
 }
 
+/** A bath runs this many game minutes (charged at pickup on the receipt, or prepaid at check-in). */
+export const BATH_MIN = 40;
+
+/** Starts a bath: staff time now, the pup comes out clean after BATH_MIN game minutes. Never paid here. */
 export function bath(s: TycoonState, dogId: string): TResult {
   const f = fac(s);
   const dog = findDog(f, dogId);
   if (!dog) return gone;
   if (!dog.checkedIn) return { ok: false, error: `Check ${dog.name} in first.` };
   if (dog.place.kind !== "room" && dog.place.kind !== "bed") return { ok: false, error: `Settle ${dog.name} into a playroom or boarding bed first.` };
+  if (dog.bathing) return { ok: false, error: `${dog.name} is already in the bath.` };
   if (dog.bathed) return { ok: false, error: `${dog.name} already had a bath today.` };
   if (inActiveScuffle(f, dog)) return { ok: false, error: `Separate the scuffle in ${dog.name}'s room first.` };
   const why = bathBlock(f, "bath");
   if (why) return { ok: false, error: why };
   const st = spendStaff(f, 15);
   if (!st) return tired;
-  const splashFan = personalityOf(dog).favorite === "splash";
-  const extra = f.supplies === "premium" ? PREMIUM_HAPPY : 0;
-  let nf = setDog(st, dogId, (d) => ({ ...d, clean: 100, happiness: clamp(d.happiness + (splashFan ? 15 : 5) + extra), bathed: true }));
-  const pay = bathPay(f);
-  nf = bump(bump(nf, "baths"), "earned", pay);
-  const out = gainXp(earn(withFac(s, nf), { baths: pay }), XP.bath);
-  return { ok: true, state: out, earned: pay, msg: splashFan ? `${dog.name} adores bath time — splashy and happy! 🫧` : `${dog.name} is squeaky clean!` };
+  const nf = setDog(st, dogId, (d) => ({ ...d, bathing: BATH_MIN, visit: logVisit(visitOf(st, d), `Bath started ${fmtTime(f.clockMin)}`) }));
+  return { ok: true, state: gainXp(withFac(s, nf), XP.bath), msg: `${dog.name} is in the bath — ready in about ${BATH_MIN} minutes (game time).` };
+}
+
+/** Baths running for `gameMin` more minutes; a finished one leaves the pup clean, happier and counted (not paid). */
+function runBaths(s: TycoonState, f: Facility, gameMin: number): Facility {
+  if (!f.dogs.some((d) => d.bathing)) return f;
+  let baths = 0;
+  const dogs = f.dogs.map((d) => {
+    if (!d.bathing) return d;
+    const left = d.bathing - gameMin;
+    if (left > 0) return { ...d, bathing: left };
+    baths++;
+    const splashFan = personalityOf(d).favorite === "splash";
+    const extra = f.supplies === "premium" ? PREMIUM_HAPPY : 0;
+    return { ...d, bathing: null, bathed: true, clean: 100, happiness: clamp(d.happiness + (splashFan ? 15 : 5) + extra), visit: logVisit(visitOf(f, d), `Bath finished ${fmtTime(f.clockMin)}`) };
+  });
+  return baths ? { ...f, dogs, stats: { ...f.stats, baths: f.stats.baths + baths } } : { ...f, dogs };
 }
 
 export function clean(s: TycoonState): TResult {
@@ -373,7 +390,7 @@ export function tick(s: TycoonState, seconds: number, rand: () => number = Math.
   if (tourHolds(s)) {
     // The guided tour holds drop-offs, the day clock and care decay so a new player can learn at their own pace.
     const regen = 2 * wageRecovery(f.wage) * (1 + caps(f).staffBoost) * seconds;
-    return withFac(s, { ...f, staff: f.staff.map((st) => ({ ...st, energy: clamp(st.energy + regen) })) });
+    return withFac(s, runBaths(s, { ...f, staff: f.staff.map((st) => ({ ...st, energy: clamp(st.energy + regen) })) }, seconds * GAME_MIN_PER_SEC));
   }
   const { fun, appeal } = funAppeal(f);
   const staffBoost = caps(f).staffBoost;
@@ -412,6 +429,7 @@ export function tick(s: TycoonState, seconds: number, rand: () => number = Math.
     staff: f.staff.map((st) => ({ ...st, energy: clamp(st.energy + regen) })),
     stats: started ? { ...f.stats, scuffles: (f.stats.scuffles ?? 0) + started } : f.stats,
   };
+  f = runBaths(s, f, seconds * GAME_MIN_PER_SEC);
   let out = withFac(s, f);
   if (!f.open) return out;
 

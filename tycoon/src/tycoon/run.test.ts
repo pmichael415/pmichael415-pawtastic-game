@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mulberry, seedFrom } from "@/game/engine";
 import { addDoor, drawRoom, placeThing, sellThing, setRoomType } from "./build";
 import { countToday, setPrice } from "./business";
-import { assignBed, assignRoom, bath, checkIn, checkout, clean, createArrival, hireStaff, lobbyDogs, playtime, separate, setOpen, tick, toCalm, welcomeBack } from "./run";
+import { BATH_MIN, assignBed, assignRoom, bath, checkIn, checkout, clean, createArrival, hireStaff, lobbyDogs, playtime, separate, setOpen, tick, toCalm, welcomeBack } from "./run";
 import { fac, newTycoon, withFac } from "./state";
 import { guidedBuild, ok, richState } from "./testkit";
 import type { Facility, TDog, TPlace, TycoonState } from "./types";
@@ -156,12 +156,13 @@ describe("care", () => {
     expect(bath(s, "a")).toEqual({ ok: false, error: "Build a Bath Room with a tub first." });
     expect(checkout(s, "a", true)).toEqual({ ok: false, error: "Build a Bath Room with a tub first." });
   });
-  it("a bath with the deluxe tub pays 35 and 3 XP; an overpriced bath is turned down", () => {
+  it("a bath starts for 3 XP and pays nothing yet (the receipt charges it); it finishes clean; an overpriced bath is turned down", () => {
     const s = inPlay(richState());
     const b = ok(bath(s, "a"));
-    expect(b.coins).toBe(s.coins + 35);
+    expect(b.coins).toBe(s.coins);
     expect(b.xp).toBe(s.xp + 3);
-    expect(fac(b).dogs[0]).toMatchObject({ clean: 100, bathed: true });
+    expect(fac(b).dogs[0]).toMatchObject({ bathing: BATH_MIN, bathed: false });
+    expect(fac(tick(b, BATH_MIN / 2, () => 0.99)).dogs[0]).toMatchObject({ clean: 100, bathed: true });
     const pricey = setF(s, { prices: { ...fac(s).prices, bath: 80 } });
     expect(bath(pricey, "a")).toMatchObject({ ok: false, error: expect.stringMatching(/^Too pricey/) });
   });

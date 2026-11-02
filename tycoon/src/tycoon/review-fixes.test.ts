@@ -40,13 +40,15 @@ describe("I1: baths can't be farmed", () => {
   function pupIn(s: TycoonState, place: TDog["place"], over: Partial<TDog> = {}) {
     return withFac(s, { ...fac(s), open: true, clockMin: 480, dogs: [dog("a", { place, ...over })] });
   }
-  it("one paid bath per visit", () => {
+  it("one bath per visit, and starting one never pays (the receipt charges it once)", () => {
     const s = richState();
     const play = fac(s).rooms.find((r) => r.type === "playroom")!.uid;
     const t = pupIn(s, { kind: "room", room: play });
     const once = ok(bath(t, "a"));
-    expect(once.coins).toBe(t.coins + 35);
-    expect(bath(once, "a")).toEqual({ ok: false, error: "Pup a already had a bath today." });
+    expect(once.coins).toBe(t.coins);
+    expect(bath(once, "a")).toEqual({ ok: false, error: "Pup a is already in the bath." });
+    const done = tick(once, 30, () => 0.99);
+    expect(bath(done, "a")).toEqual({ ok: false, error: "Pup a already had a bath today." });
   });
   it("only pups in a playroom or boarding bed get a paid bath", () => {
     const s = richState();
