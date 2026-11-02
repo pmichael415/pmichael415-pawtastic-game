@@ -62,4 +62,25 @@ describe("paid packs in the new game", () => {
     expect(screen.getByRole("button", { name: "Lighthouse Fort" })).toBeTruthy();
     expect(screen.queryByText("Part of the Deluxe Daycare Decor pack")).toBeNull();
   });
+  it("a locked pack item can be bought from the catalog: it links to the Shop", () => {
+    render(
+      <CatalogSheet
+        open
+        tab="furniture"
+        level={5}
+        coins={3000}
+        owned={NONE}
+        onPick={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    const links = screen.getAllByRole("link", {
+      name: /Get the Deluxe Daycare Decor pack in the Shop/,
+    });
+    expect(links).toHaveLength(2);
+    for (const a of links) {
+      expect(a.getAttribute("href")).toBe("/shop");
+      expect(a.className).toMatch(/min-h-11/);
+    }
+  });
 });

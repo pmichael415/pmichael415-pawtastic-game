@@ -52,7 +52,18 @@ export function CatalogSheet({ open, tab, level, coins, owned, onPick, onClose }
                   </p>
                 </div>
                 {packLocked ? (
-                  <span className="max-w-[9rem] shrink-0 text-right text-xs font-semibold text-muted-foreground">Part of the Deluxe Daycare Decor pack</span>
+                  <div className="flex max-w-[10rem] shrink-0 flex-col items-end gap-1 text-right">
+                    <span className="text-xs font-semibold text-muted-foreground">
+                      Part of the Deluxe Daycare Decor pack
+                    </span>
+                    <a
+                      href={`${import.meta.env.BASE_URL}shop`}
+                      aria-label={`${e.name}: Get the Deluxe Daycare Decor pack in the Shop`}
+                      className="inline-flex min-h-11 items-center rounded-xl border border-primary px-3 text-xs font-bold text-primary"
+                    >
+                      Get it in the Shop
+                    </a>
+                  </div>
                 ) : locked ? (
                   <span className="shrink-0 text-xs font-semibold text-muted-foreground">Unlocks at level {e.unlock}</span>
                 ) : (
