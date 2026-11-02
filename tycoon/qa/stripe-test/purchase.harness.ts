@@ -54,7 +54,7 @@ async function deliver(evt: StripeEvent): Promise<{ status: number; body: Obj }>
 // Playwright comes with the machine's browser tools, not this project, so Node's require finds it (vitest's resolver
 // would not). Only the calls used below are typed.
 type Loc = { fill(v: string): Promise<void>; click(): Promise<void>; check(): Promise<void>; isVisible(): Promise<boolean>; first(): Loc };
-type PwPage = { goto(u: string): Promise<unknown>; locator(s: string): Loc; getByRole(role: string, o: { name: string | RegExp }): Loc; waitForURL(f: (u: URL) => boolean, o: { timeout: number }): Promise<void> };
+type PwPage = { goto(u: string): Promise<unknown>; locator(s: string): Loc; getByRole(role: string, o: { name: string | RegExp; exact?: boolean }): Loc; waitForURL(f: (u: URL) => boolean, o: { timeout: number }): Promise<void> };
 type PwContext = { route(pattern: string, h: (r: { fulfill(o: { status: number; contentType: string; body: string }): Promise<void> }) => unknown): Promise<void>; newPage(): Promise<PwPage>; close(): Promise<void> };
 type Browser = { newContext(o: { locale: string }): Promise<PwContext>; close(): Promise<void> };
 const { chromium } = createRequire(import.meta.url)("playwright") as { chromium: { launch(): Promise<Browser> } };
@@ -73,7 +73,7 @@ async function pay(url: string) {
   await ctx.route(`${ORIGIN}/**`, (r) => r.fulfill({ status: 200, contentType: "text/html", body: "<p>Back in the hub.</p>" }));
   const page = await ctx.newPage();
   await page.goto(url);
-  if (PAY === "mock") await page.getByRole("button", { name: "Pay" }).click();
+  if (PAY === "mock") await page.getByRole("button", { name: "Pay", exact: true }).click();
   else {
     // Stripe's hosted Checkout fields (ids set by Stripe). The card may sit behind a "Card" choice.
     await page.locator("#email").fill("harness@example.com");
