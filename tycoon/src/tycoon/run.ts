@@ -13,6 +13,8 @@ import {
   NAMES,
   REGULAR_CHANCE,
   REP_MIN,
+  mulberry,
+  seedFrom,
   SCUFFLE_CHANCE_PER_SEC,
   STAFF_NAMES,
   friendshipLevel,
@@ -32,6 +34,7 @@ import { fac, withFac } from "./state";
 import { tourHolds } from "./tour";
 import { fmtTime, logVisit, newVisit, visitOf } from "./visit";
 import { assessVisit } from "./assess";
+import { adjustRep, referralBoost, repDeltaFor, reviewFactor, reviewFor } from "./reputation";
 import type { Facility, Mood, Outcome, Room, TDog, TPlace, TRegular, TResult, TycoonState } from "./types";
 
 const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
@@ -124,8 +127,12 @@ export function createArrival(s: TycoonState, rand: () => number, boarding = fal
   if (!c.lobby) return { ok: false, error: "Build a working Lobby first." };
   if (lobbyDogs(f).length >= c.waiting) return { ok: false, error: "The lobby is full — move waiting pups to a playroom or bed first." };
   if (boarding && c.beds.length - f.dogs.filter((d) => d.boarding).length <= 0) return { ok: false, error: "No free boarding bed." };
-  const away = f.guestBook.filter((g) => !f.dogs.some((d) => d.name === g.name && d.breed === g.breed));
-  const reg = away.length && rand() < REGULAR_CHANCE ? away[Math.floor(rand() * away.length)]! : null;
+  // regulars come back — not a family that left upset with nothing fixed (for 3 days); one owed a credit is likelier
+  const away = f.guestBook.filter((g) => !f.dogs.some((d) => d.name === g.name && d.breed === g.breed) && !((g.lostUntil ?? 0) > f.day));
+  const owed = away.filter((g) => (g.credit ?? 0) > 0);
+  const regChance = owed.length ? Math.min(0.9, REGULAR_CHANCE * 1.5) : REGULAR_CHANCE;
+  const pool = owed.length && rand() < 0.5 ? owed : away;
+  const reg = away.length && rand() < regChance ? pool[Math.floor(rand() * pool.length)]! : null;
   const breed = reg ? reg.breed : Math.floor(rand() * BREEDS.length);
   const dog: TDog = {
     id: "d" + s.seq,
@@ -404,6 +411,17 @@ export function settle(s: TycoonState, dogId: string, how: Outcome["how"], exitB
     milestone = after.min > before.min ? after : null;
     bonus = milestone?.bonus ?? 0;
   }
+  // reputation follows how the family felt (and whether their problem was put right), with the reason recorded
+  const firstIssue = unresolved[0]?.text ?? a.complaints[0]?.text ?? "";
+  const reason =
+    a.mood === "delighted" ? `${v.owner} was delighted with ${dog.name}'s day`
+    : a.mood === "content" ? `${v.owner} was happy with ${dog.name}'s day`
+    : `${v.owner} was ${a.mood}${firstIssue ? `: ${firstIssue.replace(/\.$/, "")}` : ""}${unresolved.length ? " (not put right)" : ""}`;
+  const repBefore = st.reputation;
+  st = adjustRep(st, repDeltaFor(a.satisfaction) - (unresolved.length ? 1 : 0), reason);
+  const fixed = a.complaints.some((c) => c.remedy === "finish" || c.remedy === "refund");
+  const review = reviewFor(st, { name: dog.name, owner: v.owner }, a.satisfaction, fixed, mulberry(seedFrom(`${dog.id}|${f.day}|${Math.floor(f.clockMin)}|review`)));
+  if (review) st = { ...st, reviews: [...(st.reviews ?? []), review].slice(-30), ...(review.stars === 5 ? { referralUntil: f.day } : {}) };
   const outcome: Outcome = {
     dog: dog.name,
     owner: v.owner,
@@ -415,8 +433,8 @@ export function settle(s: TycoonState, dogId: string, how: Outcome["how"], exitB
     total: a.total,
     lines: a.lines.map((l) => ({ label: l.label, amount: l.amount })),
     complaints: a.complaints.map((c) => ({ kind: c.kind, text: c.text, remedy: c.remedy, resolved: c.resolved })),
-    repDelta: 0,
-    review: null,
+    repDelta: Math.round((st.reputation - repBefore) * 10) / 10,
+    review,
   };
   // a served visit (a playroom or bed) counts as a checkout and earns XP; a pup sent home unserved doesn't
   const served = dog.checkedIn && a.lines.some((l) => l.key === "daycare");
@@ -517,10 +535,12 @@ export function tick(s: TycoonState, seconds: number, rand: () => number = Math.
   // Scuffles: only playrooms holding a mismatched pup can start one; they end once the mismatch leaves.
   let scuffles = [...f.scuffles];
   let started = 0;
+  const startedIn: Room[] = [];
   for (const room of f.rooms) {
     if (room.type !== "playroom" || !roomAtRisk(f, room) || scuffles.some((x) => x.room === room.uid)) continue;
     if (rand() < SCUFFLE_CHANCE_PER_SEC * seconds) {
       scuffles.push({ room: room.uid });
+      startedIn.push(room);
       started++;
     }
   }
@@ -535,18 +555,21 @@ export function tick(s: TycoonState, seconds: number, rand: () => number = Math.
     happiness: clamp(d.happiness - (0.5 + (inScuffle(d) ? 1.5 : 0)) * seconds * decay * dirtFactor),
     clean: clamp(d.clean - 0.25 * seconds),
   }));
-  const generous = f.wage === "generous" ? 0.01 * GAME_MIN_PER_SEC * seconds : 0;
-  const reputation = Math.max(REP_MIN, Math.min(100, f.reputation - scuffles.length * 0.3 * seconds + (scuffles.length ? 0 : 0.02 * seconds) + generous));
+  // Reputation no longer drifts with time: a scuffle costs −3 when it starts (recorded), visits do the rest.
   const regen = 2 * wageRecovery(f.wage) * (1 + staffBoost) * seconds;
   f = {
     ...f,
     dogs,
     scuffles,
-    reputation,
     cleanliness: clamp(f.cleanliness - 0.08 * f.dogs.length * seconds),
     staff: f.staff.map((st) => ({ ...st, energy: clamp(st.energy + regen) })),
     stats: started ? { ...f.stats, scuffles: (f.stats.scuffles ?? 0) + started } : f.stats,
   };
+  for (const room of startedIn) {
+    const who = new Set(f.dogs.filter((d) => d.place.kind === "room" && d.place.room === room.uid).map((d) => d.id));
+    f = { ...f, dogs: f.dogs.map((d) => (who.has(d.id) ? { ...d, visit: logVisit({ ...visitOf(f, d), scuffle: true }, `Scuffle ${fmtTime(f.clockMin)}`) } : d)) };
+    f = adjustRep(f, -3, `A scuffle in the ${room.group ? groupName(room.group) + " " : ""}playroom — match size and temperament to keep rooms safe`);
+  }
   f = runBaths(s, f, seconds * GAME_MIN_PER_SEC);
   let out = withFac(s, f);
   if (!f.open) return out;
@@ -554,7 +577,7 @@ export function tick(s: TycoonState, seconds: number, rand: () => number = Math.
   // The clock and drop-offs. Fractional seconds accumulate; arrivals roll once per whole game minute crossed.
   const baseChance = () => {
     const g = fac(out);
-    return ARRIVAL_CHANCE_PER_MIN * (g.reputation / 80) * arrivalMultiplier(appeal) * demand(g) * campaignBoost(g);
+    return ARRIVAL_CHANCE_PER_MIN * (g.reputation / 80) * arrivalMultiplier(appeal) * demand(g) * campaignBoost(g) * reviewFactor(g) * referralBoost(g);
   };
   const boarderChance = () => {
     const g = fac(out);

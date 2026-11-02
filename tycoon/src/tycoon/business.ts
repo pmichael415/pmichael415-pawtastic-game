@@ -4,6 +4,7 @@ import { CAMPAIGNS, PRICE_DEFAULTS, PRICE_RANGES, outdoorDef, furnitureDef } fro
 import { caps } from "./connect";
 import { funAppeal, tip } from "./effects";
 import { level } from "./progress";
+import { adjustRep } from "./reputation";
 import { fac, withFac } from "./state";
 import type { CampaignId, DayLedger, ExpenseKey, Facility, IncomeKey, Placed, Prices, Room, Supplies, TDog, TReport, TResult, TycoonState, Wage } from "./types";
 
@@ -128,7 +129,7 @@ export function dayExpenses(f: Facility): Record<ExpenseKey, number> {
 
 export function setWage(s: TycoonState, wage: Wage): TResult {
   if (!(wage in WAGES)) return { ok: false, error: "Pick a wage." };
-  const label = { lean: "Lean wages — staff recover 20% slower.", standard: "Standard wages.", generous: "Generous wages — staff recover 25% faster and reputation grows." }[wage];
+  const label = { lean: "Lean wages — staff recover 20% slower.", standard: "Standard wages.", generous: "Generous wages — staff recover 25% faster." }[wage];
   return { ok: true, state: withFac(s, { ...fac(s), wage }), msg: label };
 }
 
@@ -150,7 +151,7 @@ export function startCampaign(s: TycoonState, id: CampaignId): TResult {
   const paid = spend(s, c.price, "marketing");
   if (!paid.ok) return paid;
   const f = fac(paid.state);
-  const next = { ...f, campaign: { id, untilDay: f.day + c.days }, reputation: Math.min(100, f.reputation + c.reputation) };
+  const next = adjustRep({ ...f, campaign: { id, untilDay: f.day + c.days } }, c.reputation, `${c.name} — new families heard about you`);
   return { ok: true, state: withFac(paid.state, next), msg: `${c.name} running for ${c.days} days!` };
 }
 

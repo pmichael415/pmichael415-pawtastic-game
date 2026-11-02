@@ -133,12 +133,14 @@ describe("placing pups", () => {
     expect(placed(c, "a").kind).toBe("calm");
     expect(fac(c).dogs[0]!.happiness).toBe(50);
   });
-  it("reputation drops during unresolved scuffles but never below the floor", () => {
+  it("a scuffle costs reputation once, when it starts (no drain while it lasts), never below the floor", () => {
     const { s, gentle } = twoPlayrooms();
-    let t = withDogs(s, [dog("a", { place: { kind: "room", room: gentle } }), dog("b", { temper: "active", place: { kind: "room", room: gentle } })]);
-    t = tick(t, 1, () => 0);
-    expect(fac(tick(t, 10, () => 0.99)).reputation).toBeLessThan(fac(t).reputation);
-    expect(fac(tick(t, 10000, () => 0.99)).reputation).toBe(40);
+    const before = withDogs(s, [dog("a", { place: { kind: "room", room: gentle } }), dog("b", { temper: "active", place: { kind: "room", room: gentle } })]);
+    const t = tick(before, 1, () => 0);
+    expect(fac(t).reputation).toBe(fac(before).reputation - 3);
+    expect(fac(tick(t, 10, () => 0.99)).reputation).toBe(fac(t).reputation);
+    const low = tick(setF(before, { reputation: 41 }), 1, () => 0);
+    expect(fac(low).reputation).toBe(40);
   });
 });
 
