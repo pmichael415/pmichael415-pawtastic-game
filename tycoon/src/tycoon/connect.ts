@@ -111,6 +111,8 @@ export type Caps = {
   playrooms: { room: Room; group: GroupId; spots: number }[];
   calm: Room[];
   bath: { room: Room; tub: "basic" | "deluxe" } | null;
+  /** Every working tub: one bath at a time each (staff design §3). */
+  tubs: { uid: string; room: string; kind: "basic" | "deluxe" }[];
   beds: { room: string; bed: string }[];
   staffBoost: number;
 };
@@ -119,7 +121,7 @@ export type Caps = {
 export function caps(f: Facility, owned: ReadonlySet<PaidItemId> = ownedPaid()): Caps {
   const connected = connectedRooms(f);
   const working = f.rooms.filter((r) => roomStatus(f, r, connected, owned).working);
-  const out: Caps = { lobby: null, waiting: 0, playrooms: [], calm: [], bath: null, beds: [], staffBoost: 0 };
+  const out: Caps = { lobby: null, waiting: 0, playrooms: [], calm: [], bath: null, tubs: [], beds: [], staffBoost: 0 };
   for (const room of working) {
     const items = openIn(f, room, owned);
     switch (room.type) {
@@ -136,6 +138,7 @@ export function caps(f: Facility, owned: ReadonlySet<PaidItemId> = ownedPaid()):
       case "bath": {
         const tub = count(items, "deluxe_tub") ? "deluxe" : "basic";
         if (!out.bath || (tub === "deluxe" && out.bath.tub === "basic")) out.bath = { room, tub };
+        for (const t of items.filter((i) => i.kind === "bath_tub" || i.kind === "deluxe_tub")) out.tubs.push({ uid: t.uid, room: room.uid, kind: t.kind === "deluxe_tub" ? "deluxe" : "basic" });
         break;
       }
       case "boarding":

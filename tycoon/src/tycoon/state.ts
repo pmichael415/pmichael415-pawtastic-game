@@ -6,7 +6,8 @@ import { roomContaining, validRoomAt, validThingAt } from "./build";
 import { thingTiles } from "./grid";
 import { WEEKLY_GOALS, WEEKLY_STATS } from "./weekly";
 import type { Tour, TourBeat, TWeekly, WeeklyStat } from "./types";
-import type { CampaignId, ComplaintKind, DayLedger, Door, Facility, Mood, Outcome, ParcelId, Placed, Prices, RemedyKind, RepEntry, Review, Room, RoomType, Service, TDog, TPlace, TRegular, TycoonState, Visit } from "./types";
+import type { CampaignId, ComplaintKind, DayLedger, Door, Facility, Focus, Job, Mood, Outcome, ParcelId, Placed, Prices, RemedyKind, RepEntry, Review, Role, Room, RoomType, Service, TDog, Tile, TPlace, TRegular, TStaff, TycoonState, Visit } from "./types";
+import { FOCI, JOB_KINDS, ROLES } from "./roles";
 import { defaultVisit } from "./visit";
 
 export const SAVE_VERSION = 1 as const;
@@ -21,11 +22,12 @@ export function newFacility(name: string): Facility {
     rooms: [],
     items: [entrance()],
     dogs: [],
-    staff: [{ id: "s0", name: "Phil", energy: 100 }],
+    staff: [{ id: "s0", name: "Phil", energy: 100, founder: true, role: null, rooms: [], job: null, at: null, note: null, resting: false }],
     clockMin: DAY_OPEN_MIN,
     day: 1,
     reputation: 80,
     cleanliness: 100,
+    roomClean: {},
     stats: emptyStats(),
     guestBook: [],
     open: false,
@@ -155,6 +157,7 @@ function parseDog(x: unknown, f: Facility): TDog | null {
     boarding: bool(x["boarding"], false),
     played: Math.max(0, int(x["played"], 0)),
     bathed: bool(x["bathed"], false),
+    bathTub: typeof x["bathTub"] === "string" ? x["bathTub"].slice(0, 24) : null,
     ...withVisit(x, f, { name: str(x["name"], "Pup"), breed, boarding: bool(x["boarding"], false), checkedIn: bool(x["checkedIn"], false) }),
   };
 }
@@ -363,9 +366,13 @@ function parseFacility(x: unknown): Facility | null {
   const staff = (Array.isArray(x["staff"]) ? x["staff"] : []).filter(
     (s): s is Staff => isObj(s) && typeof s["id"] === "string" && SAFE_ID.test(s["id"]) && typeof s["name"] === "string" && typeof s["energy"] === "number" && !seenStaff.has(s["id"]) && !!seenStaff.add(s["id"]),
   );
-  f.staff = staff.length ? staff.slice(0, 6).map((s) => ({ id: s.id, name: s.name.trim().slice(0, 24) || "Pal", energy: clamp(s.energy, 0, 100) })) : f.staff;
+  f.staff = staff.length ? staff.slice(0, 6).map((s) => parseStaff(s as unknown as Record<string, unknown>, f)) : f.staff;
+  if (!f.staff.some((s) => s.founder)) f.staff[0] = { ...f.staff[0]!, founder: true, role: null };
   f.reputation = clamp(num(x["reputation"], 80), 40, 100);
   f.cleanliness = clamp(num(x["cleanliness"], 100), 0, 100);
+  const rc = isObj(x["roomClean"]) ? x["roomClean"] : {};
+  f.roomClean = Object.fromEntries(f.rooms.map((r) => [r.uid, typeof rc[r.uid] === "number" && Number.isFinite(rc[r.uid]) ? clamp(rc[r.uid] as number, 0, 100) : f.cleanliness]));
+  f.dogs = withTubs(f, f.dogs);
   f.stats = parseStats(x["stats"]);
   f.guestBook = (Array.isArray(x["guestBook"]) ? x["guestBook"] : []).map(parseRegular).filter((g): g is TRegular => !!g).slice(0, GUESTBOOK_MAX);
   f.repLog = parseRepLog(x["repLog"]);
@@ -470,4 +477,54 @@ function parseWeekly(x: unknown): TWeekly | null {
   const day = x["baseDay"];
   if (typeof day !== "number" || !Number.isInteger(day) || day < 1 || typeof x["claimed"] !== "boolean") return null;
   return { week: x["week"], goal: x["goal"], base, baseDay: day, claimed: x["claimed"] };
+}
+
+const tile = (v: unknown): Tile | null => (isObj(v) && typeof v["c"] === "number" && typeof v["r"] === "number" && Number.isFinite(v["c"]) && Number.isFinite(v["r"]) ? { c: clamp(Math.round(v["c"]), -50, 100), r: clamp(Math.round(v["r"]), -50, 100) } : null);
+/** A team member from the save. Unknown roles, rooms that are gone and jobs that point at nothing are dropped. */
+function parseStaff(s: Record<string, unknown>, f: Facility): TStaff {
+  const founder = s["founder"] === true;
+  const role = !founder && ROLES.includes(s["role"] as Role) ? (s["role"] as Role) : null;
+  const rooms = Array.isArray(s["rooms"]) ? [...new Set((s["rooms"] as unknown[]).filter((r): r is string => typeof r === "string" && f.rooms.some((x) => x.uid === r)))] : [];
+  const focus = role && FOCI[role].includes(s["focus"] as Focus) ? (s["focus"] as Focus) : role ? FOCI[role][0] : undefined;
+  return {
+    id: s["id"] as string,
+    name: String(s["name"]).trim().slice(0, 24) || "Pal",
+    energy: clamp(num(s["energy"], 100), 0, 100),
+    ...(founder ? { founder: true } : {}),
+    role,
+    rooms,
+    ...(focus ? { focus } : {}),
+    job: role ? parseJob(s["job"], f) : null,
+    at: tile(s["at"]),
+    note: typeof s["note"] === "string" ? s["note"].slice(0, 140) : null,
+    resting: s["resting"] === true,
+  };
+}
+function parseJob(x: unknown, f: Facility): Job | null {
+  if (!isObj(x) || !JOB_KINDS.includes(x["kind"] as Job["kind"])) return null;
+  const to = tile(x["to"]);
+  const ref = (k: string) => (typeof x[k] === "string" ? (x[k] as string) : null);
+  const dog = ref("dog");
+  const room = ref("room");
+  const tub = ref("tub");
+  if (!to || (dog && !f.dogs.some((d) => d.id === dog)) || (room && !f.rooms.some((r) => r.uid === room)) || (tub && !f.items.some((i) => i.uid === tub))) return null;
+  const kind = x["kind"] as Job["kind"];
+  if ((kind === "clean" && !room) || (kind !== "clean" && !dog) || (kind === "bath" && !tub)) return null;
+  return { kind, dog, room, tub, phase: x["phase"] === "work" ? "work" : "walk", left: clamp(num(x["left"], 0), 0, 240), total: clamp(num(x["total"], 1), 1, 240), to };
+}
+/** Running baths each stand in a tub: keep a saved tub if it's still a free tub, else the next free one. */
+function withTubs(f: Facility, dogs: TDog[]): TDog[] {
+  const tubs = f.items.filter((i) => i.kind === "bath_tub" || i.kind === "deluxe_tub").map((i) => i.uid);
+  const used = new Set<string>();
+  const kept = dogs.map((d) => {
+    if (!d.bathing || !d.bathTub || !tubs.includes(d.bathTub) || used.has(d.bathTub)) return { ...d, bathTub: null };
+    used.add(d.bathTub);
+    return d;
+  });
+  return kept.map((d) => {
+    if (!d.bathing || d.bathTub) return d;
+    const free = tubs.find((t) => !used.has(t)) ?? null;
+    if (free) used.add(free);
+    return { ...d, bathTub: free };
+  });
 }

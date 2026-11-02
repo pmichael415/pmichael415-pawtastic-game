@@ -135,6 +135,32 @@ export type TDog = Omit<Dog, "site" | "place" | "x" | "y"> & {
   visit?: Visit;
   /** Game minutes left in a bath that's running (null or missing when none). */
   bathing?: number | null;
+  /** The tub (bath station) a running bath is using. */
+  bathTub?: string | null;
+};
+
+// ---- staff (staff design §2) ----
+export type Role = "reception" | "attendant" | "bath" | "cleaner";
+/** Each role's two priorities; the first is the default. */
+export type Focus = "pickups" | "arrivals" | "neediest" | "newest" | "soonest" | "booked" | "dirtiest" | "busiest";
+export type JobKind = "checkin" | "pickup" | "play" | "bath" | "clean";
+export type Tile = { c: number; r: number };
+/** One job: walking to `to`, then working there. `left` is game minutes left in the current phase. */
+export type Job = { kind: JobKind; dog: string | null; room: string | null; tub: string | null; phase: "walk" | "work"; left: number; total: number; to: Tile };
+/** A team member. Phil (the founder) helps when you tap; hired staff take a role and do it on their own. */
+export type TStaff = Staff & {
+  founder?: boolean;
+  role?: Role | null;
+  /** Rooms an attendant or cleaner looks after (empty: all). */
+  rooms?: string[];
+  focus?: Focus;
+  job?: Job | null;
+  /** Where they last worked (walking starts here). */
+  at?: Tile | null;
+  /** Why they skipped work only the player can do, or what happened to their last job. */
+  note?: string | null;
+  /** On a break until their energy is back. */
+  resting?: boolean;
 };
 /** Why reputation moved, for the Reputation panel. */
 export type RepEntry = { day: number; min: number; delta: number; reason: string };
@@ -168,11 +194,13 @@ export type Facility = {
   rooms: Room[];
   items: Placed[];
   dogs: TDog[];
-  staff: Staff[];
+  staff: TStaff[];
   clockMin: number;
   day: number;
   reputation: number;
   cleanliness: number;
+  /** Each room's cleanliness (missing: the daycare-wide value). */
+  roomClean?: Record<string, number>;
   stats: Stats;
   guestBook: TRegular[];
   open: boolean;
