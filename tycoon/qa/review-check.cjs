@@ -19,7 +19,7 @@ const srv = http.createServer((req, res) => {
   page.on('console', (m) => { if (m.type() === 'error') errs.push('console ' + m.text()); });
   await page.goto('http://127.0.0.1:5181/index.html');
   await page.waitForTimeout(1500);
-  const hub = await page.getByText('Daycare Tycoon').isVisible();
+  const hub = await page.getByRole('heading', { name: 'Daycare Tycoon' }).isVisible();
   await page.getByRole('link', { name: /Open your daycare/ }).tap();
   await page.waitForFunction(() => !!window.__daycareWorld, null, { timeout: 15000 });
   await page.waitForTimeout(1500);

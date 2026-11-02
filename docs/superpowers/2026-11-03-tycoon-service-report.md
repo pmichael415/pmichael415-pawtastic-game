@@ -3,7 +3,7 @@
 3 November 2026. Owner brief of 3 Nov. Design: `docs/superpowers/specs/2026-11-03-tycoon-service-design.md`; plan:
 `docs/superpowers/plans/2026-11-03-tycoon-service.md`. Branch `claude/pawtastic-games-unified`, folder `tycoon/`.
 
-**Status:** committed, pushed and tested here, and in the private preview. **It is not in the Lovable hub project
+**Status:** committed, pushed and tested here, and in the private preview (version 7, with the review fixes). **It is not in the Lovable hub project
 and not published**, so play.pawtasticacademy.com still runs the older preview. Purchases, today's Daycare, Recess
 Rush and Graduation Day are unchanged. Stripe, DNS and app.pawtasticacademy.com were not touched.
 
@@ -95,18 +95,64 @@ Evidence: `qa/e2e-service.cjs` (46/46). Screenshots are in `tycoon/qa/out/servic
      - a **"What's blocking income"** card names the cause and a fix the player can do;
      - regrouping an empty playroom is free, and the card points to it.
    - **Coins below zero** never block serving pups.
+   - **Daycare drop-offs end at 15:30**, so every pup has time for care before pickup. Boarders can still arrive later.
    - **Closed or hidden:** while closed, no time or costs pass. A hidden tab pauses, as before.
    - **One tab plays:** a second tab watches without running the clock, costs or saves, with a "Play here" button.
-     A reload keeps its tab, and a watching tab takes over when the other closes.
+     - Taps in a watching tab are refused with a clear message, not silently lost.
+     - A reload or a closed tab gives up its claim, so the other tab takes over within a few seconds.
+     - A tab that takes over while hidden stays paused.
+
+## Independent review and fixes
+
+A fresh reviewer read the whole change and found 3 serious and 9 important problems. Each one now has a test that
+failed first and passes after the fix (commit `09f3016`):
+
+1. **An old save on a later day** gave every pup a day-1 pickup, so every owner arrived at once and left upset. Old
+   saves now get today's pickups.
+2. **"Finish the bath"** was offered even when it couldn't be done before closing. It's now offered only when it fits.
+   A bath that ran out of time isn't counted as put right.
+3. **A tab opened in the background** could take over and run the clock unseen. It now takes over paused.
+4. **Refunds plus a credit** could pay out more than the family paid. Refunds are now capped at what was charged.
+5. **A prepaid bath that wasn't done** was kept when the owner gave up waiting or was collected at closing. It's now
+   refunded automatically.
+6. **Agreeing to wait for the bath** wiped out the earlier wait and any refund promised for it. Both now stay.
+7. **Late drop-offs** could arrive minutes before closing and leave unhappy through no fault of the player. Daycare
+   drop-offs now end at 15:30. The reputation reason also names the problem whenever a complaint wasn't put right.
+8. **The receipt** stopped appearing once 30 visits were on record. It now appears after every checkout.
+9. **The Check out button** could show a different amount from the bill. It now shows the bill's total.
+10. **The desk wait** (arrival to check-in) was never counted. It is now.
+11. **Two tabs could both play** after a reload. Each page load now has its own id, and a closing page releases its
+    claim. A tab that has lost its claim stops saving.
+12. **Taps in a watching tab** were silently lost. They're now refused with a message.
+
+Smaller fixes made at the same time:
+- the pickup sheet closes if the pup has already gone home;
+- a scuffle shows first on the map;
+- the WebGL check frees its test context;
+- friendship grows only for visits that were served;
+- a finished bath goes home even if you closed the daycare meanwhile.
+
+**What the balance check showed.** The first-week balance check plays the game with a simple bot. After the
+drop-off fix, the old bot failed: it never mopped, played with each pup once, and checked everyone out at 16:30
+whether or not their owner had come. Families left upset and reputation fell from 50 to 40. The old bot had only
+passed because it checked late arrivals out instantly. The bot now plays the way a real player would: it checks
+out each family when they arrive, mops before the rooms look dirty, and plays again when a pup gets bored. With
+that, the first-week targets hold:
+- daily income grows from about 280 to about 1,000 coins;
+- level 5 by day 5;
+- coins never fall below 262.
+
+Good service now pays off and poor service visibly doesn't.
 
 ## Tests (this session)
 
 | Check | Result |
 |---|---|
-| Unit tests | **778 / 778** |
+| Unit tests | **795 / 795** |
 | Typecheck | clean |
-| New `qa/e2e-service.cjs` — scenario, good visit, double tap, reload, direct link, old save, second tab (iPhone 13 and desktop) | **46 / 46** |
-| Other browser suites, run on their own | onboarding 100/100 · audio 17/17 · hub 37/37 · games 35/35 · today's Daycare 36/36 · Tycoon 36/37 (the frame-rate check read 27.4 fps against 30 on this machine's software renderer; it varies from run to run here and passed in earlier runs) |
+| New `qa/e2e-service.cjs` — scenario, good visit, double tap, reload, direct link, old save, second tab (iPhone 13 and desktop), rerun after the review fixes | **46 / 46** |
+| Other browser suites, rerun after the review fixes | onboarding 100/100 · audio 17/17 · hub 37/37 · games 35/35 · today's Daycare 36/36 · Tycoon 36/37 (the frame-rate check read 24.5 fps against 30, with 2.2 ms per frame of drawing, on this machine's software renderer; it varies from run to run here and passed in earlier runs) |
+| Private preview build, under the preview's security rules | hub, today's Daycare, Shop (purchases off), Graduation and the new Daycare's quick start all load; the 3D campus renders on iPhone 13 and desktop with no page errors |
 
 Problems found by these tests and fixed:
 - boarding was billed without a bed;
@@ -129,4 +175,12 @@ Problems found by these tests and fixed:
 - **The pickup sheet is skipped for visits with no complaint;** they check out at once with a receipt card. Tell me
   if you'd rather see the sheet every time.
 - **Recovery cost** is shown only as "build a playroom from about N coins"; there's no finer cost breakdown.
+- **Small items from the review, left for later:**
+  - a refund paid on a later day is booked to the day it was paid, not the visit's day;
+  - the end-of-day average happiness is worked out after pickups;
+  - there's no mood face over the owner at pickup on the map;
+  - turning a pup away isn't written into the visit's history;
+  - a 3D error after the campus has started shows as a lost graphics context, not as a renderer error;
+  - the design notes say a never-checked-in pup leaves "upset", but the game makes the family content or
+    disappointed, since nothing was charged.
 - **Not published:** releasing it to the live hub is your decision, along with the earlier held releases.
