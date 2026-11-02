@@ -390,6 +390,23 @@ function cheapestDoor(f: Facility, room: Room, reached: { rooms: Set<string>; ti
   return best;
 }
 
+/** The full cost of a room drawn here: walls and floor, one door, and the new path squares to the entrance. */
+export function connectionEstimate(f: Facility, rect: { c: number; r: number; w: number; d: number }): { room: number; door: number; paths: number; total: number } | null {
+  const draft: Room = { uid: "estimate", ...rect, type: null, group: null, doors: [], floor: "wood", wall: WALL_COLORS[0]!, spent: 0, closed: false };
+  const plan = cheapestDoor(f, draft, reach(f));
+  if (!plan) return null;
+  const room = roomPrice(rect.w, rect.d);
+  const paths = plan.paths.length * outdoorDef("path")!.price;
+  return { room, door: DOOR_PRICE, paths, total: room + DOOR_PRICE + paths };
+}
+
+/** "Room 270 + door 30 + path 3 × 10 = 330" for the build preview (or what's still needed when there's no route). */
+export function costLine(e: { room: number; door: number; paths: number; total: number } | null, roomOnly = 0): string {
+  if (!e) return `Room ${roomOnly} · add paths to reach the entrance`;
+  const per = outdoorDef("path")!.price;
+  return `Room ${e.room} + door ${e.door}${e.paths ? ` + path ${e.paths / per} × ${per}` : ""} = ${e.total}`;
+}
+
 function firstFreeRoom(s: TycoonState, type: RoomType, group?: GroupId): TResult {
   if (type === "playroom" && !group) return { ok: false, error: "Pick a group for this playroom." };
   const f = fac(s);

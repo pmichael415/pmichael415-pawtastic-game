@@ -58,7 +58,8 @@ describe("build mode", () => {
     tap({ kind: "tile", c: 10, r: 16 });
     tap({ kind: "tile", c: 13, r: 18 });
     expect(ghost()).toMatchObject({ kind: "room", c: 10, r: 16, w: 4, d: 3, ok: true });
-    expect(screen.getAllByText("4 × 3 · 400").length).toBeGreaterThan(0);
+    // The full cost: walls and floor, a door, and the path squares to the entrance (Stage A).
+    expect(screen.getAllByText(/^4 × 3 · Room 400 \+ door 30 \+ path \d+ × 10 = \d+$/).length).toBeGreaterThan(0);
     fireEvent.click(button(/^Build room/));
     expect(fac(now()).rooms).toHaveLength(1);
     expect(now().coins).toBe(2600);

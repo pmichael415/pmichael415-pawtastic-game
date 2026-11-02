@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { GROUPS } from "@/game/engine";
 import type { GroupId } from "@/game/engine";
 import { DOOR_PRICE, ROOM_TYPE_NAMES, SELL_RATE, furnitureDef, outdoorDef, thingName } from "@/tycoon/catalog";
-import { addDoor, drawRoom, moveRoom, moveThing, paintPaths, placeThing, removeDoor, roomContaining, setRoomType, validRoomAt, validThingAt } from "@/tycoon/build";
+import { addDoor, connectionEstimate, costLine, drawRoom, moveRoom, moveThing, paintPaths, placeThing, removeDoor, roomContaining, setRoomType, validRoomAt, validThingAt } from "@/tycoon/build";
 import { OPPOSITE, containsTile, roomPrice, stepFrom, thingTiles, type Tile } from "@/tycoon/grid";
 import { level } from "@/tycoon/progress";
 import { PAID_GONE, PAID_LOCK, isActive, ownedPaid } from "@/tycoon/paid";
@@ -79,8 +79,9 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
     if (ui.tool === "rooms" && ui.corner && ui.end) {
       const { c, r, w, d } = rectOf(ui.corner, ui.end);
       const price = roomPrice(w, d);
-      reason = validRoomAt(f, draftRoom("ghost", c, r, w, d)) ?? short(state, price);
-      label = `${w} × ${d} · ${price}`;
+      const est = connectionEstimate(f, { c, r, w, d });
+      reason = validRoomAt(f, draftRoom("ghost", c, r, w, d)) ?? short(state, est?.total ?? price);
+      label = `${w} × ${d} · ${costLine(est, price)}`;
       ghost = { kind: "room", c, r, w, d, ok: !reason, label };
     } else if (ui.movingRoom && ui.roomAt) {
       const room = f.rooms.find((x) => x.uid === ui.movingRoom);
