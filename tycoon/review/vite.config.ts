@@ -16,6 +16,7 @@ export default defineConfig({
       { find: "@/integrations/supabase/client", replacement: path.resolve(__dirname, "stubs/supabase-client.ts") },
       { find: "@/integrations/lovable", replacement: path.resolve(__dirname, "stubs/lovable.ts") },
       { find: "@/lib/payments/payments.functions", replacement: path.resolve(__dirname, "stubs/payments.ts") },
+      { find: "@/lib/notify/email.functions", replacement: path.resolve(__dirname, "stubs/notify.ts") },
       { find: "@", replacement: src },
     ],
   },
