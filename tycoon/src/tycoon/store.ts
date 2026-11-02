@@ -65,6 +65,13 @@ const storage = () => (typeof localStorage !== "undefined" ? localStorage : null
 
 function persist(s: TycoonState) {
   if (!leading) return; // another tab is playing: never write over its save
+  const ls = storage();
+  if (ls && heldElsewhere(ls, TAB, Date.now())) {
+    // another tab took over since the last lease check: stop here, without writing
+    leading = false;
+    snap = { ...snap, spectator: true };
+    return;
+  }
   // Another tab stored purchases this one doesn't have: take its save instead of writing over it.
   const adopt = guard.check(s);
   if (adopt) {
@@ -252,7 +259,9 @@ export function playHere() {
   leading = true;
   const fresh = readStored();
   snap = { ...snap, spectator: false };
-  if (fresh) commit(fresh, { paused: false });
+  // a hidden tab that takes over stays paused: time away never costs anything
+  const hidden = typeof document !== "undefined" && document.hidden;
+  if (fresh) commit(fresh, { paused: snap.paused || hidden });
   else emit();
 }
 
@@ -310,6 +319,7 @@ export const tycoonStore = {
   dispatch(fn: (s: TycoonState) => TResult): ActResult {
     const s = snap.state;
     if (!s) return { ok: false, error: "The daycare is still loading." };
+    if (snap.spectator) return { ok: false, error: "Your daycare is open in another tab — tap Play here first." };
     const r = fn(s);
     if (!r.ok) return r;
     const { state, unlocked } = checkTrophies(r.state);
@@ -317,7 +327,7 @@ export const tycoonStore = {
     return { ...r, state: snap.state ?? state, unlocked };
   },
   set(fn: (s: TycoonState) => TycoonState) {
-    if (snap.state) commit(fn(snap.state), { checkGuide: true });
+    if (snap.state && !snap.spectator) commit(fn(snap.state), { checkGuide: true });
   },
   setPaused(p: boolean) {
     if (p === snap.paused) return;

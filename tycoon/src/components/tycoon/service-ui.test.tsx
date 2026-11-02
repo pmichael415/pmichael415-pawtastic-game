@@ -22,6 +22,7 @@ import { KEY, tycoonStore } from "@/tycoon/store";
 import { fac, withFac } from "@/tycoon/state";
 import { richState } from "@/tycoon/testkit";
 import { defaultVisit } from "@/tycoon/visit";
+import { assessVisit } from "@/tycoon/assess";
 import type { TDog, TycoonState, Visit } from "@/tycoon/types";
 
 const now = () => tycoonStore.getState()!;
@@ -84,6 +85,22 @@ describe("pickup on screen", () => {
     expect(within(receipt).getByText(/delighted/)).toBeTruthy();
     expect(within(receipt).getByText(/^Daycare/)).toBeTruthy();
     expect(within(receipt).getByText(/Total/)).toBeTruthy();
+  });
+  it("the receipt still appears after many pickups (the record keeps only the latest 30)", () => {
+    const s = withPickup({}, {});
+    const old = Array.from({ length: 30 }, (_, i) => ({ dog: "Old" + i, owner: "X", day: 1, min: 600 + i, how: "checkout" as const, mood: "content" as const, satisfaction: 70, total: 40, lines: [], complaints: [], repDelta: 0, review: null }));
+    open(withFac(s, { ...fac(s), outcomes: old }));
+    act(() => emit({ kind: "dog", id: "a" }));
+    fireEvent.click(panel().getByRole("button", { name: /^Check out/ }));
+    expect(screen.getByRole("region", { name: "Receipt" })).toBeTruthy();
+  });
+  it("the Check out button shows the honest total (the same as the bill)", () => {
+    const s = withPickup({ happiness: 50, played: 0 }, {});
+    open(s);
+    act(() => emit({ kind: "dog", id: "a" }));
+    const f = fac(now());
+    const total = assessVisit(f, f.dogs[0]!, {}).total;
+    expect(panel().getByRole("button", { name: /^Check out/ }).textContent).toContain(`+${total}`);
   });
   it("reputation shows why it moved", () => {
     open(withPickup({}, {}));

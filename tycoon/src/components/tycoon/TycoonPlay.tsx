@@ -165,13 +165,15 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
   const [pickup, setPickup] = useState<{ id: string; exitBath: boolean } | null>(null);
   const [repOpen, setRepOpen] = useState(false);
   const [receipt, setReceipt] = useState<Outcome | null>(null);
-  const seenOutcomes = useRef<number | null>(null);
-  const outcomesLen = (f.outcomes ?? []).length;
+  // keyed on the latest outcome itself (the record keeps only the last 30, so its length stops growing)
+  const lastOut = f.outcomes?.at(-1) ?? null;
+  const lastKey = lastOut ? `${lastOut.dog}|${lastOut.day}|${lastOut.min}|${lastOut.how}|${lastOut.total}|${(f.outcomes ?? []).length}` : "";
+  const seenOutcome = useRef<string | null>(null);
   useEffect(() => {
-    if (seenOutcomes.current !== null && outcomesLen > seenOutcomes.current) setReceipt(f.outcomes.at(-1) ?? null);
-    seenOutcomes.current = outcomesLen;
+    if (seenOutcome.current !== null && lastKey && lastKey !== seenOutcome.current) setReceipt(lastOut);
+    seenOutcome.current = lastKey;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [outcomesLen]);
+  }, [lastKey]);
   useEffect(() => {
     if (!receipt) return;
     const t = setTimeout(() => setReceipt(null), 6000);

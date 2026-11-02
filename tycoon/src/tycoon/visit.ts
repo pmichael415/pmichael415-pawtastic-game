@@ -8,6 +8,8 @@ export const OWNER_NAMES = ["Taylor", "Morgan", "Casey", "Riley", "Jamie", "Aver
 export const LAST_PICKUP = 17 * 60 + 30;
 export const BOARDING_PICKUP = 10 * 60;
 export const BATH_REQUEST_CHANCE = 0.3;
+/** The last daycare drop-off (a pup needs time for care before families collect at 17:30–18:00). */
+export const LAST_DROPOFF = 15 * 60 + 30;
 export const PREPAID_CHANCE = 0.4;
 
 export const fmtTime = (min: number) => `${String(Math.floor(min / 60) % 24).padStart(2, "0")}:${String(Math.floor(min) % 60).padStart(2, "0")}`;
@@ -34,6 +36,7 @@ export function defaultVisit(f: Facility, d: Pick<TDog, "name" | "breed" | "boar
     finishing: null,
     remedies: {},
     paid: 0,
+    waitBefore: 0,
   };
 }
 
@@ -66,6 +69,7 @@ export function newVisit(f: Facility, d: Pick<TDog, "name" | "breed" | "boarding
     finishing: null,
     remedies: {},
     paid: 0,
+    waitBefore: 0,
   };
 }
 

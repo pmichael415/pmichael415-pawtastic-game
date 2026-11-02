@@ -189,6 +189,7 @@ function withVisit(x: Record<string, unknown>, f: Facility, d: { name: string; b
       safeMove: bool(v["safeMove"], false),
       finishing: v["finishing"] === "bath" ? "bath" : null,
       remedies: parseRemedies(v["remedies"]),
+      waitBefore: Math.max(0, Math.min(600, Math.round(num(v["waitBefore"], 0)))),
       paid: Math.max(0, Math.min(1000, Math.round(num(v["paid"], 0)))),
     },
   };
@@ -350,6 +351,9 @@ function parseFacility(x: unknown): Facility | null {
     if (validThingAt(f, placed) === null) f.items.push(placed);
   }
   const seenDogs = new Set<string>();
+  // the day and clock first: a pup saved before visits existed gets today's pickup, not day 1's
+  f.clockMin = clamp(num(x["clockMin"], DAY_OPEN_MIN), 0, 24 * 60);
+  f.day = Math.max(1, int(x["day"], 1));
   const dogs = (Array.isArray(x["dogs"]) ? x["dogs"] : [])
     .map((d) => parseDog(d, f))
     .filter((d): d is TDog => !!d && !seenDogs.has(d.id) && !!seenDogs.add(d.id))
@@ -360,8 +364,6 @@ function parseFacility(x: unknown): Facility | null {
     (s): s is Staff => isObj(s) && typeof s["id"] === "string" && SAFE_ID.test(s["id"]) && typeof s["name"] === "string" && typeof s["energy"] === "number" && !seenStaff.has(s["id"]) && !!seenStaff.add(s["id"]),
   );
   f.staff = staff.length ? staff.slice(0, 6).map((s) => ({ id: s.id, name: s.name.trim().slice(0, 24) || "Pal", energy: clamp(s.energy, 0, 100) })) : f.staff;
-  f.clockMin = clamp(num(x["clockMin"], DAY_OPEN_MIN), 0, 24 * 60);
-  f.day = Math.max(1, int(x["day"], 1));
   f.reputation = clamp(num(x["reputation"], 80), 40, 100);
   f.cleanliness = clamp(num(x["cleanliness"], 100), 0, 100);
   f.stats = parseStats(x["stats"]);

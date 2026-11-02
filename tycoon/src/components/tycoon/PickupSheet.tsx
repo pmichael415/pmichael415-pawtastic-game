@@ -1,6 +1,6 @@
 // Pickup with a complaint (service design, "Complaints"): the bill as it stands, what went wrong, and the player's
 // choices — finish the service while the owner waits, refund, a credit for next time, or explain. One checkout.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { refundFor } from "@/tycoon/assess";
@@ -22,7 +22,12 @@ export function PickupSheet({ state, dogId, exitBath, act, onClose }: { state: T
   const live = f.dogs.find((d) => d.id === dogId);
   // once paid, the sheet shows its last view for a moment (the pup has gone home) so a second tap can't fall through
   if (live) last.current = { dog: live, view: pickupView(state, dogId, exitBath) };
-  if (!last.current) return null;
+  // collected while the sheet was open (the owner gave up, the bath finished, closing time): close it
+  const gone = !live && !paid;
+  useEffect(() => {
+    if (gone) onClose();
+  }, [gone, onClose]);
+  if (!last.current || gone) return null;
   const dog = last.current.dog;
   const v = visitOf(f, dog);
   const { assessment: a, options } = last.current.view;
@@ -59,7 +64,7 @@ export function PickupSheet({ state, dogId, exitBath, act, onClose }: { state: T
             <div key={c.kind} className={`rounded-xl border p-3 ${c.resolved ? "border-border bg-muted/40" : "border-destructive/40 bg-destructive/5"}`}>
               <p className="text-sm font-semibold text-secondary">{c.text}</p>
               {c.remedy ? (
-                <p className="mt-1 text-xs text-muted-foreground">{c.resolved ? "Answered" : "Answered — but they're not satisfied"} ({c.remedy}).</p>
+                <p className="mt-1 text-xs text-muted-foreground">{c.remedy === "finish" && !c.resolved ? "Being finished — they're waiting." : c.resolved ? `Answered (${c.remedy}).` : `Answered (${c.remedy}) — but they're not satisfied.`}</p>
               ) : (
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   {(options[c.kind] ?? []).map((r) => (

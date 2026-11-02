@@ -3,7 +3,8 @@
 // explanation alone never clears a bath, billing or attention complaint.
 import { assessVisit, refundFor, type Assessment } from "./assess";
 import { caps } from "./connect";
-import { bath, clean, playtime } from "./run";
+import { BATH_MIN, bath, clean, playtime } from "./run";
+import { DAY_CLOSE } from "@/game/engine";
 import { fac, withFac } from "./state";
 import { visitOf, logVisit, fmtTime } from "./visit";
 import type { ComplaintKind, RemedyKind, TResult, TycoonState } from "./types";
@@ -26,7 +27,9 @@ export function pickupView(s: TycoonState, dogId: string, exitBath: boolean): Pi
   for (const c of assessment.complaints) {
     if (c.remedy) continue; // already answered
     const o: RemedyKind[] = [];
-    if ((c.kind === "bath" || c.kind === "billing") && (dog.bathing || (placed && !!caps(f).bath && energy >= 15 && !refuses("bath", f)))) o.push("finish");
+    // finishing the bath only when it can be done before closing (18:00)
+    const fits = f.clockMin + (dog.bathing || BATH_MIN) <= DAY_CLOSE;
+    if ((c.kind === "bath" || c.kind === "billing") && fits && (dog.bathing || (placed && !!caps(f).bath && energy >= 15 && !refuses("bath", f)))) o.push("finish");
     if (c.kind === "attention" && placed && !dog.bathing && energy >= 10) o.push("finish");
     if (c.kind === "dirty" && energy >= 10) o.push("finish");
     if (refundFor(c.kind, v.paid, daycare) > 0) o.push("refund");
@@ -82,7 +85,18 @@ export function remedy(s: TycoonState, dogId: string, kind: ComplaintKind, choic
     ...g,
     dogs: g.dogs.map((d) =>
       d.id === dogId
-        ? { ...d, visit: logVisit({ ...visitOf(g, d), remedies: { ...visitOf(g, d).remedies, [kind]: choice }, ...(waiting ? { finishing: "bath" as const, ownerHere: null } : {}) }, `${fmtTime(g.clockMin)} — ${choice} (${kind})`) }
+        ? {
+            ...d,
+            visit: logVisit(
+              {
+                ...visitOf(g, d),
+                remedies: { ...visitOf(g, d).remedies, [kind]: choice },
+                // they agree to wait: the wait so far still counts (and any remedy for it stands); no more piles up
+                ...(waiting ? { finishing: "bath" as const, ownerHere: null, waitBefore: visitOf(g, d).ownerHere === null ? visitOf(g, d).waitBefore : Math.max(0, Math.round(g.clockMin - visitOf(g, d).ownerHere!)) } : {}),
+              },
+              `${fmtTime(g.clockMin)} — ${choice} (${kind})`,
+            ),
+          }
         : d,
     ),
   });

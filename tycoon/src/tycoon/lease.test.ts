@@ -4,7 +4,7 @@ import { act, renderHook } from "@testing-library/react";
 
 vi.mock("sonner", () => ({ toast: Object.assign(() => {}, { success: () => {}, error: () => {} }) }));
 
-import { LEASE_KEY, LEASE_STALE_MS, claimLease, tabId } from "./lease";
+import { LEASE_KEY, LEASE_STALE_MS, claimLease, releaseLease, tabId } from "./lease";
 import { KEY, tycoonStore, useTycoon } from "./store";
 import { fac, withFac } from "./state";
 import { ok, richState } from "./testkit";
@@ -25,10 +25,14 @@ describe("the lease", () => {
     expect(claimLease(st, "A", 3000 + LEASE_STALE_MS + 2)).toBe(false);
     expect(claimLease(st, "A", 3000 + LEASE_STALE_MS + 3, true)).toBe(true);
   });
-  it("a tab keeps its id across reloads (so a reload doesn't lock itself out)", () => {
-    sessionStorage.clear();
-    const a = tabId();
-    expect(tabId()).toBe(a);
+  it("a closing page releases its lease, so a reload (a new page) can play at once", () => {
+    const st = mem();
+    expect(claimLease(st, "old-page", 1000)).toBe(true);
+    releaseLease(st, "old-page");
+    expect(claimLease(st, "new-page", 1001)).toBe(true);
+  });
+  it("every page load gets its own id (a duplicated tab never shares one)", () => {
+    expect(tabId()).not.toBe(tabId());
   });
   it("a broken lease value counts as free", () => {
     const st = mem();
@@ -70,6 +74,40 @@ describe("a second tab", () => {
     expect(result.current.spectator).toBe(true);
     act(() => vi.advanceTimersByTime(LEASE_STALE_MS + 3000));
     expect(result.current.spectator).toBe(false);
+    unmount();
+  });
+  it("a hidden watching tab that takes over stays paused (time away never costs anything)", () => {
+    const s = ok(setOpen(richState(), true));
+    localStorage.setItem(KEY, JSON.stringify(withFac(s, { ...fac(s), clockMin: 9 * 60 })));
+    localStorage.setItem(LEASE_KEY, JSON.stringify({ tab: "closed-tab", at: Date.now() }));
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+    const { result, unmount } = renderHook(() => useTycoon());
+    act(() => vi.advanceTimersByTime(LEASE_STALE_MS + 3000));
+    expect(result.current.spectator).toBe(false);
+    expect(result.current.paused).toBe(true);
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+    unmount();
+  });
+  it("a leading tab that finds another tab has taken over stops writing at once", () => {
+    const s = ok(setOpen(richState(), true));
+    localStorage.setItem(KEY, JSON.stringify(withFac(s, { ...fac(s), clockMin: 9 * 60 })));
+    const { result, unmount } = renderHook(() => useTycoon());
+    expect(result.current.spectator).toBe(false);
+    localStorage.setItem(LEASE_KEY, JSON.stringify({ tab: "new-leader", at: Date.now() }));
+    const before = localStorage.getItem(KEY);
+    act(() => tycoonStore.set((x) => ({ ...x, coins: x.coins + 999 })));
+    expect(localStorage.getItem(KEY)).toBe(before);
+    expect(result.current.spectator).toBe(true);
+    unmount();
+  });
+  it("actions in a watching tab are refused (never silently lost)", () => {
+    const s = ok(setOpen(richState(), true));
+    localStorage.setItem(KEY, JSON.stringify(s));
+    localStorage.setItem(LEASE_KEY, JSON.stringify({ tab: "other-tab", at: Date.now() }));
+    const { result, unmount } = renderHook(() => useTycoon());
+    const r = tycoonStore.dispatch((x) => ({ ok: true, state: { ...x, coins: x.coins + 5 } }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/another tab/);
     unmount();
   });
 });

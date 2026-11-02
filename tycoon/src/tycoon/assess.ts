@@ -33,7 +33,7 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
   const provided = placed || dog.played > 0;
   const bathBooked = v.requests.includes("bath");
   const prepaidBath = v.prepaid.includes("bath");
-  const ownerWait = v.ownerHere === null ? 0 : Math.max(0, Math.round(now - v.ownerHere));
+  const ownerWait = v.ownerHere === null ? v.waitBefore ?? 0 : Math.max(0, Math.round(now - v.ownerHere));
 
   // ---- satisfaction ----
   let sat = 0.6 * dog.happiness + 30;
@@ -76,7 +76,7 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
         sat += 5;
         c.resolved = true;
       }
-    } else if (c.remedy === "finish") c.resolved = true;
+    } else if (c.remedy === "finish") c.resolved = false; // still there, so not finished yet
   }
   // a service completed while the owner waited: the complaint is gone, the extra wait is a small cost
   for (const k of ["bath", "billing", "attention", "dirty"] as ComplaintKind[]) {
@@ -107,8 +107,15 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
   const subtotal = lines.reduce((n, l) => n + l.amount, 0);
   const credit = Math.min(subtotal, Math.max(0, Math.round(opts.credit ?? 0)));
   if (credit > 0) lines.push({ label: "Credit from last visit", amount: -credit });
-  for (const r of refunds) lines.push(r);
-  const refunded = -refunds.reduce((n, r) => n + r.amount, 0);
+  // refunds never pay out more than the family paid: today's bill (after any credit) plus anything prepaid
+  let allowed = Math.max(0, subtotal - credit) + v.paid;
+  for (const r of refunds) {
+    const amt = Math.min(-r.amount, allowed);
+    allowed -= amt;
+    if (amt > 0) lines.push({ label: r.label, amount: -amt });
+  }
+  const refundLines = lines.filter((l) => /^Refund/.test(l.label));
+  const refunded = -refundLines.reduce((n, r) => n + r.amount, 0);
 
   // income parts: the credit and refunds come off daycare first, then the rest (a bigger refund is paid out)
   const parts: Partial<Record<IncomeKey, number>> = {};

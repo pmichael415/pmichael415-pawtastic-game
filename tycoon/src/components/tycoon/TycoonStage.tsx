@@ -35,7 +35,9 @@ function rendererName(): string | null {
   try {
     const gl = document.createElement("canvas").getContext("webgl") as WebGLRenderingContext | null;
     const ext = gl?.getExtension("WEBGL_debug_renderer_info");
-    return gl && ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : null;
+    const name = gl && ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : null;
+    gl?.getExtension("WEBGL_lose_context")?.loseContext(); // give the probe's graphics context back
+    return name;
   } catch {
     return null;
   }

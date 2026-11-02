@@ -5,12 +5,13 @@ import type { GroupId } from "@/game/engine";
 import { addDoor, buyLand, drawRoom, placeThing, setRoomType } from "./build";
 import { caps } from "./connect";
 import { level } from "./progress";
-import { assignBed, assignRoom, bath, checkIn, checkout, playtime, setOpen, tick } from "./run";
+import { assignBed, assignRoom, bath, checkIn, checkout, clean, playtime, setOpen, tick } from "./run";
 import { fac, newTycoon } from "./state";
 import { guidedBuild, ok } from "./testkit";
 import type { TResult, TycoonState } from "./types";
 
-const CHECKOUT_AT = 16 * 60 + 30;
+const REPLAY_BELOW = 70; // the bot plays with a pup again below this happiness
+const MOP_BELOW = 55; // and mops below this cleanliness
 const BUFFER = 250; // the bot keeps this many coins in hand for the night's expenses
 /** 3 × 3 rooms north of (or beside) the guided build, each with a door into a connected room. */
 const SLOTS = [
@@ -103,15 +104,15 @@ function play(): { logs: Log[]; minCoins: number; reachedL3: number | null; reac
         }
       }
     }
+    // a reasonable player: plays again when a pup gets bored, mops before the rooms look dirty, starts booked baths
     for (const d of fac(s).dogs) {
-      if ((d.place.kind === "room" || d.place.kind === "bed") && d.played === 0) s = tryDo(s, playtime(s, d.id));
+      if ((d.place.kind === "room" || d.place.kind === "bed") && !d.bathing && (d.played === 0 || d.happiness < REPLAY_BELOW)) s = tryDo(s, playtime(s, d.id));
       const now = fac(s).dogs.find((x) => x.id === d.id);
-      if (hasBath && now && now.checkedIn && !now.bathed && now.place.kind !== "lobby") s = tryDo(s, bath(s, d.id));
+      if (hasBath && now && now.checkedIn && !now.bathed && !now.bathing && now.place.kind !== "lobby") s = tryDo(s, bath(s, d.id));
     }
-    if (fac(s).clockMin >= CHECKOUT_AT) {
-      // placed pups go home paid; any still waiting in the lobby go home free, so tomorrow starts clear
-      for (const d of fac(s).dogs) if (d.checkedIn) s = tryDo(s, checkout(s, d.id, false));
-    }
+    if (fac(s).cleanliness < MOP_BELOW) s = tryDo(s, clean(s));
+    // each family is checked out when they arrive (a bath still running finishes first); closing collects the rest
+    for (const d of fac(s).dogs) if (d.checkedIn && d.visit?.ownerHere != null && !d.bathing) s = tryDo(s, checkout(s, d.id, false));
 
     // building plan
     if (!hasBath && level(s) >= 2 && afford(330 + 30 + 400)) {

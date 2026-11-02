@@ -32,7 +32,7 @@ import { arrivalMultiplier, decayMultiplier, funAppeal, playGain } from "./effec
 import { XP, gainXp } from "./progress";
 import { fac, withFac } from "./state";
 import { tourHolds } from "./tour";
-import { fmtTime, logVisit, newVisit, visitOf } from "./visit";
+import { LAST_DROPOFF, fmtTime, logVisit, newVisit, visitOf } from "./visit";
 import { assessVisit } from "./assess";
 import { adjustRep, referralBoost, repDeltaFor, reviewFactor, reviewFor } from "./reputation";
 import type { Facility, Mood, Outcome, Room, TDog, TPlace, TRegular, TResult, TycoonState } from "./types";
@@ -123,6 +123,7 @@ export function createArrival(s: TycoonState, rand: () => number, boarding = fal
   const f = fac(s);
   if (!f.open) return { ok: false, error: "Open the daycare first." };
   if (!lobbyStatus(f.clockMin).open) return { ok: false, error: "Lobby closed for the midday break — drop-offs resume at 14:00 (game clock)." };
+  if (!boarding && f.clockMin >= LAST_DROPOFF) return { ok: false, error: "Daycare drop-offs end at 15:30 — boarders are still welcome." };
   const c = caps(f);
   if (!c.lobby) return { ok: false, error: "Build a working Lobby first." };
   if (lobbyDogs(f).length >= c.waiting) return { ok: false, error: "The lobby is full — move waiting pups to a playroom or bed first." };
@@ -165,7 +166,8 @@ export function checkIn(s: TycoonState, dogId: string): TResult {
   const v = visitOf(f, dog);
   // A prepaid package is paid now, once (pickup never charges it again; a refund is a remedy if it isn't done).
   const prepaidBath = v.prepaid.includes("bath") ? bathPay(f) : 0;
-  const visit = logVisit({ ...v, checkedInAt: Math.floor(f.clockMin), paid: v.paid + prepaidBath }, `Checked in ${fmtTime(f.clockMin)}${prepaidBath ? ` — bath prepaid (${prepaidBath})` : ""}`);
+  const waitedLobby = v.arrivedDay === f.day ? Math.max(0, Math.floor(f.clockMin - v.arrived)) : v.waitedLobby;
+  const visit = logVisit({ ...v, checkedInAt: Math.floor(f.clockMin), paid: v.paid + prepaidBath, waitedLobby }, `Checked in ${fmtTime(f.clockMin)}${prepaidBath ? ` — bath prepaid (${prepaidBath})` : ""}`);
   let nf = setDog(f, dogId, (d) => ({ ...d, checkedIn: true, happiness: clamp(d.happiness + extra), visit }));
   nf = bump(bump(nf, "admitted"), "boarders", dog.boarding ? 1 : 0);
   let st = gainXp(countToday(withFac(s, nf), "checkIns"), XP.checkIn);
@@ -382,15 +384,19 @@ export function settle(s: TycoonState, dogId: string, how: Outcome["how"], exitB
     st = bump(used, "baths");
   }
   const prev = st.guestBook.find((g) => g.name === dog.name && g.breed === dog.breed) ?? null;
-  const a = assessVisit(st, dog, { exitBath: doExit, credit: prev?.credit ?? 0 });
+  // collected without the player (gave up, closing time, a finish that ran out): a prepaid bath not done is refunded
+  const autoRefund = how !== "checkout" && v.prepaid.includes("bath") && !dog.bathed && !v.remedies.billing;
+  const billed = autoRefund ? { ...dog, visit: { ...v, remedies: { ...v.remedies, billing: "refund" as const } } } : dog;
+  const a = assessVisit(st, billed, { exitBath: doExit, credit: prev?.credit ?? 0 });
   const unresolved = a.complaints.filter((c) => !c.resolved);
 
   // loyalty: friendship grows with how the visit felt; a credit is owed; an upset family with nothing fixed stays away
   let guestBook = st.guestBook;
   let bonus = 0;
   let milestone: ReturnType<typeof friendshipLevel> | null = null;
+  const servedVisit = dog.checkedIn && a.lines.some((l) => l.key === "daycare");
   if (dog.checkedIn) {
-    const gain = Math.round(a.satisfaction / 10) + (dog.bathed || doExit ? 2 : 0) + (dog.played > 0 ? 2 : 0);
+    const gain = servedVisit ? Math.round(a.satisfaction / 10) + (dog.bathed || doExit ? 2 : 0) + (dog.played > 0 ? 2 : 0) : 0;
     const friendship = Math.min(100, (prev?.friendship ?? 0) + gain);
     const credit = v.remedies && Object.values(v.remedies).includes("credit") ? Math.round(f.prices.daycare * CREDIT_SHARE) : 0;
     const entry: TRegular = {
@@ -413,10 +419,11 @@ export function settle(s: TycoonState, dogId: string, how: Outcome["how"], exitB
   }
   // reputation follows how the family felt (and whether their problem was put right), with the reason recorded
   const firstIssue = unresolved[0]?.text ?? a.complaints[0]?.text ?? "";
-  const reason =
-    a.mood === "delighted" ? `${v.owner} was delighted with ${dog.name}'s day`
+  const reason = unresolved.length
+    ? `${v.owner} was ${a.mood}: ${firstIssue.replace(/\.$/, "")} (not put right)`
+    : a.mood === "delighted" ? `${v.owner} was delighted with ${dog.name}'s day`
     : a.mood === "content" ? `${v.owner} was happy with ${dog.name}'s day`
-    : `${v.owner} was ${a.mood}${firstIssue ? `: ${firstIssue.replace(/\.$/, "")}` : ""}${unresolved.length ? " (not put right)" : ""}`;
+    : `${v.owner} was ${a.mood}${firstIssue ? `: ${firstIssue.replace(/\.$/, "")}` : ""}`;
   const repBefore = st.reputation;
   st = adjustRep(st, repDeltaFor(a.satisfaction) - (unresolved.length ? 1 : 0), reason);
   const fixed = a.complaints.some((c) => c.remedy === "finish" || c.remedy === "refund");
@@ -580,6 +587,12 @@ export function tick(s: TycoonState, seconds: number, rand: () => number = Math.
   }
   f = runBaths(s, f, seconds * GAME_MIN_PER_SEC);
   let out = withFac(s, f);
+  // a bath the owner waited for is done: they go home now (open or not)
+  for (const d of f.dogs) if (d.visit?.finishing && d.bathed) {
+    const r = settle(out, d.id, "finished");
+    if (r.ok) out = r.state;
+  }
+  f = fac(out);
   if (!f.open) return out;
 
   // The clock and drop-offs. Fractional seconds accumulate; arrivals roll once per whole game minute crossed.

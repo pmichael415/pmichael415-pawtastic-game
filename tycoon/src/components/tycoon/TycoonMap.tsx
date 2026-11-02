@@ -58,6 +58,7 @@ const LABEL_SIZE = 0.38;
 const fit = (text: string, width: number) => (text.length * LABEL_SIZE * 0.55 > width - 0.2 ? { textLength: width - 0.2, lengthAdjust: "spacingAndGlyphs" as const } : {});
 
 function dogStatus(f: Facility, d: TDog): string {
+  if (inActiveScuffle(f, d)) return "needs help";
   if (d.visit?.ownerHere != null || d.visit?.finishing) return `${d.visit.owner} is here for pickup`;
   if (d.bathing) return "in the bath";
   if (!d.checkedIn) return "waiting to check in";

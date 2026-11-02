@@ -18,7 +18,7 @@ function read(st: Store): { tab: string; at: number } | null {
 /** Takes (or refreshes) the lease for `tab`; `force` takes it from another tab. True if this tab now holds it. */
 export function claimLease(st: Store, tab: string, now: number, force = false): boolean {
   const cur = read(st);
-  if (!force && cur && cur.tab !== tab && now - cur.at <= LEASE_STALE_MS) return false;
+  if (!force && cur && cur.tab && cur.tab !== tab && now - cur.at <= LEASE_STALE_MS) return false;
   try {
     st.setItem(LEASE_KEY, JSON.stringify({ tab, at: now }));
   } catch {
@@ -30,31 +30,21 @@ export function claimLease(st: Store, tab: string, now: number, force = false): 
 /** Whether another tab holds a fresh lease. */
 export function heldElsewhere(st: Store, tab: string, now: number): boolean {
   const cur = read(st);
-  return !!cur && cur.tab !== tab && now - cur.at <= LEASE_STALE_MS;
+  return !!cur && !!cur.tab && cur.tab !== tab && now - cur.at <= LEASE_STALE_MS;
 }
 
 export const newTabId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `t${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`);
 
-const TAB_KEY = "pawtastic-daycare-next-tab";
-/** This tab's id, kept for the life of the tab (sessionStorage survives a reload), so a reload keeps its own lease. */
-export function tabId(): string {
-  try {
-    const have = sessionStorage.getItem(TAB_KEY);
-    if (have) return have;
-    const id = newTabId();
-    sessionStorage.setItem(TAB_KEY, id);
-    return id;
-  } catch {
-    return newTabId();
-  }
-}
+/** A fresh id for each page load (a duplicated tab never shares one; a closing page releases its lease, so a reload
+ *  can play at once). */
+export const tabId = (): string => newTabId();
 
 /** Lets the lease go (this tab is closing), so another tab can take over at once. */
 export function releaseLease(st: Store, tab: string) {
   const cur = read(st);
   if (cur && cur.tab === tab) {
     try {
-      st.setItem(LEASE_KEY, JSON.stringify({ tab, at: 0 }));
+      st.setItem(LEASE_KEY, JSON.stringify({ tab: "", at: 0 }));
     } catch {
       /* ignore */
     }

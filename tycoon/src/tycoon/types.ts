@@ -108,6 +108,8 @@ export type Visit = {
   remedies: Partial<Record<ComplaintKind, RemedyKind>>;
   /** Coins already paid at check-in for prepaid services (what a refund gives back). */
   paid: number;
+  /** Minutes the owner had waited when they agreed to wait for a service (still counted, still owed any remedy). */
+  waitBefore: number;
 };
 export type ComplaintKind = "wait" | "bath" | "billing" | "attention" | "dirty";
 export type RemedyKind = "finish" | "refund" | "credit" | "explain";

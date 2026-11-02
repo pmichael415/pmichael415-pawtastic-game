@@ -1,7 +1,5 @@
 // One pup and everything staff can do for it right now.
 
-/** How the playing screen checks a pup out (the pickup sheet when there's a complaint); falls back to checking out. */
-export const CheckoutContext = createContext<((dogId: string, exitBath: boolean) => void) | null>(null);
 import { createContext, useContext, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { BREEDS, groupName, groupOf, traitLabel } from "@/game/engine";
@@ -12,6 +10,10 @@ import { fmtTime, visitOf } from "@/tycoon/visit";
 import { ROOM_TYPE_NAMES } from "@/tycoon/catalog";
 import type { ActOpts, ActResult } from "@/tycoon/store";
 import type { Facility, TDog, TResult, TycoonState } from "@/tycoon/types";
+import { assessVisit } from "@/tycoon/assess";
+
+/** How the playing screen checks a pup out (the pickup sheet when there's a complaint); falls back to checking out. */
+export const CheckoutContext = createContext<((dogId: string, exitBath: boolean) => void) | null>(null);
 
 type Act = (fn: (s: TycoonState) => TResult, opts?: ActOpts) => ActResult;
 
@@ -40,6 +42,9 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
   const leave = (exitBath: boolean) => (onCheckout ? onCheckout(dog.id, exitBath) : act((s) => checkout(s, dog.id, exitBath)));
   const v = visitOf(f, dog);
   const waited = v.ownerHere === null ? 0 : Math.max(0, Math.round(f.clockMin - v.ownerHere));
+  // the honest total, the same as the bill (no tip for an unhappy family, baths only if done, credits off)
+  const credit = f.guestBook.find((g) => g.name === dog.name && g.breed === dog.breed)?.credit ?? 0;
+  const billFor = (exitBath: boolean) => (dog.checkedIn ? assessVisit(f, dog, { exitBath, credit }).total : 0);
   const c = caps(f);
   const scuffle = inActiveScuffle(f, dog);
   const placed = dog.place.kind === "room" || dog.place.kind === "bed";
@@ -65,7 +70,7 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
         {v.prepaid.length ? ` (${v.prepaid.join(", ")} prepaid)` : ""} · {v.owner} · pickup {v.pickupDay > f.day ? "tomorrow " : ""}{fmtTime(v.pickup)}
       </p>
       {v.ownerHere !== null && (
-        <p role="status" className="mt-1 rounded-lg bg-accent/40 px-2 py-1 text-xs font-semibold text-secondary">
+        <p className="mt-1 rounded-lg bg-accent/40 px-2 py-1 text-xs font-semibold text-secondary">
           {v.owner} is here for pickup{waited ? ` — waiting ${waited} min` : ""}
         </p>
       )}
@@ -127,7 +132,7 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
           <Button variant="outline" className={btn} aria-label={placed ? "Check out" : "Check out (nothing to charge)"} disabled={!!v.finishing} onClick={() => leave(false)}>
             {placed ? (
               <>
-                Check out <span className="ml-1 text-xs text-primary">+{checkoutPay(f, dog, false).total}</span>
+                Check out <span className="ml-1 text-xs text-primary">+{billFor(false)}</span>
               </>
             ) : (
               "Check out (nothing to charge)"
@@ -136,7 +141,7 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
         )}
         {dog.checkedIn && placed && c.bath && !v.finishing && (
           <Button variant="outline" className={btn} aria-label="Exit bath + check out" onClick={() => leave(true)}>
-            Exit bath + check out <span className="ml-1 text-xs text-primary">+{checkoutPay(f, dog, true).total}</span>
+            Exit bath + check out <span className="ml-1 text-xs text-primary">+{billFor(true)}</span>
           </Button>
         )}
       </div>
