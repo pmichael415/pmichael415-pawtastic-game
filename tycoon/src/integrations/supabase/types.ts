@@ -20,6 +20,7 @@ export type Database = {
           created_at: string
           currency: string
           id: string
+          payment_intent: string | null
           product_id: string
           status: string
           user_id: string
@@ -29,6 +30,7 @@ export type Database = {
           created_at?: string
           currency: string
           id: string
+          payment_intent?: string | null
           product_id: string
           status?: string
           user_id: string
@@ -38,8 +40,36 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          payment_intent?: string | null
           product_id?: string
           status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      email_optins: {
+        Row: {
+          adult_confirmed: boolean
+          email: string
+          opted_in_at: string
+          unsub_token: string
+          unsubscribed_at: string | null
+          user_id: string
+        }
+        Insert: {
+          adult_confirmed: boolean
+          email: string
+          opted_in_at?: string
+          unsub_token?: string
+          unsubscribed_at?: string | null
+          user_id: string
+        }
+        Update: {
+          adult_confirmed?: boolean
+          email?: string
+          opted_in_at?: string
+          unsub_token?: string
+          unsubscribed_at?: string | null
           user_id?: string
         }
         Relationships: []
@@ -50,6 +80,7 @@ export type Database = {
           granted_at: string
           id: string
           product_id: string
+          revoked_at: string | null
           source_event_id: string
           user_id: string
         }
@@ -58,6 +89,7 @@ export type Database = {
           granted_at?: string
           id?: string
           product_id: string
+          revoked_at?: string | null
           source_event_id: string
           user_id: string
         }
@@ -66,26 +98,45 @@ export type Database = {
           granted_at?: string
           id?: string
           product_id?: string
+          revoked_at?: string | null
           source_event_id?: string
           user_id?: string
         }
         Relationships: []
       }
-      payment_events: {
+      game_events: {
         Row: {
-          event_id: string
+          build: string
+          client_at: string
+          cohort_day: string
+          device_id: string
+          id: number
+          name: string
+          props: Json
           received_at: string
-          type: string
+          session_id: string
         }
         Insert: {
-          event_id: string
+          build: string
+          client_at: string
+          cohort_day: string
+          device_id: string
+          id?: number
+          name: string
+          props?: Json
           received_at?: string
-          type: string
+          session_id: string
         }
         Update: {
-          event_id?: string
+          build?: string
+          client_at?: string
+          cohort_day?: string
+          device_id?: string
+          id?: number
+          name?: string
+          props?: Json
           received_at?: string
-          type?: string
+          session_id?: string
         }
         Relationships: []
       }
@@ -113,6 +164,167 @@ export type Database = {
         }
         Relationships: []
       }
+      notify_config: {
+        Row: {
+          id: number
+          origin: string
+        }
+        Insert: {
+          id: number
+          origin: string
+        }
+        Update: {
+          id?: number
+          origin?: string
+        }
+        Relationships: []
+      }
+      notify_deliveries: {
+        Row: {
+          channel: string
+          created_at: string
+          error: string | null
+          message_id: string
+          person: string
+          sent_at: string | null
+          status: string
+          target_id: string
+          week: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          error?: string | null
+          message_id: string
+          person: string
+          sent_at?: string | null
+          status?: string
+          target_id: string
+          week: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          error?: string | null
+          message_id?: string
+          person?: string
+          sent_at?: string | null
+          status?: string
+          target_id?: string
+          week?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notify_deliveries_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "notify_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notify_keys: {
+        Row: {
+          created_at: string
+          id: number
+          run_secret: string
+          vapid_private_jwk: Json
+          vapid_public: string
+        }
+        Insert: {
+          created_at?: string
+          id: number
+          run_secret: string
+          vapid_private_jwk: Json
+          vapid_public: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          run_secret?: string
+          vapid_private_jwk?: Json
+          vapid_public?: string
+        }
+        Relationships: []
+      }
+      notify_messages: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          audience_user: string | null
+          body: string
+          channels: string[]
+          created_at: string
+          email_body: string | null
+          email_subject: string | null
+          id: string
+          kind: string
+          path: string
+          send_at: string
+          sending_started_at: string | null
+          sent_at: string | null
+          status: string
+          title: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          audience_user?: string | null
+          body: string
+          channels?: string[]
+          created_at?: string
+          email_body?: string | null
+          email_subject?: string | null
+          id?: string
+          kind: string
+          path?: string
+          send_at: string
+          sending_started_at?: string | null
+          sent_at?: string | null
+          status?: string
+          title: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          audience_user?: string | null
+          body?: string
+          channels?: string[]
+          created_at?: string
+          email_body?: string | null
+          email_subject?: string | null
+          id?: string
+          kind?: string
+          path?: string
+          send_at?: string
+          sending_started_at?: string | null
+          sent_at?: string | null
+          status?: string
+          title?: string
+        }
+        Relationships: []
+      }
+      payment_events: {
+        Row: {
+          event_id: string
+          received_at: string
+          result: string | null
+          type: string
+        }
+        Insert: {
+          event_id: string
+          received_at?: string
+          result?: string | null
+          type: string
+        }
+        Update: {
+          event_id?: string
+          received_at?: string
+          result?: string | null
+          type?: string
+        }
+        Relationships: []
+      }
       player_saves: {
         Row: {
           data: Json
@@ -137,9 +349,99 @@ export type Database = {
         }
         Relationships: []
       }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          device_id: string
+          disabled_at: string | null
+          endpoint: string
+          failure_count: number
+          id: string
+          last_success_at: string | null
+          p256dh: string
+          user_id: string | null
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          device_id: string
+          disabled_at?: string | null
+          endpoint: string
+          failure_count?: number
+          id?: string
+          last_success_at?: string | null
+          p256dh: string
+          user_id?: string | null
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          device_id?: string
+          disabled_at?: string | null
+          endpoint?: string
+          failure_count?: number
+          id?: string
+          last_success_at?: string | null
+          p256dh?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      game_daily_funnel: {
+        Row: {
+          booking_link_clicks_by_referred_players: number | null
+          booking_link_clicks_hawthorne: number | null
+          booking_link_clicks_hillsdale: number | null
+          build: string | null
+          camera_list_picks: number | null
+          camera_overhead_picks: number | null
+          camera_walk_picks: number | null
+          client_errors: number | null
+          customer_app_link_clicks: number | null
+          day: string | null
+          directions_clicks: number | null
+          first_time_players: number | null
+          first_time_players_from_referrals: number | null
+          invite_shares: number | null
+          mobile_client_errors: number | null
+          pawtastic_recommend_shares: number | null
+          players: number | null
+          players_completed_tutorial: number | null
+          players_first_care_cycle: number | null
+          players_picked_team_hawthorne: number | null
+          players_picked_team_hillsdale: number | null
+          players_who_checked_in: number | null
+          referral_link_opens: number | null
+          restore_failures: number | null
+          shop_previews: number | null
+        }
+        Relationships: []
+      }
+      game_purchases_daily: {
+        Row: {
+          day: string | null
+          failed_or_expired: number | null
+          net_cents_test_mode: number | null
+          product_id: string | null
+          refunds: number | null
+          verified_purchases: number | null
+        }
+        Relationships: []
+      }
+      game_retention: {
+        Row: {
+          cohort_day: string | null
+          first_build: string | null
+          players: number | null
+          returned_days_8_to_30: number | null
+          returned_next_day: number | null
+          returned_within_7_days: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       grant_entitlement: {
@@ -147,7 +449,7 @@ export type Database = {
           _amount: number
           _currency: string
           _event_id: string
-          _payment_intent?: string | null
+          _payment_intent?: string
           _product_id: string
           _session_id: string
           _user_id: string
@@ -158,6 +460,107 @@ export type Database = {
         Args: { _event_id: string; _session_id: string; _status: string }
         Returns: string
       }
+      notify_claim_email: {
+        Args: { _limit: number; _message: string; _week: string }
+        Returns: {
+          email: string
+          unsub_token: string
+          user_id: string
+        }[]
+      }
+      notify_claim_push: {
+        Args: { _limit: number; _message: string; _week: string }
+        Returns: {
+          auth: string
+          endpoint: string
+          p256dh: string
+          subscription_id: string
+        }[]
+      }
+      notify_email_unsubscribe: { Args: { _token: string }; Returns: boolean }
+      notify_finish: {
+        Args: { _message: string; _now: string }
+        Returns: undefined
+      }
+      notify_get_keys: {
+        Args: never
+        Returns: {
+          run_secret: string
+          vapid_private_jwk: Json
+          vapid_public: string
+        }[]
+      }
+      notify_init_keys: {
+        Args: { _private: Json; _public: string; _secret: string }
+        Returns: undefined
+      }
+      notify_mark: {
+        Args: {
+          _channel: string
+          _error: string
+          _message: string
+          _status: string
+          _target: string
+        }
+        Returns: undefined
+      }
+      notify_push_result: {
+        Args: { _gone: boolean; _ok: boolean; _subscription: string }
+        Returns: undefined
+      }
+      notify_record_results: {
+        Args: { _channel: string; _message: string; _results: Json }
+        Returns: undefined
+      }
+      notify_set_email_optin: {
+        Args: { _adult: boolean; _email: string; _on: boolean; _user: string }
+        Returns: undefined
+      }
+      notify_start_next: {
+        Args: { _now: string }
+        Returns: {
+          approved_at: string | null
+          approved_by: string | null
+          audience_user: string | null
+          body: string
+          channels: string[]
+          created_at: string
+          email_body: string | null
+          email_subject: string | null
+          id: string
+          kind: string
+          path: string
+          send_at: string
+          sending_started_at: string | null
+          sent_at: string | null
+          status: string
+          title: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "notify_messages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      notify_subscribe: {
+        Args: {
+          _auth: string
+          _device: string
+          _endpoint: string
+          _p256dh: string
+          _user: string
+        }
+        Returns: string
+      }
+      notify_unsubscribe: { Args: { _endpoint: string }; Returns: boolean }
+      referral_stats: {
+        Args: { _code: string; _exclude_device: string }
+        Returns: {
+          completed: number
+          joined: number
+        }[]
+      }
       revoke_entitlement_for_refund: {
         Args: { _event_id: string; _payment_intent: string }
         Returns: string
@@ -166,59 +569,17 @@ export type Database = {
         Args: { _data: Json; _expected_revision: number; _game: string }
         Returns: number
       }
-      notify_subscribe: {
-        Args: { _endpoint: string; _p256dh: string; _auth: string; _device: string; _user: string | null }
-        Returns: string
-      }
-      notify_unsubscribe: { Args: { _endpoint: string }; Returns: boolean }
-      notify_start_next: {
-        Args: { _now: string }
-        Returns: {
-          id: string
-          kind: string
-          title: string
-          body: string
-          path: string
-          channels: string[]
-          email_subject: string | null
-          email_body: string | null
-          audience_user: string | null
-          send_at: string
-          approved_at: string | null
-          approved_by: string | null
-          status: string
-          created_at: string
-          sending_started_at: string | null
-          sent_at: string | null
-        }[]
-      }
-      notify_claim_push: {
-        Args: { _message: string; _week: string; _limit: number }
-        Returns: { subscription_id: string; endpoint: string; p256dh: string; auth: string }[]
-      }
-      notify_claim_email: {
-        Args: { _message: string; _week: string; _limit: number }
-        Returns: { user_id: string; email: string; unsub_token: string }[]
-      }
-      notify_mark: {
-        Args: { _message: string; _channel: string; _target: string; _status: string; _error: string | null }
-        Returns: undefined
-      }
-      notify_push_result: { Args: { _subscription: string; _ok: boolean; _gone: boolean }; Returns: undefined }
-      notify_finish: { Args: { _message: string; _now: string }; Returns: undefined }
-      notify_get_keys: {
-        Args: Record<PropertyKey, never>
-        Returns: { vapid_public: string; vapid_private_jwk: Json; run_secret: string }[]
-      }
-      notify_init_keys: { Args: { _public: string; _private: Json; _secret: string }; Returns: undefined }
-      notify_set_email_optin: {
-        Args: { _user: string; _email: string; _on: boolean; _adult: boolean }
-        Returns: undefined
-      }
-      notify_email_unsubscribe: { Args: { _token: string }; Returns: boolean }
       save_player_progress: {
         Args: { _data: Json; _expected_revision: number }
         Returns: number
+      }
+      team_standings: {
+        Args: { _weeks_ago?: number }
+        Returns: {
+          players: number
+          points: number
+          team: string
+        }[]
       }
     }
     Enums: {
