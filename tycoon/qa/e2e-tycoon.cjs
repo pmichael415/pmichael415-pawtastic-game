@@ -161,7 +161,11 @@ async function guidedStart(s, label) {
   // ---- iPhone 13: everything ----
   const s = await session(browser, 'iPhone 13');
   const { page, f, st, tool, tile, btn, panel, clearOverlays } = s;
-  try { await guidedStart(s, 'iPhone 13'); } catch (e) { check('iPhone 13: guided start ran', false, String(e).split('\n')[0]); }
+  try { await guidedStart(s, 'iPhone 13'); } catch (e) {
+    check('iPhone 13: guided start ran', false, String(e).split('\n')[0]);
+    await page.screenshot({ path: require('path').join(__dirname, 'out', 'tycoon-iphone-guided-error.png'), fullPage: true }).catch(() => {});
+    log('on screen:', await page.evaluate(() => ({ url: location.pathname, canvas: !!document.querySelector('section[aria-label="3D daycare view"] canvas'), map: !!document.querySelector('section[aria-label="Daycare map"]'), status: [...document.querySelectorAll('[role=status]')].map((x) => x.textContent.slice(0, 90)) })).catch((x) => String(x)));
+  }
 
   try {
     // close for the build checks, so a new arrival can't stand on a square we tap

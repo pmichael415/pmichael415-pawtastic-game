@@ -6,7 +6,7 @@ import { getSettings } from "./settings";
 import { captureReferral, referredBy } from "./referral";
 import { attributionProps, captureFirstTouch } from "./campaign";
 
-export const BUILD_ID = "2026-10-31.games-hub-1";
+export const BUILD_ID = "2026-11-02.tycoon-stage-a"; // change with each release, so its players can be told apart
 export const EVENT_NAMES = [
   "session_start",
   "tutorial_step",
