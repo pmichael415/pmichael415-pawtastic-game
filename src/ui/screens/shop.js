@@ -28,7 +28,7 @@ const ERRORS = {
 };
 export const errorText = code => ERRORS[code] ?? failureText(code);
 
-const LIMIT_CHOICES = [25, 50, 100];
+const LIMIT_CHOICES = [null, 5, 10, 20, 50, 100]; // null: no limit (the default)
 const REFUND_NOTE = 'In the real app, unspent purchased Treats can be refunded within 7 days, and purchases made by a child or by accident can be reported for a refund.';
 const ITEM_ART = {
   lives: () => heartIcon(),
@@ -193,13 +193,13 @@ export function render(app) {
 
     const history = [...state.spending].reverse();
     const spending = section('Spending',
-      h('p', { class: 'num' }, `${realPayments(app) ? 'Spending' : 'Demo spending'} this month: ${formatUsd(spent)} of ${formatUsd(limit)} limit`),
-      spent > limit ? h('p', { class: 'muted small' }, realPayments(app) ? "You've reached your limit for this month." : 'Over your limit — the real app would block more purchases this month.') : null,
+      h('p', { class: 'num' }, `${realPayments(app) ? 'Spending' : 'Demo spending'} this month: ${formatUsd(spent)}${limit == null ? ' (no limit)' : ` of ${formatUsd(limit)} limit`}`),
+      limit != null && spent > limit ? h('p', { class: 'muted small' }, realPayments(app) ? "You've reached your limit for this month." : 'Over your limit — the real app would block more purchases this month.') : null,
       h('div', { class: 'limit-choices', role: 'group', 'aria-label': 'Monthly spending limit' },
         LIMIT_CHOICES.map(v => h('button', {
           class: `chip${v === limit ? ' on' : ''}`, type: 'button', 'aria-pressed': String(v === limit),
-          onClick: () => done(backend.setSpendingLimit(v), `Monthly limit set to ${formatUsd(v)}.`),
-        }, formatUsd(v)))),
+          onClick: () => done(backend.setSpendingLimit(v), v == null ? 'No monthly limit.' : `Monthly limit set to ${formatUsd(v)}.`),
+        }, v == null ? 'No limit' : formatUsd(v)))),
       history.length
         ? h('ul', { class: 'history' }, history.map(s => h('li', {},
           h('strong', {}, spendName(s.what)),

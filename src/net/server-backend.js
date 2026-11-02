@@ -112,7 +112,7 @@ export function createServerBackend({ api, queue, inPlay = memoryStore(), now = 
     reportCard: areaId => reportCardFor(backend.state(), areaId),
     passStatus: () => ({ active: false, autoRenew: false, renewsOn: null, tier: 0, points: 0 }),
     monthSpendUsd: () => 0,
-    get spendingLimit() { return 100; },
+    get spendingLimit() { return null; },
     dogs: () => dogs.map(d => ({ id: d.id, name: d.name, breed: d.breed, photoUrl: d.photo_url ?? null })),
     referralLink: () => (referralCode ? `${APP_URL}/r/${encodeURIComponent(referralCode)}?s=game` : SITE_FALLBACK),
 

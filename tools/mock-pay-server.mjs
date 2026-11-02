@@ -319,9 +319,7 @@ createServer(async (req, res) => {
         const mine = db.purchases.filter(p => p.userId === user.id);
         if (product === 'starter' && mine.some(p => p.product === 'starter' && p.status === 'paid')) return send(res, 400, { error: 'starter-owned' });
         if (product === 'pass' && passOf(user).active) return send(res, 400, { error: 'pass-active' });
-        const month = new Date().toISOString().slice(0, 7);
-        const spent = mine.filter(p => new Date(p.at).toISOString().slice(0, 7) === month).reduce((n, p) => n + p.cents, 0);
-        if (spent + CATALOG[product].cents > 10000) return send(res, 400, { error: 'monthly-cap' });
+        // No monthly cap on the server any more (owner, 2 Nov 2026); a player's own limit is kept in the game.
         const id = `cs_test_${randomUUID().slice(0, 8)}`;
         db.sessions.set(id, { id, userId: user.id, product, success: `${back}?checkout=success&session_id=${id}`, cancel: `${back}?checkout=cancel` });
         return send(res, 200, { url: `${origin}/mock-stripe/checkout/${id}` });

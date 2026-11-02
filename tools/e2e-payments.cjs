@@ -217,12 +217,14 @@ async function goShop(page) { await page.click('button:has-text("Shop")', { forc
     await Promise.all([a.waitForURL(/\/play\/index\.html/), a.click('#back')]);
     check(await toast(a, /Checkout cancelled/), "toast: Checkout cancelled. You weren't charged.");
 
-    // 8. Spending limit ($25): spent 4.99 + 4.99 + 1.99 this month; a $19.99 pack would go over.
+    // 8. Spending limit: none by default (owner, 2 Nov). A player who picks $20 (spent 4.99 + 4.99 + 1.99 this month)
+    //    can't start a $19.99 pack.
     await closeIntroSheets(a);
     await goShop(a);
-    await a.click('button.chip:has-text("$25.00")', { force: true }); await a.waitForTimeout(500);
+    check(/Spending this month: \$[\d.]+ \(no limit\)/.test(await text(a)), 'no monthly limit by default');
+    await a.click('button.chip:has-text("$20.00")', { force: true }); await a.waitForTimeout(500);
     await a.click('button.shop-item:has-text("480 Treats")', { force: true });
-    check(await toast(a, /over your monthly limit of \$25\.00/), 'spending limit blocks a purchase over it');
+    check(await toast(a, /over your monthly limit of \$20\.00/), 'a limit the player chose blocks a purchase over it');
 
     // 9. Refund issued in Stripe: Treats come back off.
     await fetch(`${base}/mock/refund`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: EMAIL, product: 'pack100' }) });

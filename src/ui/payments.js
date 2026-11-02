@@ -3,6 +3,7 @@
 // Only used when the local backend carries a payments client (src/net/pay-api.js).
 
 import { openOutside } from '../net/embed.js';
+import { wouldExceed } from '../economy/wallet.js';
 import { h, fill } from './dom.js';
 import { appCodeMenuItem } from './app-signin.js';
 import { confirmPurchase } from './purchase.js';
@@ -141,7 +142,7 @@ export async function startCheckout(app, product, { confirmed = false } = {}) {
   const info = PRODUCTS[product];
   if (!pay || !info) return;
   const limit = backend.spendingLimit;
-  if (backend.monthSpendUsd() + info.usd > limit + 1e-9) {
+  if (wouldExceed(limit, backend.monthSpendUsd(), info.usd)) {
     app.toast(`That would go over your monthly limit of ${formatUsd(limit)}. You can change it in the Shop.`);
     return;
   }

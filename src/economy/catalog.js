@@ -72,7 +72,8 @@ export const EVENT = { id: 'howloween', name: 'Howl-o-ween Week', start: '2026-1
 
 export const LIVES = { max: 5, regenMs: 30 * 60 * 1000 };
 export const COINS = { min: 20, demoStart: 100 };
-export const SPENDING_LIMIT = { default: 100, min: 1, max: 100 };
+// Monthly spending limit: none by default (owner, 2 Nov 2026); a player can still choose $1–$100.
+export const SPENDING_LIMIT = { default: null, min: 1, max: 100 };
 
 // Pup Pass: 20 tiers of 100 Paw Points. Points come from playing, never from winning.
 export const PASS = {

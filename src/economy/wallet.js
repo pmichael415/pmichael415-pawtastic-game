@@ -33,6 +33,7 @@ export function defaultState() {
     purchases: { applied: [], refunded: [] },
     spending: [],
     spendingLimit: SPENDING_LIMIT.default,
+    limitChosen: false,
     seenIntros: [],
     milestones: { claimed: [] },
   };
@@ -55,8 +56,24 @@ function loadState(storage) {
   if (!isPlainObject(loaded) || loaded.version !== 1) return defaultState();
   const state = mergeInto(defaultState(), loaded);
   state.progress.levels = loadLevels(loaded.progress?.levels);
+  loadLimit(state, loaded);
   cleanLists(state);
   return state;
+}
+
+// The monthly limit: none unless the player chose one. Saves from before 2 Nov always had 100 (the old default),
+// so an unmarked 100 means "never chosen"; any other valid old value was the player's choice and is kept.
+function loadLimit(state, loaded) {
+  const v = loaded.spendingLimit;
+  const valid = Number.isFinite(v) && v >= SPENDING_LIMIT.min && v <= SPENDING_LIMIT.max;
+  const chosen = loaded.limitChosen === true || (valid && v !== 100);
+  state.limitChosen = chosen;
+  state.spendingLimit = chosen && valid ? v : null;
+}
+
+/** True if spending `usd` more this month would go over `limit` (null: no limit). */
+export function wouldExceed(limit, spentUsd, usd) {
+  return limit != null && spentUsd + usd > limit + 1e-9;
 }
 
 // mergeInto only checks typeof, so a list saved as null or {} (or with junk rows)
@@ -387,8 +404,9 @@ export function createWallet({ storage, now }) {
     },
 
     setSpendingLimit(usd) {
-      if (typeof usd !== 'number' || usd < SPENDING_LIMIT.min || usd > SPENDING_LIMIT.max) return fail('invalid');
+      if (usd !== null && (typeof usd !== 'number' || usd < SPENDING_LIMIT.min || usd > SPENDING_LIMIT.max)) return fail('invalid');
       state.spendingLimit = usd;
+      state.limitChosen = true;
       save();
       return { ok: true };
     },

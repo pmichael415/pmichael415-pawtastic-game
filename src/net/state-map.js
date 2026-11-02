@@ -38,7 +38,7 @@ export function toWalletState(player, dogs, now) {
     pass: { ...INACTIVE_PASS },
     starterPack: { bought: false, offerShown: true },
     spending: [],
-    spendingLimit: 100,
+    spendingLimit: null,
     activeLevel: null,
   };
 }
