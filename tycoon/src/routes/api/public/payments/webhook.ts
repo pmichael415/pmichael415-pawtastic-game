@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CLOSING_EVENTS, GAME_TAG, GRANTING_EVENTS, REFUND_EVENT, gameOf, paymentsConfig, refundOf, serverPaymentsEnv, validatePaidEvent, verifySignature } from "@/lib/payments/verify";
+import { CLOSING_EVENTS, GAME_TAG, GRANTING_EVENTS, REFUND_EVENT, gameOf, isModeEvent, paymentsConfig, refundOf, serverPaymentsEnv, validatePaidEvent, verifySignature } from "@/lib/payments/verify";
 
-// Signed payment webhook (test mode only). Fails closed: missing config -> 503,
+// Signed payment webhook (live mode in production, see PAYMENT_MODE). Fails closed: missing config -> 503,
 // bad signature -> 400, validation failure -> 400, DB failure -> 500 (provider retries).
 // The Stripe account is shared with the other PAWtastic games, so notifications that aren't this hub's
-// (other games' sales, or live mode while the hub is test-only) are acknowledged and ignored — never retried.
+// (other games' sales, or events from the other payment mode) are acknowledged and ignored — never retried.
 // Granting is atomic + idempotent in public.grant_entitlement (event dedupe + session match).
 export const Route = createFileRoute("/api/public/payments/webhook")({
   server: {
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
         }
         const o = evt.data?.object ?? {};
         const type = String(evt.type);
-        if (evt.livemode || o["livemode"] === true) return Response.json({ received: true, ignored: "live-mode" });
+        if (!isModeEvent(Boolean(evt.livemode) || o["livemode"] === true)) return Response.json({ received: true, ignored: "other-mode" });
         const eventId = String(evt.id ?? "");
         if (!eventId) return Response.json({ error: "missing event id" }, { status: 400 });
 

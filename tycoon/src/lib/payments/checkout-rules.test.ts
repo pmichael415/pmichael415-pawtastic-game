@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { canonicalOrigin, checkoutParams, GRANTING_EVENTS, paymentsConfig, reconcileSession, STRIPE_VERSION, stripeErrorSummary, stripeHeaders } from "./verify";
 
-const base = { STRIPE_SECRET_KEY: "sk_test_x", PAYMENT_WEBHOOK_SECRET: "whsec_x", STRIPE_EXPECTED_ACCOUNT: "acct_1PawGames000" };
+const base = { STRIPE_SECRET_KEY: "sk_live_x", PAYMENT_WEBHOOK_SECRET: "whsec_x", STRIPE_EXPECTED_ACCOUNT: "acct_1PawGames000" };
 describe("payment readiness requires a canonical HTTPS origin", () => {
   it("missing or invalid APP_ORIGIN keeps Buy locked", () => {
     for (const o of [undefined, "", "http://play.example.com", "https://play.example.com/shop", "https://play.example.com?x=1", "https://u:p@play.example.com", "not a url"]) {
       expect(paymentsConfig({ ...base, APP_ORIGIN: o }).ready).toBe(false);
     }
   });
-  it("valid origin enables test-mode only", () => {
+  it("valid origin enables live mode only", () => {
     const c = paymentsConfig({ ...base, APP_ORIGIN: "https://play.example.com/" });
     expect(c.ready && c.origin).toBe("https://play.example.com");
-    expect(paymentsConfig({ ...base, STRIPE_SECRET_KEY: "sk_live_x", APP_ORIGIN: "https://play.example.com" }).ready).toBe(false);
+    expect(paymentsConfig({ ...base, STRIPE_SECRET_KEY: "sk_test_x", APP_ORIGIN: "https://play.example.com" }).ready).toBe(false);
     expect(canonicalOrigin("https://PLAY.example.com")).toBeNull();
   });
 });

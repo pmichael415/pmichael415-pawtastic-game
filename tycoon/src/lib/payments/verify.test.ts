@@ -19,7 +19,7 @@ describe("payment webhook checks", () => {
   });
 
   it("requires $2.99 USD for the Blue Ribbon pack", () => {
-    const base = { eventId: "evt_1", sessionId: "cs_test_1", userId: "11111111-1111-1111-1111-111111111111", productId: "blue-ribbon-style", currency: "usd", status: "paid", livemode: false };
+    const base = { eventId: "evt_1", sessionId: "cs_live_1", userId: "11111111-1111-1111-1111-111111111111", productId: "blue-ribbon-style", currency: "usd", status: "paid", livemode: true };
     expect(validatePaidEvent({ ...base, amount: 299 }).ok).toBe(true);
     expect(validatePaidEvent({ ...base, amount: 1 }).ok).toBe(false);
     expect(validatePaidEvent({ ...base, amount: 299, currency: "eur" }).ok).toBe(false);
@@ -27,21 +27,21 @@ describe("payment webhook checks", () => {
   });
 
   it("requires $6.99 for Deluxe Daycare Decor", () => {
-    const base = { eventId: "evt_2", sessionId: "cs_test_2", userId: "11111111-1111-1111-1111-111111111111", currency: "usd", livemode: false };
+    const base = { eventId: "evt_2", sessionId: "cs_live_2", userId: "11111111-1111-1111-1111-111111111111", currency: "usd", livemode: true };
     expect(validatePaidEvent({ ...base, productId: "deluxe-daycare-decor", amount: 699, status: "paid" }).ok).toBe(true);
     expect(validatePaidEvent({ ...base, productId: "deluxe-daycare-decor", amount: 699, status: "unpaid" }).ok).toBe(false);
-    expect(validatePaidEvent({ ...base, productId: "deluxe-daycare-decor", amount: 699, status: "paid", livemode: true }).ok).toBe(false);
+    expect(validatePaidEvent({ ...base, productId: "deluxe-daycare-decor", amount: 699, status: "paid", livemode: false }).ok).toBe(false); // a test-mode payment never grants in production
     expect(validatePaidEvent({ ...base, productId: "free-stuff", amount: 0, status: "paid" }).ok).toBe(false);
   });
 });
 
 describe("payments config fails closed", () => {
-  it("not ready without both secrets, refuses live keys", () => {
+  it("not ready without both secrets, refuses test keys in production", () => {
     expect(paymentsConfig({}).ready).toBe(false);
-    expect(paymentsConfig({ STRIPE_SECRET_KEY: "sk_test_x" }).ready).toBe(false);
-    expect(paymentsConfig({ STRIPE_SECRET_KEY: "sk_live_x", PAYMENT_WEBHOOK_SECRET: "whsec" }).ready).toBe(false);
-    expect(paymentsConfig({ STRIPE_SECRET_KEY: "sk_test_x", PAYMENT_WEBHOOK_SECRET: "whsec", APP_ORIGIN: "https://play.example.com" }).ready).toBe(false); // receiving account not confirmed
-    expect(paymentsConfig({ STRIPE_SECRET_KEY: "sk_test_x", PAYMENT_WEBHOOK_SECRET: "whsec", APP_ORIGIN: "https://play.example.com", STRIPE_EXPECTED_ACCOUNT: "acct_1PawGames000" }).ready).toBe(true);
+    expect(paymentsConfig({ STRIPE_SECRET_KEY: "sk_live_x" }).ready).toBe(false);
+    expect(paymentsConfig({ STRIPE_SECRET_KEY: "sk_test_x", PAYMENT_WEBHOOK_SECRET: "whsec", APP_ORIGIN: "https://play.example.com", STRIPE_EXPECTED_ACCOUNT: "acct_1PawGames000" }).ready).toBe(false);
+    expect(paymentsConfig({ STRIPE_SECRET_KEY: "sk_live_x", PAYMENT_WEBHOOK_SECRET: "whsec", APP_ORIGIN: "https://play.example.com" }).ready).toBe(false); // receiving account not confirmed
+    expect(paymentsConfig({ STRIPE_SECRET_KEY: "sk_live_x", PAYMENT_WEBHOOK_SECRET: "whsec", APP_ORIGIN: "https://play.example.com", STRIPE_EXPECTED_ACCOUNT: "acct_1PawGames000" }).ready).toBe(true);
   });
   it("accepts any of multiple v1 signatures", async () => {
     const t = 1_800_000_000, body = "{}";

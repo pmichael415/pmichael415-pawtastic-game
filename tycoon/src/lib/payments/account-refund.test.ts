@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CLOSING_EVENTS, accountMatches, paymentsConfig, refundOf } from "./verify";
 
 const ok = {
-  STRIPE_SECRET_KEY: "sk_test_x",
+  STRIPE_SECRET_KEY: "sk_live_x",
   PAYMENT_WEBHOOK_SECRET: "whsec_x",
   APP_ORIGIN: "https://play.example.com",
 };

@@ -60,7 +60,7 @@ const completed = (
 ) => ({
   id,
   type: "checkout.session.completed",
-  livemode: false,
+  livemode: true,
   data: {
     object: {
       id: session,
@@ -75,7 +75,7 @@ const completed = (
 });
 
 beforeAll(async () => {
-  process.env["STRIPE_SECRET_KEY"] = "sk_test_flow";
+  process.env["STRIPE_SECRET_KEY"] = "sk_live_flow";
   process.env["PAYMENT_WEBHOOK_SECRET"] = SECRET;
   process.env["APP_ORIGIN"] = "https://play.example.com";
   process.env["STRIPE_EXPECTED_ACCOUNT"] = "acct_1PawGames000";
@@ -90,7 +90,7 @@ beforeAll(async () => {
     .sort())
     await db.exec(readFileSync(path.join(dir, f), "utf8"));
   await db.exec(
-    `INSERT INTO public.checkout_sessions(id, user_id, product_id, amount, currency) VALUES ('cs_a', '${U1}', 'blue-ribbon-style', 299, 'usd'), ('cs_b', '${U1}', 'deluxe-daycare-decor', 699, 'usd')`,
+    `INSERT INTO public.checkout_sessions(id, user_id, product_id, amount, currency) VALUES ('cs_live_a', '${U1}', 'blue-ribbon-style', 299, 'usd'), ('cs_live_b', '${U1}', 'deluxe-daycare-decor', 699, 'usd')`,
   );
   const mod = await import("@/routes/api/public/payments/webhook");
   const handlers = (
@@ -111,14 +111,14 @@ const active = async () =>
 
 describe("signed webhook → entitlement", () => {
   it("rejects a bad signature without touching the database", async () => {
-    const r = await send(completed("evt_x", "cs_a", 299), { badSig: true });
+    const r = await send(completed("evt_x", "cs_live_a", 299), { badSig: true });
     expect(r.status).toBe(400);
     expect(await active()).toEqual([]);
   });
 
   it("grants on a valid paid event; a duplicate delivery is acknowledged and changes nothing", async () => {
-    expect((await send(completed("evt_1", "cs_a", 299))).json["result"]).toBe("granted");
-    const dup = await send(completed("evt_1", "cs_a", 299));
+    expect((await send(completed("evt_1", "cs_live_a", 299))).json["result"]).toBe("granted");
+    const dup = await send(completed("evt_1", "cs_live_a", 299));
     expect(dup.status).toBe(200);
     expect(dup.json["result"]).toBe("duplicate");
     expect(await active()).toEqual(["blue-ribbon-style"]);
@@ -126,10 +126,10 @@ describe("signed webhook → entitlement", () => {
 
   it("a wrong amount is rejected (400) and grants nothing", async () => {
     const r = await send({
-      ...completed("evt_2", "cs_b", 1),
+      ...completed("evt_2", "cs_live_b", 1),
       data: {
         object: {
-          id: "cs_b",
+          id: "cs_live_b",
           amount_total: 1,
           currency: "usd",
           payment_status: "paid",
@@ -143,10 +143,10 @@ describe("signed webhook → entitlement", () => {
 
   it("an unpaid completion waits; the delayed-payment success grants later", async () => {
     const pending = await send({
-      ...completed("evt_3", "cs_b", 699),
+      ...completed("evt_3", "cs_live_b", 699),
       data: {
         object: {
-          id: "cs_b",
+          id: "cs_live_b",
           amount_total: 699,
           currency: "usd",
           payment_status: "unpaid",
@@ -159,14 +159,14 @@ describe("signed webhook → entitlement", () => {
     const ok = await send({
       id: "evt_4",
       type: "checkout.session.async_payment_succeeded",
-      livemode: false,
+      livemode: true,
       data: {
         object: {
-          id: "cs_b",
+          id: "cs_live_b",
           amount_total: 699,
           currency: "usd",
           payment_status: "paid",
-          payment_intent: "pi_cs_b",
+          payment_intent: "pi_cs_live_b",
           metadata: { user_id: U1, product_id: "deluxe-daycare-decor", game: "pawtastic-games-hub" },
         },
       },
@@ -175,11 +175,11 @@ describe("signed webhook → entitlement", () => {
     expect((await active()).sort()).toEqual(["blue-ribbon-style", "deluxe-daycare-decor"]);
   });
 
-  it("live-mode events are acknowledged and ignored while this hub is test-only (no retries, nothing granted)", async () => {
+  it("test-mode events are acknowledged and ignored now that the hub is live (no retries, nothing granted)", async () => {
     const before = await active();
-    const r = await send({ ...completed("evt_5", "cs_a", 299), livemode: true });
+    const r = await send({ ...completed("evt_5", "cs_live_a", 299), livemode: false });
     expect(r.status).toBe(200);
-    expect(r.json["ignored"]).toBe("live-mode");
+    expect(r.json["ignored"]).toBe("other-mode");
     expect(await active()).toEqual(before);
   });
 
@@ -187,9 +187,9 @@ describe("signed webhook → entitlement", () => {
     const partial = await send({
       id: "evt_6",
       type: "charge.refunded",
-      livemode: false,
+      livemode: true,
       data: {
-        object: { payment_intent: "pi_cs_b", amount: 699, amount_refunded: 100, refunded: false },
+        object: { payment_intent: "pi_cs_live_b", amount: 699, amount_refunded: 100, refunded: false },
       },
     });
     expect(partial.json["partial"]).toBe(true);
@@ -197,9 +197,9 @@ describe("signed webhook → entitlement", () => {
     const full = await send({
       id: "evt_7",
       type: "charge.refunded",
-      livemode: false,
+      livemode: true,
       data: {
-        object: { payment_intent: "pi_cs_a", amount: 299, amount_refunded: 299, refunded: true },
+        object: { payment_intent: "pi_cs_live_a", amount: 299, amount_refunded: 299, refunded: true },
       },
     });
     expect(full.json["result"]).toBe("revoked");
@@ -208,10 +208,10 @@ describe("signed webhook → entitlement", () => {
         await send({
           id: "evt_7",
           type: "charge.refunded",
-          livemode: false,
+          livemode: true,
           data: {
             object: {
-              payment_intent: "pi_cs_a",
+              payment_intent: "pi_cs_live_a",
               amount: 299,
               amount_refunded: 299,
               refunded: true,
@@ -225,19 +225,19 @@ describe("signed webhook → entitlement", () => {
 
   it("an expired checkout is recorded and grants nothing", async () => {
     await db.exec(
-      `INSERT INTO public.checkout_sessions(id, user_id, product_id, amount, currency) VALUES ('cs_c', '${U1}', 'blue-ribbon-style', 299, 'usd')`,
+      `INSERT INTO public.checkout_sessions(id, user_id, product_id, amount, currency) VALUES ('cs_live_c', '${U1}', 'blue-ribbon-style', 299, 'usd')`,
     );
     const r = await send({
       id: "evt_8",
       type: "checkout.session.expired",
-      livemode: false,
-      data: { object: { id: "cs_c", metadata: { game: "pawtastic-games-hub" } } },
+      livemode: true,
+      data: { object: { id: "cs_live_c", metadata: { game: "pawtastic-games-hub" } } },
     });
     expect(r.json["result"]).toBe("expired");
     expect(
       (
         await db.query<{ status: string }>(
-          `SELECT status FROM public.checkout_sessions WHERE id = 'cs_c'`,
+          `SELECT status FROM public.checkout_sessions WHERE id = 'cs_live_c'`,
         )
       ).rows[0]!.status,
     ).toBe("expired");
@@ -259,15 +259,15 @@ describe("one Stripe account shared by every PAWtastic game", () => {
   });
 
   it("an untagged checkout isn't granted either", async () => {
-    const r = await send(completed("evt_untagged", "cs_a", 299, { metadata: { user_id: U1, product_id: "blue-ribbon-style" } }));
+    const r = await send(completed("evt_untagged", "cs_live_a", 299, { metadata: { user_id: U1, product_id: "blue-ribbon-style" } }));
     expect(r.status).toBe(200);
     expect(r.json["ignored"]).toBe("other-game");
   });
 
   it("Graduation Day's expired checkouts and refunds are ignored too", async () => {
     const before = await events();
-    const expired = await send({ id: "evt_grad_2", type: "checkout.session.expired", livemode: false, data: { object: { id: "cs_grad_2", metadata: grad } } });
-    const refund = await send({ id: "evt_grad_3", type: "charge.refunded", livemode: false, data: { object: { id: "ch_g", payment_intent: "pi_grad", amount: 299, amount_refunded: 299, refunded: true, metadata: grad } } });
+    const expired = await send({ id: "evt_grad_2", type: "checkout.session.expired", livemode: true, data: { object: { id: "cs_grad_2", metadata: grad } } });
+    const refund = await send({ id: "evt_grad_3", type: "charge.refunded", livemode: true, data: { object: { id: "ch_g", payment_intent: "pi_grad", amount: 299, amount_refunded: 299, refunded: true, metadata: grad } } });
     expect([expired.status, refund.status]).toEqual([200, 200]);
     expect([expired.json["ignored"], refund.json["ignored"]]).toEqual(["other-game", "other-game"]);
     expect(await events()).toBe(before);

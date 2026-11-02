@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { PAID_PRODUCTS } from "@/lib/catalog";
-import { accountMatches, checkoutParams, paymentsConfig, reconcileSession, serverPaymentsEnv, stripeErrorSummary, stripeHeaders } from "./verify";
+import { PAYMENT_MODE, accountMatches, checkoutParams, paymentsConfig, reconcileSession, serverPaymentsEnv, stripeErrorSummary, stripeHeaders } from "./verify";
 
 // Cache the "this key belongs to the confirmed game account" check briefly per server instance.
 let accountOk: { key: string; account: string; until: number } | null = null;
@@ -19,7 +19,7 @@ async function keyMatchesAccount(key: string, account: string): Promise<boolean>
   }
 }
 
-/** Public: is test checkout configured? Never reveals secrets. */
+/** Public: is checkout configured? Never reveals secrets. */
 export const getPaymentsStatus = createServerFn({ method: "GET" }).handler(async () => {
   const cfg = paymentsConfig(serverPaymentsEnv());
   return { ready: cfg.ready, reason: cfg.ready ? null : cfg.reason };
@@ -34,7 +34,7 @@ export const listEntitlements = createServerFn({ method: "GET" })
     return data ?? [];
   });
 
-/** Creates a TEST-mode checkout session. Fails closed when not configured or not test mode. */
+/** Creates a checkout session in PAYMENT_MODE. Fails closed when not configured or the key is in the other mode. */
 export const createCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ productId: z.enum(["blue-ribbon-style", "deluxe-daycare-decor"]) }).parse(input))
@@ -68,7 +68,7 @@ export const createCheckout = createServerFn({ method: "POST" })
       console.error(`[checkout] Stripe refused the checkout session (${res.status}): ${reason}`);
       return { ok: false as const, error: `Checkout could not be started — Stripe says: ${reason}` };
     }
-    if (session.livemode) return { ok: false as const, error: "Checkout could not be started — the payment key is in live mode; the hub only takes test payments." };
+    if (Boolean(session.livemode) !== (PAYMENT_MODE === "live")) return { ok: false as const, error: "Checkout could not be started — the payment key is in the wrong mode." };
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const want = { id: session.id, user_id: context.userId, product_id: product.id, amount: product.priceCents, currency: product.currency };

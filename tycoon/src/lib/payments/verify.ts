@@ -33,9 +33,22 @@ export async function verifySignature(rawBody: string, header: string | null, se
 
 export type PaidEvent = { eventId: string; sessionId: string; userId: string; productId: string; amount: number; currency: string; status: string; livemode: boolean };
 
-/** Confirms test mode, paid status, and that amount/currency/product match the server catalog. */
-export function validatePaidEvent(e: PaidEvent): { ok: true } | { ok: false; reason: string } {
-  if (e.livemode) return { ok: false, reason: "live mode not enabled" };
+// ---------- payment mode ----------
+// Deployment intent is explicit, never inferred from whichever key happens to be present (as in Graduation Day).
+// The owner, 2 Nov 2026: "Production remains live-only, with test data excluded." Test checkout and restore had
+// passed end to end on 1 Nov. Keys, Stripe events and purchases from the other mode never count. The "test" mode
+// exists only for the Stripe test harness (qa/stripe-test), which passes it explicitly.
+export type PaymentMode = "test" | "live";
+export const PAYMENT_MODE: PaymentMode = "live";
+/** Stripe Checkout Session ids start with cs_live_ or cs_test_. */
+export const sessionPrefix = (mode: PaymentMode = PAYMENT_MODE) => `cs_${mode}_`;
+/** A purchase counts only in the mode it was made in (test packs bought before go-live are not real packs). */
+export const countsIn = (sessionId: string, mode: PaymentMode = PAYMENT_MODE) => !!sessionId && sessionId.startsWith(sessionPrefix(mode));
+export const isModeEvent = (livemode: boolean, mode: PaymentMode = PAYMENT_MODE) => livemode === (mode === "live");
+
+/** Confirms the payment mode, paid status, and that amount/currency/product match the server catalog. */
+export function validatePaidEvent(e: PaidEvent, mode: PaymentMode = PAYMENT_MODE): { ok: true } | { ok: false; reason: string } {
+  if (!isModeEvent(e.livemode, mode)) return { ok: false, reason: "wrong payment mode" };
   const p = PAID_PRODUCTS.find((x) => x.id === e.productId);
   if (!p) return { ok: false, reason: "unknown product" };
   if (e.status !== "paid") return { ok: false, reason: "not paid" };
@@ -62,13 +75,13 @@ export function canonicalOrigin(v: string | undefined): string | null {
 export const isAccountId = (v: string | undefined): v is string => !!v && /^acct_[A-Za-z0-9]{8,40}$/.test(v);
 
 /**
- * Server-only config check. Fails closed: refuses live keys, partial config, a missing/invalid return origin,
- * and an unconfirmed receiving account (STRIPE_EXPECTED_ACCOUNT, verified against the key at checkout).
+ * Server-only config check. Fails closed: refuses keys from the other mode, partial config, a missing/invalid
+ * return origin, and an unconfirmed receiving account (STRIPE_EXPECTED_ACCOUNT, verified against the key at checkout).
  */
-export function paymentsConfig(env: { STRIPE_SECRET_KEY?: string | undefined; PAYMENT_WEBHOOK_SECRET?: string | undefined; APP_ORIGIN?: string | undefined; STRIPE_EXPECTED_ACCOUNT?: string | undefined }) {
+export function paymentsConfig(env: { STRIPE_SECRET_KEY?: string | undefined; PAYMENT_WEBHOOK_SECRET?: string | undefined; APP_ORIGIN?: string | undefined; STRIPE_EXPECTED_ACCOUNT?: string | undefined }, mode: PaymentMode = PAYMENT_MODE) {
   const key = env.STRIPE_SECRET_KEY ?? "";
   if (!key || !env.PAYMENT_WEBHOOK_SECRET) return { ready: false as const, reason: "Payment provider not configured yet" };
-  if (!key.startsWith("sk_test_") && !key.startsWith("rk_test_")) return { ready: false as const, reason: "Only test-mode keys are accepted" };
+  if (!key.startsWith(`sk_${mode}_`) && !key.startsWith(`rk_${mode}_`)) return { ready: false as const, reason: `Only ${mode}-mode keys are accepted` };
   const origin = canonicalOrigin(env.APP_ORIGIN);
   if (!origin) return { ready: false as const, reason: "Checkout return address not configured" };
   if (!isAccountId(env.STRIPE_EXPECTED_ACCOUNT)) return { ready: false as const, reason: "Receiving Stripe account not confirmed yet" };
