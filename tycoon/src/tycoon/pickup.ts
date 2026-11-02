@@ -1,6 +1,7 @@
 // PAWtastic Daycare Tycoon — answering a complaint at pickup (service design, "Complaints"): finish the service
 // while the owner waits, refund, offer a credit for next time, or explain. One answer per complaint; an
 // explanation alone never clears a bath, billing or attention complaint.
+import { freeTub } from "./rooms";
 import { assessVisit, refundFor, type Assessment } from "./assess";
 import { caps } from "./connect";
 import { BATH_MIN, bath, clean, playtime } from "./run";
@@ -29,7 +30,7 @@ export function pickupView(s: TycoonState, dogId: string, exitBath: boolean): Pi
     const o: RemedyKind[] = [];
     // finishing the bath only when it can be done before closing (18:00)
     const fits = f.clockMin + (dog.bathing || BATH_MIN) <= DAY_CLOSE;
-    if ((c.kind === "bath" || c.kind === "billing") && fits && (dog.bathing || (placed && !!caps(f).bath && energy >= 15 && !refuses("bath", f)))) o.push("finish");
+    if ((c.kind === "bath" || c.kind === "billing") && fits && (dog.bathing || (placed && !!freeTub(f) && energy >= 15 && !refuses("bath", f)))) o.push("finish");
     if (c.kind === "attention" && placed && !dog.bathing && energy >= 10) o.push("finish");
     if (c.kind === "dirty" && energy >= 10) o.push("finish");
     if (refundFor(c.kind, v.paid, daycare) > 0) o.push("refund");

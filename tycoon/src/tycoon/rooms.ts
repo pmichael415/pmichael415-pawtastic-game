@@ -1,5 +1,6 @@
 // PAWtastic Daycare Tycoon — room names people read, which room a pup is in, and cleanliness per room
 // (staff design §3). Pure.
+import { caps } from "./connect";
 import type { Facility, Room, RoomType, TDog } from "./types";
 
 const TYPE_NAME: Record<RoomType, string> = { lobby: "Lobby", playroom: "Playroom", calm: "Calm-Down Room", bath: "Bath Room", boarding: "Boarding Room", staff: "Staff Room" };
@@ -48,4 +49,18 @@ export function setRoomClean(f: Facility, change: (value: number, room: Room) =>
   const roomClean = Object.fromEntries(f.rooms.map((r) => [r.uid, clamp(change(roomCleanOf(f, r.uid), r))]));
   const g = { ...f, roomClean };
   return { ...g, cleanliness: aggregateClean(g) };
+}
+
+/** Tubs in use by a running bath. */
+export const tubsInUse = (f: Facility): Set<string> => new Set(f.dogs.filter((d) => d.bathing && d.bathTub).map((d) => d.bathTub!));
+/** The first working tub with no bath running (and not in `alsoBusy`, e.g. tubs staff are walking to), or null. */
+export function freeTub(f: Facility, alsoBusy: ReadonlySet<string> = new Set()): string | null {
+  const used = tubsInUse(f);
+  return caps(f).tubs.find((t) => !used.has(t.uid) && !alsoBusy.has(t.uid))?.uid ?? null;
+}
+/** Booked baths not started yet, in booking order (check-in time). Only settled pups can go to the bath. */
+export function bathQueue(f: Facility): TDog[] {
+  return f.dogs
+    .filter((d) => d.checkedIn && !d.bathed && !d.bathing && (d.place.kind === "room" || d.place.kind === "bed") && !!d.visit?.requests.includes("bath"))
+    .sort((a, b) => (a.visit?.checkedInAt ?? 0) - (b.visit?.checkedInAt ?? 0));
 }

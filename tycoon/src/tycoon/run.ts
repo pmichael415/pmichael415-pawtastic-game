@@ -34,7 +34,7 @@ import { fac, withFac } from "./state";
 import { tourHolds } from "./tour";
 import { LAST_DROPOFF, fmtTime, logVisit, newVisit, visitOf } from "./visit";
 import { assessVisit } from "./assess";
-import { roomCleanOf, roomOfDog, setRoomClean } from "./rooms";
+import { bathQueue, freeTub, roomCleanOf, roomOfDog, setRoomClean } from "./rooms";
 import { adjustRep, referralBoost, repDeltaFor, reviewFactor, reviewFor } from "./reputation";
 import type { Facility, Mood, Outcome, Room, TDog, TPlace, TRegular, TResult, TycoonState } from "./types";
 
@@ -288,14 +288,20 @@ export function playtime(s: TycoonState, dogId: string): TResult {
   if (!st) return tired;
   const fav = personalityOf(dog).favorite;
   const loves = fav === "fetch" || fav === "tug" || fav === "zoomies" || fav === "cuddles";
-  const g = playGain(f, dog);
-  let nf = setDog(st, dogId, (d) => ({ ...d, happiness: clamp(d.happiness + g.total), clean: clamp(d.clean - 10), played: d.played + 1 }));
-  const playRoom = roomOfDog(nf, dog);
-  nf = bump(setRoomClean(nf, (v, r) => (r.uid === playRoom ? v - 4 : v)), "plays");
+  const { f: nf, g } = applyPlay(st, dogId);
   // Credit the top item with its own share only (what its card promised); with no item, the daycare's general fun.
   const helped = g.topItem && g.topShare > 0 ? ` (+${g.topShare} from your ${g.topItem})` : g.fromFun > 0 ? ` (+${g.fromFun} from your daycare's fun)` : "";
   const said = loves ? `${dog.name} loved it — ${FAVORITE_LABEL[fav]} is their favorite!` : `${dog.name} had a blast!`;
   return { ok: true, state: gainXp(withFac(s, nf), XP.playtime), msg: said + helped };
+}
+
+/** The play itself (a tap or an attendant): happiness from the daycare's fun and toys, a little dirt, one more play. */
+export function applyPlay(f: Facility, dogId: string): { f: Facility; g: ReturnType<typeof playGain> } {
+  const dog = findDog(f, dogId)!;
+  const g = playGain(f, dog);
+  const nf = setDog(f, dogId, (d) => ({ ...d, happiness: clamp(d.happiness + g.total), clean: clamp(d.clean - 10), played: d.played + 1 }));
+  const playRoom = roomOfDog(nf, dog);
+  return { f: bump(setRoomClean(nf, (v, r) => (r.uid === playRoom ? v - 4 : v)), "plays"), g };
 }
 
 /** Why a bath or exit bath can't happen right now (null if it can). */
@@ -320,10 +326,19 @@ export function bath(s: TycoonState, dogId: string): TResult {
   if (inActiveScuffle(f, dog)) return { ok: false, error: `Separate the scuffle in ${dog.name}'s room first.` };
   const why = bathBlock(f, "bath");
   if (why) return { ok: false, error: why };
+  const tub = freeTub(f);
+  if (!tub) {
+    const next = bathQueue(f).find((d) => d.id !== dogId);
+    return { ok: false, error: `Every bath station is busy${next ? ` — ${next.name} is next in the queue` : ""}. A tub frees up when its bath is done.` };
+  }
   const st = spendStaff(f, 15);
   if (!st) return tired;
-  const nf = setDog(st, dogId, (d) => ({ ...d, bathing: BATH_MIN, visit: logVisit(visitOf(st, d), `Bath started ${fmtTime(f.clockMin)}`) }));
-  return { ok: true, state: gainXp(withFac(s, nf), XP.bath), msg: `${dog.name} is in the bath — ready in about ${BATH_MIN} minutes (game time).` };
+  return { ok: true, state: gainXp(withFac(s, startBath(st, dogId, tub)), XP.bath), msg: `${dog.name} is in the bath — ready in about ${BATH_MIN} minutes (game time).` };
+}
+
+/** The bath itself: the pup stands in `tub` for BATH_MIN game minutes. Never paid here (the receipt charges it). */
+export function startBath(f: Facility, dogId: string, tub: string): Facility {
+  return setDog(f, dogId, (d) => ({ ...d, bathing: BATH_MIN, bathTub: tub, visit: logVisit(visitOf(f, d), `Bath started ${fmtTime(f.clockMin)}`) }));
 }
 
 /** Baths running for `gameMin` more minutes; a finished one leaves the pup clean, happier and counted (not paid). */
@@ -337,7 +352,7 @@ function runBaths(s: TycoonState, f: Facility, gameMin: number): Facility {
     baths++;
     const splashFan = personalityOf(d).favorite === "splash";
     const extra = f.supplies === "premium" ? PREMIUM_HAPPY : 0;
-    return { ...d, bathing: null, bathed: true, clean: 100, happiness: clamp(d.happiness + (splashFan ? 15 : 5) + extra), visit: logVisit(visitOf(f, d), `Bath finished ${fmtTime(f.clockMin)}`) };
+    return { ...d, bathing: null, bathTub: null, bathed: true, clean: 100, happiness: clamp(d.happiness + (splashFan ? 15 : 5) + extra), visit: logVisit(visitOf(f, d), `Bath finished ${fmtTime(f.clockMin)}`) };
   });
   return baths ? { ...f, dogs, stats: { ...f.stats, baths: f.stats.baths + baths } } : { ...f, dogs };
 }
