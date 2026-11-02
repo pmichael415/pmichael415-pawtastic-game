@@ -545,7 +545,7 @@ export class TycoonWorld {
     };
     const j = st.job;
     if (j) {
-      if (j.kind === "checkin" || j.kind === "pickup") return desk;
+      if (j.kind === "checkin" || j.kind === "pickup" || j.kind === "decline") return desk;
       if (j.kind === "bath") return tubSpot(j.tub) ?? desk;
       if (j.kind === "play") {
         const dog = j.dog ? this.dogs.get(j.dog) : null;

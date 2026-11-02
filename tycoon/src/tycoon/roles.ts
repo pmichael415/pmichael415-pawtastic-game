@@ -5,7 +5,7 @@ import type { Focus, JobKind, Role } from "./types";
 export const ROLES: Role[] = ["reception", "attendant", "bath", "cleaner"];
 export const ROLE_NAME: Record<Role, string> = { reception: "Receptionist", attendant: "Daycare attendant", bath: "Bath attendant", cleaner: "Cleaner" };
 export const ROLE_JOB: Record<Role, string> = {
-  reception: "Checks in families when a matching playroom spot or bed is free, and sends home families with no concerns.",
+  reception: "Checks in families when a matching playroom spot or bed is free, and sends home families with no concerns. A family with no spot is yours to decide; if they get upset waiting, they kindly reschedule them (free).",
   attendant: "Plays with pups in their playrooms who haven't played yet or are under 70% happy. Their presence halves scuffle risk there.",
   bath: "Runs the booked bath queue, one pup per free tub, and stays for the whole 40-minute bath.",
   cleaner: "Mops the dirtiest of their rooms when it drops under 80% clean.",
@@ -27,6 +27,6 @@ export const FOCUS_NAME: Record<Focus, string> = {
   dirtiest: "Dirtiest room first",
   busiest: "Busiest room first",
 };
-export const JOB_KINDS: JobKind[] = ["checkin", "pickup", "play", "bath", "clean"];
+export const JOB_KINDS: JobKind[] = ["checkin", "pickup", "decline", "play", "bath", "clean"];
 /** Which role does which job. */
-export const JOB_ROLE: Record<JobKind, Role> = { checkin: "reception", pickup: "reception", play: "attendant", bath: "bath", clean: "cleaner" };
+export const JOB_ROLE: Record<JobKind, Role> = { checkin: "reception", pickup: "reception", decline: "reception", play: "attendant", bath: "bath", clean: "cleaner" };

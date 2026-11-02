@@ -143,7 +143,7 @@ export type TDog = Omit<Dog, "site" | "place" | "x" | "y"> & {
 export type Role = "reception" | "attendant" | "bath" | "cleaner";
 /** Each role's two priorities; the first is the default. */
 export type Focus = "pickups" | "arrivals" | "neediest" | "newest" | "soonest" | "booked" | "dirtiest" | "busiest";
-export type JobKind = "checkin" | "pickup" | "play" | "bath" | "clean";
+export type JobKind = "checkin" | "pickup" | "decline" | "play" | "bath" | "clean";
 export type Tile = { c: number; r: number };
 /** One job: walking to `to`, then working there. `left` is game minutes left in the current phase. */
 export type Job = { kind: JobKind; dog: string | null; room: string | null; tub: string | null; bed?: string | null; phase: "walk" | "work"; left: number; total: number; to: Tile };

@@ -10,14 +10,15 @@ import { pickupView } from "./pickup";
 import { XP, gainXp } from "./progress";
 import { FOCI, ROLE_NAME } from "./roles";
 import { BATH_MIN, bathQueue, roomCleanOf, roomName, roomOfDog, setRoomClean, tubName, tubsInUse } from "./rooms";
-import { applyPlay, assignBed, assignRoom, checkIn, checkout, hireStaff, inActiveScuffle, startBath } from "./run";
+import { applyPlay, assignBed, assignRoom, checkIn, checkout, hireStaff, inActiveScuffle, startBath, turnAway } from "./run";
+import { DESK_UPSET, waitStage } from "./waiting";
 import { fac, withFac } from "./state";
 import { tourHolds } from "./tour";
 import type { Facility, Focus, Job, JobKind, Role, TDog, TResult, TStaff, Tile, TycoonState } from "./types";
 
 /** Game minutes of work per job (a bath is the bath itself). Walking is 1 tile a game minute, at least 1. */
-export const WORK_MIN: Record<JobKind, number> = { checkin: 4, pickup: 4, play: 10, bath: BATH_MIN, clean: 12 };
-export const JOB_ENERGY: Record<JobKind, number> = { checkin: 4, pickup: 4, play: 10, bath: 15, clean: 10 };
+export const WORK_MIN: Record<JobKind, number> = { checkin: 4, pickup: 4, decline: 2, play: 10, bath: BATH_MIN, clean: 12 };
+export const JOB_ENERGY: Record<JobKind, number> = { checkin: 4, pickup: 4, decline: 2, play: 10, bath: 15, clean: 10 };
 export const REST_UNTIL = 40;
 export const ATTEND_BELOW = 70;
 export const CLEAN_BELOW = 80;
@@ -178,6 +179,9 @@ function pickReception(s: TycoonState, st: TStaff, claims: Claims): Pick {
       note ??= d.boarding ? `No free boarding bed for ${d.name} — needs you` : `No free ${groupWords(d)} spot for ${d.name} — needs you`;
       return false;
     });
+  // A family with no matching spot is the player's call — until they're upset: then a kind, free reschedule.
+  const upset = f.dogs.find((d) => !d.checkedIn && d.place.kind === "lobby" && !claims.dogs.has(d.id) && !spotFor(f, d, claims) && (waitStage(f, d)?.minutes ?? 0) >= DESK_UPSET);
+  if (upset) return { job: { kind: "decline", dog: upset.id, room: null, tub: null, to: deskTile(f) } };
   const order = st.focus === "arrivals" ? [arrivals, pickups] : [pickups, arrivals];
   for (const list of order) {
     const d = list[0];
@@ -234,6 +238,7 @@ function invalid(s: TycoonState, j: Job): string | null {
   if (j.dog && !d) return `${nameOf(s, j.dog)} went home — job cancelled`;
   switch (j.kind) {
     case "checkin":
+    case "decline":
       if (d!.checkedIn || d!.place.kind !== "lobby") return `${d!.name} was checked in already`;
       return null;
     case "pickup":
@@ -348,6 +353,14 @@ function finish(s: TycoonState, id: string, j: Job): TycoonState {
       const b = spot.bed ? assignBed(a.state, d.id, spot.bed) : assignRoom(a.state, d.id, spot.room);
       return free(b.ok ? b.state : a.state, b.ok ? null : b.error);
     }
+    case "decline": {
+      const f = fac(s);
+      const d = f.dogs.find((x) => x.id === j.dog);
+      if (!d || d.checkedIn) return free(s, null);
+      if (spotFor(f, d, claimsOf({ ...f, staff: f.staff.filter((x) => x.id !== id) }))) return free(s, null); // a spot opened up: check-in instead
+      const r = turnAway(s, d.id);
+      return free(r.ok ? r.state : s, r.ok ? `Rescheduled ${d.name} — no ${d.boarding ? "boarding bed" : groupWords(d) + " spot"} today` : r.error);
+    }
     case "pickup": {
       const d = fac(s).dogs.find((x) => x.id === j.dog);
       if (!d) return free(s, null);
@@ -400,13 +413,14 @@ export function staffStatus(f: Facility, st: TStaff): StaffStatus {
   const dog = j?.dog ? f.dogs.find((d) => d.id === j.dog) ?? null : null;
   const who = dog?.name ?? "a pup";
   if (j && j.phase === "walk") {
-    if (j.kind === "checkin" || j.kind === "pickup") return { text: "Walking to the front desk", tone: "busy" };
+    if (j.kind === "checkin" || j.kind === "pickup" || j.kind === "decline") return { text: "Walking to the front desk", tone: "busy" };
     if (j.kind === "bath") return { text: `Walking to ${tubName(f, j.tub!)} — ${who} is next`, tone: "busy" };
     if (j.kind === "play") return { text: `Walking to ${dog ? (roomOfDog(f, dog) ? roomName(f, roomOfDog(f, dog)!) : "the pup") : "the pup"}`, tone: "busy" };
     return { text: `Walking to ${roomName(f, j.room!)}`, tone: "busy" };
   }
   if (j) {
     if (j.kind === "checkin") return { text: `Checking in ${who}`, tone: "busy" };
+    if (j.kind === "decline") return { text: `Kindly rescheduling ${who}'s family`, tone: "busy" };
     if (j.kind === "pickup") return { text: `Sending ${who} home with ${dog?.visit?.owner ?? "their family"}`, tone: "busy" };
     if (j.kind === "play") return { text: `Playing with ${who}`, tone: "busy" };
     if (j.kind === "bath") return { text: `Bathing ${who} — ${Math.ceil(dog?.bathing ?? 0)} min left`, tone: "busy" };

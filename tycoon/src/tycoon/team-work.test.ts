@@ -53,6 +53,19 @@ describe("receptionist", () => {
       expect(fac(s).staff.at(-1)!.note).toMatch(/Bruno/);
     }
   });
+  it("if the player hasn't decided by the time that family is upset, the receptionist kindly reschedules them — free", () => {
+    let s = ok(hire(base(), "reception"));
+    s = add(s, pup(fac(s), "bruno", { size: "large", temper: "active" }));
+    if (caps(fac(s)).playrooms.some((p) => p.group === "large-active")) return;
+    const rep = fac(s).reputation;
+    s = run(s, 35);
+    expect(fac(s).dogs).toHaveLength(1); // still the player's call before the upset stage
+    s = run(s, 15);
+    expect(fac(s).dogs).toHaveLength(0);
+    expect(fac(s).outcomes).toHaveLength(0); // a turn-away: no visit judged, no charge
+    expect(fac(s).reputation).toBe(rep);
+    expect(fac(s).staff.at(-1)!.note).toMatch(/Rescheduled Bruno/);
+  });
   it("respects room capacity: fills free spots, then leaves the rest waiting", () => {
     let s = ok(hire(base(), "reception"));
     const f = fac(s);
