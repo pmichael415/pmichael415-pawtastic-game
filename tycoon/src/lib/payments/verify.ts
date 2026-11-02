@@ -150,7 +150,7 @@ export function checkoutParams(product: PaidProduct, userId: string, origin: str
     // No payment_method_types: the current Stripe API rejects it; payment methods come from the Dashboard settings.
     // Delayed methods are safe: the webhook grants only once payment_status is "paid".
     mode: "payment",
-    success_url: `${origin}${returnTo}?checkout=returned`,
+    success_url: `${origin}${returnTo}?checkout=returned&item=${product.id}`,
     cancel_url: `${origin}${returnTo}?checkout=cancelled`,
     client_reference_id: userId,
     "metadata[game]": GAME_TAG,

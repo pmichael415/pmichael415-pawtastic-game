@@ -88,9 +88,9 @@ describe("checkout returns the buyer to the game", () => {
     const { productById } = await import("@/lib/catalog");
     const pp = productById("power-pack")!;
     const p = checkoutParams(pp, "u1", "https://play.example.com", "/recess");
-    expect(p.get("success_url")).toBe("https://play.example.com/recess?checkout=returned");
+    expect(p.get("success_url")).toBe("https://play.example.com/recess?checkout=returned&item=power-pack");
     expect(p.get("cancel_url")).toBe("https://play.example.com/recess?checkout=cancelled");
-    expect(checkoutParams(pp, "u1", "https://play.example.com", "/shop").get("success_url")).toBe("https://play.example.com/shop?checkout=returned");
+    expect(checkoutParams(pp, "u1", "https://play.example.com", "/shop").get("success_url")).toBe("https://play.example.com/shop?checkout=returned&item=power-pack");
   });
   it("only the product's own game page or the Shop tab is allowed", async () => {
     const { productById } = await import("@/lib/catalog");

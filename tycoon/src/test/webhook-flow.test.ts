@@ -285,7 +285,7 @@ describe("one Stripe account shared by every PAWtastic game", () => {
     expect(p.get("payment_intent_data[metadata][product_id]")).toBe("blue-ribbon-style");
     expect(p.get("line_items[0][price_data][product_data][name]")).toBe("PAWtastic Games · Blue Ribbon Style Pack");
     expect(p.get("line_items[0][price_data][unit_amount]")).toBe("299");
-    expect(p.get("success_url")).toBe("https://play.example.com/shop?checkout=returned");
+    expect(p.get("success_url")).toBe("https://play.example.com/shop?checkout=returned&item=blue-ribbon-style");
   });
 });
 
