@@ -228,7 +228,7 @@ const HINTS: Record<Tool, string> = {
 };
 
 /** The tool bar and the current tool's controls. */
-export function BuildToolbar({ b, state, act }: { b: Build; state: TycoonState; act: Act }) {
+export function BuildToolbar({ b, state, act, onBuyPack }: { b: Build; state: TycoonState; act: Act; onBuyPack?: () => void }) {
   const { ui } = b;
   const f = fac(state);
   const [groupPick, setGroupPick] = useState(false);
@@ -360,6 +360,7 @@ export function BuildToolbar({ b, state, act }: { b: Build; state: TycoonState; 
         owned={ownedPaid()}
         onPick={(kind) => b.patch({ item: kind, at: null, rot: 0 })}
         onClose={() => b.setTool(null)}
+        onBuyPack={onBuyPack}
       />
       <LandSheet open={ui.tool === "land"} state={state} act={act} onClose={() => b.setTool(null)} />
     </section>

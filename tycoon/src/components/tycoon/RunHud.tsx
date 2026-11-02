@@ -1,5 +1,5 @@
 // Coins, level, the day clock, open/closed and pause for the new Daycare Tycoon.
-import { Coins, Pause, Play } from "lucide-react";
+import { Coins, Pause, Play, Plus, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
@@ -18,12 +18,14 @@ export function RunHud({
   paused,
   setPaused,
   onFinances,
+  onShop,
 }: {
   state: TycoonState;
   act: (fn: (s: TycoonState) => TResult, opts?: ActOpts) => ActResult;
   paused: boolean;
   setPaused: (p: boolean) => void;
   onFinances?: () => void;
+  onShop?: () => void;
 }) {
   const f = fac(state);
   const lv = levelOf(state.xp);
@@ -42,6 +44,11 @@ export function RunHud({
           <Coins className="h-5 w-5 text-accent-foreground" aria-hidden />
           <CoinCounter value={state.coins} className={`font-display text-xl font-bold tabular-nums ${state.coins < 0 ? "text-destructive" : "text-secondary"}`} />
         </button>
+        {onShop && (
+          <Button size="icon" variant="outline" className="h-11 w-11 shrink-0" onClick={onShop} aria-label="Get coins">
+            <Plus className="h-5 w-5" aria-hidden />
+          </Button>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between text-xs font-semibold text-secondary">
             <span>Lv {lv}</span>
@@ -49,6 +56,11 @@ export function RunHud({
           </div>
           <Progress value={pct} aria-label={`Level ${lv}, ${pct}% to level ${lv + 1}`} className="mt-1 h-2" />
         </div>
+        {onShop && (
+          <Button size="icon" variant="outline" className="h-11 w-11 shrink-0" onClick={onShop} aria-label="Daycare Shop">
+            <ShoppingBag className="h-5 w-5" aria-hidden />
+          </Button>
+        )}
         <Button size="icon" variant="outline" className="h-11 w-11 shrink-0" onClick={() => setPaused(!paused)} aria-label={paused ? "Resume" : "Pause"}>
           {paused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
         </Button>

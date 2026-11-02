@@ -27,7 +27,7 @@ const OUTDOOR_ENTRIES: Entry[] = OUTDOOR.filter((o) => o.id !== "path").map((o) 
   unlock: o.unlock,
 }));
 
-export function CatalogSheet({ open, tab, level, coins, owned, onPick, onClose }: { open: boolean; tab: "furniture" | "outdoor"; level: number; coins: number; owned: ReadonlySet<PaidItemId>; onPick: (k: ThingKind) => void; onClose: () => void }) {
+export function CatalogSheet({ open, tab, level, coins, owned, onPick, onClose, onBuyPack }: { open: boolean; tab: "furniture" | "outdoor"; level: number; coins: number; owned: ReadonlySet<PaidItemId>; onPick: (k: ThingKind) => void; onClose: () => void; onBuyPack?: (() => void) | undefined }) {
   const entries = tab === "furniture" ? FURNITURE_ENTRIES : OUTDOOR_ENTRIES;
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -56,13 +56,24 @@ export function CatalogSheet({ open, tab, level, coins, owned, onPick, onClose }
                     <span className="text-xs font-semibold text-muted-foreground">
                       Part of the Deluxe Daycare Decor pack
                     </span>
-                    <a
-                      href={`${import.meta.env.BASE_URL}shop`}
-                      aria-label={`${e.name}: Get the Deluxe Daycare Decor pack in the Shop`}
-                      className="inline-flex min-h-11 items-center rounded-xl border border-primary px-3 text-xs font-bold text-primary"
-                    >
-                      Get it in the Shop
-                    </a>
+                    {onBuyPack ? (
+                      <button
+                        type="button"
+                        onClick={onBuyPack}
+                        aria-label={`${e.name}: Get the Deluxe Daycare Decor pack`}
+                        className="inline-flex min-h-11 items-center rounded-xl border border-primary px-3 text-xs font-bold text-primary"
+                      >
+                        Get it
+                      </button>
+                    ) : (
+                      <a
+                        href={`${import.meta.env.BASE_URL}shop`}
+                        aria-label={`${e.name}: Get the Deluxe Daycare Decor pack in the Shop`}
+                        className="inline-flex min-h-11 items-center rounded-xl border border-primary px-3 text-xs font-bold text-primary"
+                      >
+                        Get it in the Shop
+                      </a>
+                    )}
                   </div>
                 ) : locked ? (
                   <span className="shrink-0 text-xs font-semibold text-muted-foreground">Unlocks at level {e.unlock}</span>

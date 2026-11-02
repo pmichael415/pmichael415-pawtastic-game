@@ -10,7 +10,12 @@ import { setOwnedPaid } from "@/tycoon/paid";
 import { paintRoom } from "@/tycoon/build";
 import { markPainted } from "@/tycoon/guide";
 import { fac } from "@/tycoon/state";
-import { tycoonStore, useTycoon, type ActOpts, type ActResult } from "@/tycoon/store";
+import { onGetCoins, tycoonStore, useTycoon, type ActOpts, type ActResult } from "@/tycoon/store";
+import { productById } from "@/lib/catalog";
+import { liveCollect } from "@/lib/purchases/live";
+import { BuySheet } from "@/components/purchases/BuySheet";
+import { addedMessage, useCheckoutReturn } from "@/components/purchases/useCheckoutReturn";
+import { DaycareShop } from "./DaycareShop";
 import { lobbyDogs } from "@/tycoon/run";
 import { music, sound } from "@/tycoon/sound";
 import type { Facility, TDog } from "@/tycoon/types";
@@ -74,6 +79,30 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
   const [askSell, setAskSell] = useState(false);
   const [painting, setPainting] = useState<string | null>(null);
   const [finances, setFinances] = useState(false);
+  const [shop, setShop] = useState(false);
+  const [buyDecor, setBuyDecor] = useState(false);
+  useEffect(() => {
+    onGetCoins(() => setShop(true));
+    return () => onGetCoins(null);
+  }, []);
+  useCheckoutReturn("daycare-next");
+  // Purchases waiting for this game are collected when a signed-in player opens it (not on a return from Stripe,
+  // which useCheckoutReturn handles and reports).
+  const [returning] = useState(() => typeof window !== "undefined" && /[?&]checkout=/.test(window.location.search));
+  const entForShop = useEntitlementsMaybe();
+  const signedIn = !!entForShop && entForShop.status !== "guest" && entForShop.status !== "loading";
+  useEffect(() => {
+    if (!signedIn || returning) return;
+    let live = true;
+    liveCollect("daycare-next")
+      .then((r) => {
+        if (live && r.added.some((x) => x.sign === 1)) toast.success(addedMessage(r.added));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [signedIn, returning]);
   const [sign, setSign] = useState<string | null>(null);
   const stage = useRef<TycoonStageHandle>(null);
   const f = fac(state);
@@ -154,7 +183,7 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
 
   return (
     <div className="space-y-3">
-      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} />
+      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} onShop={() => setShop(true)} />
       <MoneyBanner state={state} />
       <GuideCard state={state} act={act} set={set} />
       <WeeklyCard state={state} act={act} />
@@ -172,7 +201,7 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
           {building ? "Done building" : "Build"}
         </Button>
       )}
-      {show3d && building && <BuildToolbar b={b} state={state} act={act} />}
+      {show3d && building && <BuildToolbar b={b} state={state} act={act} onBuyPack={() => setBuyDecor(true)} />}
       {show3d ? (
         <TycoonStage
           ref={stage}
@@ -235,6 +264,8 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
       />
       <ListView state={state} act={act} compact={show3d} />
       <FinancesSheet open={finances} state={state} act={act} onClose={() => setFinances(false)} />
+      <DaycareShop open={shop} onClose={() => setShop(false)} owned={entForShop?.owned ?? new Set()} />
+      {buyDecor && <BuySheet product={productById("deluxe-daycare-decor")!} returnTo="/daycare-next" open onClose={() => setBuyDecor(false)} />}
       <DayReport state={state} set={set} onFinances={() => setFinances(true)} />
       <LevelUp
         state={state}

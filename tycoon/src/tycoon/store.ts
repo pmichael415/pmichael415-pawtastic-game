@@ -190,6 +190,19 @@ function deactivate() {
 
 export type ActResult = TResult & { unlocked?: Trophy[] };
 
+// ---------- "Get coins" on a refusal for coins ----------
+let getCoins: (() => void) | null = null;
+/** The playing screen registers how to open the Daycare Shop (null when it closes). */
+export function onGetCoins(fn: (() => void) | null) {
+  getCoins = fn;
+}
+const COIN_REFUSAL = /^Need \d+ more coins\.$|^Paused until your coins are back above zero\.$/;
+/** Toast options that add "Get coins" to a refusal for coins, when the shop can be opened. */
+export function coinRefusalAction(error: string, open: (() => void) | null) {
+  if (!open || !COIN_REFUSAL.test(error)) return undefined;
+  return { action: { label: "Get coins", onClick: () => open() } };
+}
+
 export const tycoonStore = {
   getState: () => snap.state,
   getSnapshot: () => snap,
@@ -253,7 +266,7 @@ export function useTycoon() {
   const act = useCallback((fn: (s: TycoonState) => TResult, opts: ActOpts = {}): ActResult => {
     const r = tycoonStore.dispatch(fn);
     if (!r.ok) {
-      if (!opts.quiet) toast.error(r.error);
+      if (!opts.quiet) toast.error(r.error, coinRefusalAction(r.error, getCoins));
       return r;
     }
     if (opts.event) track(opts.event.name, opts.event.props);
