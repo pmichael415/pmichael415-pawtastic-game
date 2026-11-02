@@ -2,7 +2,7 @@
 // in words that match the player's controls. The upgrade and decision beats offer their choices right here.
 import { groupName, groupOf } from "@/game/engine";
 import { furnitureDef, outdoorDef } from "@/tycoon/catalog";
-import { canOpen } from "@/tycoon/connect";
+import { canOpen, caps } from "@/tycoon/connect";
 import { beatText, guideText, type Controls } from "@/tycoon/controls";
 import { ROOM_FUN_HAPPY } from "@/tycoon/effects";
 import { guideProgress } from "@/tycoon/guide";
@@ -25,9 +25,18 @@ export function CoachBubble({ state, controls, act, set }: { state: TycoonState;
   if (!t || t.done || t.skipped) return null;
   const f = fac(state);
   const chosen = UPGRADES.find((u) => u.kind === t.upgrade) ?? UPGRADES.find((u) => f.items.some((i) => i.kind === u.kind));
-  const ctx = { first: TOUR_DOGS.first, second: TOUR_DOGS.second, third: TOUR_DOGS.third, group: groupName(firstDogGroup(f)), upgrade: chosen?.name ?? "upgrade" };
-  const text = beatText(t.beat, controls, ctx);
   const rocket = f.dogs.find((d) => d.name === TOUR_DOGS.third) ?? null;
+  // Once a playroom for the decision pup exists, the coach says to take him there instead of offering to build one.
+  const roomReady = !!rocket && caps(f).playrooms.some((p) => p.group === groupOf(rocket) && p.spots > 0);
+  const ctx = {
+    first: TOUR_DOGS.first,
+    second: TOUR_DOGS.second,
+    third: TOUR_DOGS.third,
+    group: groupName(firstDogGroup(f)),
+    upgrade: chosen?.name ?? "upgrade",
+    ...(rocket ? { thirdGroup: groupName(groupOf(rocket)), roomReady } : {}),
+  };
+  const text = beatText(t.beat, controls, ctx);
   const step = guideProgress(state).step;
   return (
     <section aria-label="Guide" className="rounded-2xl border border-accent bg-card/95 p-3 shadow-pop backdrop-blur">
@@ -71,7 +80,7 @@ export function CoachBubble({ state, controls, act, set }: { state: TycoonState;
         const cost = playroomCost(state, g);
         return (
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            {cost !== null && (
+            {cost !== null && !roomReady && (
               <button type="button" onClick={() => act((s) => buildPlayroomFor(s, g))} className="min-h-11 rounded-xl bg-primary p-2 text-left text-sm font-bold text-primary-foreground">
                 {`Build a ${groupName(g)} playroom · ${cost} coins`}
               </button>

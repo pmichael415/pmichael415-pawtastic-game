@@ -33,5 +33,8 @@ describe("instructions for each kind of control", () => {
     expect(beatText("benefit", "3d", ctx).action).toContain("Daisy");
     expect(beatText("benefit", "3d", ctx).action).toContain("Toy Bin");
     expect(beatText("decision", "3d", ctx).action).toContain("Rocket");
+    const ready = beatText("decision", "map", { ...ctx, roomReady: true });
+    expect(ready.title).toBe("Rocket's room is ready");
+    expect(ready.action).toMatch(/Tap Rocket on the map, check him in, then “To Large & Active”/);
   });
 });

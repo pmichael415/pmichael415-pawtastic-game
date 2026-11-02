@@ -58,10 +58,41 @@ describe("starting a new daycare", () => {
     expect(screen.queryByRole("button", { name: "Get coins" })).toBeNull();
     expect(fac(now()).dogs.map((d) => d.name)).toEqual(["Biscuit"]);
   });
+  it("the coach sits above the daycare view (never over it) and is scrolled into view; Build waits for the tour", () => {
+    const scrolled: Element[] = [];
+    const orig = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this);
+    };
+    try {
+      open(newTycoon(Date.now()));
+      fireEvent.click(screen.getByRole("button", { name: /Quick start/ }));
+      const stage = screen.getByTestId("stage");
+      expect(coach().compareDocumentPosition(stage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(stage.parentElement?.contains(coach())).toBe(false);
+      expect(scrolled).toContain(coach());
+      expect(coach().style.scrollMarginTop).toMatch(/px$/); // lands just below the sticky status bar
+      expect(screen.queryByRole("button", { name: "Build" })).toBeNull();
+    } finally {
+      Element.prototype.scrollIntoView = orig;
+    }
+  });
+  it("building from scratch keeps the Build button for the building steps", () => {
+    open(newTycoon(Date.now()));
+    fireEvent.click(screen.getByRole("button", { name: /Build from scratch/ }));
+    expect(screen.getByRole("button", { name: "Build" })).toBeTruthy();
+  });
+  it("Quick start's level-up waits: nothing covers Biscuit in the first minute", () => {
+    open(newTycoon(Date.now()));
+    fireEvent.click(screen.getByRole("button", { name: /Quick start/ }));
+    expect(now().pendingLevel).toBeTruthy(); // the level and its coins are already earned…
+    expect(screen.queryByRole("dialog", { name: /Level \d+!/ })).toBeNull(); // …the celebration waits for the tour
+  });
   it("a save from before the tour (rooms built) gets no start card and keeps its shop", () => {
     open(guidedBuild(newTycoon(Date.now())));
     expect(screen.queryByRole("region", { name: "Start your daycare" })).toBeNull();
     expect(screen.getByRole("button", { name: "Daycare Shop" })).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: /Level \d+!/ })).toBeTruthy(); // the held level-up shows now
   });
 });
 
@@ -89,6 +120,22 @@ describe("the tour's choices", () => {
     expect(fac(now()).items.some((i) => i.kind === "toy_bin")).toBe(true);
     expect(now().tour?.beat).toBe("benefit");
   });
+  it("the decision: after building Rocket's room, the coach says to take him there", () => {
+    toUpgrade();
+    fireEvent.click(within(coach()).getByRole("button", { name: /Toy Bin · 80 coins/ }));
+    act(() => emit({ kind: "dog", id: dogId("Daisy") }));
+    fireEvent.click(inSheet(/Check in/));
+    fireEvent.click(inSheet(/^To Small & Gentle/));
+    fireEvent.click(inSheet(/^Playtime/));
+    fireEvent.click(inSheet(/^Check out/));
+    fireEvent.click(within(coach()).getByRole("button", { name: /Build a Large & Active playroom/ }));
+    expect(within(coach()).getByText("Rocket's room is ready")).toBeTruthy();
+    expect(within(coach()).queryByRole("button", { name: /Build a Large & Active playroom/ })).toBeNull();
+    act(() => emit({ kind: "dog", id: dogId("Rocket") }));
+    fireEvent.click(inSheet(/Check in/));
+    fireEvent.click(inSheet(/^To Large & Active/));
+    expect(now().tour?.done).toBe(true);
+  });
   it("the decision: letting Rocket rest sends him home free, then the goals show", () => {
     toUpgrade();
     fireEvent.click(within(coach()).getByRole("button", { name: /Toy Bin · 80 coins/ }));
@@ -106,6 +153,7 @@ describe("the tour's choices", () => {
     expect(now().coins).toBeGreaterThanOrEqual(coins); // nothing charged; the guide reward is paid
     expect(screen.getByRole("region", { name: "Next goals" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Daycare Shop" })).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: /Level \d+!/ })).toBeTruthy(); // the held level-up shows now
   });
 });
 

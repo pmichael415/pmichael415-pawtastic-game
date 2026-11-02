@@ -106,6 +106,20 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
     wasDone.current = tourDone;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tourDone]);
+  // When the tour starts, bring the coach (and the daycare right below it) into view.
+  const coachRef = useRef<HTMLDivElement>(null);
+  const touring = !!state.tour;
+  const wasTouring = useRef(touring);
+  useEffect(() => {
+    const el = coachRef.current?.querySelector<HTMLElement>('section[aria-label="Guide"]');
+    if (touring && !wasTouring.current && el) {
+      // land just below the sticky status bar
+      const hud = document.querySelector('section[aria-label="Daycare status"]')?.getBoundingClientRect().height ?? 0;
+      el.style.scrollMarginTop = `${Math.round(hud) + 12}px`;
+      el.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    }
+    wasTouring.current = touring;
+  }, [touring]);
   useCheckoutReturn("daycare-next");
   // Purchases waiting for this game are collected when a signed-in player opens it (not on a return from Stripe,
   // which useCheckoutReturn handles and reports).
@@ -208,7 +222,8 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
     <div className="space-y-3" style={{ paddingBottom: sel ? "min(48svh, 440px)" : undefined }}>
       <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} {...(holding ? {} : { onShop: () => setShop(true) })} />
       {isFreshSave(state) && <StartCard onPick={(mode) => set((s) => startTour(s, mode, Date.now()))} />}
-      {show3d && (
+      {/* During the tour Build waits (one thing at a time), except while building from scratch. */}
+      {show3d && (!holding || state.tour?.beat === "meet") && (
         <Button
           variant={building ? "default" : "outline"}
           className="h-11 w-full"
@@ -224,6 +239,12 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
       )}
       {show3d && building && <BuildToolbar b={b} state={state} act={act} onBuyPack={() => setBuyDecor(true)} />}
       {!show3d && <FallbackNotice reason={no3d ?? "list"} onRetry={() => (no3d ? setNo3d(null) : setSettings({ view: "overhead" }))} />}
+      {/* The coach sits right above the daycare (never over it) — on a phone it would hide the pups. */}
+      {!building && (
+        <div ref={coachRef} className="scroll-mt-2">
+          <CoachBubble state={state} controls={controls} act={act} set={set} />
+        </div>
+      )}
       <div className="relative">
         {show3d ? (
           <TycoonStage
@@ -240,15 +261,7 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
         ) : (
           no3d && <TycoonMap state={state} selected={sel?.id ?? null} onPick={onPick} />
         )}
-        {(show3d || no3d) && !building && (
-          <div className="pointer-events-none absolute inset-x-2 bottom-2">
-            <div className="pointer-events-auto">
-              <CoachBubble state={state} controls={controls} act={act} set={set} />
-            </div>
-          </div>
-        )}
       </div>
-      {!show3d && !no3d && <CoachBubble state={state} controls={controls} act={act} set={set} />}
       {sel && (
         <div className="fixed inset-x-0 z-40 mx-auto max-w-xl px-2" style={{ bottom: "calc(4rem + env(safe-area-inset-bottom))" }}>
           <div data-testid="panel-sheet" className="max-h-[min(48svh,440px)] overflow-y-auto overscroll-contain rounded-t-2xl shadow-pop">
@@ -305,13 +318,14 @@ function Play({ state, act: rawAct, set, paused, setPaused }: { state: TycoonSta
       <DaycareShop open={shop} onClose={() => setShop(false)} owned={entForShop?.owned ?? new Set()} />
       {buyDecor && <BuySheet product={productById("deluxe-daycare-decor")!} returnTo="/daycare-next" open onClose={() => setBuyDecor(false)} />}
       <DayReport state={state} set={set} onFinances={() => setFinances(true)} />
-      <LevelUp
+      {/* Held during the guided tour (the level and its coins are already earned): nothing covers the first pup. */}
+      {!holding && <LevelUp
         state={state}
         set={(fn) => {
           set(fn);
           if (!settings.reducedMotion) fx("confetti", "hud");
         }}
-      />
+      />}
       <SignCard
         open={!!sign}
         onClose={() => setSign(null)}

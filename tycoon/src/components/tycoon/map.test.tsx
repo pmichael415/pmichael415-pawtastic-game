@@ -25,6 +25,34 @@ describe("the 2D map", () => {
     fireEvent.click(screen.getByRole("button", { name: "Calm-Down Room" }));
     expect(onPick).toHaveBeenLastCalledWith({ kind: "room", uid: f.rooms.find((r) => r.type === "calm")!.uid });
   });
+  it("draws short room names and counts that fit inside each room", () => {
+    render(<TycoonMap state={s} selected={null} onPick={() => {}} />);
+    expect(screen.getByText("Lobby")).toBeTruthy();
+    expect(screen.getByText("1/4")).toBeTruthy();
+    expect(screen.getByText("Calm")).toBeTruthy();
+    expect(screen.getByText("0/3")).toBeTruthy();
+    const name = screen.getByText("Small & Gentle");
+    const room = f.rooms.find((r) => r.type === "playroom")!;
+    const len = Number(name.getAttribute("textLength") ?? 0);
+    expect(len === 0 || len <= room.w - 0.2).toBe(true);
+    expect(screen.queryByText(/of 4 waiting/)).toBeNull(); // the long form stays in the button's name
+  });
+  it("frames the daycare itself (rooms, things, paths) so it fills the map on a phone", () => {
+    render(<TycoonMap state={s} selected={null} onPick={() => {}} />);
+    const [x, y, w, h] = screen.getByRole("group", { name: "Your daycare from above" }).getAttribute("viewBox")!.split(" ").map(Number) as [number, number, number, number];
+    for (const r of f.rooms) {
+      expect(r.c).toBeGreaterThanOrEqual(x);
+      expect(r.r).toBeGreaterThanOrEqual(y);
+      expect(r.c + r.w).toBeLessThanOrEqual(x + w);
+      expect(r.r + r.d).toBeLessThanOrEqual(y + h);
+    }
+    expect(w).toBeLessThan(16); // tighter than the 16-square starter lot
+  });
+  it("a lot with no rooms yet frames the land the player owns", () => {
+    render(<TycoonMap state={newTycoon(0)} selected={null} onPick={() => {}} />);
+    // the starter lot is columns 10–26 and rows 16–28; half a square of margin, kept inside the 36 × 28 grid
+    expect(screen.getByRole("group", { name: "Your daycare from above" }).getAttribute("viewBox")).toBe("9.5 15.5 17 12.5");
+  });
   it("marks the selected pup", () => {
     render(<TycoonMap state={s} selected={f.dogs[0]!.id} onPick={() => {}} />);
     expect(screen.getByRole("button", { name: "Biscuit, waiting to check in" }).getAttribute("aria-pressed")).toBe("true");

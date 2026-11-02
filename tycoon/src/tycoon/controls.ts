@@ -3,7 +3,16 @@
 import type { TourBeat } from "./types";
 
 export type Controls = "3d" | "map" | "list";
-export type BeatCtx = { first: string; second: string; third: string; group: string; upgrade: string };
+export type BeatCtx = {
+  first: string;
+  second: string;
+  third: string;
+  group: string;
+  upgrade: string;
+  /** The decision pup's group (default Large & Active) and whether a playroom for it is ready now. */
+  thirdGroup?: string;
+  roomReady?: boolean;
+};
 
 const tapDog = (c: Controls, name: string) =>
   c === "3d" ? `Tap ${name} in the daycare` : c === "map" ? `Tap ${name} on the map` : `Find ${name} on the list`;
@@ -31,11 +40,14 @@ export function beatText(beat: TourBeat, c: Controls, x: BeatCtx): { title: stri
       };
     case "benefit":
       return { title: "See what it does", action: `${x.second} is here. Check her in, find her a playroom and give her playtime — watch the bonus from your ${x.upgrade}.` };
-    case "decision":
+    case "decision": {
+      const g = x.thirdGroup ?? "Large & Active";
+      if (x.roomReady) return { title: `${x.third}'s room is ready`, action: `${tapDog(c, x.third)}, check him in, then “To ${g}”.` };
       return {
         title: "A real decision",
-        action: `${x.third} is large and full of energy — he can't share with small, gentle pups. Build him a Large & Active playroom, or let him rest in the calm room today (he goes home free).`,
+        action: `${x.third} is ${g} — he can't share with your ${x.group} pups. Build him a ${g} playroom, or let him rest in the calm room today (he goes home free).`,
       };
+    }
     case "goals":
       return { title: "You're running a daycare!", action: "Pick your next goal below. Drop-offs and the day clock run from now on." };
   }
