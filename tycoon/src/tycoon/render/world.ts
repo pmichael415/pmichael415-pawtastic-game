@@ -35,7 +35,7 @@ export type WorldLooks = { bandana?: string; deluxe?: boolean };
 export type PickMode = "objects" | "tiles" | "edges";
 export type TycoonSnapshot = { state: TycoonState; selected: string | null; ghost: Ghost | null; overlay: boolean; looks: WorldLooks; pickMode?: PickMode };
 export type TycoonWorldOptions = { onPick(p: TPick | null): void; reducedMotion: boolean; lowPower: boolean };
-export type FxKind = "drop" | "sparkle" | "coins" | "confetti" | "puff";
+export type FxKind = "drop" | "sparkle" | "coins" | "confetti" | "puff" | "hearts";
 
 const PITCH = (56 * Math.PI) / 180;
 const SMALL = 0.75;
@@ -241,6 +241,7 @@ export class TycoonWorld {
       coins: { emoji: ["🪙"], n: 5, life: 1000, rise: 2.4, spread: 0.9 },
       confetti: { emoji: ["🎉", "🎊", "✨", "⭐"], n: 16, life: 1600, rise: 3.5, spread: 5 },
       puff: { emoji: ["💨"], n: 3, life: 700, rise: 0.8, spread: 1 },
+      hearts: { emoji: ["💖", "💕", "❤️"], n: 6, life: 1300, rise: 2, spread: 1 },
     };
     const sp = spec[kind];
     for (let i = 0; i < sp.n; i++) {

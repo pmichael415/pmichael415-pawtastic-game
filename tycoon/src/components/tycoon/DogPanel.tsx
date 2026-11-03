@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { BREEDS, groupName, groupOf, traitLabel } from "@/game/engine";
+import { BREEDS, FAVORITE_LABEL, groupName, groupOf, personalityOf, traitLabel } from "@/game/engine";
 import { bathPay, checkoutPay } from "@/tycoon/business";
 import { caps } from "@/tycoon/connect";
 import { assignBed, assignRoom, bath, checkIn, checkout, inActiveScuffle, playtime, roomDogs, toCalm, turnAway } from "@/tycoon/run";
@@ -14,6 +14,7 @@ import { assessVisit } from "@/tycoon/assess";
 import { roomCleanOf, roomName, roomOfDog } from "@/tycoon/rooms";
 import { responsibleFor } from "@/tycoon/team";
 import { STAGE_WORDS, waitStage } from "@/tycoon/waiting";
+import { MOMENT_ACTION, MOMENT_ASK, MOMENT_TIP, activityOf, answerMoment } from "@/tycoon/moments";
 
 /** How the playing screen checks a pup out (the pickup sheet when there's a complaint); falls back to checking out. */
 export const CheckoutContext = createContext<((dogId: string, exitBath: boolean) => void) | null>(null);
@@ -44,6 +45,8 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
   const onCheckout = useContext(CheckoutContext);
   const leave = (exitBath: boolean) => (onCheckout ? onCheckout(dog.id, exitBath) : act((s) => checkout(s, dog.id, exitBath)));
   const v = visitOf(f, dog);
+  const personality = personalityOf(dog);
+  const moment = v.moment ?? null;
   const waited = v.ownerHere === null ? 0 : Math.max(0, Math.round(f.clockMin - v.ownerHere));
   // the honest total, the same as the bill (no tip for an unhappy family, baths only if done, credits off)
   const credit = f.guestBook.find((g) => g.name === dog.name && g.breed === dog.breed)?.credit ?? 0;
@@ -76,6 +79,25 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
           {dog.visits > 1 ? ` · visit #${dog.visits}` : ""}
         </span>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Loves {FAVORITE_LABEL[personality.favorite]} · {personality.trait}
+      </p>
+      {moment?.state === "open" && (
+        <section aria-label={`${dog.name} is asking for you`} className="mt-1 rounded-lg border-2 border-primary/60 bg-primary/10 px-2 py-1.5">
+          <p className="text-sm font-semibold text-secondary">
+            ✨ {dog.name} {MOMENT_ASK[moment.kind]}
+          </p>
+          <p className="text-[11px] text-muted-foreground">Only you can do this — your team leaves it for you. No rush: if you miss it, nothing is lost.</p>
+          <Button className="mt-1 h-11" onClick={() => act((s) => answerMoment(s, dog.id))}>
+            {MOMENT_ACTION[moment.kind]} with {dog.name}
+          </Button>
+        </section>
+      )}
+      {moment?.state === "done" && (
+        <p className="mt-1 rounded-lg bg-primary/10 px-2 py-1 text-xs font-semibold text-secondary">
+          ✨ You shared {activityOf(moment.kind)} with {dog.name} — the family will hear about it at pickup (+{MOMENT_TIP} tip)
+        </p>
+      )}
       <p className="text-xs text-secondary">
         Booked {v.requests.join(" + ")}
         {v.prepaid.length ? ` (${v.prepaid.join(", ")} prepaid)` : ""} · {v.owner} · pickup {v.pickupDay > f.day ? "tomorrow " : ""}{fmtTime(v.pickup)}

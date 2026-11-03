@@ -28,6 +28,7 @@ import { TeamSheet } from "./TeamSheet";
 import { TodayStrip } from "./TodayStrip";
 import { objectives } from "@/tycoon/objectives";
 import { waitStage } from "@/tycoon/waiting";
+import { MOMENT_ASK } from "@/tycoon/moments";
 import { StartCard } from "./StartCard";
 import { TycoonMap } from "./TycoonMap";
 import { GUIDE_REWARD } from "@/tycoon/catalog";
@@ -267,6 +268,27 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
     seenOwners.current = here;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ownersHere]);
+  // A pup asks for you (personal moments): said once per moment, with a way straight to the pup. Moments already
+  // open when the screen loads aren't repeated — the ✨ over the pup shows them.
+  const momentsOpen = f.dogs.filter((d) => d.visit?.moment?.state === "open").map((d) => `${d.id}@${d.visit!.moment!.day}:${d.visit!.moment!.at}`).join(",");
+  const seenMoments = useRef<Set<string> | null>(null);
+  const asking = f.dogs.filter((d) => d.visit?.moment?.state === "open");
+  useEffect(() => {
+    const here = new Set(momentsOpen ? momentsOpen.split(",") : []);
+    if (seenMoments.current)
+      for (const key of here)
+        if (!seenMoments.current.has(key)) {
+          const id = key.split("@")[0]!;
+          const d = f.dogs.find((x) => x.id === id);
+          const m = d?.visit?.moment;
+          if (d && m) {
+            toast(`✨ ${d.name} ${MOMENT_ASK[m.kind]}`, { action: { label: `Go to ${d.name}`, onClick: () => setSel({ kind: "dog", id: d.id }) } });
+            sound.play("sparkle");
+          }
+        }
+    seenMoments.current = here;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [momentsOpen]);
   const onCheckout = (id: string, exitBath: boolean) => {
     const st = tycoonStore.getState();
     if (!st || !fac(st).dogs.some((d) => d.id === id)) return;
@@ -296,6 +318,14 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
     if (z.stats.plays > a.stats.plays) sound.play("playtime");
     if (z.stats.baths > a.stats.baths && z.stats.checkouts === a.stats.checkouts) sound.play("bath");
     if (calmNow(z) > calmNow(a)) sound.play("calm");
+    // a moment answered: hearts over the pup and a happy chime
+    const answered = z.dogs.find((d) => d.visit?.moment?.state === "done" && a.dogs.find((x) => x.id === d.id)?.visit?.moment?.state === "open");
+    if (answered) {
+      const at = dogTile(z, answered);
+      if (at) fx("hearts", at);
+      sound.play("playtime");
+      sound.play("sparkle");
+    }
     if (z.stats.checkouts > a.stats.checkouts) {
       const gone = a.dogs.find((d) => !z.dogs.some((x) => x.id === d.id));
       const at = gone ? dogTile(a, gone) : null;
@@ -435,6 +465,15 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
           />
         ) : (
           no3d && <TycoonMap state={state} selected={sel?.id ?? null} onPick={onPick} />
+        )}
+        {!building && !sel && asking.length > 0 && (
+          <button
+            type="button"
+            className="absolute left-2 top-2 z-10 min-h-11 rounded-full border-2 border-primary bg-background/95 px-3 text-sm font-semibold text-secondary shadow-soft"
+            onClick={() => setSel({ kind: "dog", id: asking[0]!.id })}
+          >
+            ✨ {asking[0]!.name}{asking.length > 1 ? ` + ${asking.length - 1} more` : ""} {asking.length > 1 ? "are" : "is"} asking for you
+          </button>
         )}
       </div>
       {sel && (

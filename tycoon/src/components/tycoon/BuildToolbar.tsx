@@ -9,7 +9,7 @@ import { OPPOSITE, containsTile, roomPrice, stepFrom, thingTiles, type Tile } fr
 import { level } from "@/tycoon/progress";
 import { PAID_GONE, PAID_LOCK, isActive, ownedPaid } from "@/tycoon/paid";
 import { fac } from "@/tycoon/state";
-import type { Ghost, PickMode, TPick } from "@/tycoon/render/world";
+import type { FxKind, Ghost, PickMode, TPick } from "@/tycoon/render/world";
 import type { ActOpts, ActResult } from "@/tycoon/store";
 import type { Door, Facility, Placed, Room, RoomType, Rot, Side, TResult, ThingKind, TycoonState } from "@/tycoon/types";
 import { CatalogSheet } from "./CatalogSheet";
@@ -28,7 +28,7 @@ export const TOOLS: { id: Tool; label: string }[] = [
 ];
 
 type Act = (fn: (s: TycoonState) => TResult, opts?: ActOpts) => ActResult;
-export type FxFn = (kind: "drop" | "sparkle" | "coins" | "confetti" | "puff", at: { c: number; r: number } | "hud") => void;
+export type FxFn = (kind: FxKind, at: { c: number; r: number } | "hud") => void;
 
 export type BuildUi = {
   tool: Tool | null;
