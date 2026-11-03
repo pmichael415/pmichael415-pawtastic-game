@@ -166,3 +166,20 @@ describe("rules don't depend on the frame rate or graphics", () => {
     expect(key(fast)).toEqual(key(slow));
   });
 });
+
+describe("a calm-room safety move stays penalty-free", () => {
+  it("a pup kept safe in the calm room all day: no charge, and the family is never upset — no reputation lost", async () => {
+    const { settle } = await import("./run");
+    let s = pastIntro();
+    const f = fac(s);
+    const calm = f.rooms.find((r) => r.type === "calm")!.uid;
+    const d = pup(f, "otis", { place: { kind: "calm", room: calm }, checkedIn: true, happiness: 0 }, { safeMove: true, ownerHere: 15 * 60 });
+    s = withFac(s, { ...f, clockMin: 15 * 60 + 5, dogs: [d] });
+    const rep = fac(s).reputation;
+    s = ok(settle(s, "otis", "checkout"));
+    const o = fac(s).outcomes.at(-1)!;
+    expect(o.total).toBe(0);
+    expect(o.mood).not.toBe("upset");
+    expect(fac(s).reputation).toBeGreaterThanOrEqual(rep);
+  });
+});

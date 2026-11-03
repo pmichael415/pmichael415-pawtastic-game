@@ -55,3 +55,13 @@ describe("test saves never touch the player's save", () => {
     expect(store.SAVE_KEY).toBe(store.KEY);
   });
 });
+
+describe("the busy scene is a fair day", () => {
+  it("its calm-room pups were moved there for safety, so a full day doesn't wreck reputation", () => {
+    let s = buildScenario("busy", 0);
+    expect(fac(s).dogs.filter((d) => d.place.kind === "calm").every((d) => d.visit?.safeMove)).toBe(true);
+    const day = fac(s).day;
+    for (let i = 0; i < 2000 && fac(s).day === day; i++) s = tick(s, 1, () => 0.99);
+    expect(fac(s).reputation).toBeGreaterThanOrEqual(70);
+  });
+});

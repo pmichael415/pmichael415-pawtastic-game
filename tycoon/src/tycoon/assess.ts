@@ -23,6 +23,8 @@ export type Assessment = {
 
 export const OWNER_PATIENCE = 30; // game minutes an owner waits at pickup before it's a complaint
 export const DIRTY_BELOW = 40;
+/** The lowest a calm-room safety move leaves a family's satisfaction (before any real complaint): neutral, no reputation change. */
+export const SAFE_FLOOR = 50;
 
 export const moodOf = (sat: number): Mood => (sat >= 80 ? "delighted" : sat >= 60 ? "content" : sat >= 40 ? "disappointed" : "upset");
 
@@ -39,6 +41,9 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
 
   // ---- satisfaction ----
   let sat = 0.6 * dog.happiness + 30;
+  // A calm-room safety move is never held against you: a pup kept safe all day leaves the family neutral at worst
+  // (no charge, no reputation lost). Real problems — a dirty room, a long wait — still count below.
+  if (safe) sat = Math.max(sat, SAFE_FLOOR);
   const praise: string[] = [];
   const complaints: Complaint[] = [];
   const add = (kind: ComplaintKind, text: string, penalty: number) => {

@@ -55,7 +55,11 @@ export function buildScenario(id: ScenarioId, now: number): TycoonState {
   const dogs: TDog[] = [];
   for (let i = 0; i < total; i++) {
     if (i < placed) dogs.push(pup(s, i, slots[i]!.group, { kind: "room", room: slots[i]!.room.uid }, true, id === "busy" && i % 2 === 0));
-    else if (id === "busy" && i < 24 && calm) dogs.push(pup(s, i, slots[i % slots.length]!.group, { kind: "calm", room: calm.uid }, true, false));
+    else if (id === "busy" && i < 24 && calm) {
+      // moved to the calm room for safety (no charge, no penalty), as a player would have done
+      const p = pup(s, i, slots[i % slots.length]!.group, { kind: "calm", room: calm.uid }, true, false);
+      dogs.push({ ...p, visit: { ...p.visit!, safeMove: true } });
+    }
     else {
       const other = (["large-active", "small-gentle", "large-gentle", "small-active"] as GroupId[])[i % 4]!;
       dogs.push(pup(s, i, other, { kind: "lobby" }, false, false));
