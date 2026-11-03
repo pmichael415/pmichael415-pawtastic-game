@@ -368,6 +368,11 @@ function parseFacility(x: unknown): Facility | null {
   );
   f.staff = staff.length ? staff.slice(0, 6).map((s) => parseStaff(s as unknown as Record<string, unknown>, f)) : f.staff;
   if (!f.staff.some((s) => s.founder)) f.staff[0] = { ...f.staff[0]!, founder: true, role: null };
+  // A save from before families could give up waiting (no founder flag yet): a family at the desk "just arrived",
+  // so nobody walks out the moment the game loads.
+  const older = !(Array.isArray(x["staff"]) && (x["staff"] as unknown[]).some((st) => isObj(st) && st["founder"] === true));
+  if (older)
+    f.dogs = f.dogs.map((d) => (!d.checkedIn && d.place.kind === "lobby" && d.visit && d.visit.arrivedDay === f.day && d.visit.arrived < f.clockMin ? { ...d, visit: { ...d.visit, arrived: Math.floor(f.clockMin) } } : d));
   f.reputation = clamp(num(x["reputation"], 80), 40, 100);
   f.cleanliness = clamp(num(x["cleanliness"], 100), 0, 100);
   const rc = isObj(x["roomClean"]) ? x["roomClean"] : {};

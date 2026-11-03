@@ -3,7 +3,7 @@
 // billing and rules stay identical. They never make the consequential calls: mismatched placements, complaints,
 // refusals, exit baths, scuffles and prices stay with the player. Pure; `tick` calls runStaff.
 import { ENTRANCE } from "./catalog";
-import { groupOf, hireCost, MAX_STAFF } from "@/game/engine";
+import { DAY_CLOSE, groupOf, hireCost, MAX_STAFF } from "@/game/engine";
 import { WAGES } from "./business";
 import { caps } from "./connect";
 import { pickupView } from "./pickup";
@@ -156,7 +156,12 @@ const groupWords = (d: TDog) => `${d.size === "small" ? "Small" : "Large"} & ${d
 
 const routinePickup = (s: TycoonState, d: TDog) => pickupView(s, d.id, false).assessment.complaints.length === 0;
 const pickupReady = (d: TDog) => d.checkedIn && d.visit?.ownerHere != null && !d.bathing && !d.visit.finishing;
-const inRooms = (st: TStaff, room: string | null) => !st.rooms?.length || (room !== null && st.rooms.includes(room));
+/** The rooms someone looks after that still exist (none: all rooms). */
+export const liveRooms = (f: Facility, st: TStaff) => (st.rooms ?? []).filter((uid) => f.rooms.some((r) => r.uid === uid));
+const inRooms = (f: Facility, st: TStaff, room: string | null) => {
+  const live = liveRooms(f, st);
+  return !live.length || (room !== null && live.includes(room));
+};
 
 type Pick = { job: Omit<Job, "phase" | "left" | "total">; note?: undefined } | { job: null; note: string | null };
 
@@ -198,7 +203,7 @@ function pickReception(s: TycoonState, st: TStaff, claims: Claims): Pick {
 const playable = (f: Facility, d: TDog) => d.checkedIn && (d.place.kind === "room" || d.place.kind === "bed") && !d.bathing && !inActiveScuffle(f, d) && !(d.visit?.ownerHere != null);
 function pickAttendant(s: TycoonState, st: TStaff, claims: Claims): Pick {
   const f = fac(s);
-  const pups = f.dogs.filter((d) => playable(f, d) && !claims.dogs.has(d.id) && inRooms(st, roomOfDog(f, d)) && (d.played === 0 || d.happiness < ATTEND_BELOW));
+  const pups = f.dogs.filter((d) => playable(f, d) && !claims.dogs.has(d.id) && inRooms(f, st, roomOfDog(f, d)) && (d.played === 0 || d.happiness < ATTEND_BELOW));
   pups.sort((a, b) => (st.focus === "newest" ? Number(a.played > 0) - Number(b.played > 0) : 0) || a.happiness - b.happiness);
   const d = pups[0];
   return d ? { job: { kind: "play", dog: d.id, room: roomOfDog(f, d), tub: null, to: dogTile(f, d) } } : { job: null, note: null };
@@ -208,10 +213,19 @@ function pickBath(s: TycoonState, st: TStaff, claims: Claims): Pick {
   const f = fac(s);
   const used = tubsInUse(f);
   const tub = caps(f).tubs.find((t) => !used.has(t.uid) && !claims.tubs.has(t.uid));
-  const queue = bathQueue(f).filter((d) => !claims.dogs.has(d.id) && !inActiveScuffle(f, d));
+  // a family already here, or a bath that can't finish before closing, is the player's call (finish, refund, credit)
+  let note: string | null = null;
+  const queue = bathQueue(f).filter((d) => {
+    if (claims.dogs.has(d.id) || inActiveScuffle(f, d)) return false;
+    if (d.visit?.ownerHere != null) {
+      note ??= `${d.visit.owner} is here and ${d.name}'s booked bath isn't done — needs you`;
+      return false;
+    }
+    return d.boarding || f.clockMin + BATH_MIN + 2 <= DAY_CLOSE;
+  });
   if (st.focus !== "booked") queue.sort((a, b) => (a.visit!.pickupDay - b.visit!.pickupDay) * 1440 + (a.visit!.pickup - b.visit!.pickup));
   const d = queue[0];
-  if (!d) return { job: null, note: null };
+  if (!d) return { job: null, note };
   if (!tub) return { job: null, note: caps(f).tubs.length ? null : "No working bath station — needs you" };
   return { job: { kind: "bath", dog: d.id, room: roomOfDog(f, d), tub: tub.uid, to: itemTile(f, tub.uid) } };
 }
@@ -219,7 +233,7 @@ function pickBath(s: TycoonState, st: TStaff, claims: Claims): Pick {
 function pickCleaner(s: TycoonState, st: TStaff, claims: Claims): Pick {
   const f = fac(s);
   const busy = (uid: string) => f.dogs.filter((d) => roomOfDog(f, d) === uid).length;
-  const rooms = f.rooms.filter((r) => inRooms(st, r.uid) && !claims.rooms.has(r.uid) && roomCleanOf(f, r.uid) < CLEAN_BELOW);
+  const rooms = f.rooms.filter((r) => inRooms(f, st, r.uid) && !claims.rooms.has(r.uid) && roomCleanOf(f, r.uid) < CLEAN_BELOW);
   rooms.sort((a, b) => (st.focus === "busiest" ? busy(b.uid) - busy(a.uid) : 0) || roomCleanOf(f, a.uid) - roomCleanOf(f, b.uid));
   const r = rooms[0];
   return r ? { job: { kind: "clean", dog: null, room: r.uid, tub: null, to: roomCenter(f, r.uid) } } : { job: null, note: null };
@@ -248,6 +262,7 @@ function invalid(s: TycoonState, j: Job): string | null {
     case "bath":
       if (j.phase === "work") return null;
       if (d!.bathing || d!.bathed) return `${d!.name}'s bath was started by someone else`;
+      if (d!.visit?.ownerHere != null) return `${d!.visit.owner} arrived before ${d!.name}'s bath started — needs you`;
       if (!caps(f).tubs.some((t) => t.uid === j.tub) || tubsInUse(f).has(j.tub!)) return `${tubName(f, j.tub!)} is busy — waiting for a free tub`;
       return d!.place.kind === "room" || d!.place.kind === "bed" ? null : `${d!.name} isn't settled — job cancelled`;
     case "clean":
@@ -401,7 +416,7 @@ export function runStaff(s: TycoonState, gameMin: number): TycoonState {
 }
 
 /** Whether an attendant looks after this playroom (halves scuffle risk there). */
-export const supervised = (f: Facility, room: string) => f.staff.some((x) => x.role === "attendant" && inRooms(x, room));
+export const supervised = (f: Facility, room: string) => f.staff.some((x) => x.role === "attendant" && inRooms(f, x, room));
 
 // ---------- what people see ----------
 
@@ -437,6 +452,6 @@ export function responsibleFor(f: Facility, d: TDog): string {
   const onJob = f.staff.find((x) => x.job?.dog === d.id);
   if (onJob) return `${onJob.name} — ${staffStatus(f, onJob).text}`;
   const room = roomOfDog(f, d);
-  const att = f.staff.find((x) => x.role === "attendant" && room && f.rooms.find((r) => r.uid === room)?.type === "playroom" && inRooms(x, room));
+  const att = f.staff.find((x) => x.role === "attendant" && room && f.rooms.find((r) => r.uid === room)?.type === "playroom" && inRooms(f, x, room));
   return att ? `${att.name} (attendant)` : "You";
 }

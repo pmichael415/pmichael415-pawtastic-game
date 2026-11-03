@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { WAGES } from "@/tycoon/business";
 import { FOCUS_NAME, ROLE_JOB, ROLE_NAME } from "@/tycoon/roles";
 import { roomName } from "@/tycoon/rooms";
-import { staffStatus } from "@/tycoon/team";
+import { liveRooms, staffStatus } from "@/tycoon/team";
 import type { Facility, TStaff } from "@/tycoon/types";
 
 export function StaffPanel({ f, st, onManage }: { f: Facility; st: TStaff; onManage: () => void }) {
@@ -21,7 +21,7 @@ export function StaffPanel({ f, st, onManage }: { f: Facility; st: TStaff; onMan
       {st.role && (
         <p className="mt-1 text-xs text-secondary">
           Priority: {st.focus ? FOCUS_NAME[st.focus] : "—"}
-          {(st.role === "attendant" || st.role === "cleaner") && ` · Rooms: ${st.rooms?.length ? st.rooms.map((r) => roomName(f, r)).join(", ") : "all"}`}
+          {(st.role === "attendant" || st.role === "cleaner") && ` · Rooms: ${liveRooms(f, st).length ? liveRooms(f, st).map((r) => roomName(f, r)).join(", ") : "all"}`}
         </p>
       )}
       <Button variant="outline" className="mt-2 h-11" onClick={onManage}>

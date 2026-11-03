@@ -8,7 +8,7 @@ import { WAGES } from "@/tycoon/business";
 import { FOCI, FOCUS_NAME, ROLE_JOB, ROLE_NAME, ROLES } from "@/tycoon/roles";
 import { roomName } from "@/tycoon/rooms";
 import { fac } from "@/tycoon/state";
-import { canHire, hire, hireCostFor, letGo, recommendRole, setFocus, setRole, setRooms, staffStatus, teamWages } from "@/tycoon/team";
+import { canHire, hire, hireCostFor, letGo, liveRooms, recommendRole, setFocus, setRole, setRooms, staffStatus, teamWages } from "@/tycoon/team";
 import type { ActOpts, ActResult } from "@/tycoon/store";
 import type { Facility, Role, TResult, TStaff, TycoonState } from "@/tycoon/types";
 
@@ -19,6 +19,7 @@ const seg = (on: boolean) => `min-h-11 rounded-xl border px-3 text-xs font-semib
 export function StaffCard({ f, st, act }: { f: Facility; st: TStaff; act: Act }) {
   const [confirm, setConfirm] = useState(false);
   const status = staffStatus(f, st);
+  const mine = liveRooms(f, st);
   const roomsFor = st.role === "attendant" ? f.rooms.filter((r) => r.type === "playroom") : st.role === "cleaner" ? f.rooms : [];
   return (
     <li aria-label={st.name} className="rounded-xl border border-border bg-background p-3">
@@ -51,13 +52,13 @@ export function StaffCard({ f, st, act }: { f: Facility; st: TStaff; act: Act })
           )}
           {roomsFor.length > 0 && (
             <div role="group" aria-label={`${st.name}'s rooms`} className="mt-2 flex flex-wrap gap-1.5">
-              <button type="button" className={seg(!st.rooms?.length)} aria-pressed={!st.rooms?.length} onClick={() => act((s) => setRooms(s, st.id, []))}>
+              <button type="button" className={seg(!mine.length)} aria-pressed={!mine.length} onClick={() => act((s) => setRooms(s, st.id, []))}>
                 All rooms
               </button>
               {roomsFor.map((r) => {
-                const on = !!st.rooms?.includes(r.uid);
+                const on = mine.includes(r.uid);
                 return (
-                  <button key={r.uid} type="button" className={seg(on)} aria-pressed={on} onClick={() => act((s) => setRooms(s, st.id, on ? (st.rooms ?? []).filter((x) => x !== r.uid) : [...(st.rooms ?? []), r.uid]))}>
+                  <button key={r.uid} type="button" className={seg(on)} aria-pressed={on} onClick={() => act((s) => setRooms(s, st.id, on ? mine.filter((x) => x !== r.uid) : [...mine, r.uid]))}>
                     {roomName(f, r.uid)}
                   </button>
                 );

@@ -89,12 +89,14 @@ export function neededGroup(f: Facility): GroupId {
   return waiting ?? GROUPS.map((g) => g.id).find((g) => !has(g)) ?? c.playrooms[0]?.group ?? "small-gentle";
 }
 
-/** The playroom an improvement goes to: the fullest one that can still take another bed. */
-function improveTarget(f: Facility): string | null {
+/** Where an improvement goes: a bed in the fullest playroom that can still take one, else a toy in the fullest one. */
+function improveTarget(f: Facility): { room: string; kind: "dog_bed" | "toy_bin" } | null {
   const c = caps(f);
   const fill = (uid: string, spots: number) => f.dogs.filter((d) => d.place.kind === "room" && d.place.room === uid).length / Math.max(1, spots);
-  const rooms = c.playrooms.filter((p) => p.spots < Math.floor((p.room.w * p.room.d) / 2)).sort((a, b) => fill(b.room.uid, b.spots) - fill(a.room.uid, a.spots));
-  return rooms[0]?.room.uid ?? c.playrooms[0]?.room.uid ?? null;
+  const byFill = [...c.playrooms].sort((a, b) => fill(b.room.uid, b.spots) - fill(a.room.uid, a.spots));
+  const bed = byFill.find((p) => p.spots < Math.floor((p.room.w * p.room.d) / 2));
+  if (bed) return { room: bed.room.uid, kind: "dog_bed" };
+  return byFill[0] ? { room: byFill[0].room.uid, kind: "toy_bin" } : null;
 }
 
 const modeOf = (f: Facility, id: ExpansionId): "new" | "improve" => (id === "bath" ? (caps(f).bath ? "improve" : "new") : f.rooms.filter((r) => r.type === "playroom").length >= 2 ? "improve" : "new");
@@ -118,7 +120,7 @@ function build(s: TycoonState, id: ExpansionId): TycoonState | string {
   if (mode === "improve") {
     const target = improveTarget(f);
     if (!target) return "There's no playroom to improve.";
-    return placeIn(s, target, "dog_bed") ?? placeIn(s, target, "toy_bin") ?? "That playroom is full of furniture already.";
+    return placeIn(s, target.room, target.kind) ?? (target.kind === "dog_bed" ? "That playroom has no room for another bed." : "That playroom is full of furniture already.");
   }
   const at = attachRoom(s, 3, 3);
   if (!at) return "There's no free spot next to your rooms — buy more land or build by hand.";
@@ -132,7 +134,8 @@ function build(s: TycoonState, id: ExpansionId): TycoonState | string {
 const quotes = new Map<string, { cost: number; upkeep: number } | string>();
 function quote(s: TycoonState, id: ExpansionId): { cost: number; upkeep: number } | string {
   const f = fac(s);
-  const key = `${id}|${level(s) >= EXPANSION_LEVEL}|${f.land.join()}|${f.rooms.map((r) => `${r.uid}${r.c},${r.r},${r.w},${r.d},${r.type},${r.group},${r.doors.length}`).join(";")}|${f.items.map((i) => i.uid).join()}|${neededGroup(f)}`;
+  // everything the build depends on: rooms (where, what, open or closed, doors), items (what, where, open or closed)
+  const key = `${id}|${modeOf(f, id)}|${level(s) >= EXPANSION_LEVEL}|${f.land.join()}|${f.rooms.map((r) => `${r.uid}${r.c},${r.r},${r.w},${r.d},${r.type},${r.group},${r.closed},${r.doors.map((d) => d.side + d.i).join("")}`).join(";")}|${f.items.map((i) => `${i.uid}${i.kind}${i.c},${i.r},${i.rot},${i.closed}`).join(";")}|${neededGroup(f)}`;
   const hit = quotes.get(key);
   if (hit !== undefined) return hit;
   const after = build({ ...s, coins: RICH }, id);
@@ -154,12 +157,15 @@ export function expansionOptions(s: TycoonState): ExpansionOption[] {
     const upkeep = q && typeof q !== "string" ? q.upkeep : 0;
     const why = !lvl ? `Unlocks at level ${EXPANSION_LEVEL}.` : typeof q === "string" ? q : s.coins < cost ? `${(cost - s.coins).toLocaleString("en-US")} more coins needed.` : null;
     const target = id === "playroom" && mode === "improve" ? improveTarget(f) : null;
+    const where = target ? roomName(f, target.room) : "a playroom";
     const group = groupName(neededGroup(f));
     const text =
       id === "playroom"
         ? mode === "new"
           ? { title: `Playroom wing for ${group} pups`, capacity: `+3 spots for ${group} pups`, unlocks: `Take ${group} families instead of turning them away — each spot can earn about ${f.prices.daycare} coins a day.` }
-          : { title: `Improve ${target ? roomName(f, target) : "a playroom"}`, capacity: `+1 spot (or more fun when it's full of beds)`, unlocks: `One more family a day in your busiest playroom.` }
+          : target?.kind === "toy_bin"
+            ? { title: `Improve ${where}`, capacity: `More fun in ${where} (it already has every bed it can hold)`, unlocks: "Pups there get more from each playtime." }
+            : { title: `Improve ${where}`, capacity: `+1 spot in ${where}`, unlocks: "One more family a day in your busiest playroom." }
         : mode === "new"
           ? { title: "Bath station", capacity: "1 bath station (one 40-minute bath at a time)", unlocks: `Families can book baths (about 3 in 10 do, ${f.prices.bath} coins each), and exit baths at pickup.` }
           : { title: "Second bath station", capacity: "+1 bath station — two baths at once", unlocks: "The bath queue moves twice as fast, so fewer families wait at pickup." };
@@ -178,5 +184,8 @@ export function buyExpansion(s: TycoonState, id: ExpansionId): TResult {
   if (!o.available) return { ok: false, error: o.why ?? "That expansion isn't possible right now." };
   const after = build(s, id);
   if (typeof after === "string") return { ok: false, error: after };
+  // never charge more (or less) than the card showed
+  const spent = today(fac(after)).expenses.building - today(fac(s)).expenses.building;
+  if (spent !== o.cost) return { ok: false, error: "The price changed — check the new price and try again." };
   return { ok: true, state: after, msg: `${o.title} — done! It's open and working.` };
 }
