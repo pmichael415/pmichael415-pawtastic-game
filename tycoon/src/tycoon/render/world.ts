@@ -14,6 +14,7 @@ import { recordFrame } from "../diag";
 import { disposeMerged, mergeStill } from "./compact";
 import { staffStatus } from "../team";
 import { waitStage } from "../waiting";
+import { dogActivity, familiesAtDesk } from "../activity";
 import { isActive, ownedPaid } from "../paid";
 import type { Door, Facility, Rot, Side, TDog, ThingKind, TStaff, TycoonState } from "../types";
 import { buildPath, buildRoom, buildThing, doorEdgeKeys, ghostMaterial, WALL_H } from "./models";
@@ -44,7 +45,13 @@ const EDGE_PICK = 0.35;
 const LOT = { x0: -36, x1: -36 + TILE * COLS, z0: -36, z1: -36 + TILE * ROWS };
 
 type DogMode = "idle" | "play" | "bath" | "rest" | "wait";
-type DogActor = { id: string; rig: DogRig; tag: Tag; tagText?: string; pos: { x: number; z: number }; to: { x: number; z: number }; heading: number; phase: number; size: number; important?: boolean; mode?: DogMode };
+type DogActor = {
+  id: string; rig: DogRig; tag: Tag; tagText?: string; pos: { x: number; z: number }; to: { x: number; z: number }; heading: number; phase: number; size: number; important?: boolean; mode?: DogMode;
+  /** The activity bubble over the pup (❗ ✨ 🫧 🎾 ⏳ 💤), hidden when there's nothing to say. */
+  bubble?: THREE.Sprite; bubbleEmoji?: string | null;
+  /** Wandering its room: the free squares it can go to, which room, and when it next sets off. Energetic pups move more. */
+  spots?: XZ[] | null; roomUid?: string | null; active?: boolean; wanderAt?: number | null; wandering?: boolean; stoppedAt?: number;
+};
 type XZ = { x: number; z: number };
 /** A person in the world. Staff follow `path` (door to door) to their job; `work` says what they're doing there. */
 type StaffActor = { rig: PersonRig; pos: XZ; to: XZ; path?: XZ[]; key?: string; tag?: Tag; tagText?: string; work?: string | null; heading?: number; status?: string };
@@ -134,7 +141,9 @@ export class TycoonWorld {
   private dogs = new Map<string, DogActor>();
   private staff = new Map<string, StaffActor>();
   /** Families at the lobby for pickup (keyed by the pup's id); they walk out with their pup. */
-  private owners = new Map<string, StaffActor & { leaving: boolean }>();
+  private owners = new Map<string, StaffActor & { leaving: boolean; wave?: number }>();
+  /** One material per bubble emoji, shared by every pup (no new texture per pup or per change). */
+  private emojiMats = new Map<string, THREE.SpriteMaterial>();
   private effects: Fx[] = [];
   private ring: THREE.Mesh;
   private raf = 0;
@@ -266,6 +275,11 @@ export class TycoonWorld {
       f.sprite.material.dispose();
     }
     this.effects = [];
+    for (const m of this.emojiMats.values()) {
+      m.map?.dispose();
+      m.dispose();
+    }
+    this.emojiMats.clear();
     (this.entranceSign?.userData["dispose"] as (() => void) | undefined)?.();
     this.renderer.dispose();
   }
@@ -489,8 +503,19 @@ export class TycoonWorld {
     return out;
   }
 
+  private emojiMat(e: string): THREE.SpriteMaterial {
+    let m = this.emojiMats.get(e);
+    if (!m) {
+      m = makeEmojiSprite(e).material;
+      this.emojiMats.set(e, m);
+    }
+    return m;
+  }
+
   private syncDogs(f: Facility, selected: string | null) {
     const slots = this.slots(f);
+    const taken = new Set(f.items.filter((i) => i.kind !== "path").flatMap((i) => thingTiles(i).map((t) => `${t.c},${t.r}`)));
+    const freeSpots = new Map<string, XZ[]>();
     const seen = new Set<string>();
     for (const d of f.dogs) {
       seen.add(d.id);
@@ -513,9 +538,41 @@ export class TycoonWorld {
       }
       // A pup in the bath stands in its tub for the whole bath; a pup being played with bounces; beds and the calm room rest.
       const tub = d.bathing && d.bathTub ? f.items.find((i) => i.uid === d.bathTub) : null;
-      a.to = tub ? thingCenter(tub.kind, tub.c, tub.r, tub.rot) : to;
       const played = f.staff.some((st) => st.job?.kind === "play" && st.job.phase === "work" && st.job.dog === d.id);
       a.mode = tub ? "bath" : played ? "play" : !d.checkedIn ? "wait" : d.place.kind === "bed" || d.place.kind === "calm" ? "rest" : "idle";
+      // An idle pup in a playroom wanders its free squares (never through furniture); anything else goes to its spot.
+      const roomUid = a.mode === "idle" && d.place.kind === "room" && !this.opts.reducedMotion ? d.place.room : null;
+      a.active = d.temper === "active";
+      if (roomUid) {
+        if (a.roomUid !== roomUid) {
+          a.to = to;
+          a.wandering = false;
+          a.wanderAt = null;
+        }
+        a.spots = freeSpots.get(roomUid) ?? (() => {
+          const room = f.rooms.find((r) => r.uid === roomUid);
+          const list = room ? roomTiles(room).filter((t) => !taken.has(`${t.c},${t.r}`)).map((t) => tileCenter(t.c, t.r)) : [];
+          freeSpots.set(roomUid, list);
+          return list;
+        })();
+      } else {
+        a.to = tub ? thingCenter(tub.kind, tub.c, tub.r, tub.rot) : to;
+        a.spots = null;
+        a.wandering = false;
+        a.wanderAt = null;
+      }
+      a.roomUid = roomUid;
+      // The activity bubble: what the pup is doing, readable at a glance (the same rules as the 2D map).
+      const emoji = dogActivity(f, d)?.emoji ?? null;
+      if (emoji !== (a.bubbleEmoji ?? null)) {
+        if (emoji && !a.bubble) {
+          a.bubble = new THREE.Sprite(this.emojiMat(emoji));
+          a.bubble.renderOrder = 11;
+          a.rig.root.add(a.bubble);
+        }
+        if (a.bubble && emoji) a.bubble.material = this.emojiMat(emoji);
+        a.bubbleEmoji = emoji;
+      }
       a.rig.bandana.visible = !!this.snap?.looks.bandana;
       if (this.snap?.looks.bandana) (a.rig.bandana as THREE.Mesh).material = mat(this.snap.looks.bandana);
       const wait = waitStage(f, d);
@@ -634,11 +691,14 @@ export class TycoonWorld {
     return [...tiles.slice(1, -1).map((t) => tileCenter(t.c, t.r)), to];
   }
 
-  /** Owners stand in front of the desk while they wait for pickup; when their pup leaves, they walk out together. */
+  /**
+   * Families stand in front of the desk while they drop off (until check-in: then they wave and go) and while they wait
+   * for pickup (when their pup leaves, they walk out together).
+   */
   private syncOwners(f: Facility) {
     const counter = f.items.find((i) => i.kind === "front_counter");
     const at = counter ? thingCenter(counter.kind, counter.c, counter.r, counter.rot) : tileCenter(ENTRANCE.c, ENTRANCE.r - 1);
-    const waiting = f.dogs.filter((d) => d.visit && (d.visit.ownerHere !== null || d.visit.finishing));
+    const waiting = familiesAtDesk(f);
     waiting.forEach((d, i) => {
       const to = { x: at.x - 1 + (i % 4) * 0.75, z: at.z + 1.2 + Math.floor(i / 4) * 0.7 };
       let a = this.owners.get(d.id);
@@ -654,12 +714,15 @@ export class TycoonWorld {
       }
       a.to = to;
       a.leaving = false;
+      a.wave = 0;
     });
     const out = tileCenter(ENTRANCE.c, ENTRANCE.r);
     for (const [id, a] of this.owners) {
-      if (waiting.some((d) => d.id === id)) continue;
+      if (waiting.some((d) => d.id === id) || a.leaving) continue;
       a.leaving = true;
       a.to = { x: out.x, z: out.z + 3 };
+      // a family who just dropped off waves goodbye to their pup before heading out
+      if (f.dogs.some((d) => d.id === id && d.checkedIn) && !this.opts.reducedMotion) a.wave = 1.2;
     }
   }
 
@@ -717,12 +780,25 @@ export class TycoonWorld {
   private updateActors(dt: number) {
     const calm = this.opts.reducedMotion;
     for (const a of this.dogs.values()) {
+      // wandering: a pause, then off to another free square of the room (energetic pups pause less and trot faster)
+      if (a.spots?.length && a.mode === "idle" && !calm) {
+        const there = Math.hypot(a.to.x - a.pos.x, a.to.z - a.pos.z) <= 0.05;
+        if (there && a.wanderAt == null) {
+          a.wanderAt = this.t + (a.active ? 1.2 + Math.random() * 2.3 : 5 + Math.random() * 7);
+          a.stoppedAt = this.t;
+        } else if (there && this.t >= a.wanderAt!) {
+          const sp = a.spots[Math.floor(Math.random() * a.spots.length)]!;
+          a.to = { x: sp.x + (Math.random() - 0.5) * 0.9, z: sp.z + (Math.random() - 0.5) * 0.9 };
+          a.wandering = true;
+          a.wanderAt = null;
+        }
+      }
       const dx = a.to.x - a.pos.x;
       const dz = a.to.z - a.pos.z;
       const dist = Math.hypot(dx, dz);
       const moving = dist > 0.05;
       if (moving) {
-        const step = calm ? dist : Math.min(dist, 4 * dt);
+        const step = calm ? dist : Math.min(dist, (a.wandering ? (a.active ? 3.2 : 1.5) : 4) * dt);
         a.pos.x += (dx / dist) * step;
         a.pos.z += (dz / dist) * step;
         a.heading = Math.atan2(dx, dz);
@@ -732,10 +808,22 @@ export class TycoonWorld {
       // Zoomed out, only pups that need you keep their name tags (less clutter, fewer layers to draw).
       a.tag.sprite.visible = this.distance <= 30 || !!a.important;
       const p = this.t * (moving ? 10 : 3) + a.phase;
-      const m = moving ? "walk" : a.mode ?? "idle";
+      // a gentle pup that has stood a while lies down (it gets up when it next sets off)
+      const lying = !moving && !calm && a.mode === "idle" && !a.active && a.stoppedAt !== undefined && a.wanderAt != null && this.t - a.stoppedAt > 2.5;
+      const m = moving ? "walk" : lying ? "rest" : a.mode ?? "idle";
       a.rig.tail.rotation.z = calm ? 0 : Math.sin(p * (m === "play" ? 4 : moving ? 1 : m === "rest" ? 0.6 : 2.5)) * (m === "rest" ? 0.25 : 0.6);
       a.rig.body.position.y = m === "rest" || m === "wait" ? -0.09 * a.size : calm ? 0 : m === "play" ? Math.abs(Math.sin(p * 2.2)) * 0.22 : m === "bath" ? -0.05 + Math.sin(p * 0.7) * 0.02 : moving ? Math.abs(Math.sin(p)) * 0.05 : Math.sin(p * 0.5) * 0.012;
       if (a.id === this.snap?.selected) this.ring.position.set(a.pos.x, 0.09, a.pos.z);
+      if (a.bubble) {
+        // 💤 is quiet (only zoomed in — a row of sleeping boarders shouldn't drown out a pup that needs you); ❗ and ✨
+        // are bigger. Above the name tag, bobbing gently; a little bigger zoomed out so it still reads on a phone.
+        a.bubble.visible = !!a.bubbleEmoji && (a.bubbleEmoji !== "💤" || this.distance <= 26);
+      }
+      if (a.bubble?.visible) {
+        const k = (a.bubbleEmoji === "❗" || a.bubbleEmoji === "✨" ? 1 : 0.7) * Math.max(1, this.distance / 22);
+        a.bubble.scale.set(k, k, 1);
+        a.bubble.position.set(0, 1.5 * a.size + 0.6 + k * 0.5 + (calm ? 0 : Math.sin(this.t * 3 + a.phase) * 0.06), 0);
+      }
     }
     for (const s of this.staff.values()) {
       // Door to door along the route (about the engine's walking pace); hurry if their work has already started.
@@ -763,6 +851,17 @@ export class TycoonWorld {
       s.tag && (s.tag.sprite.visible = this.distance <= 30 || s.tagText?.endsWith("|selected") === true || s.tagText?.endsWith("|alert") === true);
     }
     for (const [id, o] of this.owners) {
+      if (o.wave && o.wave > 0) {
+        // a wave goodbye: one arm up, swinging, before walking out
+        o.wave -= dt;
+        o.rig.arms.forEach((l, i) => (l.rotation.x = i === 0 ? -2.6 + Math.sin(this.t * 12) * 0.35 : 0));
+        o.rig.root.rotation.y = Math.PI;
+        continue;
+      }
+      const walk = Math.hypot(o.to.x - o.pos.x, o.to.z - o.pos.z) > 0.15 && !calm;
+      const swing = walk ? Math.sin(this.t * 9) * 0.6 : 0;
+      o.rig.legs.forEach((l, i) => (l.rotation.x = i % 2 ? -swing : swing));
+      o.rig.arms.forEach((l, i) => (l.rotation.x = i % 2 ? swing * 0.8 : -swing * 0.8));
       o.pos.x += (o.to.x - o.pos.x) * Math.min(1, dt * 2);
       o.pos.z += (o.to.z - o.pos.z) * Math.min(1, dt * 2);
       o.rig.root.position.set(o.pos.x, 0.06, o.pos.z);
@@ -813,6 +912,14 @@ export class TycoonWorld {
         if (v.z > 1) continue;
         const px = Math.hypot(rect.left + ((v.x + 1) / 2) * rect.width - clientX, rect.top + ((1 - v.y) / 2) * rect.height - clientY);
         if (px < 26 && (!person || px < person.px)) person = { id, px };
+      }
+      // a family at the desk: tapping them opens their pup (that's who they're here about)
+      for (const [id, o] of this.snap?.overlay ? [] : this.owners) {
+        if (o.leaving || !this.dogs.has(id)) continue;
+        const v = new THREE.Vector3(o.pos.x, 1.2, o.pos.z).project(this.camera);
+        if (v.z > 1) continue;
+        const px = Math.hypot(rect.left + ((v.x + 1) / 2) * rect.width - clientX, rect.top + ((1 - v.y) / 2) * rect.height - clientY);
+        if (px < 26 && (!best || px < best.px) && (!person || px < person.px)) best = { id, px };
       }
       if (person && (!best || person.px < best.px)) return this.opts.onPick({ kind: "staff", id: person.id });
       if (best) return this.opts.onPick({ kind: "dog", id: best.id });
@@ -929,10 +1036,11 @@ export class TycoonWorld {
       rooms: this.rooms.children.length,
       things: this.things.children.length,
       paths: this.paths.children.length,
-      dogs: [...this.dogs.values()].map((a) => ({ id: a.id, x: a.pos.x, z: a.pos.z, to: a.to, mode: a.mode ?? "idle" })),
+      dogs: [...this.dogs.values()].map((a) => ({ id: a.id, x: a.pos.x, z: a.pos.z, to: a.to, mode: a.mode ?? "idle", bubble: a.bubbleEmoji ?? null, wandering: !!a.spots?.length })),
       staff: this.staff.size,
       people: [...this.staff.entries()].map(([id, a]) => ({ id, x: a.pos.x, z: a.pos.z, to: a.to, work: a.work ?? null, status: a.status ?? "", walking: (a.path?.length ?? 0) > 0 || Math.hypot(a.to.x - a.pos.x, a.to.z - a.pos.z) > 0.1 })),
       owners: this.owners.size,
+      families: [...this.owners.entries()].map(([id, o]) => ({ id, leaving: o.leaving, waving: (o.wave ?? 0) > 0, x: o.pos.x, z: o.pos.z })),
       target: { x: this.target.x, z: this.target.z },
       distance: this.distance,
       frameMs: this.frameMs,

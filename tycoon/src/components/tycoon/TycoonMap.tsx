@@ -7,6 +7,7 @@ import { COLS, ROOM_TYPE_NAMES, ROWS, PARCELS, thingName } from "@/tycoon/catalo
 import { caps } from "@/tycoon/connect";
 import { thingTiles } from "@/tycoon/grid";
 import { inActiveScuffle } from "@/tycoon/run";
+import { dogActivity, familiesAtDesk } from "@/tycoon/activity";
 import { fac } from "@/tycoon/state";
 import type { TPick } from "@/tycoon/render/world";
 import type { Facility, Room, TDog, TycoonState } from "@/tycoon/types";
@@ -96,6 +97,7 @@ function positions(f: Facility): Map<string, { x: number; y: number }> {
 export function TycoonMap({ state, selected, onPick }: { state: TycoonState; selected: string | null; onPick: (p: TPick | null) => void }) {
   const f = fac(state);
   const pos = positions(f);
+  const atDesk = new Set(familiesAtDesk(f).map((d) => d.id));
   const keyPick = (p: TPick) => (e: KeyboardEvent) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
@@ -227,11 +229,12 @@ export function TycoonMap({ state, selected, onPick }: { state: TycoonState; sel
               {/* an invisible, bigger hit area so a finger finds the pup easily */}
               <circle data-hit="1" r={0.9} fill="transparent" />
               <circle r={on ? 0.48 : 0.4} fill={dogColor(f, d)} stroke="#FFFFFF" strokeWidth={0.1} />
-              {d.bathing ? (
-                <text x={0.45} y={-0.2} fontSize={0.5} aria-hidden>🛁</text>
-              ) : d.visit?.ownerHere != null || d.visit?.finishing ? (
-                <text x={0.42} y={0.2} fontSize={0.55} aria-hidden>🧍</text>
-              ) : null}
+              {/* the same activity bubble as the 3D view, and the family when they're at the desk */}
+              {(() => {
+                const a = dogActivity(f, d);
+                return a ? <text x={0.42} y={-0.2} fontSize={0.5} aria-hidden>{a.emoji}</text> : null;
+              })()}
+              {atDesk.has(d.id) ? <text x={0.42} y={0.45} fontSize={0.55} aria-hidden>🧍</text> : null}
               <text y={-0.55} fontSize={0.45} fontWeight={700} textAnchor="middle" fill="#312721" fontFamily="DM Sans, system-ui, sans-serif">
                 {d.name}
               </text>
