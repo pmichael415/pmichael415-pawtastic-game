@@ -1,5 +1,6 @@
 // PAWtastic Daycare Tycoon — how a visit went, judged only from what happened (service design, "Satisfaction,
 // receipt, complaints"). Pure: the receipt, any complaints, satisfaction and the owner's mood.
+import { MOMENT_TIP, activityOf } from "./moments";
 import { DESK_GIVES_UP, DESK_IMPATIENT } from "./waiting";
 import { roomCleanOf, roomName, roomOfDog } from "./rooms";
 import { bathPay } from "./business";
@@ -115,6 +116,8 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
   const t = tip(funAppeal(f).appeal);
   const tipNow = mood === "delighted" ? t : mood === "content" ? Math.floor(t / 2) : 0;
   if (tipNow > 0) lines.push({ label: "Tip", amount: tipNow, key: "tips" });
+  // a personal moment you shared: the pup tells the family, and they add a little extra (once per visit)
+  if (v.moment?.state === "done") lines.push({ label: `Tip — ${dog.name} told them about ${activityOf(v.moment.kind)} with you`, amount: MOMENT_TIP, key: "tips" });
   const subtotal = lines.reduce((n, l) => n + l.amount, 0);
   const credit = Math.min(subtotal, Math.max(0, Math.round(opts.credit ?? 0)));
   if (credit > 0) lines.push({ label: "Credit from last visit", amount: -credit });

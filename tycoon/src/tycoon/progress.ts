@@ -2,7 +2,7 @@
 import { CAMPAIGNS, FURNITURE, OUTDOOR, PARCELS } from "./catalog";
 import type { TycoonState } from "./types";
 
-export const XP = { checkIn: 5, playtime: 2, bath: 3, clean: 1, checkout: 10, happyCheckout: 5 } as const;
+export const XP = { checkIn: 5, playtime: 2, bath: 3, clean: 1, checkout: 10, happyCheckout: 5, moment: 5 } as const;
 /** Building, upgrading and buying land earn a tenth of the coins spent. */
 export const buildXp = (coins: number) => Math.max(0, Math.floor(coins / 10));
 

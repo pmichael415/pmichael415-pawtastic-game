@@ -1,6 +1,6 @@
 import type { DeliveryLog } from "@/lib/purchases/delivery";
 // PAWtastic Daycare Tycoon (new engine) — state types. Everything here is plain data: saves are JSON.
-import type { Dog, GroupId, Regular, Staff, Stats } from "@/game/engine";
+import type { Dog, Favorite, GroupId, Regular, Staff, Stats } from "@/game/engine";
 
 export type RoomType = "lobby" | "playroom" | "calm" | "bath" | "boarding" | "staff";
 export type Side = "N" | "E" | "S" | "W";
@@ -110,6 +110,8 @@ export type Visit = {
   paid: number;
   /** Minutes the owner had waited when they agreed to wait for a service (still counted, still owed any remedy). */
   waitBefore: number;
+  /** A personal moment: the pup asked for you (its favourite game); open, answered (done) or faded (missed). */
+  moment?: { kind: Favorite; at: number; day: number; state: "open" | "done" | "missed" } | null;
 };
 export type ComplaintKind = "wait" | "bath" | "billing" | "attention" | "dirty";
 export type RemedyKind = "finish" | "refund" | "credit" | "explain";

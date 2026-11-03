@@ -196,6 +196,7 @@ function withVisit(x: Record<string, unknown>, f: Facility, d: { name: string; b
       remedies: parseRemedies(v["remedies"]),
       waitBefore: Math.max(0, Math.min(600, Math.round(num(v["waitBefore"], 0)))),
       paid: Math.max(0, Math.min(1000, Math.round(num(v["paid"], 0)))),
+      ...(parseMoment(v["moment"]) ? { moment: parseMoment(v["moment"]) } : {}),
     },
   };
 }
@@ -541,4 +542,10 @@ function withTubs(f: Facility, dogs: TDog[]): TDog[] {
     if (free) used.add(free);
     return { ...d, bathTub: free };
   });
+}
+
+const FAVS = ["fetch", "tug", "zoomies", "cuddles", "splash"] as const;
+function parseMoment(x: unknown): NonNullable<Visit["moment"]> | null {
+  if (!isObj(x) || !FAVS.includes(x["kind"] as (typeof FAVS)[number]) || !["open", "done", "missed"].includes(x["state"] as string)) return null;
+  return { kind: x["kind"] as (typeof FAVS)[number], at: minute(x["at"], 0), day: Math.max(1, int(x["day"], 1)), state: x["state"] as "open" | "done" | "missed" };
 }

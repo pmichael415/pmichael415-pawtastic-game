@@ -26,7 +26,7 @@ describe("levels", () => {
     expect(seen).not.toContain(99);
   });
   it("XP amounts", () => {
-    expect(XP).toEqual({ checkIn: 5, playtime: 2, bath: 3, clean: 1, checkout: 10, happyCheckout: 5 });
+    expect(XP).toEqual({ checkIn: 5, playtime: 2, bath: 3, clean: 1, checkout: 10, happyCheckout: 5, moment: 5 });
     expect(buildXp(400)).toBe(40);
     expect(buildXp(15)).toBe(1);
   });

@@ -1,5 +1,6 @@
 // PAWtastic Daycare Tycoon — the daily care loop in player-built rooms, ported from src/game/engine.ts (spec §4.5).
 // Same decay and gain numbers as today's game. Playtime pays no coins: it raises happiness, which raises checkout pay.
+import { openMoments } from "./moments";
 import {
   ARRIVAL_CHANCE_PER_MIN,
   BREEDS,
@@ -687,7 +688,7 @@ function tickStep(s: TycoonState, seconds: number, rand: () => number): TycoonSt
     out = withFac(out, { ...g, clockMin: clock });
     // staff work through this stretch of time before the minute's deadlines are checked (same result at any step size)
     out = runStaff(out, step);
-    if (whole) out = pickups(out);
+    if (whole) out = openMoments(pickups(out));
     if (!whole || !lobbyStatus(clock).open) continue;
     if (rand() < chance) {
       const c = caps(fac(out));
