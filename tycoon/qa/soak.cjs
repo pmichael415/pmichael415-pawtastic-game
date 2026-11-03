@@ -26,9 +26,19 @@ const srv = http.createServer((req, res) => {
   await page.evaluate(() => document.querySelector('section[aria-label="3D daycare view"] canvas')?.scrollIntoView({ block: 'center' }));
   const rows = [];
   console.log(`Chromium ${browser.version()} · iPhone 13 emulation · battery-saver graphics · busy test save · ${MIN} minutes (software graphics, not a real iPhone)`);
+  // act like a player: close the day's report and level-ups as they appear (they pause the clock while open)
+  const closeDialogs = async () => {
+    for (const name of [/^Start day/, /^Continue$/]) {
+      const b = page.getByRole('button', { name }).first();
+      if (await b.isVisible().catch(() => false)) await b.click().catch(() => {});
+    }
+  };
   for (let m = 1; m <= MIN; m++) {
     await page.evaluate(() => window.__tycoonDiag.reset());
-    await page.waitForTimeout(60000);
+    for (let k = 0; k < 6; k++) {
+      await page.waitForTimeout(10000);
+      await closeDialogs();
+    }
     await page.waitForTimeout(600);
     const r = await page.evaluate(() => {
       const d = window.__tycoonDiagReport;
