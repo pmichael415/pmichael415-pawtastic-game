@@ -4,7 +4,7 @@ Owner brief of 5 Nov. Plan: `docs/superpowers/plans/2026-11-05-tycoon-phone-read
 `claude/pawtastic-games-unified`, folder `tycoon/`, starting from `bff981b` (889 tests passing, confirmed before work
 began).
 
-**Status: Ready for Phil's iPhone test — not ready for release.** Everything below ran in this session's Chromium
+**Status: Ready for Phil's iPhone test — not ready for release.** Private preview version 11. Everything below ran in this session's Chromium
 (headless, software graphics, iPhone 13 and desktop *emulation*). No real iPhone, no Safari, no graphics hardware and
 no human playtest took place. Nothing was published; Stripe, purchases, DNS, app.pawtasticacademy.com and the other
 games are untouched (one test script for Recess Rush's audio was pinned to a fixed course — see below).
@@ -117,13 +117,27 @@ games are untouched (one test script for Recess Rush's audio was pinned to a fix
 - **The 30 fps target on a physical iPhone is not verified.**
 
 **15-minute continuous session** (`qa/soak.cjs`, busy scene, iPhone size, battery saver, same software environment):
-SOAK_RESULT
+Two runs:
+- **First run:** it showed the day's report pausing the clock, as designed, while the script didn't close it. It also
+  found the calm-room reputation problem, now fixed.
+- **Second run:** it closes the report and level-ups like a player would. It ran 15 continuous minutes across three
+  game days, starting from the busy scene:
+  - **Busy minutes (day 1):** 38.6–40.9 fps, p95 50 ms, 8–19 of 600 frames over 50 ms each minute, the worst single
+    frame 133 ms.
+  - **Later days (2–3 families at a time up to 11):** 50.9–60 fps. The worst frames were 217 and 267 ms, once each,
+    at a day change and a busy moment.
+  - **No slowdown over time:** simulation 0.33–0.77 ms a tick, screen renders 3.8–7.6 ms.
+  - **No leak:** memory moved between 19 and 55 MB with no upward trend, and the page size stayed between 230 and 787
+    elements.
+  - **No errors, no crash.**
+  - **Reputation:** 82 → 71 overnight on day 1. A single receptionist met about 30 pickups at once, and some families
+    waited an hour. It recovered to 100 by day 3.
 
 ## Checks completed
 
 | Check | Result |
 |---|---|
-| Unit and UI tests | **TESTS_RESULT** (was 889; new tests for the six items, the introductory day, test saves, rules across step sizes, the paused clock, the card) |
+| Unit and UI tests | **912 / 912** (was 889; new tests for the six items, the introductory day, test saves, rules across step sizes, the paused clock, the card) |
 | Typecheck | clean |
 | `qa/e2e-phone.cjs` (new). Portrait and landscape: layouts, camera drag vs taps, pup and staff panels, scrolling sheets, hire / let go / rehire, a double tap on Hire, both expansions, waiting warnings, the introductory day, a normal departure, closing time, background and resume, reload, an old save | **38 / 38** |
 | `qa/e2e-service.cjs`: the full visit (a booked bath, the owner arriving before it's done, a complaint answered, checkout, receipt), a double-tapped checkout, reload, the second-tab protection | **46 / 46** |
