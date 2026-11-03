@@ -39,8 +39,13 @@ export function testScenario(): ScenarioId | null {
 const SCENARIO = testScenario();
 /** The save this page reads and writes. */
 export const SAVE_KEY = SCENARIO ? TEST_KEY : KEY;
+/** Stops this page writing its save (it is about to switch saves; the page closing must not write the old one back). */
+export function stopSaving() {
+  leading = false;
+}
 /** Starts a fresh test scenario in its own save, or (null) goes back to the player's daycare. Reloads the page. */
 export function switchSave(id: ScenarioId | null) {
+  stopSaving();
   try {
     if (id) {
       sessionStorage.setItem(SCENARIO_FLAG, id);

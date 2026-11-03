@@ -14,7 +14,7 @@ function withPup(over: Partial<TDog>, visit: Partial<Visit>, clock: number, open
   const s = richState();
   const f = fac(s);
   const d: TDog = { id: "a", name: "Biscuit", breed: 1, size: "small", temper: "gentle", visits: 1, place: { kind: "lobby" }, checkedIn: false, happiness: 85, clean: 80, boarding: false, played: 0, bathed: false, ...over };
-  return withFac(s, { ...f, open, clockMin: clock, dogs: [{ ...d, visit: { ...defaultVisit(f, d), owner: "Taylor", arrivedDay: f.day, arrived: 9 * 60, ...visit } }] });
+  return withFac(s, { ...f, open, clockMin: clock, introDay: 0 /* past the introductory day: the normal rules */, dogs: [{ ...d, visit: { ...defaultVisit(f, d), owner: "Taylor", arrivedDay: f.day, arrived: 9 * 60, ...visit } }] });
 }
 const stageAt = (clock: number, visit: Partial<Visit> = {}, over: Partial<TDog> = {}) => {
   const s = withPup(over, visit, clock);

@@ -595,6 +595,12 @@ export function tick(s: TycoonState, seconds: number, rand: () => number = Math.
 
 function tickStep(s: TycoonState, seconds: number, rand: () => number): TycoonState {
   let f = fac(s);
+  // The first day the daycare is open (however it was opened — the Open switch, Quick start, an old save) is its
+  // introductory day.
+  if (f.open && (f.introDay === null || f.introDay === undefined)) {
+    f = { ...f, introDay: f.day };
+    s = withFac(s, f);
+  }
   if (tourHolds(s)) {
     // The guided tour holds drop-offs, the day clock and care decay so a new player can learn at their own pace.
     const regen = 2 * wageRecovery(f.wage) * (1 + caps(f).staffBoost) * seconds;
@@ -671,13 +677,16 @@ function tickStep(s: TycoonState, seconds: number, rand: () => number): TycoonSt
     const whole = Math.abs(clock - Math.round(clock)) < 1e-9;
     if (whole) clock = Math.round(clock);
     if (clock >= DAY_CLOSE) {
-      out = closeDay(dayEndPickups(withFac(out, { ...g, clockMin: DAY_CLOSE })));
+      // staff work up to closing first, then the day ends
+      out = closeDay(dayEndPickups(runStaff(withFac(out, { ...g, clockMin: DAY_CLOSE }), step)));
       const h = fac(out);
       out = withFac(out, { ...h, clockMin: DAY_OPEN, rush: { day: h.day, peak: 0, since: null, awarded: false } });
       chance = baseChance();
       continue;
     }
     out = withFac(out, { ...g, clockMin: clock });
+    // staff work through this stretch of time before the minute's deadlines are checked (same result at any step size)
+    out = runStaff(out, step);
     if (whole) out = pickups(out);
     if (!whole || !lobbyStatus(clock).open) continue;
     if (rand() < chance) {
@@ -688,7 +697,7 @@ function tickStep(s: TycoonState, seconds: number, rand: () => number): TycoonSt
       if (r.ok) out = r.state; // lobby full → the customer politely rebooks, no penalty
     }
   }
-  return runStaff(out, seconds * GAME_MIN_PER_SEC);
+  return out;
 }
 
 /** Returning after time away: no decay, no expenses, staff fully rested, a small capped welcome bonus. */

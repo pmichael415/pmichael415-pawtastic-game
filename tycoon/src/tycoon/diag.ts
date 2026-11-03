@@ -49,6 +49,7 @@ export function reset() {
 /** One 3D frame: the time since the last one, and the main-thread time spent updating and drawing it. */
 export function recordFrame(intervalMs: number, renderMs: number) {
   if (!on) return;
+  if (intervalMs > 1000) return; // the page was away (locked, hidden): that's time off, not a frame
   push(frames, intervalMs);
   push(render, renderMs);
 }
