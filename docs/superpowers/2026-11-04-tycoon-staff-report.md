@@ -3,7 +3,7 @@
 Owner brief of 4 Nov. Design and plan: `docs/superpowers/specs/2026-11-04-tycoon-staff-expansion-design.md`.
 Branch `claude/pawtastic-games-unified`, folder `tycoon/`, built on the audited service work (`09f3016`, `a1f7b18`).
 
-**Status:** committed, pushed and tested here, and in the private preview (version 8). **Not in the Lovable hub
+**Status:** committed, pushed and tested here, and in the private preview (version 9, with the review fixes). **Not in the Lovable hub
 project and not published.** Stripe, purchases, DNS, app.pawtasticacademy.com and the other games were not touched.
 
 ## The scenario you asked for (verified in a browser, iPhone 13 and desktop sizes)
@@ -124,14 +124,40 @@ project and not published.** Stripe, purchases, DNS, app.pawtasticacademy.com an
 - The Mop button still mops every room.
 - A dirty-room complaint names the pup's room.
 
+## Independent review
+
+A fresh reviewer read the whole change. It found no billing or capacity bugs and 5 important problems. Each one now
+has a test that failed first and passes after the fix:
+
+1. **Baths the family would wait for:** the bath attendant could start a booked bath after the family had arrived
+   for pickup, or one that couldn't finish before closing. The family then waited past an hour and left. Now that's
+   the player's call, with a "needs you" note.
+2. **Stale expansion price:** after closing a room, the card could show an old price while the purchase spent more.
+   The price now follows every change to rooms, doors and items. A purchase is refused rather than charging anything
+   other than the price shown.
+3. **Useless improvements:** "Improve" kept selling beds to a playroom already holding its maximum. It now adds a toy
+   there and says so.
+4. **Old saves:** a save from the previous build could make a family waiting at the desk leave the moment it loaded.
+   Now they count as just arrived.
+5. **Idle staff after a room is sold:** an attendant or cleaner assigned only to a sold room stopped working. They now
+   go back to looking after all rooms.
+
+Small items left for later:
+- a new hire can reuse the name of someone still on the team after a Let go;
+- staff baths skip the Bath button's "too pricey" check and its scuffle re-check;
+- very large single time steps (tests only; real play steps one second at a time) run staff after the whole clock;
+- a boarder never checked in by 18:00 isn't covered by the desk timer the next day;
+- the expansion card opened from "See options" stays open after buying;
+- two small caches live in otherwise pure modules.
+
 ## Tests
 
 | Check | Result |
 |---|---|
-| Unit tests | **883 / 883** |
+| Unit tests | **889 / 889** |
 | Typecheck | clean |
 | New staff, room, bath, waiting, path, expansion and objective tests, the hands-off team week, and the Team UI | all pass (part of the 883) |
-| `qa/e2e-staff.cjs`: the scenario on iPhone 13 and desktop sizes, plus the busy scene | **58 / 58** |
+| `qa/e2e-staff.cjs`: the scenario on iPhone 13 and desktop sizes, plus the busy scene (rerun after the review fixes) | **58 / 58** |
 | Other browser suites, rerun | service 46/46 · onboarding 100/100 · hub 37/37 · games 35/35 · today's Daycare 36/36 · audio 17/17 · Tycoon 36/37 |
 | Private preview build, under the preview's security rules | loads, quick start works, no page errors |
 
