@@ -783,11 +783,12 @@ export class TycoonWorld {
         if (px < 38 && (!best || px < best.px)) best = { id, px };
       }
       let person: { id: string; px: number } | null = null;
-      for (const [id, a] of this.staff) {
+      // people are tappable while playing, not while building (a tap then means the room or square under them)
+      for (const [id, a] of this.snap?.overlay ? [] : this.staff) {
         const v = new THREE.Vector3(a.pos.x, 1.2, a.pos.z).project(this.camera);
         if (v.z > 1) continue;
         const px = Math.hypot(rect.left + ((v.x + 1) / 2) * rect.width - clientX, rect.top + ((1 - v.y) / 2) * rect.height - clientY);
-        if (px < 34 && (!person || px < person.px)) person = { id, px };
+        if (px < 26 && (!person || px < person.px)) person = { id, px };
       }
       if (person && (!best || person.px < best.px)) return this.opts.onPick({ kind: "staff", id: person.id });
       if (best) return this.opts.onPick({ kind: "dog", id: best.id });

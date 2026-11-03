@@ -24,7 +24,8 @@ export function defaultVisit(f: Facility, d: Pick<TDog, "name" | "breed" | "boar
     requests: d.boarding ? ["daycare", "boarding"] : ["daycare"],
     prepaid: [],
     arrivedDay: f.day,
-    arrived: DAY_OPEN,
+    // a pup still at the desk "just arrived" (an old save must never make a family leave on load)
+    arrived: d.checkedIn ? DAY_OPEN : Math.max(DAY_OPEN, Math.floor(f.clockMin)),
     pickupDay: d.boarding ? f.day + 1 : f.day,
     pickup: d.boarding ? BOARDING_PICKUP : LAST_PICKUP,
     ownerHere: null,

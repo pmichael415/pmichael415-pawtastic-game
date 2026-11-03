@@ -2,7 +2,7 @@
 // at the desk leaves after an hour. Turning a family away stays free; a closed daycare's clock doesn't move.
 import { describe, expect, it } from "vitest";
 import { tick, turnAway } from "./run";
-import { fac, withFac } from "./state";
+import { fac, parseTycoon, withFac } from "./state";
 import { hire } from "./team";
 import { ok, richState } from "./testkit";
 import { defaultVisit } from "./visit";
@@ -58,6 +58,19 @@ describe("waiting at drop-off", () => {
     s = run(s, 30);
     expect(fac(s).dogs[0]!.checkedIn).toBe(true);
     expect(fac(s).outcomes).toHaveLength(0);
+  });
+});
+
+describe("old saves", () => {
+  it("a pup saved at the desk before visits existed hasn't been 'waiting since opening' — no one leaves on load", () => {
+    const s = richState();
+    const f = fac(s);
+    const old = { id: "d9", name: "Pepper", breed: 1, size: "small", temper: "gentle", visits: 1, place: { kind: "lobby" }, checkedIn: false, happiness: 70, clean: 60, boarding: false, played: 0, bathed: false };
+    let p = parseTycoon(JSON.parse(JSON.stringify({ ...s, facilities: { f1: { ...f, open: true, clockMin: 15 * 60, dogs: [old] } } })))!;
+    expect(waitStage(fac(p), fac(p).dogs[0]!)).toMatchObject({ stage: "waiting", minutes: 0 });
+    p = run(p, 5);
+    expect(fac(p).dogs).toHaveLength(1);
+    expect(fac(p).outcomes).toHaveLength(0);
   });
 });
 

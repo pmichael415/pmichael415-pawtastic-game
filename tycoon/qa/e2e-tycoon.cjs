@@ -198,7 +198,7 @@ async function guidedStart(s, label) {
     await tile(18, 26);
     await btn('Sell').click(); await btn('Yes, sell').click();
     await page.waitForTimeout(200);
-    await tile(17, 23);
+    await tile(19, 22); // a corner of the lobby, away from the desk where staff stand (tapping a person opens their panel)
     const lobbyPanel = await page.locator('section[aria-label^="Edit Lobby"]').innerText().catch(() => '');
     check('selling a path square shows "Not connected"', /Not connected/.test(lobbyPanel), lobbyPanel.slice(0, 80));
     await page.getByRole('button', { name: 'Close' }).click().catch(() => {});
