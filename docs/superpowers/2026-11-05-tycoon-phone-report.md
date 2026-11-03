@@ -4,7 +4,7 @@ Owner brief of 5 Nov. Plan: `docs/superpowers/plans/2026-11-05-tycoon-phone-read
 `claude/pawtastic-games-unified`, folder `tycoon/`, starting from `bff981b` (889 tests passing, confirmed before work
 began).
 
-**Status: Ready for Phil's iPhone test — not ready for release.** Private preview version 11. Everything below ran in this session's Chromium
+**Status: Ready for Phil's iPhone test — not ready for release.** Private preview version 12. Everything below ran in this session's Chromium
 (headless, software graphics, iPhone 13 and desktop *emulation*). No real iPhone, no Safari, no graphics hardware and
 no human playtest took place. Nothing was published; Stripe, purchases, DNS, app.pawtasticacademy.com and the other
 games are untouched (one test script for Recess Rush's audio was pinned to a fixed course — see below).
@@ -137,13 +137,13 @@ Two runs:
 
 | Check | Result |
 |---|---|
-| Unit and UI tests | **912 / 912** (was 889; new tests for the six items, the introductory day, test saves, rules across step sizes, the paused clock, the card) |
+| Unit and UI tests | **916 / 916** (was 889; new tests for the six items, the introductory day, test saves, rules across step sizes, the paused clock, the card) |
 | Typecheck | clean |
 | `qa/e2e-phone.cjs` (new). Portrait and landscape: layouts, camera drag vs taps, pup and staff panels, scrolling sheets, hire / let go / rehire, a double tap on Hire, both expansions, waiting warnings, the introductory day, a normal departure, closing time, background and resume, reload, an old save | **38 / 38** |
 | `qa/e2e-service.cjs`: the full visit (a booked bath, the owner arriving before it's done, a complaint answered, checkout, receipt), a double-tapped checkout, reload, the second-tab protection | **46 / 46** |
 | `qa/e2e-staff.cjs`: hire → staff work → booked bath → checkout → wages → expansion → reload, plus the busy scene | **58 / 58** |
 | Onboarding · Tycoon · hub · games · today's Daycare · audio | 100/100 · 37/37 · 37/37 · 35/35 · 36/36 · 17/17 |
-| Hands-off economics (seeded week, no taps) | unchanged from last milestone, day by day: playroom wing +123 to +309 a day; bath station +31 to +72; every family delighted |
+| Hands-off economics (seeded week, no taps) | after the review's ordering fix: playroom wing +155 to +481 a day (was +123 to +309); bath station −2 to +84 (was +31 to +72); every family delighted in both. The shift comes from staff now finishing work before each minute's deadlines, which changes job timing and the seeded random sequence; the pattern (the playroom wing earns more) holds |
 
 **Intentional expectation changes:**
 - The audio check now plays a fixed Recess Rush course (`?seed=2026-11-02`). Recess Rush's daily course is seeded by
@@ -152,6 +152,34 @@ Two runs:
 - The staff scenario's check-in timing allows for one tick of granularity.
 - One hub check failed once ("/shop has a visible way back") and passed on the rerun.
 - No coverage was removed.
+
+## Independent review
+
+A fresh reviewer read the whole change and confirmed several fixes with probes. These are now fixed, each with a test
+that failed first:
+
+1. **Critical: Quick start players never got the introductory day.** Quick start opens the daycare without the Open
+   switch, which was the only thing that marked the day. The day is now marked the first time an open daycare's clock
+   runs.
+2. **Important: switching test saves.** Switching or restarting a test save wrote the old one back as the page closed,
+   so the busy test could actually be the normal day under the busy name. The page now stops saving before it
+   reloads.
+3. **Important: step size at a deadline.** A staff job finishing just before a deadline could lose to it in
+   one-second steps but not in quarter-second steps (this ordering predates this milestone). Staff now work through
+   each stretch of time before the minute's deadlines are checked.
+4. **Upgraded to important: time away counted as a frame.** A lock or background counted as one 30-second frame in the
+   diagnostics, which would spoil the numbers Phil copies after the lock test. Gaps over a second are skipped.
+
+Small items left for later:
+- test mode still collects purchases on the dev server (the private preview has purchases off);
+- the closing notice names only the last family when several were still waiting;
+- the Paused banner says "while you're away" after a manual pause too;
+- two unused exports.
+
+After the fixes:
+- 916/916 unit and UI tests pass, with a clean typecheck;
+- browser checks pass: phone 38/38, visits 46/46, staff 58/58, onboarding 100/100, Tycoon 37/37;
+- the private preview passes its security-rules check.
 
 ## Not checked (pending)
 
