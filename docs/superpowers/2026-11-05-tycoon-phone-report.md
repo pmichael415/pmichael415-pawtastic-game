@@ -80,6 +80,15 @@ games are untouched (one test script for Recess Rush's audio was pinned to a fix
 - **Double tap on Hire:** a quick double tap could hire two people. It's now guarded.
 - **Paused state:** there was no visible paused state after returning from the background.
 
+### Found by the endurance run, and fixed
+- **Calm-room safety moves cost reputation.** A pup moved to the calm room for safety and left there all day lost
+  happiness, and at pickup the family read as "upset" (−4 reputation) even though there was no charge and no
+  complaint. That contradicted the penalty-free rule.
+  - A safety move now leaves the family neutral at worst ("disappointed", no reputation change).
+  - Real problems (a dirty room, a long wait at pickup) still count.
+- **The test scenario:** the busy scene's calm-room pups are now marked as safety moves.
+- **Starting or leaving a test save** in the preview now returns to the game instead of the hub's home screen.
+
 ## Performance — before and after (exact environment)
 
 - **Environment:** Chromium 153 (headless, Playwright) with SwiftShader **software** rendering in a cloud container, no
