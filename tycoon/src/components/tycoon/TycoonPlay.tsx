@@ -192,17 +192,14 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
     }
   }, [blocking]);
   // A family kindly rescheduled: say so once, and what to do next time.
-  const courtesyKey = useRef<string | null>(null);
+  const courtesyKeyOf = (c: ReturnType<typeof fac>["courtesy"]) => (c ? `${c.day}:${c.why}:${c.names.join(",")}` : "none");
+  const courtesyKey = useRef(courtesyKeyOf(fac(state).courtesy)); // what was already there on load isn't repeated
   useEffect(() => {
     const c = fac(state).courtesy;
-    if (!c) return;
-    const key = `${c.day}:${c.why}:${c.names.join(",")}`;
-    if (courtesyKey.current === null) {
-      courtesyKey.current = key; // don't repeat an old notice on load
-      return;
-    }
+    const key = courtesyKeyOf(c);
     if (courtesyKey.current === key) return;
     courtesyKey.current = key;
+    if (!c) return;
     const who = c.names.at(-1)!;
     if (c.why === "intro") toast.info(`${who}'s family was kindly rescheduled — no charge, no hard feelings on your first day. Next time, check families in within 60 game minutes, or tap "Can't take today" if there's no spot.`);
     else toast.info(`${who}'s family was still waiting at closing — rescheduled for another day, no charge.`);
@@ -374,6 +371,12 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
         </section>
       )}
       <TestBanner state={state} />
+      {paused && !blocking && !spectator && (
+        <section aria-label="Paused" className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 text-sm text-secondary shadow-soft">
+          <p className="min-w-0 flex-1">Paused — game time stops while you're away, so nothing can go wrong.</p>
+          <Button className="h-11 shrink-0" onClick={() => setPaused(false)}>Resume</Button>
+        </section>
+      )}
       <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} onReputation={() => setRepOpen(true)} onTeam={() => setTeamOpen(true)} {...(quiet ? {} : { onShop: () => setShop(true) })} />
       {!quiet && <TodayStrip state={state} onOpen={() => setFinances(true)} />}
       {isFreshSave(state) && <StartCard onPick={(mode) => set((s) => startTour(s, mode, Date.now()))} />}

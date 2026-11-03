@@ -86,6 +86,8 @@ export function TeamSheet({ state, act, onClose }: { state: TycoonState; act: Ac
   const f = fac(state);
   const recommended = recommendRole(f);
   const [pick, setPick] = useState<Role>(recommended);
+  // a quick second tap must never hire a second person by accident
+  const [hiring, setHiring] = useState(false);
   const cost = hireCostFor(f);
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
@@ -112,7 +114,16 @@ export function TeamSheet({ state, act, onClose }: { state: TycoonState; act: Ac
                 </button>
               ))}
             </div>
-            <Button className="mt-2 h-11 w-full" disabled={state.coins < cost} onClick={() => act((s) => hire(s, pick))}>
+            <Button
+              className="mt-2 h-11 w-full"
+              disabled={state.coins < cost || hiring}
+              onClick={() => {
+                if (hiring) return;
+                setHiring(true);
+                act((s) => hire(s, pick));
+                setTimeout(() => setHiring(false), 800);
+              }}
+            >
               Hire a {ROLE_NAME[pick].toLowerCase()} · sign-on {coins(cost)} · {WAGES[f.wage]} a day
             </Button>
             {state.coins < cost && <p className="mt-1 text-xs text-muted-foreground">{coins(cost - state.coins)} more game coins needed.</p>}

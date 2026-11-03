@@ -153,3 +153,16 @@ describe("the introductory day", () => {
     expect(fac(s).dogs.some((d) => d.id === "milo")).toBe(true);
   });
 });
+
+describe("rules don't depend on the frame rate or graphics", () => {
+  it("the busy scene over 40 game minutes gives the same results in quarter-second steps (a fast browser) and one-second steps (a slow phone)", async () => {
+    const { buildScenario } = await import("./scenarios");
+    const base = buildScenario("busy", 0);
+    let fast = base;
+    for (let i = 0; i < 80; i++) fast = tick(fast, 0.25, still);
+    let slow = base;
+    for (let i = 0; i < 20; i++) slow = tick(slow, 1, still);
+    const key = (s: TycoonState) => ({ coins: s.coins, clock: fac(s).clockMin, outcomes: fac(s).outcomes.map((o) => `${o.dog}:${o.total}`), dogs: fac(s).dogs.map((d) => `${d.id}:${d.played}:${d.bathed}:${d.checkedIn}:${d.place.kind}`).sort() });
+    expect(key(fast)).toEqual(key(slow));
+  });
+});
