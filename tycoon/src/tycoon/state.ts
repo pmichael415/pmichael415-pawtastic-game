@@ -28,6 +28,8 @@ export function newFacility(name: string): Facility {
     reputation: 80,
     cleanliness: 100,
     roomClean: {},
+    introDay: null,
+    courtesy: null,
     stats: emptyStats(),
     guestBook: [],
     open: false,
@@ -384,6 +386,10 @@ function parseFacility(x: unknown): Facility | null {
   f.reviews = parseReviews(x["reviews"]);
   f.referralUntil = typeof x["referralUntil"] === "number" ? Math.max(0, int(x["referralUntil"], 0)) : null;
   f.outcomes = parseOutcomes(x["outcomes"]);
+  // the introductory day: kept if saved; a save that already ran days (or served families) is past it
+  f.introDay = typeof x["introDay"] === "number" && Number.isFinite(x["introDay"]) ? Math.max(0, Math.floor(x["introDay"])) : f.day > 1 || (f.stats.checkouts ?? 0) > 0 ? 0 : null;
+  const ct = isObj(x["courtesy"]) ? x["courtesy"] : null;
+  f.courtesy = ct && (ct["why"] === "intro" || ct["why"] === "closing") && Array.isArray(ct["names"]) ? { day: int(ct["day"], f.day), min: minute(ct["min"], 0), why: ct["why"], names: (ct["names"] as unknown[]).filter((n): n is string => typeof n === "string").map((n) => n.slice(0, 24)).slice(-10) } : null;
   f.open = bool(x["open"], false);
   const pr = isObj(x["prices"]) ? x["prices"] : {};
   const prices = { ...PRICE_DEFAULTS };
@@ -517,7 +523,8 @@ function parseJob(x: unknown, f: Facility): Job | null {
   if ((kind === "clean" && !room) || (kind !== "clean" && !dog) || (kind === "bath" && !tub)) return null;
   const bed = ref("bed");
   if (bed && !f.items.some((i) => i.uid === bed)) return null;
-  return { kind, dog, room, tub, ...(bed ? { bed } : {}), phase: x["phase"] === "work" ? "work" : "walk", left: clamp(num(x["left"], 0), 0, 240), total: clamp(num(x["total"], 1), 1, 240), to };
+  const who = typeof x["who"] === "string" ? x["who"].slice(0, 24) : null;
+  return { kind, dog, room, tub, ...(bed ? { bed } : {}), ...(who ? { who } : {}), phase: x["phase"] === "work" ? "work" : "walk", left: clamp(num(x["left"], 0), 0, 240), total: clamp(num(x["total"], 1), 1, 240), to };
 }
 /** Running baths each stand in a tub: keep a saved tub if it's still a free tub, else the next free one. */
 function withTubs(f: Facility, dogs: TDog[]): TDog[] {

@@ -131,7 +131,15 @@ function build(s: TycoonState, id: ExpansionId): TycoonState | string {
   return out && working(out, at.uid) ? out : "The new playroom couldn't be set up there.";
 }
 
+/**
+ * A memo of dry-run prices. It is a pure cache: the key holds everything the build depends on (layout, open/closed,
+ * doors, items, level gate, mode, needed group), so two games with the same layout rightly share an answer and a
+ * changed layout never reuses a stale one. Bounded at 200 entries; clearExpansionQuotes() empties it (tests).
+ */
 const quotes = new Map<string, { cost: number; upkeep: number } | string>();
+export function clearExpansionQuotes() {
+  quotes.clear();
+}
 function quote(s: TycoonState, id: ExpansionId): { cost: number; upkeep: number } | string {
   const f = fac(s);
   // everything the build depends on: rooms (where, what, open or closed, doors), items (what, where, open or closed)

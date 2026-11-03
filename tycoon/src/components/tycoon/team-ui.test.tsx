@@ -90,7 +90,8 @@ describe("pups, money and objectives", () => {
     open(withFac(s, { ...f, clockMin: 9 * 60 + 25, dogs: [{ ...d, visit: { ...defaultVisit(f, d), owner: "Taylor", arrivedDay: f.day, arrived: 9 * 60 } }] }));
     act(() => emit({ kind: "dog", id: "d70" }));
     const panel = within(screen.getByTestId("panel-sheet"));
-    expect(panel.getByText(/Taylor: getting impatient at the desk — 25 min/)).toBeTruthy();
+    expect(panel.getByText(/Taylor: getting impatient at the desk — 25 game min/)).toBeTruthy();
+    expect(panel.getByText(/Next: Check in, or Can't take today/)).toBeTruthy();
     expect(panel.getByText(/Needs: check-in/)).toBeTruthy();
     expect(panel.getByText(/Looked after by You/)).toBeTruthy();
   });
@@ -119,10 +120,21 @@ describe("pups, money and objectives", () => {
     expect(bath.getByText(/bath attendant/)).toBeTruthy();
     fireEvent.click(bath.getByRole("button", { name: /^Build · / }));
     expect(caps(fac(now())).tubs).toHaveLength(1);
-    const again = screen.queryByRole("region", { name: "Expand your daycare" });
-    if (again) {
-      fireEvent.click(within(again).getByRole("button", { name: "Save for now" }));
-      expect(screen.queryByRole("region", { name: "Expand your daycare" })).toBeNull();
-    }
+    // the card closes and the new room is shown (its panel opens)
+    expect(screen.queryByRole("region", { name: "Expand your daycare" })).toBeNull();
+    expect(within(screen.getByTestId("panel-sheet")).getByText(/Bath Room/)).toBeTruthy();
+  });
+  it("Save for now hides the card; Expansion options brings it back", () => {
+    const s = ok(hire({ ...base(), xp: xpForLevel(EXPANSION_LEVEL) + 10 }, "reception"));
+    open({ ...withFac(s, { ...fac(s), open: true }), coins: 4000 });
+    fireEvent.click(screen.getByRole("button", { name: "Save for now" }));
+    expect(screen.queryByRole("region", { name: "Expand your daycare" })).toBeNull();
+  });
+  it("a level-up covering the screen stops the clock until it's closed", () => {
+    const s = base();
+    open({ ...withFac(s, { ...fac(s), open: true }), pendingLevel: 4 });
+    expect(tycoonStore.getSnapshot().paused).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(tycoonStore.getSnapshot().paused).toBe(false);
   });
 });

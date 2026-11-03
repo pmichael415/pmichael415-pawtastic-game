@@ -116,7 +116,9 @@ export function setOpen(s: TycoonState, open: boolean): TResult {
     const c = canOpen(f);
     if (!c.ok) return { ok: false, error: `Before you can open: ${c.missing.join(", ")}.` };
   }
-  return { ok: true, state: withFac(s, { ...f, open }), msg: open ? "We're open! Customers will start dropping pups off." : "Closed — no new drop-offs, and the day clock pauses." };
+  // the first day the daycare opens is its introductory day (families who wait too long are kindly rescheduled)
+  const introDay = open && (f.introDay === null || f.introDay === undefined) ? f.day : f.introDay;
+  return { ok: true, state: withFac(s, { ...f, open, ...(introDay !== undefined ? { introDay } : {}) }), msg: open ? "We're open! Customers will start dropping pups off." : "Closed — no new drop-offs, and the day clock pauses." };
 }
 
 // ---------- arrivals and check-in ----------
@@ -307,7 +309,7 @@ export function applyPlay(f: Facility, dogId: string): { f: Facility; g: ReturnT
 }
 
 /** Why a bath or exit bath can't happen right now (null if it can). */
-function bathBlock(f: Facility, which: "bath" | "exitBath"): string | null {
+export function bathBlock(f: Facility, which: "bath" | "exitBath"): string | null {
   if (!caps(f).bath) return "Build a Bath Room with a tub first.";
   if (refuses(which, f)) return `Too pricey — owners won't pay ${f.prices[which]} coins for ${which === "bath" ? "a bath" : "an exit bath"}.`;
   return null;
@@ -509,8 +511,13 @@ function pickups(s: TycoonState): TycoonState {
     const v = visitOf(f, d);
     const g = fac(out);
     if (!d.checkedIn && d.place.kind === "lobby" && v.arrivedDay === g.day && g.clockMin - v.arrived >= DESK_GIVES_UP) {
-      const r = settle(out, d.id, "left"); // ignored at the desk for an hour: they take their pup home
-      if (r.ok) out = r.state;
+      // ignored at the desk for an hour: on the introductory day they're kindly rescheduled (a lesson, not a penalty);
+      // after it, they take their pup home upset
+      if (g.introDay === g.day) out = courtesy(out, d.id, "intro");
+      else {
+        const r = settle(out, d.id, "left");
+        if (r.ok) out = r.state;
+      }
       continue;
     }
     if (v.finishing && d.bathed) {
@@ -530,10 +537,24 @@ function pickups(s: TycoonState): TycoonState {
   return out;
 }
 
-/** 18:00: every family that hasn't collected their daycare pup does now (boarders stay for their morning pickup). */
+/** A family is kindly rescheduled: no visit judged, no charge, no reputation change — and a short notice for the player. */
+function courtesy(s: TycoonState, dogId: string, why: "intro" | "closing"): TycoonState {
+  const name = fac(s).dogs.find((d) => d.id === dogId)?.name;
+  const r = turnAway(s, dogId);
+  if (!r.ok || !name) return s;
+  const f = fac(r.state);
+  const prev = f.courtesy && f.courtesy.day === f.day && f.courtesy.why === why ? f.courtesy.names : [];
+  return withFac(r.state, { ...f, courtesy: { day: f.day, min: Math.floor(f.clockMin), why, names: [...prev, name].slice(-10) } });
+}
+
+/**
+ * 18:00: families still waiting at the desk (never checked in, boarders too) are kindly rescheduled, once; every
+ * family that hasn't collected their daycare pup does now; checked-in boarders stay for their morning pickup.
+ */
 function dayEndPickups(s: TycoonState): TycoonState {
   let out = s;
-  for (const d of fac(s).dogs) {
+  for (const d of fac(s).dogs) if (!d.checkedIn && d.place.kind === "lobby") out = courtesy(out, d.id, "closing");
+  for (const d of fac(out).dogs) {
     if (d.boarding) continue;
     const r = settle(out, d.id, "dayend");
     if (r.ok) out = r.state;
@@ -547,7 +568,9 @@ export function hireStaff(s: TycoonState): TResult {
   const cost = hireCost(f.staff.length);
   const paid = spend(s, cost, "wages");
   if (!paid.ok) return paid;
-  const name = STAFF_NAMES[f.staff.length] ?? "Pal";
+  // a name nobody on the team has (names are labels; ids identify people)
+  const taken = new Set(f.staff.map((x) => x.name));
+  const name = STAFF_NAMES.find((n) => !taken.has(n)) ?? [2, 3, 4, 5, 6, 7].map((k) => `${STAFF_NAMES[f.staff.length % STAFF_NAMES.length]} ${k}`).find((n) => !taken.has(n)) ?? `Pal ${s.seq}`;
   const pf = fac(paid.state);
   return { ok: true, state: withFac({ ...paid.state, seq: s.seq + 1 }, { ...pf, staff: [...pf.staff, { id: "s" + s.seq, name, energy: 100 }] }), msg: `${name} joined the team!` };
 }
@@ -560,6 +583,17 @@ export function hireStaff(s: TycoonState): TResult {
  */
 export function tick(s: TycoonState, seconds: number, rand: () => number = Math.random): TycoonState {
   if (!(seconds > 0)) return s;
+  // A long step runs as one-second steps — exactly what play does (the store never steps more than a second) — so
+  // warnings, staff work, billing and the day change can never be skipped by a big jump.
+  if (seconds > 1) {
+    let out = s;
+    for (let left = seconds; left > 1e-9; left -= 1) out = tickStep(out, Math.min(1, left), rand);
+    return out;
+  }
+  return tickStep(s, seconds, rand);
+}
+
+function tickStep(s: TycoonState, seconds: number, rand: () => number): TycoonState {
   let f = fac(s);
   if (tourHolds(s)) {
     // The guided tour holds drop-offs, the day clock and care decay so a new player can learn at their own pace.

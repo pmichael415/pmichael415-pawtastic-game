@@ -8,7 +8,7 @@ import type { TResult, TycoonState } from "@/tycoon/types";
 type Act = (fn: (s: TycoonState) => TResult, opts?: ActOpts) => ActResult;
 const coins = (n: number) => n.toLocaleString("en-US");
 
-export function ExpansionCard({ state, act, onSave }: { state: TycoonState; act: Act; onSave: () => void }) {
+export function ExpansionCard({ state, act, onSave, onBought }: { state: TycoonState; act: Act; onSave: () => void; onBought?: (room: string | null) => void }) {
   const opts = expansionOptions(state);
   return (
     <section aria-label="Expand your daycare" className="rounded-2xl border border-primary/40 bg-card p-3 shadow-soft">
@@ -26,7 +26,15 @@ export function ExpansionCard({ state, act, onSave }: { state: TycoonState; act:
               <div><dt className="inline font-semibold text-secondary">Makes possible: </dt><dd className="inline">{o.unlocks}</dd></div>
             </dl>
             <div className="mt-auto pt-2">
-              <Button className="h-11 w-full" disabled={!o.available} onClick={() => act((s) => buyExpansion(s, o.id), { event: { name: "tycoon_build", props: { kind: "expansion", action: o.id } } })}>
+              <Button className="h-11 w-full" disabled={!o.available} onClick={() => {
+                  const before = new Set(state.facilities[state.active]!.rooms.map((r) => r.uid));
+                  const itemsBefore = new Set(state.facilities[state.active]!.items.map((i) => i.uid));
+                  const r = act((s) => buyExpansion(s, o.id), { event: { name: "tycoon_build", props: { kind: "expansion", action: o.id } } });
+                  if (!r.ok) return; // the card stays, with the reason shown in the toast and under the button
+                  const g = r.state.facilities[r.state.active]!;
+                  const room = g.rooms.find((x) => !before.has(x.uid))?.uid ?? g.items.find((i) => !itemsBefore.has(i.uid))?.room ?? null;
+                  onBought?.(room);
+                }}>
                 {o.mode === "improve" ? "Improve" : "Build"} · {coins(o.cost)}
               </Button>
               {o.why && <p className="mt-1 text-xs text-muted-foreground">{o.why}</p>}

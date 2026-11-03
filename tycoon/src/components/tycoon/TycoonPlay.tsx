@@ -179,6 +179,34 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
   const [repOpen, setRepOpen] = useState(false);
   const [teamOpen, setTeamOpen] = useState(false);
   const [diagUi, setDiagUi] = useState(diagOn());
+  // A level-up or the day's report covers the screen: time stops until it's closed (no one waits while you can't act).
+  const blocking = (!tourHolds(state) && state.pendingLevel != null) || !!fac(state).report;
+  const autoPaused = useRef(false);
+  useEffect(() => {
+    if (blocking && !paused) {
+      autoPaused.current = true;
+      setPaused(true);
+    } else if (!blocking && autoPaused.current) {
+      autoPaused.current = false;
+      setPaused(false);
+    }
+  }, [blocking]);
+  // A family kindly rescheduled: say so once, and what to do next time.
+  const courtesyKey = useRef<string | null>(null);
+  useEffect(() => {
+    const c = fac(state).courtesy;
+    if (!c) return;
+    const key = `${c.day}:${c.why}:${c.names.join(",")}`;
+    if (courtesyKey.current === null) {
+      courtesyKey.current = key; // don't repeat an old notice on load
+      return;
+    }
+    if (courtesyKey.current === key) return;
+    courtesyKey.current = key;
+    const who = c.names.at(-1)!;
+    if (c.why === "intro") toast.info(`${who}'s family was kindly rescheduled — no charge, no hard feelings on your first day. Next time, check families in within 60 game minutes, or tap "Can't take today" if there's no spot.`);
+    else toast.info(`${who}'s family was still waiting at closing — rescheduled for another day, no charge.`);
+  }, [state]);
   const [expandOpen, setExpandOpen] = useState(false);
   const [expandSaved, setExpandSaved] = useState(false);
   // Fair warnings for families kept waiting (staff design §4), and staff who need the player — each said once.
@@ -193,10 +221,13 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
       if (warned.current.get(d.id) === key) continue;
       warned.current.set(d.id, key);
       const owner = d.visit?.owner ?? "A family";
+      const first = g.introDay === g.day;
       const msg =
         w.kind === "dropoff"
-          ? w.stage === "impatient" ? `${owner} has waited ${w.minutes} min to drop off ${d.name}.` : `${owner} is upset — check ${d.name} in or turn them away. They'll leave in ${w.leavesIn} min.`
-          : w.stage === "impatient" ? `${owner} has waited ${w.minutes} min for ${d.name} — they'll mention it.` : `${owner} will leave in ${w.leavesIn} min — check ${d.name} out.`;
+          ? w.stage === "impatient"
+            ? `${owner} has waited ${w.minutes} game min to drop off ${d.name} — tap ${d.name}, then Check in (or "Can't take today").`
+            : `${owner} is upset — check ${d.name} in or turn them away. ${first ? `On your first day they'll be rescheduled, not upset, in ${w.leavesIn} game min.` : `They'll leave in ${w.leavesIn} game min.`}`
+          : w.stage === "impatient" ? `${owner} has waited ${w.minutes} game min for ${d.name} — tap ${d.name}, then Check out.` : `${owner} will leave in ${w.leavesIn} game min — check ${d.name} out.`;
       if (w.stage === "upset") toast.warning(msg);
       else toast(msg);
     }
@@ -450,6 +481,16 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
           onSave={() => {
             setExpandSaved(true);
             setExpandOpen(false);
+          }}
+          onBought={(room) => {
+            // close the card and show what was built or improved
+            setExpandSaved(true);
+            setExpandOpen(false);
+            const r = room ? fac(tycoonStore.getState()!).rooms.find((x) => x.uid === room) : null;
+            if (r) {
+              setSel({ kind: "room", id: r.uid });
+              if (!settings.reducedMotion) fx("confetti", { c: r.c + Math.floor(r.w / 2), r: r.r + Math.floor(r.d / 2) });
+            }
           }}
         />
       )}

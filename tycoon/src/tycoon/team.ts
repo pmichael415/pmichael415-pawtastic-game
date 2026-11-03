@@ -10,7 +10,7 @@ import { pickupView } from "./pickup";
 import { XP, gainXp } from "./progress";
 import { FOCI, ROLE_NAME } from "./roles";
 import { BATH_MIN, bathQueue, roomCleanOf, roomName, roomOfDog, setRoomClean, tubName, tubsInUse } from "./rooms";
-import { applyPlay, assignBed, assignRoom, checkIn, checkout, hireStaff, inActiveScuffle, startBath, turnAway } from "./run";
+import { applyPlay, assignBed, assignRoom, bathBlock, checkIn, checkout, hireStaff, inActiveScuffle, startBath, turnAway } from "./run";
 import { DESK_UPSET, waitStage } from "./waiting";
 import { fac, withFac } from "./state";
 import { tourHolds } from "./tour";
@@ -226,6 +226,8 @@ function pickBath(s: TycoonState, st: TStaff, claims: Claims): Pick {
   if (st.focus !== "booked") queue.sort((a, b) => (a.visit!.pickupDay - b.visit!.pickupDay) * 1440 + (a.visit!.pickup - b.visit!.pickup));
   const d = queue[0];
   if (!d) return { job: null, note };
+  const refused = bathBlock(f, "bath");
+  if (refused) return { job: null, note: `${refused.replace(/\.$/, "")} — the bath price is yours to change; needs you` };
   if (!tub) return { job: null, note: caps(f).tubs.length ? null : "No working bath station — needs you" };
   return { job: { kind: "bath", dog: d.id, room: roomOfDog(f, d), tub: tub.uid, to: itemTile(f, tub.uid) } };
 }
@@ -249,7 +251,7 @@ export const canWork = (s: TycoonState) => fac(s).open && !tourHolds(s);
 function invalid(s: TycoonState, j: Job): string | null {
   const f = fac(s);
   const d = j.dog ? f.dogs.find((x) => x.id === j.dog) ?? null : null;
-  if (j.dog && !d) return `${nameOf(s, j.dog)} went home — job cancelled`;
+  if (j.dog && !d) return `${nameOf(s, j)} went home — job cancelled`;
   switch (j.kind) {
     case "checkin":
     case "decline":
@@ -263,19 +265,19 @@ function invalid(s: TycoonState, j: Job): string | null {
       if (j.phase === "work") return null;
       if (d!.bathing || d!.bathed) return `${d!.name}'s bath was started by someone else`;
       if (d!.visit?.ownerHere != null) return `${d!.visit.owner} arrived before ${d!.name}'s bath started — needs you`;
+      if (inActiveScuffle(f, d!)) return `${d!.name}'s room has a scuffle — needs you`;
+      if (bathBlock(f, "bath")) return `${bathBlock(f, "bath")!.replace(/\.$/, "")} — needs you`;
       if (!caps(f).tubs.some((t) => t.uid === j.tub) || tubsInUse(f).has(j.tub!)) return `${tubName(f, j.tub!)} is busy — waiting for a free tub`;
       return d!.place.kind === "room" || d!.place.kind === "bed" ? null : `${d!.name} isn't settled — job cancelled`;
     case "clean":
       return f.rooms.some((r) => r.uid === j.room) ? null : "That room is gone — job cancelled";
   }
 }
-const names = new Map<string, string>();
-const nameOf = (s: TycoonState, id: string) => fac(s).dogs.find((d) => d.id === id)?.name ?? names.get(id) ?? "The pup";
+const nameOf = (s: TycoonState, j: Job) => fac(s).dogs.find((d) => d.id === j.dog)?.name ?? j.who ?? "The pup";
 
 /** Drops jobs that can't go on; a bath whose bath is over is simply done. */
 function validate(s: TycoonState): TycoonState {
   const f = fac(s);
-  for (const d of f.dogs) names.set(d.id, d.name);
   let changed = false;
   const staff = f.staff.map((st) => {
     const j = st.job;
@@ -322,7 +324,8 @@ function plan(s: TycoonState): TycoonState {
     }
     const from = st.at ?? deskTile(g);
     const walk = walkMin(from, pick.job.to);
-    const job: Job = { ...pick.job, phase: "walk", left: walk, total: walk };
+    const who = pick.job.dog ? g.dogs.find((d) => d.id === pick.job!.dog)?.name : undefined;
+    const job: Job = { ...pick.job, ...(who ? { who } : {}), phase: "walk", left: walk, total: walk };
     out = withFac(out, setStaff(g, st.id, (x) => ({ ...x, energy: x.energy - cost, job, note: null })));
   }
   return out;

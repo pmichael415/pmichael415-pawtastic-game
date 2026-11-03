@@ -89,8 +89,9 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
       {!!dog.bathing && <p className="mt-1 text-xs text-muted-foreground">In the bath — {Math.ceil(dog.bathing)} min left</p>}
       {wait && wait.stage !== "waiting" && (
         <p role="note" className={`mt-1 rounded-lg px-2 py-1 text-xs font-semibold ${wait.stage === "upset" ? "bg-destructive/15 text-destructive" : "bg-accent/40 text-secondary"}`}>
-          {wait.kind === "dropoff" ? `${v.owner}: ${STAGE_WORDS[wait.stage].toLowerCase()} at the desk — ${wait.minutes} min` : `${v.owner}: ${STAGE_WORDS[wait.stage].toLowerCase()} at pickup`}
-          {wait.stage === "upset" ? ` · leaves in ${wait.leavesIn} min` : ""}
+          {wait.kind === "dropoff" ? `${v.owner}: ${STAGE_WORDS[wait.stage].toLowerCase()} at the desk — ${wait.minutes} game min` : `${v.owner}: ${STAGE_WORDS[wait.stage].toLowerCase()} at pickup — ${wait.minutes} game min`}
+          {wait.stage === "upset" ? ` · ${f.introDay === f.day && wait.kind === "dropoff" ? "rescheduled" : "leaves"} in ${wait.leavesIn} game min` : ""}
+          {wait.kind === "dropoff" ? " · Next: Check in, or Can't take today" : " · Next: Check out"}
         </p>
       )}
       <p className="text-xs text-muted-foreground">{placeLabel(f, dog)}{scuffle ? " · ⚠️ scuffle" : ""}</p>

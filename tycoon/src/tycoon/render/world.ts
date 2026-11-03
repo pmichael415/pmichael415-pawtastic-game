@@ -521,8 +521,8 @@ export class TycoonWorld {
       const tone = selected === d.id ? "selected" : inActiveScuffle(f, d) || wait?.stage === "upset" ? "alert" : wait ? "waiting" : d.place.kind === "calm" ? "calm" : "default";
       const sub = wait
         ? wait.kind === "dropoff"
-          ? wait.stage === "upset" ? `upset · leaves in ${wait.leavesIn} min` : `${wait.stage === "impatient" ? "impatient" : "waiting"} · ${wait.minutes} min`
-          : `${d.visit!.owner} ${wait.stage === "upset" ? "upset" : "waiting"} · ${wait.minutes} min`
+          ? wait.stage === "upset" ? `upset · ${wait.leavesIn} game min left` : `${wait.stage === "impatient" ? "impatient" : "waiting"} · ${wait.minutes} game min`
+          : `${d.visit!.owner} ${wait.stage === "upset" ? "upset" : "waiting"} · ${wait.minutes} game min`
         : d.bathing ? `in the bath · ${Math.ceil(d.bathing)} min` : !d.checkedIn ? "check in" : `${Math.round(d.happiness)}% happy`;
       const text = `${d.name}|${sub}|${tone}`;
       if (a.tagText !== text) {
