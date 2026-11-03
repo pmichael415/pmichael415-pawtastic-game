@@ -1,5 +1,7 @@
 // The playable new Daycare Tycoon: status bar, guide, 3D stage with build mode and edit panels, and the list view.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { diagOn, recordUi, setDiag as setDiagnostics } from "@/tycoon/diag";
+import { DiagOverlay, TestBanner, TestTools, qualityLabel } from "./TestTools";
 import { toast } from "sonner";
 import { Hammer, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -102,6 +104,11 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
   const [diag, setDiag] = useState<Diagnostics | null>(null);
   const [stageKey, setStageKey] = useState(0); // "Try 3D again" mounts a fresh 3D view
   const [building, setBuilding] = useState(false);
+  // private diagnostics: how long this screen takes to render (measured only when Diagnostics is on)
+  const renderStart = diagOn() ? performance.now() : 0;
+  useLayoutEffect(() => {
+    if (renderStart) recordUi(performance.now() - renderStart);
+  });
   const [sel, setSel] = useState<Sel>(null);
   const [askSell, setAskSell] = useState(false);
   const [painting, setPainting] = useState<string | null>(null);
@@ -171,6 +178,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
   const [pickup, setPickup] = useState<{ id: string; exitBath: boolean } | null>(null);
   const [repOpen, setRepOpen] = useState(false);
   const [teamOpen, setTeamOpen] = useState(false);
+  const [diagUi, setDiagUi] = useState(diagOn());
   const [expandOpen, setExpandOpen] = useState(false);
   const [expandSaved, setExpandSaved] = useState(false);
   // Fair warnings for families kept waiting (staff design §4), and staff who need the player — each said once.
@@ -334,6 +342,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
           <Button className="h-11 shrink-0" onClick={playHere}>Play here</Button>
         </section>
       )}
+      <TestBanner state={state} />
       <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} onReputation={() => setRepOpen(true)} onTeam={() => setTeamOpen(true)} {...(quiet ? {} : { onShop: () => setShop(true) })} />
       {!quiet && <TodayStrip state={state} onOpen={() => setFinances(true)} />}
       {isFreshSave(state) && <StartCard onPick={(mode) => set((s) => startTour(s, mode, Date.now()))} />}
@@ -376,7 +385,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
       <div className="relative">
         {show3d ? (
           <TycoonStage
-            key={stageKey}
+            key={`${stageKey}-${settings.lowPower ? "saver" : "standard"}`}
             ref={stage}
             state={state}
             selected={sel?.id ?? null}
@@ -467,6 +476,14 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
         }}
       />
       <ListView state={state} act={act} compact={show3d} />
+      <TestTools
+        diag={diagUi}
+        onDiag={(v) => {
+          setDiagnostics(v);
+          setDiagUi(v);
+        }}
+      />
+      {diagUi && <DiagOverlay debug={() => (stage.current?.debug() as Parameters<typeof DiagOverlay>[0] extends { debug: () => infer D } ? D : never) ?? null} quality={qualityLabel(settings.lowPower)} />}
       <FinancesSheet open={finances} state={state} act={act} onClose={() => setFinances(false)} />
       <DaycareShop open={shop} onClose={() => setShop(false)} owned={entForShop?.owned ?? new Set()} />
       {buyDecor && <BuySheet product={productById("deluxe-daycare-decor")!} returnTo="/daycare-next" open onClose={() => setBuyDecor(false)} />}

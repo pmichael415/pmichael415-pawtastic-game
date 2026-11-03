@@ -1,5 +1,8 @@
 // The running Daycare Tycoon (new engine, preview). Like src/game/store.ts: one external store that every action and
 // clock tick reads and writes synchronously, so rapid taps always build on each other.
+import { diagAvailable } from "./diag";
+import { buildScenario, type ScenarioId } from "./scenarios";
+import { recordTick } from "./diag";
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { track, type EventName } from "@/lib/analytics";
@@ -20,6 +23,34 @@ import { createSaveGuard } from "@/lib/purchases/saveGuard";
 import { LEASE_REFRESH_MS, claimLease, heldElsewhere, releaseLease, tabId } from "./lease";
 
 export const KEY = "pawtastic-daycare-next-v1";
+/** Private test saves (review build and dev only) live here, so testing never touches the player's own save. */
+export const TEST_KEY = "pawtastic-daycare-next-test-v1";
+const SCENARIO_FLAG = "pawtastic-test-save";
+/** The test scenario this tab is playing (null: the player's own daycare). Fixed for the page's lifetime. */
+export function testScenario(): ScenarioId | null {
+  if (!diagAvailable()) return null;
+  try {
+    const v = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(SCENARIO_FLAG) : null;
+    return v === "normal" || v === "busy" ? v : null;
+  } catch {
+    return null;
+  }
+}
+const SCENARIO = testScenario();
+/** The save this page reads and writes. */
+export const SAVE_KEY = SCENARIO ? TEST_KEY : KEY;
+/** Starts a fresh test scenario in its own save, or (null) goes back to the player's daycare. Reloads the page. */
+export function switchSave(id: ScenarioId | null) {
+  try {
+    if (id) {
+      sessionStorage.setItem(SCENARIO_FLAG, id);
+      localStorage.removeItem(TEST_KEY);
+    } else sessionStorage.removeItem(SCENARIO_FLAG);
+  } catch {
+    return;
+  }
+  location.reload();
+}
 export const TICK_MS = 250;
 
 type Props = Record<string, string | number | boolean>;
@@ -27,7 +58,7 @@ export type ActOpts = { quiet?: boolean; event?: { name: EventName; props: Props
 
 function setAside(raw: string) {
   try {
-    localStorage.setItem(`${KEY}-unreadable-${Date.now()}`, raw);
+    localStorage.setItem(`${SAVE_KEY}-unreadable-${Date.now()}`, raw);
   } catch {
     /* storage blocked */
   }
@@ -36,26 +67,26 @@ function setAside(raw: string) {
 function load(): TycoonState {
   let raw: string | null = null;
   try {
-    raw = localStorage.getItem(KEY);
+    raw = localStorage.getItem(SAVE_KEY);
     const parsed = raw ? parseTycoon(JSON.parse(raw)) : null;
     if (parsed) return parsed;
     if (raw) setAside(raw);
   } catch {
     if (raw) setAside(raw);
   }
-  return newTycoon(Date.now());
+  return SCENARIO ? buildScenario(SCENARIO, Date.now()) : newTycoon(Date.now());
 }
 
 /** The stored save, parsed, without side effects (no setting aside). */
 function readStored(): TycoonState | null {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(SAVE_KEY);
     return raw ? parseTycoon(JSON.parse(raw)) : null;
   } catch {
     return null;
   }
 }
-const guard = createSaveGuard<TycoonState>(KEY, readStored);
+const guard = createSaveGuard<TycoonState>(SAVE_KEY, readStored);
 
 // ---------- one tab plays (the lease): only the leading tab runs the clock and writes the save ----------
 const TAB = typeof window !== "undefined" ? tabId() : "server";
@@ -80,7 +111,7 @@ function persist(s: TycoonState) {
     return;
   }
   try {
-    localStorage.setItem(KEY, JSON.stringify({ ...s, lastSeen: Date.now() }));
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ ...s, lastSeen: Date.now() }));
   } catch {
     /* storage full / blocked */
   }
@@ -215,7 +246,10 @@ function startClock() {
     const sec = Math.min(1, Math.max(0, (now - lastTick) / 1000));
     lastTick = now;
     if (!snap.state || snap.paused || !leading || sec <= 0) return;
-    commit(tick(snap.state, sec * speed));
+    const t0 = performance.now();
+    const next = tick(snap.state, sec * speed);
+    recordTick(performance.now() - t0);
+    commit(next);
     checkWeek();
   }, TICK_MS);
 }
@@ -446,7 +480,7 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
 export function peekTycoon(): TycoonState | null {
   if (snap.state) return snap.state;
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(SAVE_KEY);
     return raw ? parseTycoon(JSON.parse(raw)) : null;
   } catch {
     return null;

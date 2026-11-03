@@ -10,6 +10,7 @@ import { containsTile, roomTiles, thingTiles, tileAtWorld, tileCenter } from "..
 import { fac } from "../state";
 import { inActiveScuffle } from "../run";
 import { findPath } from "../paths";
+import { recordFrame } from "../diag";
 import { staffStatus } from "../team";
 import { waitStage } from "../waiting";
 import { isActive, ownedPaid } from "../paid";
@@ -150,6 +151,8 @@ export class TycoonWorld {
   private ray = new THREE.Raycaster();
   private ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   frameMs = 16;
+  /** The graphics renderer's name as the browser reports it (for private diagnostics). */
+  gpu = "unavailable";
 
   constructor(canvas: HTMLCanvasElement, opts: TycoonWorldOptions) {
     this.canvas = canvas;
@@ -158,6 +161,13 @@ export class TycoonWorld {
     const dpr = Math.min(window.devicePixelRatio || 1, opts.lowPower ? 1 : 1.5);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: dpr < 1.5, powerPreference: "high-performance", alpha: false });
     this.renderer.setPixelRatio(dpr);
+    try {
+      const gl = this.renderer.getContext();
+      const ext = gl.getExtension("WEBGL_debug_renderer_info");
+      this.gpu = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+    } catch {
+      this.gpu = "unavailable";
+    }
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.scene.background = new THREE.Color("#cfe6ff");
     this.scene.add(new THREE.HemisphereLight("#ffffff", "#9fb4cc", 1.35));
@@ -671,7 +681,8 @@ export class TycoonWorld {
   private frame = (now: number) => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.frame);
-    const dt = Math.min(0.05, (now - this.last) / 1000);
+    const interval = now - this.last;
+    const dt = Math.min(0.05, interval / 1000);
     this.last = now;
     if (!this.visible || (typeof document !== "undefined" && document.hidden)) return;
     const t0 = performance.now();
@@ -680,7 +691,9 @@ export class TycoonWorld {
     this.updateActors(dt);
     this.updateFx(now);
     this.renderer.render(this.scene, this.camera);
-    this.frameMs = this.frameMs * 0.92 + (performance.now() - t0) * 0.08;
+    const spent = performance.now() - t0;
+    this.frameMs = this.frameMs * 0.92 + spent * 0.08;
+    recordFrame(interval, spent);
   };
 
   private updateCamera() {
@@ -912,6 +925,9 @@ export class TycoonWorld {
       target: { x: this.target.x, z: this.target.z },
       distance: this.distance,
       frameMs: this.frameMs,
+      pixelRatio: this.renderer.getPixelRatio(),
+      gpu: this.gpu,
+      canvas: { w: this.renderer.domElement.width, h: this.renderer.domElement.height },
       calls: this.renderer.info.render.calls,
       triangles: this.renderer.info.render.triangles,
     };
