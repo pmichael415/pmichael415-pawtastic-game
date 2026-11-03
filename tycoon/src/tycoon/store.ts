@@ -49,6 +49,8 @@ export function switchSave(id: ScenarioId | null) {
   } catch {
     return;
   }
+  // the private review build starts from the address's #page; come back to the game, not the hub's home
+  if (import.meta.env["VITE_REVIEW_BUILD"]) location.hash = "#daycare-next";
   location.reload();
 }
 export const TICK_MS = 250;
