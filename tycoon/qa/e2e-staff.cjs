@@ -93,7 +93,8 @@ async function run(browser, label, opts) {
     const lunaIn = await dog('e1');
     const placedIn = (await f()).rooms.find((r) => r.uid === lunaIn.place.room);
     check(`${label}: the receptionist checked Luna in and settled her in a matching playroom`, placedIn?.type === 'playroom' && placedIn.group === 'small-gentle');
-    check(`${label}: check-in took game time`, lunaIn.visit.checkedInAt - clock >= 4.5, `${lunaIn.visit.checkedInAt - clock} min`);
+    // walk (at least 1) + 4 at the desk, less up to one tick
+    check(`${label}: check-in took game time`, lunaIn.visit.checkedInAt - clock >= 4, `${lunaIn.visit.checkedInAt - clock} min`);
 
     // ---------- 3. the attendant plays with her ----------
     await until(() => window.__tycoonState().facilities.f1.staff.some((x) => x.job?.kind === 'play' && x.job.dog === 'e1' && x.job.phase === 'work'), null, 40000);

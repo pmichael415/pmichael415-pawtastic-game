@@ -23,7 +23,8 @@ const check = (n, ok, d = '') => { ok ? pass++ : fail++; out.push(`${ok ? 'PASS'
     // ---------- Recess Rush ----------
     await page.goto(BASE + '/help', { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => { localStorage.clear(); localStorage.setItem('pawtastic-settings-v1', JSON.stringify({ view: 'overhead', sound: true, music: true })); });
-    await page.goto(BASE + '/recess', { waitUntil: 'networkidle' });
+    // a fixed course: the daily course changes every day, and on some days this unsteered run ends within seconds
+    await page.goto(BASE + '/recess?seed=2026-11-02', { waitUntil: 'networkidle' });
     await page.waitForFunction(() => !!window.__audio);
     check('Recess Rush has a mute button', (await page.getByRole('button', { name: 'Mute sound' }).count()) === 1);
     await page.getByRole('button', { name: /Start run/ }).click();
