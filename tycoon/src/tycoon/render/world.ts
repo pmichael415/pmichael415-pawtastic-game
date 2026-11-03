@@ -11,6 +11,7 @@ import { fac } from "../state";
 import { inActiveScuffle } from "../run";
 import { findPath } from "../paths";
 import { recordFrame } from "../diag";
+import { disposeMerged, mergeStill } from "./compact";
 import { staffStatus } from "../team";
 import { waitStage } from "../waiting";
 import { isActive, ownedPaid } from "../paid";
@@ -159,7 +160,8 @@ export class TycoonWorld {
     this.opts = opts;
     // Phones draw every pixel 2–3 times over at full device ratio; 1.5 looks the same at this zoom and keeps 30 fps.
     const dpr = Math.min(window.devicePixelRatio || 1, opts.lowPower ? 1 : 1.5);
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: dpr < 1.5, powerPreference: "high-performance", alpha: false });
+    // Battery saver draws at 1x with no antialiasing (measured: antialiasing at 1x cost more than 1.5x without it).
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !opts.lowPower && dpr < 1.5, powerPreference: "high-performance", alpha: false });
     this.renderer.setPixelRatio(dpr);
     try {
       const gl = this.renderer.getContext();
@@ -496,6 +498,9 @@ export class TycoonWorld {
       if (!a) {
         const size = d.size === "small" ? SMALL : LARGE;
         const rig = buildDog(coatFor(d.breed), size);
+        // still parts merged: 20 draw calls a pup become about 4 (the body bob, tail and bandana still move)
+        mergeStill(rig.body, new Set<THREE.Object3D>([rig.tail, rig.bandana]));
+        mergeStill(rig.root, new Set<THREE.Object3D>([rig.body, rig.shadow]));
         const tag = makeTag(1.5);
         rig.root.add(tag.sprite);
         tag.sprite.position.set(0, 1.5 * size + 0.3, 0);
@@ -530,6 +535,7 @@ export class TycoonWorld {
       if (!seen.has(id)) {
         if (!this.opts.reducedMotion) this.fx("puff", tileAtWorld(a.pos.x, a.pos.z) ?? ENTRANCE);
         this.scene.remove(a.rig.root);
+        disposeMerged(a.rig.root);
         a.tag.dispose();
         this.dogs.delete(id);
       }
@@ -580,6 +586,7 @@ export class TycoonWorld {
       let a = this.staff.get(st.id);
       if (!a) {
         const rig = buildPerson(st.founder ? "#0057A7" : ["#0057A7", "#2f8f6b", "#c4572e", "#7a4fb0", "#d29a2e"][i % 5]!, i * 13 + 5, true);
+        mergeStill(rig.root, new Set<THREE.Object3D>([...rig.legs, ...rig.arms])); // arms and legs still swing
         rig.root.position.set(to.x, 0.06, to.z);
         rig.root.userData["staff"] = st.id;
         this.scene.add(rig.root);
@@ -610,6 +617,7 @@ export class TycoonWorld {
     for (const [id, a] of this.staff)
       if (!seen.has(id)) {
         this.scene.remove(a.rig.root);
+        disposeMerged(a.rig.root);
         a.tag?.dispose();
         this.staff.delete(id);
       }
@@ -636,6 +644,7 @@ export class TycoonWorld {
       if (!a) {
         const coats = ["#c46a4a", "#4f8a5b", "#8a5fa8", "#d29a2e", "#5b7c99", "#a34d6d"];
         const rig = buildPerson(coats[(d.visit!.owner.charCodeAt(0) + d.visit!.owner.length) % coats.length]!, d.visit!.owner.length * 7 + 3, false);
+        mergeStill(rig.root, new Set<THREE.Object3D>([...rig.legs, ...rig.arms]));
         const door = tileCenter(ENTRANCE.c, ENTRANCE.r);
         rig.root.position.set(door.x, 0.06, door.z + 1);
         this.scene.add(rig.root);
@@ -759,6 +768,7 @@ export class TycoonWorld {
       o.rig.root.rotation.y = Math.atan2(o.to.x - o.pos.x, o.to.z - o.pos.z) || o.rig.root.rotation.y;
       if (o.leaving && Math.hypot(o.to.x - o.pos.x, o.to.z - o.pos.z) < 0.3) {
         this.scene.remove(o.rig.root);
+        disposeMerged(o.rig.root);
         this.owners.delete(id);
       }
     }

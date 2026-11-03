@@ -56,6 +56,7 @@ export function DiagOverlay({ debug, quality }: { debug: () => Debug; quality: s
   const d = debug();
   const nav = typeof navigator !== "undefined" ? navigator : null;
   const report = diagReport(s, d, { quality, browser: nav?.userAgent ?? "unknown", screen: typeof window !== "undefined" ? `${window.innerWidth}×${window.innerHeight} @${window.devicePixelRatio}x` : "unknown", build: String(import.meta.env["VITE_REVIEW_BUILD"] ? "private review build" : "dev server"), scenario: testScenario() ?? "player save" });
+  if (typeof window !== "undefined") (window as unknown as { __tycoonDiagReport?: unknown }).__tycoonDiagReport = report; // for the measuring script
   return (
     <aside aria-label="Diagnostics" className="pointer-events-auto fixed right-2 top-2 z-50 w-56 rounded-xl bg-black/80 p-2 font-mono text-[10px] leading-tight text-white shadow-pop">
       <p className="font-bold">Diagnostics (private)</p>
