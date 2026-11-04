@@ -12,6 +12,7 @@ import { setOwnedPaid } from "@/tycoon/paid";
 import { paintRoom } from "@/tycoon/build";
 import { markPainted } from "@/tycoon/guide";
 import { fac } from "@/tycoon/state";
+import { deskTile } from "@/tycoon/team";
 import { onGetCoins, setTourControls, tycoonStore, useTycoon, type ActOpts, type ActResult } from "@/tycoon/store";
 import { productById } from "@/lib/catalog";
 import { liveCollect } from "@/lib/purchases/live";
@@ -273,8 +274,17 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
   const lastOut = f.outcomes?.at(-1) ?? null;
   const lastKey = lastOut ? `${lastOut.dog}|${lastOut.day}|${lastOut.min}|${lastOut.how}|${lastOut.total}|${(f.outcomes ?? []).length}` : "";
   const seenOutcome = useRef<string | null>(null);
+  /** When the player's own tap last paid a checkout (its coins already flew from the pup). */
+  const playerPaid = useRef(0);
   useEffect(() => {
-    if (seenOutcome.current !== null && lastKey && lastKey !== seenOutcome.current) setReceipt(lastOut);
+    if (seenOutcome.current !== null && lastKey && lastKey !== seenOutcome.current) {
+      setReceipt(lastOut);
+      // a payment staff took (or a family collected at closing): coins fly at the desk, as when you check out
+      if (lastOut && lastOut.total > 0 && Date.now() - playerPaid.current > 400) {
+        fx("coins", deskTile(fac(tycoonStore.getState()!)));
+        sound.play("coins");
+      }
+    }
     seenOutcome.current = lastKey;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastKey]);
@@ -391,6 +401,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
       sound.play("sparkle");
     }
     if (z.stats.checkouts > a.stats.checkouts) {
+      playerPaid.current = Date.now();
       const gone = a.dogs.find((d) => !z.dogs.some((x) => x.id === d.id));
       const at = gone ? dogTile(a, gone) : null;
       if (at) fx("coins", at);

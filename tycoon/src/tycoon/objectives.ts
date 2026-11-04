@@ -91,6 +91,21 @@ export function longGoal(s: TycoonState): Objective {
   return { id: "long-next", title: "A second location is the next milestone", detail: "You've built a whole PAWtastic campus. Coming in a future update: plan Hawthorne or Hillsdale (fictional layouts)." };
 }
 
+/**
+ * The expansion you're saving toward, its price and the coins you have (owner brief: "see the next expansion's cost and
+ * your progress toward affording it"). What families asked for comes first, then the cheapest that's unlocked and has a
+ * spot. Null before expansions unlock, or when nothing is left to buy.
+ */
+export function savingFor(s: TycoonState): { id: string; title: string; cost: number; have: number } | null {
+  if (level(s) < EXPANSION_LEVEL) return null;
+  const f = fac(s);
+  const open = expansionOptions(s).filter((o) => o.cost > 0 && (o.why === null || /more coins needed/.test(o.why)));
+  if (!open.length) return null;
+  const want = demandGroup(f);
+  const pick = (want && open.find((o) => o.id === "playroom" && o.mode === "new")) || [...open].sort((a, b) => a.cost - b.cost)[0]!;
+  return { id: pick.id, title: pick.title, cost: pick.cost, have: Math.max(0, s.coins) };
+}
+
 export function objectives(s: TycoonState): { next: Objective; long: Objective } {
   return { next: nextObjective(s), long: longGoal(s) };
 }

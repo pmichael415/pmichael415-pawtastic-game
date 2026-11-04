@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { EXPANSION_LEVEL } from "@/tycoon/expansion";
-import { objectives, type Objective, type ObjectiveAction } from "@/tycoon/objectives";
+import { objectives, savingFor, type Objective, type ObjectiveAction } from "@/tycoon/objectives";
 import { level } from "@/tycoon/progress";
 import { facilityStage } from "@/tycoon/stages";
 import { fac } from "@/tycoon/state";
@@ -29,6 +29,21 @@ export function ObjectiveBar({ state, onAction }: { state: TycoonState; onAction
           </Button>
         )}
       </div>
+      {(() => {
+        // always in view: the next expansion's price and how close you are (owner brief: earn, reinvest, expand)
+        const save = savingFor(state);
+        if (!save) return null;
+        const pctSaved = Math.min(100, Math.round((100 * save.have) / Math.max(1, save.cost)));
+        const n = (x: number) => x.toLocaleString("en-US");
+        return (
+          <div className="border-t border-border pt-2">
+            <p data-testid="saving-for" className="text-xs text-secondary">
+              💰 {save.have >= save.cost ? "You can afford" : "Saving for"} <b>{save.title}</b> · {n(Math.min(save.have, save.cost))} of {n(save.cost)} coins
+            </p>
+            <Progress value={pctSaved} className="mt-1 h-1.5" aria-label={`Saving for ${save.title}: ${pctSaved}%`} />
+          </div>
+        );
+      })()}
       <div className="border-t border-border pt-2">
         <p className="flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
           <span>Goal</span>

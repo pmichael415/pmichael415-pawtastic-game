@@ -1,7 +1,7 @@
 // One clear next objective and one longer-term goal, always (staff design §7).
 import { describe, expect, it } from "vitest";
 import { EXPANSION_LEVEL, buyExpansion } from "./expansion";
-import { longGoal, nextObjective, objectives } from "./objectives";
+import { longGoal, nextObjective, objectives, savingFor } from "./objectives";
 import { xpForLevel } from "./progress";
 import { quickStart } from "./start";
 import { fac, newTycoon, withFac } from "./state";
@@ -63,5 +63,22 @@ describe("the longer-term goal", () => {
   it("climbs: a profitable day, then the next facility stage (see stages.test.ts)", () => {
     expect(longGoal(started()).id).toBe("long-profit");
     expect(longGoal({ ...started(), bestProfit: 50 }).id).toBe("long-stage-growing");
+  });
+});
+
+describe("saving toward the next expansion (owner brief: see its cost and your progress)", () => {
+  it("names the expansion you're saving for, its price and the coins you have", () => {
+    const s = { ...served(started()), xp: xpForLevel(EXPANSION_LEVEL) + 1, coins: 100 };
+    const save = savingFor(s)!;
+    expect(save.cost).toBeGreaterThan(100);
+    expect(save.have).toBe(100);
+    expect(save.title.length).toBeGreaterThan(3);
+  });
+  it("the one families asked for comes first; nothing before expansions unlock", () => {
+    const base = { ...served(started()), coins: 100 };
+    expect(savingFor({ ...base, xp: 0 })).toBeNull();
+    const f = fac(base);
+    const asked = withFac({ ...base, xp: xpForLevel(EXPANSION_LEVEL) + 1 }, { ...f, asked: { day: f.day, groups: { "large-active": 3 } } });
+    expect(savingFor(asked)!.title).toMatch(/Playroom wing for Large & Active/);
   });
 });

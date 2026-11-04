@@ -118,3 +118,14 @@ describe("opening the options with a pup's panel open (found in the play session
     expect(screen.getByRole("region", { name: "Expand your daycare" })).toBeTruthy();
   });
 });
+
+describe("saving toward the next expansion", () => {
+  it("the objectives always show what you're saving for, its price and how close you are", () => {
+    open({ ...grown(), coins: 200 });
+    closeLevelUp();
+    const bar = within(screen.getByRole("region", { name: "Objectives" }));
+    const coins = tycoonStore.getState()!.coins.toLocaleString("en-US");
+    expect(bar.getByTestId("saving-for").textContent).toMatch(new RegExp(`Saving for .+ · ${coins} of [\\d,]+ coins`));
+    expect(bar.getByRole("progressbar", { name: /^Saving for/ })).toBeTruthy();
+  });
+});

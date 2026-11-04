@@ -7,11 +7,12 @@ import type { TPick } from "@/tycoon/render/world";
 vi.mock("sonner", () => ({ toast: Object.assign(() => {}, { success: () => {}, error: () => {}, warning: () => {}, info: () => {} }) }));
 let emit: (p: TPick | null) => void = () => {};
 const focused: { c: number; r: number }[] = [];
+const effects: string[] = [];
 vi.mock("@/components/tycoon/TycoonStage", async () => {
   const React = await import("react");
   return {
     TycoonStage: React.forwardRef(function Stub(props: { onPick: (p: TPick | null) => void }, ref) {
-      React.useImperativeHandle(ref, () => ({ fx: () => {}, resetCamera: () => {}, focus: (c: number, r: number) => focused.push({ c, r }), debug: () => null }));
+      React.useImperativeHandle(ref, () => ({ fx: (kind: string) => effects.push(kind), resetCamera: () => {}, focus: (c: number, r: number) => focused.push({ c, r }), debug: () => null }));
       emit = props.onPick;
       return React.createElement("div", { "data-testid": "stage" });
     }),
@@ -24,6 +25,7 @@ import { KEY, tycoonStore } from "@/tycoon/store";
 import { quickStart } from "@/tycoon/start";
 import { fac, newTycoon, withFac } from "@/tycoon/state";
 import { ok } from "@/tycoon/testkit";
+import { checkout } from "@/tycoon/run";
 import { defaultVisit } from "@/tycoon/visit";
 import type { TDog, TycoonState, Visit } from "@/tycoon/types";
 
@@ -81,6 +83,23 @@ describe("the front desk", () => {
     open(withPups());
     act(() => tycoonStore.set((x) => withFac(x, { ...fac(x), dogs: [] })));
     expect(desk().getByText(/No one at the desk/)).toBeTruthy();
+  });
+});
+
+describe("payment feedback when staff check a family out", () => {
+  it("coins fly and the receipt shows, as when you do it yourself", () => {
+    const s = withPups({ over: { checkedIn: true }, visit: { ownerHere: 10 * 60 } });
+    const f = fac(s);
+    const play = f.rooms.find((r) => r.type === "playroom")!;
+    const pup = f.dogs[0]!;
+    open(withFac(s, { ...f, dogs: [{ ...pup, place: { kind: "room", room: play.uid }, played: 1, happiness: 90 }] }));
+    effects.length = 0;
+    // a staff checkout happens in the engine (a tick), not through a tap
+    act(() => {
+      tycoonStore.dispatch((t) => ({ ok: true, state: ok(checkout(t, pup.id, false)) }));
+    });
+    expect(effects).toContain("coins");
+    expect(screen.getByRole("region", { name: "Receipt" })).toBeTruthy();
   });
 });
 
