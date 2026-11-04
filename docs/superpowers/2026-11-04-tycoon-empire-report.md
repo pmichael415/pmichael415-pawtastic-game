@@ -160,7 +160,36 @@ daycare that starts with **every starting coin spent — 0 coins**):
 
 ## Independent review
 
-<!-- REVIEW -->
+A separate reviewer (a fresh agent that hadn't written the code) read the whole milestone diff and probed it with
+throwaway tests. It found **11 defects, 9 confirmed**. All 11 are fixed, each with a test that failed first
+(`review-empire.test.ts` and UI tests):
+
+1. **Connect it could half-apply** near the 200-thing limit (said "Connected!", charged less, still not connected).
+   Routes are now checked against the limit up front, and Connect it verifies it connected for exactly the price
+   shown, or changes nothing.
+2. **A quick double tap on Put it in bought two items.** One per tap now (the button stays, on purpose, for placing
+   another).
+3. **A pup in the bath didn't count as inside the bath room,** so its door could be removed mid-bath. It counts now.
+4. **Moving a path square could cut off pups.** Refused now, like selling it.
+5. **"Add it to X's rooms" could be refused** when one of their rooms had been retyped. Only playrooms are listed now.
+6. **Connect it could offer a fifth door.** Never now.
+7. **A 2 × 2 room couldn't be built** (no wall long enough for a door). It now gets a door on a connected
+   neighbour's wall, as the starter calm room has.
+8. **"Way in" listed rooms reached *through* this room,** and called a blocked door "onto the grass". Now: "Way in: a
+   door onto the path to the entrance", and "Its door is blocked…".
+9. **A price could change between quote and tap** (hard to reach). Building now refuses, with nothing charged,
+   if the price isn't the one you saw.
+10. **The playroom group picker had no Back.** It has one.
+11. **A pup waiting inside with no free spot** could be lost once its panel closed. The front desk lists them too
+    ("waiting for a spot", "in the calm room").
+
+The reviewer also checked and found correct:
+- no partial building;
+- already-paved squares aren't charged;
+- the trap check covers lobby, calm and boarding pups;
+- Build here, Connect it, Hire and Check in all ignore a second tap;
+- checkout pays once;
+- the build pause restores your pause state.
 
 ## Limitations and what's not done
 
