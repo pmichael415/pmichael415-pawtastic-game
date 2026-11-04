@@ -32,12 +32,27 @@ export function gainXp(s: TycoonState, amount: number, onLevel: ((n: number) => 
   const xp = s.xp + Math.floor(amount);
   const to = levelOf(xp);
   if (to === from) return { ...s, xp };
-  let coins = s.coins;
+  let reward = 0;
   for (let n = from + 1; n <= to; n++) {
-    coins += levelReward(n);
+    reward += levelReward(n);
     onLevel?.(n);
   }
-  return { ...s, xp, coins, pendingLevel: Math.max(to, s.pendingLevel ?? 0) };
+  return { ...withBonusIncome(s, reward), xp, pendingLevel: Math.max(to, s.pendingLevel ?? 0) };
+}
+
+/**
+ * Adds a reward to coins and records it as today's bonus income, so coins always follow the books (the day report and
+ * Finances add up). Local, not business.earn, because business imports this module.
+ */
+function withBonusIncome(s: TycoonState, amount: number): TycoonState {
+  const f = s.facilities?.[s.active];
+  if (!f) return { ...s, coins: s.coins + amount };
+  const last = f.ledger[f.ledger.length - 1];
+  const ledger =
+    last && last.day === f.day
+      ? [...f.ledger.slice(0, -1), { ...last, income: { ...last.income, bonus: last.income.bonus + amount } }]
+      : f.ledger;
+  return { ...s, coins: s.coins + amount, facilities: { ...s.facilities, [s.active]: { ...f, ledger } } };
 }
 
 /** Names of everything that becomes available at level n (for the level-up cards). */

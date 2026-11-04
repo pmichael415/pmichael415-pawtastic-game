@@ -117,6 +117,13 @@ describe("expenses", () => {
     expect(fac(u).report!.record).toBe(false);
     expect(u.bestProfit).toBe(460);
   });
+  it("investing doesn't spoil a good day: the report splits running profit from what was invested, and the record uses the running profit", () => {
+    let s = earn(bare([]), { daycare: 500 });
+    s = ok(spend(s, 300, "building"));
+    const t = closeDay(s);
+    expect(fac(t).report).toMatchObject({ income: 500, running: 460, invested: 300, profit: 160, record: true });
+    expect(t.bestProfit).toBe(460); // "Have a profitable day" means beating the day's wages, upkeep and supplies
+  });
   it("keeps 14 ledger days", () => {
     let s = bare([]);
     for (let i = 0; i < 20; i++) s = closeDay(earn(s, { daycare: 50 }));

@@ -208,11 +208,14 @@ export function closeDay(s: TycoonState): TycoonState {
   const income = sum(day.income);
   const expenses = sum(day.expenses);
   const profit = income - expenses;
-  const record = profit > s.bestProfit;
+  const invested = day.expenses.building;
+  const running = profit + invested;
+  // a record is about running the business well: building for growth doesn't spoil a good day
+  const record = running > s.bestProfit;
   const avgHappy = f1.dogs.length ? Math.round(f1.dogs.reduce((a, d) => a + d.happiness, 0) / f1.dogs.length) : 100;
-  const report: TReport = { day: f1.day, income, expenses, profit, record, tip: moneyTip(f1, { profit }), admitted: day.checkIns, checkouts: day.checkouts, avgHappy };
+  const report: TReport = { day: f1.day, income, expenses, profit, running, invested, record, tip: moneyTip(f1, { profit }), admitted: day.checkIns, checkouts: day.checkouts, avgHappy };
   const nextDay = f1.day + 1;
   const campaign = f1.campaign && nextDay < f1.campaign.untilDay ? f1.campaign : null;
   const f2: Facility = { ...f1, day: nextDay, campaign, report, ledger: [...f1.ledger, emptyDay(nextDay)].slice(-LEDGER_DAYS) };
-  return withFac({ ...s, coins: s.coins - (charges.wages + charges.upkeep + charges.supplies), bestProfit: record ? profit : s.bestProfit }, f2);
+  return withFac({ ...s, coins: s.coins - (charges.wages + charges.upkeep + charges.supplies), bestProfit: record ? running : s.bestProfit }, f2);
 }

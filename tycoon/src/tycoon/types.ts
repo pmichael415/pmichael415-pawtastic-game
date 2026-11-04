@@ -181,8 +181,14 @@ export type DayLedger = { day: number; income: Record<IncomeKey, number>; expens
 export type TReport = {
   day: number;
   income: number;
+  /** Every expense, building included. */
   expenses: number;
+  /** income − expenses: the change in coins from the day. */
   profit: number;
+  /** income − running costs (wages, upkeep, supplies, marketing, refunds): what the business itself made. */
+  running: number;
+  /** Coins put into building that day (an investment, not a running cost). */
+  invested: number;
   record: boolean;
   tip: string;
   admitted: number;

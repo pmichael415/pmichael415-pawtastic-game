@@ -63,7 +63,7 @@ describe("the owner brief's scenario: daycare + bath, owner arrives before the b
     expect(dog(s, id)).toBeUndefined(); // handed over when the bath finished
     const out = fac(s).outcomes.at(-1)!;
     expect(out.how).toBe("finished");
-    expect(out.lines.find((l) => /^Bath$/.test(l.label))!.amount).toBe(bathPay(fac(s)));
+    expect(out.lines.find((l) => /^Bath( — deluxe tub \(\+\d+\))?$/.test(l.label))!.amount).toBe(bathPay(fac(s)));
     expect(s.coins - coins).toBe(out.total); // paid once, exactly the bill
     expect(out.complaints).toEqual([expect.objectContaining({ kind: "bath", remedy: "finish", resolved: true })]);
     expect(out.satisfaction).toBeGreaterThanOrEqual(70);

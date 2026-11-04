@@ -334,13 +334,14 @@ describe("rush hour", () => {
     const ids = fac(s).dogs.map((d) => d.id);
     for (const id of ids) s = ok(checkIn(s, id));
     s = setF(s, { clockMin: fac(s).clockMin + 20 });
+    const bonus0 = fac(s).ledger.at(-1)!.income.bonus; // level-up rewards are bonus income too
     let last;
     for (const id of ids) {
       last = toCalm(s, id);
       s = ok(last);
     }
     expect(last).toMatchObject({ ok: true, msg: expect.stringContaining("Smooth operator! +12") });
-    expect(fac(s).ledger.at(-1)!.income.bonus).toBe(12);
+    expect(fac(s).ledger.at(-1)!.income.bonus - bonus0).toBe(12);
     // again the same day: no bonus
     s = withDogs(s, []);
     for (let i = 0; i < 3; i++) s = ok(createArrival(s, r));

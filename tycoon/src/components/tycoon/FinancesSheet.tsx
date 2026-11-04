@@ -22,18 +22,21 @@ const TABS = ["Summary", "Prices", "Staff", "Upkeep", "Marketing"] as const;
 type Tab = (typeof TABS)[number];
 
 const INCOME: [IncomeKey, string][] = [["daycare", "Daycare"], ["boarding", "Boarding"], ["baths", "Baths"], ["exitBaths", "Exit baths"], ["tips", "Tips"], ["bonus", "Bonuses"]];
-const EXPENSES: [ExpenseKey, string][] = [["wages", "Wages"], ["upkeep", "Upkeep"], ["supplies", "Supplies"], ["marketing", "Marketing"], ["building", "Building"], ["refunds", "Refunds"]];
+const EXPENSES: [ExpenseKey, string][] = [["wages", "Wages"], ["upkeep", "Upkeep"], ["supplies", "Supplies"], ["marketing", "Marketing"], ["refunds", "Refunds"]];
 const PROFIT = "#2a78d6";
 const LOSS = "#d0473f";
 
 const sum = (r: Record<string, number>) => Object.values(r).reduce((a, n) => a + n, 0);
-const profitOf = (d: DayLedger) => sum(d.income) - sum(d.expenses);
+/** What running the daycare made that day: income minus running costs. Building is an investment, shown apart. */
+const profitOf = (d: DayLedger) => sum(d.income) - (sum(d.expenses) - d.expenses.building);
 const fmt = (n: number) => (n > 0 ? `+${n.toLocaleString()}` : n.toLocaleString());
 
 function addUp(days: DayLedger[]) {
   const income = Object.fromEntries(INCOME.map(([k]) => [k, days.reduce((a, d) => a + d.income[k], 0)])) as Record<IncomeKey, number>;
   const expenses = Object.fromEntries(EXPENSES.map(([k]) => [k, days.reduce((a, d) => a + d.expenses[k], 0)])) as Record<ExpenseKey, number>;
-  return { income, expenses, profit: sum(income) - sum(expenses) };
+  const invested = days.reduce((a, d) => a + d.expenses.building, 0);
+  const profit = sum(income) - sum(expenses); // running costs only: building isn't in EXPENSES
+  return { income, expenses, profit, invested, change: profit - invested };
 }
 
 /** 14-day profit, one bar per game day from a zero line: blue up for profit, red down for a loss. */
@@ -86,7 +89,7 @@ function ProfitChart({ days }: { days: DayLedger[] }) {
         })}
       </svg>
       <figcaption className="text-[11px] text-muted-foreground">
-        Daily profit (game coins), last 14 game days. <span style={{ color: PROFIT }}>■</span> profit · <span style={{ color: LOSS }}>■</span> loss
+        Daily profit from running the daycare (before building), game coins, last 14 game days. <span style={{ color: PROFIT }}>■</span> profit · <span style={{ color: LOSS }}>■</span> loss
       </figcaption>
     </figure>
   );
@@ -133,7 +136,7 @@ function Summary({ f }: { f: Facility }) {
           ))}
           <tr>
             <td colSpan={4} className="pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Expenses
+              Running costs
             </td>
           </tr>
           {EXPENSES.map(([k, name]) => (
@@ -154,9 +157,25 @@ function Summary({ f }: { f: Facility }) {
               </td>
             ))}
           </tr>
+          <tr>
+            <td>Invested in building</td>
+            {cols.map((c) => (
+              <td key={c.name} className="text-right tabular-nums">
+                {c.v.invested.toLocaleString()}
+              </td>
+            ))}
+          </tr>
+          <tr className="text-muted-foreground">
+            <td>Change in coins</td>
+            {cols.map((c) => (
+              <td key={c.name} className="text-right tabular-nums">
+                {fmt(c.v.change)}
+              </td>
+            ))}
+          </tr>
         </tbody>
       </table>
-      <p className="mt-1 text-[11px] text-muted-foreground">Wages, upkeep and supplies are charged when each game day ends.</p>
+      <p className="mt-1 text-[11px] text-muted-foreground">Profit is what running the daycare made; building is what you put back in to grow. Wages, upkeep and supplies are charged when each game day ends.</p>
       <ProfitChart days={ledger.slice(-14)} />
     </div>
   );

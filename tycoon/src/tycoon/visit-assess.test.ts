@@ -26,7 +26,7 @@ describe("a visit that went well", () => {
     expect(a.satisfaction).toBeGreaterThanOrEqual(80);
     expect(a.complaints).toEqual([]);
     expect(line(a, /^Daycare/)!.amount).toBe(Math.round(f.prices.daycare * (0.6 + 0.4 * 0.85)));
-    expect(line(a, /^Bath$/)!.amount).toBe(bathPay(f));
+    expect(line(a, /^Bath( — deluxe tub \(\+\d+\))?$/)!.amount).toBe(bathPay(f));
     expect(a.total).toBe(a.lines.reduce((n, l) => n + l.amount, 0));
   });
 });

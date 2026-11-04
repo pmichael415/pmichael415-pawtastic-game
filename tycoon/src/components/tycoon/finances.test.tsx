@@ -37,7 +37,9 @@ describe("finances", () => {
     load(guidedBuild(newTycoon(Date.now())));
     const { unmount } = render(<Harness show="finances" />);
     const summary = screen.getByRole("tabpanel", { name: "Summary" });
-    expect(within(summary).getAllByText("Building").length).toBeGreaterThan(0);
+    // profit is what running the daycare made; building is shown apart as what you invested
+    expect(within(summary).getByText("Invested in building")).toBeTruthy();
+    expect(within(summary).getByText("Running costs")).toBeTruthy();
     expect(screen.getByRole("img", { name: /Profit for the last/ })).toBeTruthy();
     unmount();
   });
@@ -109,7 +111,7 @@ describe("day report, money banner and sign", () => {
     localStorage.clear();
     tycoonStore._reset(null);
   });
-  const report: TReport = { day: 3, income: 420, expenses: 300, profit: 120, record: true, tip: "Your Fountain costs 16 a day and adds Appeal 6 — worth it while you have room for more dogs.", admitted: 9, checkouts: 8, avgHappy: 84 };
+  const report: TReport = { day: 3, income: 420, expenses: 300, profit: 120, running: 120, invested: 0, record: true, tip: "Your Fountain costs 16 a day and adds Appeal 6 — worth it while you have room for more dogs.", admitted: 9, checkouts: 8, avgHappy: 84 };
 
   it("the day report shows the profit, New record! and the money tip", () => {
     load(newTycoon(Date.now()));
@@ -126,7 +128,7 @@ describe("day report, money banner and sign", () => {
   it("a day you built on: the running profit leads, and the building is shown as what you invested (play-session finding)", () => {
     const s = newTycoon(Date.now());
     const f = fac(s);
-    const built: TReport = { day: 1, income: 756, expenses: 3045, profit: -2289, record: false, tip: "", admitted: 10, checkouts: 9, avgHappy: 100 };
+    const built: TReport = { day: 1, income: 756, expenses: 3045, profit: -2289, running: 636, invested: 2925, record: false, tip: "", admitted: 10, checkouts: 9, avgHappy: 100 };
     const ledger = [{ day: 1, income: { daycare: 700, boarding: 0, baths: 0, exitBaths: 0, tips: 56, bonus: 0 }, expenses: { wages: 40, upkeep: 60, supplies: 20, marketing: 0, building: 2925, refunds: 0 } }];
     load(withFac(s, { ...f, day: 2, ledger: ledger as never }));
     const { unmount } = render(<Harness show="report" />);

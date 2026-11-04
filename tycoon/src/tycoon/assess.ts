@@ -105,17 +105,21 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
   const lines: ReceiptLine[] = [];
   if (safe) lines.push({ label: "Daycare — kept safe in the calm room (no charge)", amount: 0 });
   else if (!provided) lines.push({ label: "Daycare — not provided (no charge)", amount: 0 });
-  else lines.push({ label: `Daycare (${Math.round(dog.happiness)}% happy)`, amount: Math.round(f.prices.daycare * (0.6 + (0.4 * dog.happiness) / 100)), key: "daycare" });
+  else {
+    // a happier pup pays more: 60% of the price at 0% happy, the full price at 100% (explained on the receipt)
+    const pay = Math.round(f.prices.daycare * (0.6 + (0.4 * dog.happiness) / 100));
+    lines.push({ label: `Daycare — ${Math.round(dog.happiness)}% happy, so ${pay} of ${f.prices.daycare}`, amount: pay, key: "daycare" });
+  }
   if (bathBooked || dog.bathed) {
     if (dog.bathed && prepaidBath) lines.push({ label: "Bath (prepaid at check-in)", amount: 0 });
-    else if (dog.bathed) lines.push({ label: "Bath", amount: bathPay(f), key: "baths" });
+    else if (dog.bathed) lines.push({ label: bathPay(f) > f.prices.bath ? `Bath — deluxe tub (+${bathPay(f) - f.prices.bath})` : "Bath", amount: bathPay(f), key: "baths" });
     else lines.push({ label: prepaidBath ? "Bath — prepaid, not done" : "Bath — not done (not charged)", amount: 0 });
   }
   if (opts.exitBath) lines.push({ label: "Exit bath", amount: f.prices.exitBath, key: "exitBaths" });
-  if (dog.boarding) lines.push(dog.place.kind === "bed" ? { label: "Boarding", amount: f.prices.boarding, key: "boarding" } : { label: "Boarding — no bed provided (no charge)", amount: 0 });
+  if (dog.boarding) lines.push(dog.place.kind === "bed" ? { label: "Boarding — 1 night", amount: f.prices.boarding, key: "boarding" } : { label: "Boarding — no bed provided (no charge)", amount: 0 });
   const t = tip(funAppeal(f).appeal);
   const tipNow = mood === "delighted" ? t : mood === "content" ? Math.floor(t / 2) : 0;
-  if (tipNow > 0) lines.push({ label: "Tip", amount: tipNow, key: "tips" });
+  if (tipNow > 0) lines.push({ label: `Tip — ${mood === "delighted" ? "delighted" : "happy"} with the day (Appeal ${funAppeal(f).appeal})`, amount: tipNow, key: "tips" });
   // a personal moment you shared: the pup tells the family, and they add a little extra (once per visit)
   // only from a visit that was charged (not a no-charge safety visit) and a family that didn't give up waiting
   const charged = lines.some((l) => (l.key === "daycare" || l.key === "boarding") && l.amount > 0);

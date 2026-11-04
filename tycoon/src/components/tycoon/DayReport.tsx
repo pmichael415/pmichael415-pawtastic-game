@@ -11,8 +11,14 @@ export function DayReport({ state, set, onFinances }: { state: TycoonState; set:
   const dismiss = () => set((s) => withFac(s, { ...fac(s), report: null }));
   const day = r?.day;
   // what that day spent on building (an investment, not a running cost)
-  const built = r ? (f.ledger.find((l) => l.day === r.day)?.expenses.building ?? 0) : 0;
-  const running = r ? r.profit + built : 0;
+  const built = r?.invested ?? 0;
+  const running = r?.running ?? 0;
+  // where the money came from and went (explains the numbers: empire milestone, "earn, reinvest, expand")
+  const day0 = r ? f.ledger.find((l) => l.day === r.day) : undefined;
+  const IN: [keyof NonNullable<typeof day0>["income"], string][] = [["daycare", "daycare"], ["boarding", "boarding"], ["baths", "baths"], ["exitBaths", "exit baths"], ["tips", "tips"], ["bonus", "bonuses"]];
+  const OUT: [keyof NonNullable<typeof day0>["expenses"], string][] = [["wages", "wages"], ["upkeep", "upkeep"], ["supplies", "supplies"], ["marketing", "marketing"], ["refunds", "refunds"]];
+  const earnedFrom = day0 ? IN.filter(([k]) => day0.income[k] > 0).map(([k, n]) => `${n} ${day0.income[k].toLocaleString()}`).join(" · ") : "";
+  const spentOn = day0 ? OUT.filter(([k]) => day0.expenses[k] > 0).map(([k, n]) => `${n} ${day0.expenses[k].toLocaleString()}`).join(" · ") : "";
   const signed = (n: number, minus = false) => (n > 0 ? `+${n.toLocaleString()}` : minus && n < 0 ? `−${Math.abs(n).toLocaleString()}` : n.toLocaleString());
   useEffect(() => {
     if (day) sound.play("drumroll");
@@ -44,6 +50,12 @@ export function DayReport({ state, set, onFinances }: { state: TycoonState; set:
                   <p className="text-xs text-muted-foreground">
                     income {r?.income.toLocaleString()} · expenses {r?.expenses.toLocaleString()}
                   </p>
+                </div>
+              )}
+              {(earnedFrom || spentOn) && (
+                <div className="rounded-xl bg-muted p-2 text-xs">
+                  {earnedFrom && <p><b>Earned:</b> {earnedFrom}</p>}
+                  {spentOn && <p><b>Running costs:</b> {spentOn}</p>}
                 </div>
               )}
               <div className="grid grid-cols-3 gap-2 text-center font-bold">
