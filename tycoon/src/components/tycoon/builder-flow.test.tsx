@@ -129,3 +129,27 @@ describe("inspecting a room's connection", () => {
     expect(within(screen.getByRole("region", { name: /^Edit Playroom/ })).getByText(/Way in: a door into the Lobby/)).toBeTruthy();
   });
 });
+
+describe("review fixes", () => {
+  it("a quick double tap on Put it in places one item, charged once", () => {
+    start();
+    tool("Furniture");
+    fireEvent.click(within(screen.getByRole("region", { name: "Choose a room to furnish" })).getByRole("button", { name: /^Playroom/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Water Bowl/ }));
+    const items = fac(now()).items.length;
+    const coins = now().coins;
+    const put = button(/^Put it in Playroom/);
+    fireEvent.click(put);
+    fireEvent.click(put);
+    expect(fac(now()).items.length).toBe(items + 1);
+    expect(coins - now().coins).toBe(20);
+  });
+  it("choosing Playroom can be backed out of, to pick another type", () => {
+    start();
+    tool("Rooms");
+    fireEvent.click(button("Playroom"));
+    expect(screen.getByText("Which pups will play there?")).toBeTruthy();
+    fireEvent.click(button("Back"));
+    expect(button("Bath Room")).toBeTruthy();
+  });
+});

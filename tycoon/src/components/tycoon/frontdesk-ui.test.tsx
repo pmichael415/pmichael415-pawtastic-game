@@ -84,6 +84,15 @@ describe("the front desk", () => {
   });
 });
 
+describe("pups waiting inside for a spot", () => {
+  it("are listed at the desk too, so they're never lost behind a closed panel", () => {
+    const s = withPups({ over: { checkedIn: true, size: "large", temper: "active" } });
+    open(s);
+    const pup = fac(s).dogs[0]!;
+    expect(desk().getByRole("button", { name: new RegExp(`${pup.name}.*waiting for a spot`) })).toBeTruthy();
+  });
+});
+
 describe("in the list view", () => {
   it("there's one front desk (the list's own), not a second one on top", () => {
     setSettings({ view: "list" });

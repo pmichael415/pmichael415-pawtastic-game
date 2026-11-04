@@ -1,5 +1,5 @@
 // Sims-style build mode: the tool bar, what each tool is doing, and the ghost it shows on the 3D stage.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { GROUPS } from "@/game/engine";
 import type { GroupId } from "@/game/engine";
@@ -104,14 +104,14 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
       reason = plan.ok ? short(state, plan.cost.total) : plan.reason;
       label = `${name} ${rect.w} × ${rect.d}${plan.ok ? ` · ${costLine(plan.cost)}` : ""}`;
       connection = connectionLine(f, plan);
-      ghost = { kind: "room", ...rect, ok: !reason, label: plan.ok ? `${name} · ${plan.cost.total}` : name, ...(plan.ok ? { door: plan.door, route: plan.paths } : {}) };
+      ghost = { kind: "room", ...rect, ok: !reason, label: plan.ok ? `${name} · ${plan.cost.total}` : name, ...(plan.ok ? { door: plan.inner, route: plan.paths } : {}) };
     } else if (ui.tool === "rooms" && ui.corner && ui.end) {
       const rect = rectOf(ui.corner, ui.end);
       plan = planRoom(f, rect);
       reason = plan.ok ? short(state, plan.cost.total) : plan.reason;
       label = `${rect.w} × ${rect.d} · ${costLine(plan.ok ? plan.cost : null, roomPrice(rect.w, rect.d))}`;
       connection = connectionLine(f, plan);
-      ghost = { kind: "room", ...rect, ok: !reason, label, ...(plan.ok ? { door: plan.door, route: plan.paths } : {}) };
+      ghost = { kind: "room", ...rect, ok: !reason, label, ...(plan.ok ? { door: plan.inner, route: plan.paths } : {}) };
     } else if (ui.movingRoom && ui.roomAt) {
       const room = f.rooms.find((x) => x.uid === ui.movingRoom);
       if (room) {
@@ -215,7 +215,8 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
     if (!ui.corner || !ui.end || !plan?.ok || derived.reason) return;
     const { rect } = plan;
     const uid = "r" + state.seq;
-    const res = act((s) => buildConnectedRoom(s, rect, null), { event: { name: "tycoon_build", props: { kind: "room", action: "place" } } });
+    const quoted = plan.cost.total;
+    const res = act((s) => buildConnectedRoom(s, rect, null, undefined, quoted), { event: { name: "tycoon_build", props: { kind: "room", action: "place" } } });
     if (res.ok) {
       fx("drop", { c: rect.c + Math.floor(rect.w / 2), r: rect.r + Math.floor(rect.d / 2) });
       patch({ typing: uid, corner: null, end: null });
@@ -243,7 +244,8 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
     const kind = ui.kind;
     const group = ui.group ?? undefined;
     const uid = "r" + state.seq;
-    const res = act((s) => buildConnectedRoom(s, rect, kind, group), { event: { name: "tycoon_build", props: { kind: "room", action: "place" } } });
+    const quoted = plan.cost.total;
+    const res = act((s) => buildConnectedRoom(s, rect, kind, group, quoted), { event: { name: "tycoon_build", props: { kind: "room", action: "place" } } });
     if (res.ok) {
       fx("drop", { c: rect.c + Math.floor(rect.w / 2), r: rect.r + Math.floor(rect.d / 2) });
       setUi({ ...EMPTY, tool: "furniture", dest: uid });
@@ -259,9 +261,13 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
       : act((s) => addDoor(s, uid, door), { event: { name: "tycoon_build", props: { kind: "door", action: "place" } } });
     if (res.ok) patch({ door: null });
   }
+  const lastPlace = useRef(0);
   function place() {
     const spot = derived.placeAt;
     if (!ui.item || !spot || derived.reason) return;
+    // a quick double tap places one (the button stays for placing another on purpose)
+    if (Date.now() - lastPlace.current < 700) return;
+    lastPlace.current = Date.now();
     const { item, moving } = ui;
     const { at, rot } = spot;
     const res = moving
@@ -320,6 +326,7 @@ export function BuildToolbar({ b, state, act, onBuyPack, hidePaid = false }: { b
   const f = fac(state);
   const [groupPick, setGroupPick] = useState(false);
   const [kindGroupPick, setKindGroupPick] = useState(false);
+  useEffect(() => setKindGroupPick(false), [ui.tool]);
   const typingRoom = ui.typing ? f.rooms.find((r) => r.uid === ui.typing) : null;
   const destRoom = ui.dest ? f.rooms.find((r) => r.uid === ui.dest) ?? null : null;
   const destName = destRoom ? roomName(f, destRoom.uid) : "";
@@ -357,6 +364,9 @@ export function BuildToolbar({ b, state, act, onBuyPack, hidePaid = false }: { b
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Which pups will play there?</p>
               <div className="flex flex-wrap gap-2">
+                <Button variant="ghost" className="h-11" onClick={() => setKindGroupPick(false)}>
+                  Back
+                </Button>
                 {GROUPS.map((g) => (
                   <Button
                     key={g.id}

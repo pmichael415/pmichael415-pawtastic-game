@@ -1,7 +1,7 @@
 // PAWtastic Daycare Tycoon — room names people read, which room a pup is in, and cleanliness per room
 // (staff design §3). Pure.
 import { caps, reach } from "./connect";
-import { doorOutside, containsTile, tileKey } from "./grid";
+import { containsTile, doorOutside, inGrid, isOwned, thingTiles, tileKey } from "./grid";
 import type { Facility, Room, RoomType, TDog } from "./types";
 
 /** A bath runs this many game minutes (charged at pickup on the receipt, or prepaid at check-in). */
@@ -75,26 +75,33 @@ export function bathQueue(f: Facility): TDog[] {
  */
 export function wayIn(f: Facility, room: Room): { ok: boolean; text: string } {
   const reached = reach(f);
+  // what's reachable without this room: only those are ways *in* (not rooms you reach through it)
+  const upstream = reach({ ...f, rooms: f.rooms.filter((x) => x.uid !== room.uid) });
   const paths = new Set(f.items.filter((i) => i.kind === "path").map((i) => tileKey(i.c, i.r)));
+  const blocked = new Set<string>();
+  for (const i of f.items) if (i.kind !== "path") for (const t of thingTiles(i)) blocked.add(tileKey(t.c, t.r));
   const leads = room.doors.map((d) => {
     const out = doorOutside(room, d);
-    const into = f.rooms.find((x) => x.uid !== room.uid && containsTile(x, out));
-    if (into) return { into, onto: false, ok: reached.rooms.has(into.uid) };
-    const onto = paths.has(tileKey(out.c, out.r));
-    return { into: null, onto, ok: onto && reached.tiles.has(tileKey(out.c, out.r)) };
+    const k = tileKey(out.c, out.r);
+    const into = f.rooms.find((x) => x.uid !== room.uid && containsTile(x, out)) ?? null;
+    const onto = !into && paths.has(k);
+    const stuck = !into && !onto && (!inGrid(out.c, out.r) || !isOwned(f.land, out.c, out.r) || blocked.has(k));
+    return { into, onto, stuck, way: into ? upstream.rooms.has(into.uid) : onto && upstream.tiles.has(k) };
   });
-  // Neighbours whose own door opens into this room count too.
+  // neighbours whose own door opens into this room
   const fromNeighbours = f.rooms.filter((x) => x.uid !== room.uid && x.doors.some((d) => containsTile(room, doorOutside(x, d))));
-  const lead = (l: { into: Room | null; onto: boolean }) => (l.into ? `a door into the ${roomName(f, l.into.uid)}` : l.onto ? "a door onto the path" : "a door onto the grass");
   if (reached.rooms.has(room.uid)) {
-    const good = leads.filter((l) => l.ok).map(lead);
-    const viaNeighbour = fromNeighbours.filter((x) => reached.rooms.has(x.uid)).map((x) => `the ${roomName(f, x.uid)}'s door`);
-    const all = [...new Set([...good, ...viaNeighbour])];
-    return { ok: true, text: `Way in: ${all.length ? all.join(", ") : "a door"}${good.some((g) => g === "a door onto the path") ? " to the entrance" : ""}` };
+    const ways = [
+      ...leads.filter((l) => l.way).map((l) => (l.into ? `a door into the ${roomName(f, l.into.uid)}` : "a door onto the path to the entrance")),
+      ...fromNeighbours.filter((x) => upstream.rooms.has(x.uid)).map((x) => `the ${roomName(f, x.uid)}'s door`),
+    ];
+    const list = [...new Set(ways)];
+    return { ok: true, text: `Way in: ${list.length ? list.join(" and ") : "a door"}` };
   }
-  if (!room.doors.length && !fromNeighbours.length) return { ok: false, text: "No door yet — add one with Doors (30), or tap Connect it." };
-  if (leads.some((l) => !l.into && !l.onto)) return { ok: false, text: "Its door opens onto the grass — pave a path from it to the entrance (Paths), or tap Connect it." };
-  if (leads.some((l) => l.onto)) return { ok: false, text: "Its path doesn't reach the entrance — pave the missing squares (Paths), or tap Connect it." };
+  if (!room.doors.length && !fromNeighbours.length) return { ok: false, text: "No door yet — add one with Doors (30)." };
+  if (leads.some((l) => l.onto)) return { ok: false, text: "Its path doesn't reach the entrance — pave the missing squares (Paths)." };
+  if (leads.some((l) => !l.into && !l.onto && !l.stuck)) return { ok: false, text: "Its door opens onto the grass — pave a path from it to the entrance (Paths)." };
+  if (leads.length && leads.every((l) => l.stuck)) return { ok: false, text: "Its door is blocked (by something outside it, or land you don't own) — move that, or add a door on another side." };
   const stuck = leads.find((l) => l.into)?.into ?? fromNeighbours[0] ?? null;
-  return { ok: false, text: stuck ? `Its door leads into the ${roomName(f, stuck.uid)}, which isn't connected either — connect that first.` : "It can't be reached yet — tap Connect it." };
+  return { ok: false, text: stuck ? `Its door leads into the ${roomName(f, stuck.uid)}, which isn't connected either — connect that first.` : "It can't be reached yet." };
 }

@@ -42,7 +42,9 @@ export function staffPlanFor(f: Facility, room: Room): StaffPlan {
   if (on.length) return { kind: "covered", text: WHAT[role].covered(names(on), on.length) };
   // an attendant who looks after other playrooms only: add this one to their rooms
   const partial = role === "attendant" ? hired.find((x) => x.role === "attendant") : undefined;
-  if (partial) return { kind: "assign", text: WHAT[role].open, label: `Add it to ${partial.name}'s rooms`, staffId: partial.id, role, rooms: [...liveRooms(f, partial), room.uid] };
+  // (only rooms that are still playrooms: one retyped since would make the change refused)
+  const keep = partial ? liveRooms(f, partial).filter((uid) => f.rooms.some((r) => r.uid === uid && r.type === "playroom")) : [];
+  if (partial) return { kind: "assign", text: WHAT[role].open, label: `Add it to ${partial.name}'s rooms`, staffId: partial.id, role, rooms: [...keep, room.uid] };
   const free = hired.find((x) => !x.role);
   if (free) return { kind: "assign", text: WHAT[role].open, label: `Make ${free.name} your ${ROLE_NAME[role].toLowerCase()}`, staffId: free.id, role };
   if (!canHire(f)) return { kind: "none", text: `${WHAT[role].open} Your team is full — change someone's role in Team.` };

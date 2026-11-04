@@ -106,7 +106,8 @@ export function EditPanel({
               return (
                 <>
                   <p className={`mt-1 text-sm ${way.ok ? "text-success" : "text-secondary"}`}>{way.ok ? `✓ ${way.text}` : way.text}</p>
-                  {fix && (
+                  {fix?.blocked && <p className="text-sm font-semibold text-destructive">{fix.blocked}</p>}
+                  {fix && !fix.blocked && (
                     <Button
                       size="sm"
                       className="mt-1 h-11"
