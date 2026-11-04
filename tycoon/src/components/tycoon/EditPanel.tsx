@@ -7,6 +7,8 @@ import { GROUPS, groupName } from "@/game/engine";
 import { ROOM_TYPE_NAMES, SELL_RATE, furnitureDef, outdoorDef, upgradePrice } from "@/tycoon/catalog";
 import { moveThing, sellRoom, sellThing, setClosed, setRoomType, upgradeThing } from "@/tycoon/build";
 import { upkeepOf } from "@/tycoon/business";
+import { roomCleanOf } from "@/tycoon/rooms";
+import { clean } from "@/tycoon/run";
 import { roomStatus } from "@/tycoon/connect";
 import { isActive } from "@/tycoon/paid";
 import { fac } from "@/tycoon/state";
@@ -127,6 +129,11 @@ export function EditPanel({
           </div>
         ) : (
           <div className="mt-2 flex flex-wrap gap-2">
+            {roomCleanOf(f, room.uid) < 100 && (
+              <Button variant="secondary" className="h-11" onClick={() => act(clean)}>
+                Mop floors
+              </Button>
+            )}
             <Button variant="outline" className="h-11" onClick={() => setTyping(true)}>
               Change type
             </Button>

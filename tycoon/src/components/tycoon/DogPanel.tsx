@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { BREEDS, FAVORITE_LABEL, groupName, groupOf, personalityOf, traitLabel } from "@/game/engine";
 import { bathPay, checkoutPay } from "@/tycoon/business";
 import { caps } from "@/tycoon/connect";
-import { assignBed, assignRoom, bath, checkIn, checkout, inActiveScuffle, playtime, roomDogs, toCalm, turnAway } from "@/tycoon/run";
+import { assignBed, assignRoom, bath, checkIn, checkout, clean, inActiveScuffle, playtime, roomDogs, toCalm, turnAway } from "@/tycoon/run";
 import { fmtTime, visitOf } from "@/tycoon/visit";
 import { ROOM_TYPE_NAMES } from "@/tycoon/catalog";
 import type { ActOpts, ActResult } from "@/tycoon/store";
@@ -165,6 +165,11 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
         {dog.checkedIn && placed && !dog.bathed && c.bath && (
           <Button variant="secondary" className={btn} aria-label="Bath" onClick={() => act((s) => bath(s, dog.id))}>
             Bath <span className="ml-1 text-xs opacity-80">+{bathPay(f)}</span>
+          </Button>
+        )}
+        {room && roomCleanOf(f, room) < 60 && (
+          <Button variant="secondary" className={btn} onClick={() => act(clean)}>
+            Mop floors
           </Button>
         )}
         {dog.checkedIn && dog.place.kind !== "calm" && (placed || scuffle) && (

@@ -73,6 +73,24 @@ describe("a pup's panel on a phone", () => {
   });
 });
 
+describe("mopping from the daycare view", () => {
+  it("a pup in a room that's getting dirty offers Mop floors right in its panel (not only in the list view)", () => {
+    const s = day();
+    const room = fac(s).rooms.find((r) => r.type === "playroom")!.uid;
+    open(withFac(s, { ...fac(s), roomClean: { ...fac(s).roomClean, [room]: 45 } }));
+    act(() => emit({ kind: "dog", id: "a" }));
+    fireEvent.click(within(sheet()).getByRole("button", { name: "Mop floors" }));
+    expect(fac(now()).roomClean?.[room] ?? 0).toBeGreaterThan(45);
+  });
+  it("tapping a room shows Mop floors when it isn't spotless", () => {
+    const s = day();
+    const room = fac(s).rooms.find((r) => r.type === "playroom")!.uid;
+    open(withFac(s, { ...fac(s), roomClean: { ...fac(s).roomClean, [room]: 70 } }));
+    act(() => emit({ kind: "room", uid: room }));
+    expect(within(sheet()).getByRole("button", { name: "Mop floors" })).toBeTruthy();
+  });
+});
+
 describe("moments read naturally", () => {
   it("each answer button is a plain sentence with the pup's name", () => {
     expect(MOMENT_ACTION.cuddles("Rocket")).toBe("Give Rocket a cuddle");
