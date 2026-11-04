@@ -11,6 +11,8 @@ import type { TycoonState } from "@/tycoon/types";
 export type TycoonStageHandle = {
   fx: (kind: FxKind, at: { c: number; r: number } | "hud") => void;
   resetCamera: () => void;
+  /** Looks at one square of the lot. */
+  focus: (c: number, r: number) => void;
   debug: () => unknown;
 };
 
@@ -54,6 +56,7 @@ export const TycoonStage = forwardRef<TycoonStageHandle, Props>(function TycoonS
   useImperativeHandle(ref, () => ({
     fx: (k, at) => worldRef.current?.fx(k, at),
     resetCamera: () => worldRef.current?.resetCamera(),
+    focus: (c, r) => worldRef.current?.focus(c, r),
     debug: () => worldRef.current?.debugInfo(),
   }), []);
 

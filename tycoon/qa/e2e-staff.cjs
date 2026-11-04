@@ -181,7 +181,8 @@ async function run(browser, label, opts) {
     await shot('5-expansion');
     const wing = card.getByRole('article', { name: /^Playroom wing for / });
     const groupName = (await wing.getAttribute('aria-label')).replace(/^Playroom wing for | pups$/g, '');
-    const buy = wing.getByRole('button', { name: /^Build · / });
+    await wing.getByRole('button', { name: /^Choose a spot · / }).click();
+    const buy = page.getByRole('region', { name: 'Choose a spot' }).getByRole('button', { name: /^Build here · / });
     const quoted = Number((await buy.textContent()).replace(/[^0-9]/g, ''));
     const built = async () => { const g = await f(); return g.ledger.find((l) => l.day === g.day)?.expenses.building ?? 0; };
     const b0 = await built();

@@ -154,7 +154,9 @@ async function staffing(browser) {
     await page.getByRole('button', { name: /^(Expansion options|See options)$/ }).first().click();
     let card = page.getByRole('region', { name: 'Expand your daycare' });
     await card.waitFor();
-    await card.getByRole('article', { name: /^Playroom wing/ }).getByRole('button', { name: /^Build · / }).click();
+    await card.getByRole('article', { name: /^Playroom wing/ }).getByRole('button', { name: /^Choose a spot · / }).click();
+    check('choosing a spot shows the spot bar and an outline in the daycare', (await page.getByRole('region', { name: 'Choose a spot' }).count()) === 1);
+    await page.getByRole('region', { name: 'Choose a spot' }).getByRole('button', { name: /^Build here · / }).click();
     await page.waitForTimeout(400);
     check('building the playroom wing closes the card', (await page.getByRole('region', { name: 'Expand your daycare' }).count()) === 0);
     check('… and shows the new playroom', /Playroom/.test(await page.getByTestId('panel-sheet').innerText().catch(() => '')));
@@ -162,7 +164,8 @@ async function staffing(browser) {
     await page.getByRole('button', { name: /^(Expansion options|See options)$/ }).first().click();
     card = page.getByRole('region', { name: 'Expand your daycare' });
     await card.waitFor();
-    await card.getByRole('article', { name: /^Bath station/ }).getByRole('button', { name: /^Build · / }).click();
+    await card.getByRole('article', { name: /^Bath station/ }).getByRole('button', { name: /^Choose a spot · / }).click();
+    await page.getByRole('region', { name: 'Choose a spot' }).getByRole('button', { name: /^Build here · / }).click();
     await page.waitForTimeout(400);
     check('building the bath station closes the card and shows the bath room', (await page.getByRole('region', { name: 'Expand your daycare' }).count()) === 0 && /Bath Room/.test(await page.getByTestId('panel-sheet').innerText().catch(() => '')));
     const fac = await f();

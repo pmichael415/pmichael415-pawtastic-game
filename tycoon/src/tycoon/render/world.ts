@@ -219,6 +219,13 @@ export class TycoonWorld {
     this.syncRing(f, s.selected);
   }
 
+  /** Looks at one square (a spot being chosen), close enough to see it on a phone. */
+  focus(c: number, r: number) {
+    const t = tileCenter(c, r);
+    this.target.set(t.x, 0, t.z + 1.5);
+    this.distance = Math.min(this.distance, 30);
+  }
+
   /** Frames the owned land. */
   resetCamera() {
     const f = this.snap ? fac(this.snap.state) : null;

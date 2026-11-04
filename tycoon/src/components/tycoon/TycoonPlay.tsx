@@ -22,6 +22,8 @@ import { CoachBubble } from "./CoachBubble";
 import { FallbackNotice, type FallbackReason } from "./FallbackNotice";
 import type { Diagnostics } from "./TycoonStage";
 import { ExpansionCard } from "./ExpansionCard";
+import { ExpansionSpotBar } from "./ExpansionSpotBar";
+import { expansionSpots, type ExpansionId } from "@/tycoon/expansion";
 import { ObjectiveBar } from "./ObjectiveBar";
 import { StaffPanel } from "./StaffPanel";
 import { TeamSheet } from "./TeamSheet";
@@ -206,6 +208,17 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
     else toast.info(`${who}'s family was still waiting at closing — rescheduled for another day, no charge.`);
   }, [state]);
   const [expandOpen, setExpandOpen] = useState(false);
+  // Choosing where a new room goes: which option, and which of its offered spots is shown.
+  const [placing, setPlacing] = useState<{ id: ExpansionId; i: number } | null>(null);
+  const spots = placing ? expansionSpots(state, placing.id) : [];
+  const spot = placing ? (spots[placing.i] ?? null) : null;
+  const stageWrap = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!spot) return;
+    stage.current?.focus?.(spot.c + Math.floor(spot.w / 2), spot.r + Math.floor(spot.d / 2)); // (no 3D view: the 2D map shows the whole lot)
+    stageWrap.current?.scrollIntoView?.({ block: "center", behavior: settings.reducedMotion ? "auto" : "smooth" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placing?.id, spot?.c, spot?.r]);
   const [expandSaved, setExpandSaved] = useState(false);
   // Fair warnings for families kept waiting (staff design §4), and staff who need the player — each said once.
   const warned = useRef(new Map<string, string>());
@@ -300,6 +313,16 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
   const stalled = blockers.length > 0 && (state.coins < 0 || blockers.some((b) => /^(group-|full-|lobby-full)/.test(b.id)) || (f.open && f.clockMin >= 10 * 60 && Object.values(today(f).income).every((n) => !n)));
 
   const fx: FxFn = (k, at) => stage.current?.fx(k, at);
+  /** After an expansion: close the card and show what was built or improved (its panel opens, confetti on it). */
+  const showBuilt = (room: string | null) => {
+    setExpandSaved(true);
+    setExpandOpen(false);
+    const r = room ? fac(tycoonStore.getState()!).rooms.find((x) => x.uid === room) : null;
+    if (r) {
+      setSel({ kind: "room", id: r.uid });
+      if (!settings.reducedMotion) fx("confetti", { c: r.c + Math.floor(r.w / 2), r: r.r + Math.floor(r.d / 2) });
+    }
+  };
   /** Every action, plus its sound and effect: coins fly at checkout, building thunks, selling pops, upgrades sparkle. */
   const act: Act = (fn, opts) => {
     const before = tycoonStore.getState();
@@ -372,6 +395,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
   const looks = useMemo(() => (star ? { bandana: "#1c2f52" } : {}), [star]);
 
   const onPick = (p: TPick | null) => {
+    if (placing) return; // choosing a spot: the bar below does the choosing, taps just look around
     if (building && b.onPick(p)) return;
     if (building && b.ui.tool === "paint") {
       if (p?.kind === "room") setPainting(p.uid);
@@ -446,14 +470,14 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
           <CoachBubble state={state} controls={controls} act={act} set={set} />
         </div>
       )}
-      <div className="relative">
+      <div className="relative" ref={stageWrap}>
         {show3d ? (
           <TycoonStage
             key={`${stageKey}-${settings.lowPower ? "saver" : "standard"}`}
             ref={stage}
             state={state}
             selected={sel?.id ?? null}
-            ghost={building ? b.ghost : null}
+            ghost={building ? b.ghost : spot ? { kind: "room", c: spot.c, r: spot.r, w: spot.w, d: spot.d, ok: true, label: `Spot ${placing!.i + 1}` } : null}
             looks={looks}
             overlay={building}
             pickMode={building ? b.pickMode : "objects"}
@@ -464,7 +488,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
             }}
           />
         ) : (
-          no3d && <TycoonMap state={state} selected={sel?.id ?? null} onPick={onPick} />
+          no3d && <TycoonMap state={state} selected={sel?.id ?? null} onPick={onPick} preview={spot ? { ...spot, label: `Spot ${placing!.i + 1}` } : null} />
         )}
         {!building && !sel && asking.length > 0 && (
           <button
@@ -524,14 +548,36 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
             setExpandSaved(true);
             setExpandOpen(false);
           }}
-          onBought={(room) => {
-            // close the card and show what was built or improved
+          onBought={showBuilt}
+          onChooseSpot={(id) => {
             setExpandSaved(true);
             setExpandOpen(false);
-            const r = room ? fac(tycoonStore.getState()!).rooms.find((x) => x.uid === room) : null;
-            if (r) {
-              setSel({ kind: "room", id: r.uid });
-              if (!settings.reducedMotion) fx("confetti", { c: r.c + Math.floor(r.w / 2), r: r.r + Math.floor(r.d / 2) });
+            setSel(null);
+            setPlacing({ id, i: 0 });
+          }}
+        />
+      )}
+      {placing && (
+        <ExpansionSpotBar
+          state={state}
+          act={act}
+          id={placing.id}
+          spots={spots}
+          index={Math.min(placing.i, Math.max(0, spots.length - 1))}
+          onIndex={(i) => setPlacing({ ...placing, i })}
+          onCancel={() => {
+            setPlacing(null);
+            setExpandOpen(true); // back to the options
+          }}
+          onBought={(room) => {
+            const at = spot;
+            setPlacing(null);
+            showBuilt(room);
+            if (!room && at) {
+              // the yard is outside (no room): show the new play yard and celebrate on the spot
+              const yard = fac(tycoonStore.getState()!).items.find((i) => i.kind === "play_yard" && i.c === at.c && i.r === at.r);
+              if (yard) setSel({ kind: "thing", id: yard.uid });
+              if (!settings.reducedMotion) fx("confetti", { c: at.c + 1, r: at.r + 1 });
             }
           }}
         />

@@ -29,8 +29,9 @@ describe("the choice", () => {
       expect(o.why).toMatch(/level/i);
     }
   });
-  it("two real options with a coin cost, capacity, staffing, upkeep and what they make possible", () => {
-    const opts = expansionOptions(ready());
+  it("the first two options (playroom wing, bath station) have a coin cost, capacity, staffing, upkeep and what they make possible", () => {
+    // (the other three ways to grow are in expansion-ways.test.ts)
+    const opts = expansionOptions(ready()).filter((o) => o.id === "playroom" || o.id === "bath");
     expect(opts.map((o) => o.id).sort()).toEqual(["bath", "playroom"]);
     for (const o of opts) {
       expect(o.cost).toBeGreaterThan(0);

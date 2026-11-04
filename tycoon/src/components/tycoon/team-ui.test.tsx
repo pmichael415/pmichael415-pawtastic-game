@@ -110,15 +110,16 @@ describe("pups, money and objectives", () => {
     fireEvent.click(bar.getByRole("button", { name: "Open Team" }));
     expect(screen.getByRole("dialog", { name: /^Team ·/ })).toBeTruthy();
   });
-  it("the expansion card offers two real options; building the bath station adds a working tub; Save for now hides it", () => {
+  it("the expansion card offers real options; building the bath station at a chosen spot adds a working tub", () => {
     const s = ok(hire({ ...base(), xp: xpForLevel(EXPANSION_LEVEL) + 10 }, "reception"));
     open({ ...withFac(s, { ...fac(s), open: true }), coins: 4000 });
     const card = within(screen.getByRole("region", { name: "Expand your daycare" }));
-    expect(card.getAllByRole("article")).toHaveLength(2);
+    expect(card.getAllByRole("article")).toHaveLength(5);
     const bath = within(card.getByRole("article", { name: "Bath station" }));
     expect(bath.getByText(/game coins/)).toBeTruthy();
     expect(bath.getByText(/bath attendant/)).toBeTruthy();
-    fireEvent.click(bath.getByRole("button", { name: /^Build · / }));
+    fireEvent.click(bath.getByRole("button", { name: /^Choose a spot · / }));
+    fireEvent.click(within(screen.getByRole("region", { name: "Choose a spot" })).getByRole("button", { name: /^Build here · / }));
     expect(caps(fac(now())).tubs).toHaveLength(1);
     // the card closes and the new room is shown (its panel opens)
     expect(screen.queryByRole("region", { name: "Expand your daycare" })).toBeNull();

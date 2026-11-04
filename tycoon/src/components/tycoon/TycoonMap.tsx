@@ -94,7 +94,7 @@ function positions(f: Facility): Map<string, { x: number; y: number }> {
   return out;
 }
 
-export function TycoonMap({ state, selected, onPick }: { state: TycoonState; selected: string | null; onPick: (p: TPick | null) => void }) {
+export function TycoonMap({ state, selected, onPick, preview = null }: { state: TycoonState; selected: string | null; onPick: (p: TPick | null) => void; preview?: { c: number; r: number; w: number; d: number; label: string } | null }) {
   const f = fac(state);
   const pos = positions(f);
   const atDesk = new Set(familiesAtDesk(f).map((d) => d.id));
@@ -207,6 +207,15 @@ export function TycoonMap({ state, selected, onPick }: { state: TycoonState; sel
             );
           })}
         </g>
+        {/* a spot being chosen for a new room or the yard */}
+        {preview && (
+          <g aria-label={`Chosen spot: ${preview.label}`} role="img">
+            <rect x={preview.c + 0.05} y={preview.r + 0.05} width={preview.w - 0.1} height={preview.d - 0.1} rx={0.2} fill="rgba(59,130,246,0.18)" stroke="#2563EB" strokeWidth={0.12} strokeDasharray="0.4 0.25" />
+            <text x={preview.c + preview.w / 2} y={preview.r + preview.d / 2 + 0.2} fontSize={0.6} fontWeight={700} textAnchor="middle" fill="#1E3A8A" fontFamily="DM Sans, system-ui, sans-serif">
+              {preview.label}
+            </text>
+          </g>
+        )}
         {f.dogs.map((d) => {
           const at = pos.get(d.id) ?? { x: 18.5, y: 26.5 };
           const pick: TPick = { kind: "dog", id: d.id };
