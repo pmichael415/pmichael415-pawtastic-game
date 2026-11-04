@@ -21,6 +21,7 @@ export function RunHud({
   onReputation,
   onTeam,
   onShop,
+  holdWhy,
 }: {
   state: TycoonState;
   act: (fn: (s: TycoonState) => TResult, opts?: ActOpts) => ActResult;
@@ -31,6 +32,8 @@ export function RunHud({
   onReputation?: () => void;
   onTeam?: () => void;
   onShop?: () => void;
+  /** Set while a screen holds time ("you build"…): the Pause/Resume button can't restart it. */
+  holdWhy?: string;
 }) {
   const f = fac(state);
   const lv = levelOf(state.xp);
@@ -68,8 +71,9 @@ export function RunHud({
             <ShoppingBag className="h-5 w-5" aria-hidden />
           </Button>
         )}
-        <Button size="icon" variant="outline" className="h-11 w-11 shrink-0" onClick={() => setPaused(!paused)} aria-label={paused ? "Resume" : "Pause"}>
-          {paused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
+        {/* while a screen holds time (building, choosing a spot, a level-up, the report) the button can't restart it */}
+        <Button size="icon" variant="outline" className="h-11 w-11 shrink-0" disabled={!!holdWhy} onClick={() => setPaused(!paused)} aria-label={holdWhy ? `Time waits while ${holdWhy}` : paused ? "Resume" : "Pause"}>
+          {paused || holdWhy ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
         </Button>
       </div>
       <div className="mt-2 flex items-center gap-2 text-sm">
@@ -77,7 +81,7 @@ export function RunHud({
           Day {f.day} · {fmtClock(f.clockMin)}
         </span>
         {f.open && !lobby.open && <span className="text-xs text-muted-foreground">· lobby break</span>}
-        {paused && <span className="text-xs font-semibold text-accent-foreground">· paused</span>}
+        {(paused || holdWhy) && <span className="text-xs font-semibold text-accent-foreground">· {holdWhy ? "time waits" : "paused"}</span>}
         {f.open && f.dogs.filter((d) => d.place.kind === "lobby").length >= 3 && (
           <span role="status" className="rounded-full bg-accent px-2 py-0.5 text-xs font-bold text-accent-foreground">
             Rush hour!

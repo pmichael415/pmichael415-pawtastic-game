@@ -1,7 +1,7 @@
 // Building a room you can use (empire milestone §2): Select room → see footprint and entrance → tap to place → see the
 // route and total cost → confirm (charged once) → furnish it, choosing the room first. Cancelling costs nothing.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { TPick } from "@/tycoon/render/world";
 
 vi.mock("sonner", () => ({ toast: Object.assign(() => {}, { success: () => {}, error: () => {}, warning: () => {}, info: () => {} }) }));
@@ -151,5 +151,23 @@ describe("review fixes", () => {
     expect(screen.getByText("Which pups will play there?")).toBeTruthy();
     fireEvent.click(button("Back"));
     expect(button("Bath Room")).toBeTruthy();
+  });
+});
+
+describe("reloading mid-build (audit finding 1)", () => {
+  it("an unconfirmed room leaves nothing behind and charges nothing; the game comes back paused", () => {
+    start();
+    tool("Rooms");
+    fireEvent.click(button("Bath Room"));
+    tap({ kind: "tile", c: 12, r: 18 }); // the outline and price are showing, nothing confirmed
+    const before = now();
+    const rooms = fac(before).rooms.length;
+    cleanup(); // the page goes away (reload, or the phone discards the tab)
+    tycoonStore._reset(null);
+    render(<TycoonPlay />);
+    expect(fac(now()).rooms).toHaveLength(rooms);
+    expect(now().coins).toBe(before.coins);
+    expect(tycoonStore.getSnapshot().paused).toBe(true);
+    expect(screen.getByRole("region", { name: "Paused" })).toBeTruthy();
   });
 });

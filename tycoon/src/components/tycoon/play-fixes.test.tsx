@@ -146,7 +146,7 @@ describe("choosing a spot", () => {
     if (!screen.queryByRole("region", { name: "Expand your daycare" })) fireEvent.click(screen.getByRole("button", { name: /^(Expansion options|See options)$/ }));
     const card = within(screen.getByRole("region", { name: "Expand your daycare" }));
     fireEvent.click(within(card.getByRole("article", { name: "Play yard" })).getByRole("button", { name: /^Choose a spot/ }));
-    expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Time waits while you choose a spot" })).toHaveProperty("disabled", true);
     expect(within(screen.getByRole("region", { name: "Choose a spot" })).getByText(/Time waits while you choose/)).toBeTruthy();
     fireEvent.click(within(screen.getByRole("region", { name: "Choose a spot" })).getByRole("button", { name: "Cancel" }));
     expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();

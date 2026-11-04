@@ -153,19 +153,33 @@ describe("a pup's panel", () => {
   });
 });
 
-describe("building pauses the day (§3)", () => {
-  it("entering Build pauses; leaving restores what it was — running stays running, paused stays paused", () => {
+describe("building holds the day (§3; audit finding 1)", () => {
+  it("while building, the HUD can't restart time (it says time waits); Done building restores running", () => {
+    vi.useFakeTimers();
+    try {
+      open(withPups());
+      const clock = () => fac(now()).clockMin;
+      fireEvent.click(screen.getByRole("button", { name: "Build" }));
+      const toggle = screen.getByRole("button", { name: /^Time waits while you build/ });
+      expect(toggle).toHaveProperty("disabled", true);
+      const t0 = clock();
+      fireEvent.click(toggle); // a tap on the HUD while building
+      act(() => vi.advanceTimersByTime(3000));
+      expect(clock()).toBe(t0);
+      fireEvent.click(screen.getByRole("button", { name: "Done building" }));
+      expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+      act(() => vi.advanceTimersByTime(2000));
+      expect(clock()).toBeGreaterThan(t0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("paused before building: still paused after", () => {
     open(withPups());
-    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Build" }));
-    expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Done building" }));
-    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
-    // paused before building: still paused after
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     fireEvent.click(screen.getByRole("button", { name: "Build" }));
     fireEvent.click(screen.getByRole("button", { name: "Done building" }));
-    expect(screen.getAllByRole("button", { name: "Resume" }).length).toBeGreaterThan(0); // (the paused notice has one too)
+    expect(screen.getAllByRole("button", { name: "Resume" }).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
   });
 });

@@ -157,8 +157,16 @@ export function confirmDeliveries(ids: string[]) {
 }
 
 // ---------- the store ----------
-type Snapshot = { state: TycoonState | null; paused: boolean; spectator: boolean };
-let snap: Snapshot = { state: null, paused: false, spectator: false };
+/**
+ * `paused` is the player's preference (the Pause/Resume button). `held` means a screen that must stop time is open
+ * (building, choosing a spot, a level-up, the day's report): the simulation waits whatever the preference says, and the
+ * preference is untouched, so leaving restores it (audit finding 1).
+ */
+type Snapshot = { state: TycoonState | null; paused: boolean; spectator: boolean; held: boolean };
+let snap: Snapshot = { state: null, paused: false, spectator: false, held: false };
+const holds = new Set<string>();
+/** Set while a hold is on, so a reload mid-build comes back paused instead of restarting time. */
+const HELD_KEY = `${KEY}-held`;
 let users = 0;
 let timer: ReturnType<typeof setInterval> | null = null;
 let lastTick = 0;
@@ -221,7 +229,7 @@ function commit(next: TycoonState | null, opts: { paused?: boolean; checkGuide?:
   const prev = snap.state;
   // The guided tour catches up with every change (an action, a tick, a load): next beat, scripted pups, reward.
   if (next) next = syncTour(next, Date.now()).state;
-  snap = { state: next, paused: opts.paused ?? snap.paused, spectator: snap.spectator };
+  snap = { state: next, paused: opts.paused ?? snap.paused, spectator: snap.spectator, held: snap.held };
   if (next) {
     persist(next);
     report(prev, next, opts.checkGuide ?? false);
@@ -252,7 +260,7 @@ function startClock() {
     // Clamp so a throttled background tab can't fast-forward the day.
     const sec = Math.min(1, Math.max(0, (now - lastTick) / 1000));
     lastTick = now;
-    if (!snap.state || snap.paused || !leading || sec <= 0) return;
+    if (!snap.state || snap.paused || holds.size > 0 || !leading || sec <= 0) return;
     const t0 = performance.now();
     const next = tick(snap.state, sec * speed);
     recordTick(performance.now() - t0);
@@ -318,7 +326,14 @@ function activate(): { bonus: number; weekly: number } {
   const days = readStored() ? daysBetween(loaded.lastSeen, Date.now()) : 0;
   if (days > 0) track("tycoon_guide", { beat: "return", days, tour: !loaded.tour ? "none" : loaded.tour.done ? "done" : loaded.tour.skipped ? "skipped" : loaded.tour.beat, ...withControls() });
   const { state, bonus } = welcomeBack(loaded, Date.now());
-  commit(state, { paused: false });
+  // a page that went away while something held time (mid-build, a level-up…) comes back paused: nothing restarts on
+  // its own, and no time is caught up (the clock only ever moves while running and on screen)
+  const st2 = storage();
+  const wasHeld = !!st2 && st2.getItem(HELD_KEY) === "1";
+  if (st2 && wasHeld) st2.removeItem(HELD_KEY);
+  holds.clear();
+  snap = { ...snap, held: false };
+  commit(state, { paused: wasHeld });
   const weekly = checkWeek(true);
   startClock();
   return { bonus, weekly };
@@ -331,7 +346,7 @@ function deactivate() {
   leaseTimer = null;
   setOnLevel(null);
   if (snap.state) persist(snap.state);
-  snap = { state: null, paused: false, spectator: false };
+  snap = { state: null, paused: false, spectator: false, held: false };
 }
 
 export type ActResult = TResult & { unlocked?: Trophy[] };
@@ -370,6 +385,31 @@ export const tycoonStore = {
   set(fn: (s: TycoonState) => TycoonState) {
     if (snap.state && !snap.spectator) commit(fn(snap.state), { checkGuide: true });
   },
+  /** Turns a mandatory hold on or off (several can overlap; time waits until the last one ends). */
+  hold(key: string, on: boolean) {
+    const had = holds.has(key);
+    if (on === had) return;
+    if (on) holds.add(key);
+    else holds.delete(key);
+    lastTick = Date.now();
+    const st = storage();
+    if (st) {
+      if (holds.size) st.setItem(HELD_KEY, "1");
+      else st.removeItem(HELD_KEY);
+    }
+    snap = { ...snap, held: holds.size > 0 };
+    emit();
+  },
+  /**
+   * The playing screen is going away (navigating off it mid-build): drop the in-memory holds but keep the saved flag,
+   * so coming back starts paused instead of restarting time on its own.
+   */
+  leaveHeld() {
+    if (!holds.size) return;
+    holds.clear();
+    snap = { ...snap, held: false };
+    emit();
+  },
   setPaused(p: boolean) {
     if (p === snap.paused) return;
     lastTick = Date.now();
@@ -380,12 +420,13 @@ export const tycoonStore = {
   /** Test helper: replace state without touching timers. */
   _reset(s: TycoonState | null) {
     leading = true;
-    snap = { state: s, paused: false, spectator: false };
+    holds.clear();
+    snap = { state: s, paused: false, spectator: false, held: false };
     emit();
   },
 };
 
-const SERVER_SNAPSHOT: Snapshot = { state: null, paused: false, spectator: false };
+const SERVER_SNAPSHOT: Snapshot = { state: null, paused: false, spectator: false, held: false };
 
 export function useTycoon() {
   const current = useSyncExternalStore(tycoonStore.subscribe, tycoonStore.getSnapshot, () => SERVER_SNAPSHOT);
@@ -429,7 +470,7 @@ export function useTycoon() {
   const set = useCallback((fn: (s: TycoonState) => TycoonState) => tycoonStore.set(fn), []);
   const setPaused = useCallback((p: boolean | ((p: boolean) => boolean)) => tycoonStore.setPaused(typeof p === "function" ? p(snap.paused) : p), []);
 
-  return { state: current.state, act, set, paused: current.paused, setPaused, spectator: current.spectator, playHere };
+  return { state: current.state, act, set, paused: current.paused, held: current.held, setPaused, spectator: current.spectator, playHere };
 }
 
 // ---------- DEV-only test hooks for qa/e2e-tycoon.cjs (never in production builds) ----------

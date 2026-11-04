@@ -62,7 +62,7 @@ describe("reaching a new stage", () => {
     expect(within(d).getByText(/grown past the starter layout/)).toBeTruthy();
     expect(within(d).getByText(/Full-service daycare/)).toBeTruthy();
     expect(within(d).getByText(/a bath station/)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy(); // the clock waits while it's open
+    expect(screen.getByRole("button", { name: /^Time waits while/ })).toHaveProperty("disabled", true); // the clock waits while it's open
     fireEvent.click(within(d).getByRole("button", { name: "Continue" }));
     expect(screen.queryByRole("dialog", { name: /Growing daycare/ })).toBeNull();
   });

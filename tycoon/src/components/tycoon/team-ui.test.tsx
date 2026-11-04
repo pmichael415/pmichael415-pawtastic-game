@@ -134,8 +134,11 @@ describe("pups, money and objectives", () => {
   it("a level-up covering the screen stops the clock until it's closed", () => {
     const s = base();
     open({ ...withFac(s, { ...fac(s), open: true }), pendingLevel: 4 });
-    expect(tycoonStore.getSnapshot().paused).toBe(true);
+    // a hold, not the player's pause (audit finding 1): the preference stays "running" and comes back after
+    expect(tycoonStore.getSnapshot().held).toBe(true);
+    expect(tycoonStore.getSnapshot().paused).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(tycoonStore.getSnapshot().held).toBe(false);
     expect(tycoonStore.getSnapshot().paused).toBe(false);
   });
 });

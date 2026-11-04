@@ -203,16 +203,13 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
   // waits while you can't act or are deciding).
   // Building pauses the day too (empire §3), and leaving restores whatever it was before.
   const blocking = (!tourHolds(state) && (state.pendingLevel != null || stageUp || placing !== null || building)) || !!fac(state).report;
-  const autoPaused = useRef(false);
+  // A hold, not a pause (audit finding 1): time waits whatever the Pause/Resume button says, and the player's own
+  // pause choice is untouched, so leaving restores it.
   useEffect(() => {
-    if (blocking && !paused) {
-      autoPaused.current = true;
-      setPaused(true);
-    } else if (!blocking && autoPaused.current) {
-      autoPaused.current = false;
-      setPaused(false);
-    }
+    tycoonStore.hold("screen", blocking);
   }, [blocking]);
+  useEffect(() => () => tycoonStore.leaveHeld(), []);
+  const holdWhy = building ? "you build" : placing !== null ? "you choose a spot" : fac(state).report ? "you read the day's report" : "this is open";
   // A family kindly rescheduled: say so once, and what to do next time.
   const courtesyKeyOf = (c: ReturnType<typeof fac>["courtesy"]) => (c ? `${c.day}:${c.why}:${c.names.join(",")}` : "none");
   const courtesyKey = useRef(courtesyKeyOf(fac(state).courtesy)); // what was already there on load isn't repeated
@@ -489,7 +486,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
           <Button className="h-11 shrink-0" onClick={() => setPaused(false)}>Resume</Button>
         </section>
       )}
-      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} onReputation={() => setRepOpen(true)} onTeam={() => setTeamOpen(true)} {...(quiet ? {} : { onShop: () => setShop(true) })} />
+      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} {...(blocking ? { holdWhy } : {})} onFinances={() => setFinances(true)} onReputation={() => setRepOpen(true)} onTeam={() => setTeamOpen(true)} {...(quiet ? {} : { onShop: () => setShop(true) })} />
       {!quiet && <TodayStrip state={state} onOpen={() => setFinances(true)} />}
       {isFreshSave(state) && <StartCard onPick={(mode) => set((s) => startTour(s, mode, Date.now()))} />}
       {/* Build is always there once you've started (empire milestone §2: step into building whenever you like). */}
