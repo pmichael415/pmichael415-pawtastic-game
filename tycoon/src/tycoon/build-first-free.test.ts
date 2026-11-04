@@ -34,6 +34,8 @@ describe("place in first free spot", () => {
     expect(connectedRooms(f).size).toBe(3);
     expect(f.items.find((i) => i.kind === "front_counter")!.room).toBe(f.rooms.find((r) => r.type === "lobby")!.uid);
     expect(f.items.filter((i) => i.kind === "dog_bed").every((i) => i.room === f.rooms.find((r) => r.type === "playroom")!.uid)).toBe(true);
+    // a water bowl is fun for the pups, so it goes where they play — not the lobby (the hub-build symptom)
+    expect(f.items.find((i) => i.kind === "water_bowl")!.room).toBe(f.rooms.find((r) => r.type === "playroom")!.uid);
     expect(canOpen(f)).toEqual({ ok: true, missing: [] });
     expect(s.coins).toBeGreaterThan(0);
   });

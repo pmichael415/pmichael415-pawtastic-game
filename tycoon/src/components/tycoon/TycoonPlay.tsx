@@ -200,7 +200,8 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
   const [placing, setPlacing] = useState<{ id: ExpansionId; i: number } | null>(null);
   // A level-up, a new stage, the day's report or choosing a spot covers the screen: time stops until it's done (no one
   // waits while you can't act or are deciding).
-  const blocking = (!tourHolds(state) && (state.pendingLevel != null || stageUp || placing !== null)) || !!fac(state).report;
+  // Building pauses the day too (empire §3), and leaving restores whatever it was before.
+  const blocking = (!tourHolds(state) && (state.pendingLevel != null || stageUp || placing !== null || building)) || !!fac(state).report;
   const autoPaused = useRef(false);
   useEffect(() => {
     if (blocking && !paused) {

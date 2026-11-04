@@ -400,6 +400,54 @@ export function connectionEstimate(f: Facility, rect: { c: number; r: number; w:
   return { room, door: DOOR_PRICE, paths, total: room + DOOR_PRICE + paths };
 }
 
+export type RoomPlan =
+  | { ok: true; rect: { c: number; r: number; w: number; d: number }; door: Door; via: string | null; paths: { c: number; r: number }[]; cost: { room: number; door: number; paths: number; total: number } }
+  | { ok: false; rect: { c: number; r: number; w: number; d: number }; reason: string };
+
+/**
+ * Where a new room here would get its entrance, the route, and the full price (empire milestone §2). The door snaps into
+ * a neighbouring room you can already reach when there is one; otherwise it opens onto the shortest path to the
+ * entrance. Pure: nothing is built or charged.
+ */
+export function planRoom(f: Facility, rect: { c: number; r: number; w: number; d: number }): RoomPlan {
+  const draft: Room = { uid: "plan", ...rect, type: null, group: null, doors: [], floor: "wood", wall: WALL_COLORS[0]!, spent: 0, closed: false };
+  const invalid = validRoomAt(f, draft);
+  if (invalid) return { ok: false, rect, reason: invalid };
+  const reached = reach(f);
+  const plan = cheapestDoor(f, draft, reached);
+  if (!plan) return { ok: false, rect, reason: "No way in from here: every side is blocked or off your land. Move it next to a room, or clear a route to the entrance." };
+  const out = doorOutside(draft, plan.door);
+  const via = plan.paths.length === 0 ? (f.rooms.find((x) => containsTile(x, out) && reached.rooms.has(x.uid))?.uid ?? null) : null;
+  const room = roomPrice(rect.w, rect.d);
+  const paths = plan.paths.length * outdoorDef("path")!.price;
+  return { ok: true, rect, door: plan.door, via, paths: plan.paths, cost: { room, door: DOOR_PRICE, paths, total: room + DOOR_PRICE + paths } };
+}
+
+/**
+ * Builds the planned room in one step — walls and floor, its door, the path squares and its type — for exactly the
+ * planned price, or refuses with nothing changed (an invalid spot, no route, not enough coins).
+ */
+export function buildConnectedRoom(s: TycoonState, rect: { c: number; r: number; w: number; d: number }, type: RoomType | null, group?: GroupId): TResult {
+  if (type === "playroom" && !group) return { ok: false, error: "Pick a group for this playroom." };
+  const plan = planRoom(fac(s), rect);
+  if (!plan.ok) return { ok: false, error: plan.reason };
+  if (s.coins < plan.cost.total) return { ok: false, error: `${(plan.cost.total - s.coins).toLocaleString("en-US")} more coins needed.` };
+  const before = fac(s).ledger.find((l) => l.day === fac(s).day)?.expenses.building ?? 0;
+  const a = drawRoom(s, rect.c, rect.r, rect.w, rect.d);
+  if (!a.ok) return a;
+  const uid = fac(a.state).rooms.at(-1)!.uid;
+  const b = addDoor(a.state, uid, plan.door);
+  if (!b.ok) return { ok: false, error: b.error };
+  const c = plan.paths.length ? paintPaths(b.state, plan.paths) : b;
+  if (!c.ok) return { ok: false, error: c.error };
+  const t: TResult = type ? setRoomType(c.state, uid, type, group) : c;
+  if (!t.ok) return { ok: false, error: t.error };
+  const g = fac(t.state);
+  const after = g.ledger.find((l) => l.day === g.day)?.expenses.building ?? 0;
+  if (after - before !== plan.cost.total || !roomStatus(g, g.rooms.at(-1)!).connected) return { ok: false, error: "That spot changed — check the new price and route and try again." };
+  return { ok: true, state: t.state, msg: type ? `${ROOM_TYPE_NAMES[type]} built — connected and ready to furnish.` : "Room built and connected! Now pick what it's for." };
+}
+
 /** "Room 270 + door 30 + path 3 × 10 = 330" for the build preview (or what's still needed when there's no route). */
 export function costLine(e: { room: number; door: number; paths: number; total: number } | null, roomOnly = 0): string {
   if (!e) return `Room ${roomOnly} · add paths to reach the entrance`;
@@ -444,6 +492,46 @@ function firstFreeRoom(s: TycoonState, type: RoomType, group?: GroupId): TResult
   return { ok: false, error: firstWhy && firstWhy !== "Buy this land first." ? firstWhy : "There's no free spot for this room — buy more land or make space." };
 }
 
+/** The first free spot for this furniture inside this room (keeping doorways clear when asked), or why there's none. */
+function freeSpotIn(f: Facility, seq: number, room: Room, kind: ThingKind, keepDoorways: boolean): { c: number; r: number; rot: Rot } | { why: string | null } {
+  const fd = furnitureDef(kind);
+  if (!fd) return { why: "Unknown item." };
+  const doorways = new Set(room.doors.map((d) => tileKey(doorInside(room, d).c, doorInside(room, d).r)));
+  let firstWhy: string | null = null;
+  for (let r = room.r; r < room.r + room.d; r++)
+    for (let c = room.c; c < room.c + room.w; c++)
+      for (const rot of [0, 1] as Rot[]) {
+        const draft: Placed = { uid: "t" + seq, kind, c, r, rot, level: 1, spent: fd.price, room: room.uid, closed: false };
+        if (keepDoorways && thingTiles(draft).some((t) => doorways.has(tileKey(t.c, t.r)))) continue;
+        const why = validThingAt(f, draft);
+        if (!why) return { c, r, rot };
+        if (why.startsWith("Only one") || why.startsWith("This daycare is full") || why.includes(" go in a ") || why.startsWith("Pick this room")) return { why };
+        firstWhy ??= why;
+      }
+  return { why: firstWhy };
+}
+
+/** Where this furniture would go in the chosen room (doorways kept clear when possible), or why it can't go there. */
+export function spotInRoom(f: Facility, roomUid: string, kind: ThingKind, seq = 0): { c: number; r: number; rot: Rot } | { error: string } {
+  const room = findRoom(f, roomUid);
+  const fd = furnitureDef(kind);
+  if (!room) return { error: "That room is gone." };
+  if (!fd) return { error: "Outdoor items go on your land, not in a room." };
+  const a = freeSpotIn(f, seq, room, kind, true);
+  if ("c" in a) return a;
+  if (a.why && !a.why.startsWith("Overlaps")) return { error: a.why };
+  const b = freeSpotIn(f, seq, room, kind, false);
+  if ("c" in b) return b;
+  return { error: b.why && !b.why.startsWith("Overlaps") ? b.why : `The ${roomLabel(room)} is full — move something or pick another room.` };
+}
+
+/** Puts furniture into the room the player chose (empire milestone §2: choose the room first), at its first free spot. */
+export function placeInRoom(s: TycoonState, roomUid: string, kind: ThingKind): TResult {
+  const spot = spotInRoom(fac(s), roomUid, kind, s.seq);
+  if ("error" in spot) return { ok: false, error: spot.error };
+  return placeThing(s, kind, spot.c, spot.r, spot.rot);
+}
+
 function firstFreeThing(s: TycoonState, kind: ThingKind): TResult {
   const f = fac(s);
   const fd = furnitureDef(kind);
@@ -457,7 +545,8 @@ function firstFreeThing(s: TycoonState, kind: ThingKind): TResult {
     const reached = reach(f);
     const rooms = f.rooms.filter(allows);
     if (!rooms.length) return { ok: false, error: fd.allowed === "any" ? "Build a room first." : `Build a ${fd.allowed.map((t) => ROOM_TYPE_NAMES[t]).join(" or ")} first.` };
-    // First a room that needs this item to start working, then working rooms, then the rest.
+    // First a room that needs this item to start working, then a working room where it does its job (fun where the
+    // pups play), then other working rooms, then the rest.
     const fixes: Record<string, string> = {
       front_counter: "Needs a Front Desk Counter",
       dog_bed: "Needs a dog bed or play mat",
@@ -468,30 +557,21 @@ function firstFreeThing(s: TycoonState, kind: ThingKind): TResult {
       boarding_bed: "Needs a boarding bed",
       staff_couch: "Needs a staff couch",
     };
+    const suits = (r: Room) => (fd.fun || fd.spots ? r.type === "playroom" : fd.waiting ? r.type === "lobby" || r.type === "calm" : true);
     const rank = (r: Room) => {
       const st = roomStatus(f, r, reached.rooms);
       if (fixes[kind] && st.reason === fixes[kind]) return 0;
-      if (st.working) return 1;
-      return (r.type ? 2 : 4) + (reached.rooms.has(r.uid) ? 0 : 1);
+      if (st.working) return suits(r) ? 1 : 2;
+      return (r.type ? 3 : 5) + (reached.rooms.has(r.uid) ? 0 : 1);
     };
     rooms.sort((a, b) => rank(a) - rank(b));
     let firstWhy: string | null = null;
     for (const keepDoorways of [true, false])
       for (const room of rooms) {
-        const doorways = new Set(room.doors.map((d) => tileKey(doorInside(room, d).c, doorInside(room, d).r)));
-        for (let r = room.r; r < room.r + room.d; r++)
-          for (let c = room.c; c < room.c + room.w; c++)
-            for (const rot of rots) {
-              const draft: Placed = { uid: "t" + s.seq, kind, c, r, rot, level: 1, spent: fd.price, room: room.uid, closed: false };
-              if (keepDoorways && thingTiles(draft).some((t) => doorways.has(tileKey(t.c, t.r)))) continue;
-              const why = validThingAt(f, draft);
-              if (why) {
-                if (why.startsWith("Only one") || why.startsWith("This daycare is full")) return { ok: false, error: why };
-                firstWhy ??= why;
-                continue;
-              }
-              return placeThing(s, kind, c, r, rot);
-            }
+        const spot = freeSpotIn(f, s.seq, room, kind, keepDoorways);
+        if ("c" in spot) return placeThing(s, kind, spot.c, spot.r, spot.rot);
+        if (spot.why && (spot.why.startsWith("Only one") || spot.why.startsWith("This daycare is full"))) return { ok: false, error: spot.why };
+        firstWhy ??= spot.why;
       }
     return { ok: false, error: `No room has space for a ${fd.name}${firstWhy && !firstWhy.startsWith("Overlaps") && !firstWhy.startsWith("Furniture") ? ` (${firstWhy})` : ""}.` };
   }

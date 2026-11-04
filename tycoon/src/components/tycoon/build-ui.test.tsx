@@ -60,13 +60,18 @@ describe("build mode", () => {
     tap({ kind: "tile", c: 10, r: 16 });
     tap({ kind: "tile", c: 13, r: 18 });
     expect(ghost()).toMatchObject({ kind: "room", c: 10, r: 16, w: 4, d: 3, ok: true });
-    // The full cost: walls and floor, a door, and the path squares to the entrance (Stage A).
-    expect(screen.getAllByText(/^4 × 3 · Room 400 \+ door 30 \+ path \d+ × 10 = \d+$/).length).toBeGreaterThan(0);
+    // The full cost: walls and floor, a door, and the path squares to the entrance (Stage A) — and that's what's
+    // charged: the room is built with its door and path (empire milestone §2), not the walls alone.
+    const line = screen.getAllByText(/^4 × 3 · Room 400 \+ door 30 \+ path \d+ × 10 = \d+$/)[0]!.textContent!;
+    const total = Number(line.split("= ")[1]);
+    expect(ghost().door).toBeTruthy();
     fireEvent.click(button(/^Build room/));
     expect(fac(now()).rooms).toHaveLength(1);
-    expect(now().coins).toBe(2600);
+    expect(now().coins).toBe(3000 - total);
+    expect(fac(now()).rooms[0]!.doors).toHaveLength(1);
     fireEvent.click(button("Lobby"));
     expect(fac(now()).rooms[0]!.type).toBe("lobby");
+    expect(screen.getByText("Furnishing: Lobby")).toBeTruthy(); // furnishing it is next
     unmount();
   });
 
@@ -101,44 +106,58 @@ describe("build mode", () => {
     tap({ kind: "edge", c: 11, r: 18, side: "S" });
     expect(ghost()).toMatchObject({ kind: "door", door: { side: "S", i: 1 }, ok: true });
     fireEvent.click(button(/^Add door/));
-    expect(fac(now()).rooms[0]!.doors).toEqual([{ side: "S", i: 1 }]);
+    expect(fac(now()).rooms[0]!.doors).toContainEqual({ side: "S", i: 1 });
+    expect(fac(now()).rooms[0]!.doors).toHaveLength(2); // the way in it was built with, and this one
     tap({ kind: "edge", c: 10, r: 18, side: "S" });
     expect(screen.getByText("Doors can't go on corners.")).toBeTruthy();
     unmount();
   });
 
-  it("a bath tub in a lobby is red with the reason", () => {
+  it("furnishing the lobby: a bath tub can't be chosen there and says where it goes", () => {
     const { unmount } = start({ ...newTycoon(Date.now()), xp: 100 });
     drawLobby();
-    tool("Furniture");
-    fireEvent.click(button("Bath Tub"));
-    tap({ kind: "tile", c: 10, r: 16 });
-    expect(ghost()).toMatchObject({ kind: "thing", thing: "bath_tub", ok: false });
-    expect(screen.getByText("Bath tubs go in a Bath Room.")).toBeTruthy();
-    expect(button("Place")).toHaveProperty("disabled", true);
+    fireEvent.click(button("Choose furniture for the Lobby")); // building it led straight into furnishing it
+    const sheet = within(screen.getByRole("dialog", { name: "Furniture for the Lobby" }));
+    expect(sheet.queryByRole("button", { name: "Bath Tub" })).toBeNull();
+    expect(sheet.getAllByText("Goes in a Bath Room").length).toBeGreaterThan(0); // bath tubs (and the deluxe tub)
+    expect(sheet.getByRole("button", { name: "Front Desk Counter" })).toBeTruthy();
+    unmount();
+  });
+
+  it("an item tapped outside the room being furnished is red with the reason", () => {
+    const { unmount } = start();
+    drawLobby();
+    fireEvent.click(button("Choose furniture for the Lobby")); // building it led straight into furnishing it
+    fireEvent.click(button("Waiting Bench"));
+    tap({ kind: "tile", c: 15, r: 16 });
+    expect(ghost()).toMatchObject({ kind: "thing", thing: "bench", ok: false });
+    expect(screen.getByText(/outside the Lobby/)).toBeTruthy();
+    expect(button(/^Put it in Lobby/)).toHaveProperty("disabled", true);
     unmount();
   });
 
   it("places, rotates and keeps the item ready for another", () => {
     const { unmount } = start();
     drawLobby();
-    tool("Furniture");
+    fireEvent.click(button("Choose furniture for the Lobby")); // building it led straight into furnishing it
     fireEvent.click(button("Front Desk Counter"));
+    expect(ghost()).toMatchObject({ kind: "thing", ok: true }); // waiting at the room's first free spot
     tap({ kind: "tile", c: 10, r: 16 });
     fireEvent.click(button("Rotate"));
     expect(ghost()).toMatchObject({ rot: 1 });
     fireEvent.click(button("Rotate"));
     fireEvent.click(button("Rotate"));
     fireEvent.click(button("Rotate"));
-    fireEvent.click(button("Place"));
+    fireEvent.click(button(/^Put it in Lobby here/));
     expect(fac(now()).items.find((i) => i.kind === "front_counter")).toMatchObject({ c: 10, r: 16, rot: 0 });
     unmount();
   });
 
   it("locked items say when they unlock", () => {
     const { unmount } = start();
-    tool("Furniture");
-    expect(screen.getAllByText("Unlocks at level 5").length).toBeGreaterThan(0);
+    drawLobby();
+    fireEvent.click(button("Choose furniture for the Lobby")); // building it led straight into furnishing it
+    expect(screen.getAllByText("Unlocks at level 3").length).toBeGreaterThan(0);
     unmount();
   });
 
@@ -161,11 +180,13 @@ describe("build mode", () => {
     fireEvent.click(button("Done building"));
     tap({ kind: "room", uid: fac(now()).rooms[0]!.uid });
     fireEvent.click(button("Sell"));
-    expect(screen.getByText("Sell the Lobby and everything in it for 300 coins?")).toBeTruthy();
+    // 75% back of what the room cost: its walls and floor (400) and its door (30); its path stays
+    expect(screen.getByText("Sell the Lobby and everything in it for 322 coins?")).toBeTruthy();
     expect(fac(now()).rooms).toHaveLength(1);
+    const coins = now().coins;
     fireEvent.click(button("Yes, sell"));
     expect(fac(now()).rooms).toHaveLength(0);
-    expect(now().coins).toBe(2900);
+    expect(now().coins).toBe(coins + 322);
     unmount();
   });
 

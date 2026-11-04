@@ -27,7 +27,7 @@ export type TPick =
   | { kind: "dog"; id: string }
   | { kind: "staff"; id: string };
 export type Ghost =
-  | { kind: "room"; c: number; r: number; w: number; d: number; ok: boolean; label: string }
+  | { kind: "room"; c: number; r: number; w: number; d: number; ok: boolean; label: string; door?: Door; route?: { c: number; r: number }[] }
   | { kind: "door"; room: string; door: Door; ok: boolean }
   | { kind: "thing"; thing: ThingKind; c: number; r: number; rot: Rot; ok: boolean }
   | { kind: "paths"; tiles: { c: number; r: number }[]; ok: boolean };
@@ -437,6 +437,26 @@ export class TycoonWorld {
         w.scale.set(sx, WALL_H, sz);
         w.position.set(cx, WALL_H / 2, cz);
         this.ghost.add(w);
+      }
+      // the planned entrance (a door marker on that wall) and the route to the entrance, in green
+      if (gh.door) {
+        const go = ghostMaterial(true);
+        const along = gh.door.side === "N" || gh.door.side === "S";
+        const c = gh.c + (along ? gh.door.i : gh.door.side === "E" ? gh.w - 1 : 0);
+        const r = gh.r + (along ? (gh.door.side === "S" ? gh.d - 1 : 0) : gh.door.i);
+        const t = tileCenter(c, r);
+        const h = TILE / 2;
+        const door = new THREE.Mesh(GEO.box, go);
+        door.scale.set(along ? TILE * 0.9 : 0.4, WALL_H + 0.6, along ? 0.4 : TILE * 0.9);
+        door.position.set(t.x + (gh.door.side === "E" ? h : gh.door.side === "W" ? -h : 0), (WALL_H + 0.6) / 2, t.z + (gh.door.side === "S" ? h : gh.door.side === "N" ? -h : 0));
+        this.ghost.add(door);
+      }
+      for (const p of gh.route ?? []) {
+        const at = tileCenter(p.c, p.r);
+        const tile = new THREE.Mesh(GEO.box, ghostMaterial(true));
+        tile.scale.set(TILE - 0.2, 0.1, TILE - 0.2);
+        tile.position.set(at.x, 0.07, at.z);
+        this.ghost.add(tile);
       }
       const tag = makeTag(2.4);
       tag.set(gh.label, "", gh.ok ? "default" : "alert");

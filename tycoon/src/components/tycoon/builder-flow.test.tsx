@@ -1,0 +1,112 @@
+// Building a room you can use (empire milestone §2): Select room → see footprint and entrance → tap to place → see the
+// route and total cost → confirm (charged once) → furnish it, choosing the room first. Cancelling costs nothing.
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import type { TPick } from "@/tycoon/render/world";
+
+vi.mock("sonner", () => ({ toast: Object.assign(() => {}, { success: () => {}, error: () => {}, warning: () => {}, info: () => {} }) }));
+let emit: (p: TPick | null) => void = () => {};
+vi.mock("@/components/tycoon/TycoonStage", async () => {
+  const React = await import("react");
+  return {
+    TycoonStage: React.forwardRef(function Stub(props: { ghost: unknown; onPick: (p: TPick | null) => void }, ref) {
+      React.useImperativeHandle(ref, () => ({ fx: () => {}, resetCamera: () => {}, focus: () => {}, debug: () => null }));
+      emit = props.onPick;
+      return React.createElement("div", { "data-testid": "stage", "data-ghost": JSON.stringify(props.ghost) });
+    }),
+  };
+});
+
+import { TycoonPlay } from "./TycoonPlay";
+import { KEY, tycoonStore } from "@/tycoon/store";
+import { planRoom } from "@/tycoon/build";
+import { connectedRooms } from "@/tycoon/connect";
+import { xpForLevel } from "@/tycoon/progress";
+import { quickStart } from "@/tycoon/start";
+import { fac, newTycoon } from "@/tycoon/state";
+import { ok } from "@/tycoon/testkit";
+import type { TycoonState } from "@/tycoon/types";
+
+const tap = (p: TPick) => act(() => emit(p));
+const now = () => tycoonStore.getState()!;
+const ghost = () => JSON.parse(screen.getByTestId("stage").getAttribute("data-ghost") ?? "null");
+const button = (name: string | RegExp) => screen.getByRole("button", { name });
+const tool = (name: string) => fireEvent.click(within(screen.getByRole("toolbar", { name: "Build tools" })).getByRole("button", { name }));
+const SKIPPED = { mode: "quick", beat: "meet", startedAt: 0, upgrade: null, done: false, skipped: true } as const;
+const spent = (s: TycoonState) => fac(s).ledger.find((l) => l.day === fac(s).day)?.expenses.building ?? 0;
+function start() {
+  const s = { ...ok(quickStart(newTycoon(Date.now()))), coins: 5000, xp: xpForLevel(4), pendingLevel: null, tour: SKIPPED };
+  localStorage.setItem(KEY, JSON.stringify(s));
+  render(<TycoonPlay />);
+  fireEvent.click(button("Build"));
+}
+
+beforeEach(() => {
+  localStorage.clear();
+  tycoonStore._reset(null);
+});
+
+describe("placing a room", () => {
+  it("choose Bath, tap a spot: the outline shows its door and route and the itemised price; Build here builds it connected for exactly that, then asks what to furnish it with", () => {
+    start();
+    tool("Rooms");
+    fireEvent.click(button("Bath Room"));
+    tap({ kind: "tile", c: 12, r: 18 });
+    const g = ghost();
+    expect(g).toMatchObject({ kind: "room", ok: true });
+    expect(g.door).toBeTruthy();
+    const plan = planRoom(fac(now()), { c: g.c, r: g.r, w: g.w, d: g.d });
+    if (!plan.ok) throw new Error("expected a plan");
+    expect(screen.getAllByText(new RegExp(`= ${plan.cost.total}$`)).length).toBeGreaterThan(0);
+    const before = now();
+    fireEvent.click(button(new RegExp(`^Build here · ${plan.cost.total}`)));
+    const room = fac(now()).rooms.at(-1)!;
+    expect(room).toMatchObject({ type: "bath", c: g.c, r: g.r });
+    expect(connectedRooms(fac(now())).has(room.uid)).toBe(true);
+    expect(spent(now()) - spent(before)).toBe(plan.cost.total);
+    // furnishing that room is next
+    expect(screen.getByText(/Furnishing: Bath Room/)).toBeTruthy();
+  });
+  it("Cancel costs nothing; a quick double tap on Build here builds one room", () => {
+    start();
+    tool("Rooms");
+    fireEvent.click(button("Bath Room"));
+    tap({ kind: "tile", c: 12, r: 18 });
+    const coins = now().coins;
+    fireEvent.click(button("Cancel"));
+    expect(now().coins).toBe(coins);
+    expect(ghost()).toBeNull();
+    tap({ kind: "tile", c: 12, r: 18 });
+    const rooms = fac(now()).rooms.length;
+    const go = button(/^Build here/);
+    fireEvent.click(go);
+    fireEvent.click(go);
+    expect(fac(now()).rooms.length).toBe(rooms + 1);
+  });
+  it("a spot with no way in is red and says why; nothing is charged", () => {
+    start();
+    tool("Rooms");
+    fireEvent.click(button("Bath Room"));
+    tap({ kind: "tile", c: 18, r: 23 }); // on top of the lobby
+    expect(ghost()).toMatchObject({ ok: false });
+    expect(screen.getByText(/overlap/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Build here/ })).toBeNull();
+  });
+});
+
+describe("furnishing: choose the room first", () => {
+  it("the catalog offers only what fits that room, and Put it in places it inside that room (never the lobby)", () => {
+    start();
+    tool("Furniture");
+    const pick = within(screen.getByRole("region", { name: "Choose a room to furnish" }));
+    fireEvent.click(pick.getByRole("button", { name: /^Playroom/ }));
+    expect(screen.getByText(/Furnishing: Playroom/)).toBeTruthy();
+    const play = fac(now()).rooms.find((r) => r.type === "playroom")!;
+    fireEvent.click(screen.getByRole("button", { name: /Water Bowl/ }));
+    const items = fac(now()).items.length;
+    fireEvent.click(button(/^Put it in Playroom/));
+    const placed = fac(now()).items.at(-1)!;
+    expect(fac(now()).items.length).toBe(items + 1);
+    expect(placed).toMatchObject({ kind: "water_bowl", room: play.uid });
+  });
+});

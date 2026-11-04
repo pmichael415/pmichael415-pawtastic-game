@@ -3,10 +3,12 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { GROUPS } from "@/game/engine";
 import type { GroupId } from "@/game/engine";
-import { DOOR_PRICE, ROOM_TYPE_NAMES, SELL_RATE, furnitureDef, outdoorDef, thingName } from "@/tycoon/catalog";
-import { addDoor, connectionEstimate, costLine, drawRoom, moveRoom, moveThing, paintPaths, placeThing, removeDoor, roomContaining, setRoomType, validRoomAt, validThingAt } from "@/tycoon/build";
+import { DOOR_PRICE, ONE_PER_FACILITY, ROOM_MAX, ROOM_MIN, ROOM_TYPE_NAMES, SELL_RATE, furnitureDef, outdoorDef, thingName } from "@/tycoon/catalog";
+import { DEFAULT_ROOM_SIZE, addDoor, buildConnectedRoom, costLine, moveRoom, moveThing, paintPaths, placeThing, planRoom, removeDoor, roomContaining, setRoomType, spotInRoom, validRoomAt, validThingAt, type RoomPlan } from "@/tycoon/build";
 import { OPPOSITE, containsTile, roomPrice, stepFrom, thingTiles, type Tile } from "@/tycoon/grid";
+import { roomStatus } from "@/tycoon/connect";
 import { level } from "@/tycoon/progress";
+import { roomName } from "@/tycoon/rooms";
 import { PAID_GONE, PAID_LOCK, isActive, ownedPaid } from "@/tycoon/paid";
 import { fac } from "@/tycoon/state";
 import type { FxKind, Ghost, PickMode, TPick } from "@/tycoon/render/world";
@@ -44,8 +46,16 @@ export type BuildUi = {
   movingRoom: string | null;
   roomAt: Tile | null;
   paths: Tile[];
+  /** Placing a room type-first (empire milestone §2): its type, playroom group, size and the tapped spot. */
+  kind: RoomType | null;
+  group: GroupId | null;
+  size: { w: number; d: number } | null;
+  spot: Tile | null;
+  /** The room being furnished (chosen first), and whether its catalog is open. */
+  dest: string | null;
+  browse: boolean;
 };
-const EMPTY: BuildUi = { tool: null, corner: null, end: null, typing: null, door: null, doorError: null, item: null, at: null, rot: 0, moving: null, movingRoom: null, roomAt: null, paths: [] };
+const EMPTY: BuildUi = { tool: null, corner: null, end: null, typing: null, door: null, doorError: null, item: null, at: null, rot: 0, moving: null, movingRoom: null, roomAt: null, paths: [], kind: null, group: null, size: null, spot: null, dest: null, browse: false };
 
 const onSide = (room: Room, c: number, r: number, side: Side) =>
   side === "N" ? r === room.r : side === "S" ? r === room.r + room.d - 1 : side === "W" ? c === room.c : c === room.c + room.w - 1;
@@ -63,7 +73,15 @@ export function doorForEdge(f: Facility, c: number, r: number, side: Side): { ro
 }
 
 const rectOf = (a: Tile, b: Tile) => ({ c: Math.min(a.c, b.c), r: Math.min(a.r, b.r), w: Math.abs(a.c - b.c) + 1, d: Math.abs(a.r - b.r) + 1 });
-const draftRoom = (uid: string, c: number, r: number, w: number, d: number): Room => ({ uid, c, r, w, d, type: null, group: null, doors: [], floor: "wood", wall: "#F4EDE4", spent: 0, closed: false });
+/** The room's rectangle centred on the tapped square. */
+const rectAt = (spot: Tile, size: { w: number; d: number }) => ({ c: spot.c - Math.floor((size.w - 1) / 2), r: spot.r - Math.floor((size.d - 1) / 2), w: size.w, d: size.d });
+/** "Its door opens into the Lobby" / "a new path of 4 squares to the entrance" — the connection a plan makes. */
+function connectionLine(f: Facility, plan: RoomPlan): string | null {
+  if (!plan.ok) return null;
+  if (plan.via) return `Its door opens into the ${roomName(f, plan.via)} — no path needed.`;
+  if (!plan.paths.length) return "Its door opens onto the path to the entrance.";
+  return `A new path of ${plan.paths.length} square${plan.paths.length === 1 ? "" : "s"} (green) leads to the entrance.`;
+}
 const short = (s: TycoonState, price: number) => (s.coins < 0 ? "Paused until your coins are back above zero." : s.coins < price ? `Need ${price - s.coins} more coins.` : null);
 
 /** Build-mode state and everything derived from it (ghost, pick mode, reasons). */
@@ -76,13 +94,24 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
     let ghost: Ghost | null = null;
     let label: string | null = null;
     let reason: string | null = null;
-    if (ui.tool === "rooms" && ui.corner && ui.end) {
-      const { c, r, w, d } = rectOf(ui.corner, ui.end);
-      const price = roomPrice(w, d);
-      const est = connectionEstimate(f, { c, r, w, d });
-      reason = validRoomAt(f, draftRoom("ghost", c, r, w, d)) ?? short(state, est?.total ?? price);
-      label = `${w} × ${d} · ${costLine(est, price)}`;
-      ghost = { kind: "room", c, r, w, d, ok: !reason, label };
+    let plan: RoomPlan | null = null;
+    let connection: string | null = null;
+    let placeAt: { at: Tile; rot: Rot } | null = null;
+    if (ui.tool === "rooms" && ui.kind && ui.size && ui.spot) {
+      const rect = rectAt(ui.spot, ui.size);
+      const name = ROOM_TYPE_NAMES[ui.kind];
+      plan = planRoom(f, rect);
+      reason = plan.ok ? short(state, plan.cost.total) : plan.reason;
+      label = `${name} ${rect.w} × ${rect.d}${plan.ok ? ` · ${costLine(plan.cost)}` : ""}`;
+      connection = connectionLine(f, plan);
+      ghost = { kind: "room", ...rect, ok: !reason, label: plan.ok ? `${name} · ${plan.cost.total}` : name, ...(plan.ok ? { door: plan.door, route: plan.paths } : {}) };
+    } else if (ui.tool === "rooms" && ui.corner && ui.end) {
+      const rect = rectOf(ui.corner, ui.end);
+      plan = planRoom(f, rect);
+      reason = plan.ok ? short(state, plan.cost.total) : plan.reason;
+      label = `${rect.w} × ${rect.d} · ${costLine(plan.ok ? plan.cost : null, roomPrice(rect.w, rect.d))}`;
+      connection = connectionLine(f, plan);
+      ghost = { kind: "room", ...rect, ok: !reason, label, ...(plan.ok ? { door: plan.door, route: plan.paths } : {}) };
     } else if (ui.movingRoom && ui.roomAt) {
       const room = f.rooms.find((x) => x.uid === ui.movingRoom);
       if (room) {
@@ -97,22 +126,37 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
         reason = exists ? null : validRoomAt(f, { ...room, doors: [...room.doors, ui.door.door] }) ?? short(state, DOOR_PRICE);
         ghost = { kind: "door", room: room.uid, door: ui.door.door, ok: !reason };
       }
-    } else if ((ui.tool === "furniture" || ui.tool === "outdoor") && ui.item && ui.at) {
-      const def = furnitureDef(ui.item) ?? outdoorDef(ui.item);
-      const draft: Placed = { uid: ui.moving ?? "ghost", kind: ui.item, c: ui.at.c, r: ui.at.r, rot: ui.rot, level: 1, spent: 0, room: null, closed: false };
-      const room = furnitureDef(ui.item) ? roomContaining(f, thingTiles(draft))?.uid ?? null : null;
-      reason =
-        (!isActive(ui.item) ? (ui.moving ? PAID_GONE : PAID_LOCK) : null) ??
-        (!ui.moving && def && def.unlock > level(state) ? `Unlocks at level ${def.unlock}.` : null) ??
-        validThingAt(f, { ...draft, room }, ui.moving) ??
-        (ui.moving ? null : short(state, def?.price ?? 0));
-      ghost = { kind: "thing", thing: ui.item, c: ui.at.c, r: ui.at.r, rot: ui.rot, ok: !reason };
+    } else if ((ui.tool === "furniture" || ui.tool === "outdoor") && ui.item && (ui.at || ui.dest)) {
+      // Furnishing a chosen room: until you tap a square, the item waits at the room's first free spot.
+      let at = ui.at;
+      let rot = ui.rot;
+      if (!at && ui.dest) {
+        const sp = spotInRoom(f, ui.dest, ui.item, state.seq);
+        if ("error" in sp) reason = sp.error;
+        else {
+          at = { c: sp.c, r: sp.r };
+          rot = sp.rot;
+        }
+      }
+      if (at) {
+        const def = furnitureDef(ui.item) ?? outdoorDef(ui.item);
+        const draft: Placed = { uid: ui.moving ?? "ghost", kind: ui.item, c: at.c, r: at.r, rot, level: 1, spent: 0, room: null, closed: false };
+        const room = furnitureDef(ui.item) ? roomContaining(f, thingTiles(draft))?.uid ?? null : null;
+        reason =
+          (!isActive(ui.item) ? (ui.moving ? PAID_GONE : PAID_LOCK) : null) ??
+          (!ui.moving && def && def.unlock > level(state) ? `Unlocks at level ${def.unlock}.` : null) ??
+          (ui.dest && room !== ui.dest ? `That's outside the ${roomName(f, ui.dest)} — tap a square inside it.` : null) ??
+          validThingAt(f, { ...draft, room }, ui.moving) ??
+          (ui.moving ? null : short(state, def?.price ?? 0));
+        ghost = { kind: "thing", thing: ui.item, c: at.c, r: at.r, rot, ok: !reason };
+        placeAt = { at, rot };
+      }
     } else if (ui.tool === "paths" && ui.paths.length) {
       reason = short(state, ui.paths.length * 10);
       ghost = { kind: "paths", tiles: ui.paths, ok: !reason };
     }
     const pickMode: PickMode = ui.tool === "doors" ? "edges" : ui.movingRoom || ui.tool === "rooms" || ui.tool === "paths" || ((ui.tool === "furniture" || ui.tool === "outdoor") && ui.item) ? "tiles" : "objects";
-    return { ghost, label, reason, pickMode };
+    return { ghost, label, reason, pickMode, plan, connection, placeAt };
   }, [ui, f, state]);
 
   /** Handles a tap while building. Returns false when the tap is for selection (no tool, Paint or Sell). */
@@ -125,7 +169,8 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
     switch (ui.tool) {
       case "rooms":
         if (p.kind !== "tile") return true;
-        if (!ui.corner || ui.end || ui.typing) patch({ corner: { c: p.c, r: p.r }, end: null, typing: null });
+        if (ui.kind) patch({ spot: { c: p.c, r: p.r } });
+        else if (!ui.corner || ui.end || ui.typing) patch({ corner: { c: p.c, r: p.r }, end: null, typing: null });
         else patch({ end: { c: p.c, r: p.r } });
         return true;
       case "doors": {
@@ -138,6 +183,14 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
         return true;
       }
       case "furniture":
+        // Choose the room first: tapping a room (or something in it) furnishes that room.
+        if (!ui.item && !ui.dest) {
+          const uid = p.kind === "room" ? p.uid : p.kind === "thing" ? (f.items.find((i) => i.uid === p.uid)?.room ?? null) : null;
+          if (uid && f.rooms.some((r) => r.uid === uid && r.type)) patch({ dest: uid, browse: true });
+          return true;
+        }
+        if (ui.item && p.kind === "tile") patch({ at: { c: p.c, r: p.r } });
+        return true;
       case "outdoor":
         if (ui.item && p.kind === "tile") patch({ at: { c: p.c, r: p.r } });
         return true;
@@ -156,13 +209,15 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
 
   const setTool = (tool: Tool | null) => setUi({ ...EMPTY, tool });
 
+  /** Draw mode: the room, its door and the path squares, for the total shown — then pick what it's for. */
   function buildRoom() {
-    if (!ui.corner || !ui.end) return;
-    const { c, r, w, d } = rectOf(ui.corner, ui.end);
+    const plan = derived.plan;
+    if (!ui.corner || !ui.end || !plan?.ok || derived.reason) return;
+    const { rect } = plan;
     const uid = "r" + state.seq;
-    const res = act((s) => drawRoom(s, c, r, w, d), { event: { name: "tycoon_build", props: { kind: "room", action: "place" } } });
+    const res = act((s) => buildConnectedRoom(s, rect, null), { event: { name: "tycoon_build", props: { kind: "room", action: "place" } } });
     if (res.ok) {
-      fx("drop", { c: c + Math.floor(w / 2), r: r + Math.floor(d / 2) });
+      fx("drop", { c: rect.c + Math.floor(rect.w / 2), r: rect.r + Math.floor(rect.d / 2) });
       patch({ typing: uid, corner: null, end: null });
     }
   }
@@ -170,7 +225,29 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
     if (!ui.typing) return;
     const uid = ui.typing;
     const res = act((s) => setRoomType(s, uid, type, group));
-    if (res.ok) patch({ typing: null });
+    if (res.ok) setUi({ ...EMPTY, tool: "furniture", dest: uid }); // furnishing it is next
+  }
+  /** Type-first: choose what to build; its usual size is the starting outline. */
+  const chooseKind = (kind: RoomType, group?: GroupId) => patch({ kind, group: group ?? null, size: DEFAULT_ROOM_SIZE[kind], spot: null, corner: null, end: null });
+  const resize = (dw: number, dd: number) => {
+    if (!ui.size) return;
+    const clamp = (n: number) => Math.min(ROOM_MAX, Math.max(ROOM_MIN, n));
+    patch({ size: { w: clamp(ui.size.w + dw), d: clamp(ui.size.d + dd) } });
+  };
+  const turn = () => ui.size && patch({ size: { w: ui.size.d, d: ui.size.w } });
+  /** Confirm: room + door + path + type in one step, charged once for exactly the price shown; then furnish it. */
+  function buildHere() {
+    const plan = derived.plan;
+    if (!ui.kind || !plan?.ok || derived.reason) return;
+    const { rect } = plan;
+    const kind = ui.kind;
+    const group = ui.group ?? undefined;
+    const uid = "r" + state.seq;
+    const res = act((s) => buildConnectedRoom(s, rect, kind, group), { event: { name: "tycoon_build", props: { kind: "room", action: "place" } } });
+    if (res.ok) {
+      fx("drop", { c: rect.c + Math.floor(rect.w / 2), r: rect.r + Math.floor(rect.d / 2) });
+      setUi({ ...EMPTY, tool: "furniture", dest: uid });
+    }
   }
   function toggleDoor() {
     if (!ui.door) return;
@@ -183,8 +260,10 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
     if (res.ok) patch({ door: null });
   }
   function place() {
-    if (!ui.item || !ui.at) return;
-    const { item, at, rot, moving } = ui;
+    const spot = derived.placeAt;
+    if (!ui.item || !spot || derived.reason) return;
+    const { item, moving } = ui;
+    const { at, rot } = spot;
     const res = moving
       ? act((s) => moveThing(s, moving, at.c, at.r, rot), { event: { name: "tycoon_build", props: { kind: item, action: "move" } } })
       : act((s) => placeThing(s, item, at.c, at.r, rot), { event: { name: "tycoon_build", props: { kind: item, action: "place" } } });
@@ -210,17 +289,22 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
       patch({ paths: [] });
     }
   }
+  /** Rotate where the item is now (its first free spot, until you tap one). */
+  const rotate = () => {
+    const base = derived.placeAt;
+    patch({ at: base?.at ?? ui.at, rot: (((base?.rot ?? ui.rot) + 1) % 4) as Rot });
+  };
   const startMoveThing = (t: Placed) => setUi({ ...EMPTY, tool: furnitureDef(t.kind) ? "furniture" : "outdoor", item: t.kind, rot: t.rot, moving: t.uid, at: { c: t.c, r: t.r } });
   const startMoveRoom = (room: Room) => setUi({ ...EMPTY, movingRoom: room.uid, roomAt: { c: room.c, r: room.r } });
 
-  return { ui, setUi, patch, setTool, onPick, buildRoom, setType, toggleDoor, place, moveRoomHere, pave, startMoveThing, startMoveRoom, ...derived };
+  return { ui, setUi, patch, setTool, onPick, buildRoom, setType, chooseKind, resize, turn, buildHere, toggleDoor, place, rotate, moveRoomHere, pave, startMoveThing, startMoveRoom, ...derived };
 }
 export type Build = ReturnType<typeof useBuild>;
 
 const HINTS: Record<Tool, string> = {
-  rooms: "Tap one corner, then the opposite corner.",
+  rooms: "Choose what to build, then tap where it goes.",
   doors: "Tap a room's wall to add a door (30).",
-  furniture: "Pick an item, then tap where it goes inside a room.",
+  furniture: "Choose the room first, then what goes in it.",
   outdoor: "Pick an item, then tap where it goes on your land.",
   paths: "Tap squares to pave them (10 each). Tap again to remove.",
   paint: "Tap a room to paint it. Painting is free.",
@@ -233,10 +317,15 @@ export function BuildToolbar({ b, state, act, onBuyPack, hidePaid = false }: { b
   const { ui } = b;
   const f = fac(state);
   const [groupPick, setGroupPick] = useState(false);
+  const [kindGroupPick, setKindGroupPick] = useState(false);
   const typingRoom = ui.typing ? f.rooms.find((r) => r.uid === ui.typing) : null;
+  const destRoom = ui.dest ? f.rooms.find((r) => r.uid === ui.dest) ?? null : null;
+  const destName = destRoom ? roomName(f, destRoom.uid) : "";
+  const kinds = (["playroom", "bath", "boarding", "calm", "staff", "lobby"] as RoomType[]).filter((t) => !(ONE_PER_FACILITY.includes(t) && f.rooms.some((r) => r.type === t)));
+  const furnishable = f.rooms.filter((r) => r.type);
   const doorRoom = ui.door ? f.rooms.find((r) => r.uid === ui.door!.room) : null;
   const doorExists = !!doorRoom && doorRoom.doors.some((d) => d.side === ui.door!.door.side && d.i === ui.door!.door.i);
-  const catalogOpen = (ui.tool === "furniture" || ui.tool === "outdoor") && !ui.item;
+  const catalogOpen = !ui.item && ((ui.tool === "furniture" && !!destRoom && ui.browse) || ui.tool === "outdoor");
 
   return (
     <section aria-label="Build mode" className="space-y-2 rounded-2xl border border-primary/40 bg-card p-3 shadow-soft">
@@ -251,10 +340,83 @@ export function BuildToolbar({ b, state, act, onBuyPack, hidePaid = false }: { b
         {ui.movingRoom ? "Tap where the room's top-left corner should go." : ui.tool ? HINTS[ui.tool] : "Pick a tool, or tap a room or item to edit it."}
       </p>
 
-      {ui.tool === "rooms" && !typingRoom && (
+      {ui.tool === "rooms" && !typingRoom && !ui.kind && !ui.corner && (
+        <section aria-label="Choose a room to build" className="space-y-2">
+          <p className="font-semibold text-secondary">What do you want to build?</p>
+          {!kindGroupPick ? (
+            <div className="flex flex-wrap gap-2">
+              {kinds.map((t) => (
+                <Button key={t} variant="outline" className="h-11" onClick={() => (t === "playroom" ? setKindGroupPick(true) : b.chooseKind(t))}>
+                  {ROOM_TYPE_NAMES[t]}
+                </Button>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Which pups will play there?</p>
+              <div className="flex flex-wrap gap-2">
+                {GROUPS.map((g) => (
+                  <Button
+                    key={g.id}
+                    variant="outline"
+                    className="h-11"
+                    onClick={() => {
+                      setKindGroupPick(false);
+                      b.chooseKind("playroom", g.id);
+                    }}
+                  >
+                    {g.name}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">Or tap two corners on the ground to draw a room of any size.</p>
+        </section>
+      )}
+      {ui.tool === "rooms" && ui.kind && ui.size && (
+        <section aria-label="Choose a spot" className="space-y-2">
+          <p className="font-semibold text-secondary">
+            Placing: {ROOM_TYPE_NAMES[ui.kind]}
+            {ui.group ? ` · ${GROUPS.find((g) => g.id === ui.group)?.name ?? ""}` : ""} · {ui.size.w} × {ui.size.d}
+          </p>
+          {!ui.spot && <p className="text-sm text-muted-foreground">Tap where it goes. The outline shows its door and the way in; nothing is charged until you confirm.</p>}
+          {b.label && ui.spot && <p className="font-display text-lg font-bold text-secondary">{b.label}</p>}
+          {b.connection && <p className="text-sm font-semibold text-success">✓ {b.connection}</p>}
+          {b.reason && <p className="text-sm font-semibold text-destructive">{b.reason}</p>}
+          <div className="flex flex-wrap gap-2">
+            {b.plan?.ok && (
+              <Button className="h-11 flex-1" disabled={!!b.reason} onClick={b.buildHere}>
+                Build here · {b.plan.cost.total.toLocaleString("en-US")}
+              </Button>
+            )}
+            {ui.spot && (
+              <Button variant="outline" className="h-11" onClick={() => b.patch({ spot: null })}>
+                Cancel
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" className="h-11" onClick={b.turn}>
+              Turn
+            </Button>
+            <Button variant="outline" size="sm" className="h-11" onClick={() => b.resize(-1, -1)}>
+              Smaller
+            </Button>
+            <Button variant="outline" size="sm" className="h-11" onClick={() => b.resize(1, 1)}>
+              Bigger
+            </Button>
+            <Button variant="ghost" size="sm" className="h-11" onClick={() => b.patch({ kind: null, group: null, size: null, spot: null })}>
+              Change room type
+            </Button>
+          </div>
+        </section>
+      )}
+      {ui.tool === "rooms" && !typingRoom && !ui.kind && ui.corner && (
         <div className="space-y-2">
           {ui.corner && !ui.end && <p className="text-sm font-semibold text-secondary">Now tap the opposite corner.</p>}
           {b.label && <p className="font-display text-lg font-bold text-secondary">{b.label}</p>}
+          {b.connection && <p className="text-sm font-semibold text-success">✓ {b.connection}</p>}
           {b.reason && <p className="text-sm font-semibold text-destructive">{b.reason}</p>}
           {ui.end && (
             <div className="flex gap-2">
@@ -308,20 +470,59 @@ export function BuildToolbar({ b, state, act, onBuyPack, hidePaid = false }: { b
           )}
         </div>
       )}
+      {ui.tool === "furniture" && !ui.item && !ui.moving && !destRoom && (
+        <section aria-label="Choose a room to furnish" className="space-y-2">
+          <p className="font-semibold text-secondary">Which room are you furnishing?</p>
+          {furnishable.length ? (
+            <div className="flex flex-wrap gap-2">
+              {furnishable.map((r) => {
+                const st = roomStatus(f, r);
+                return (
+                  <Button key={r.uid} variant="outline" className="h-auto min-h-11 flex-col items-start py-1 text-left" onClick={() => b.patch({ dest: r.uid, browse: true })}>
+                    <span>{roomName(f, r.uid)}</span>
+                    <span className="text-[11px] font-normal text-muted-foreground">{st.working ? "working" : (st.reason ?? "not working yet")}</span>
+                  </Button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Build a room first — use Rooms.</p>
+          )}
+          <p className="text-xs text-muted-foreground">Or tap a room in your daycare.</p>
+        </section>
+      )}
+      {ui.tool === "furniture" && destRoom && !ui.item && (
+        <div className="space-y-2">
+          <p className="font-semibold text-secondary">Furnishing: {destName}</p>
+          {(() => {
+            const st = roomStatus(f, destRoom);
+            return <p className={`text-sm ${st.working ? "text-success" : "text-muted-foreground"}`}>{st.working ? "✓ Working — add more to raise Fun and Appeal." : `Not working yet: ${st.reason ?? "it needs furniture"}.`}</p>;
+          })()}
+          <div className="flex flex-wrap gap-2">
+            <Button className="h-11 flex-1" onClick={() => b.patch({ browse: true })}>
+              Choose furniture for the {destName}
+            </Button>
+            <Button variant="outline" className="h-11" onClick={() => b.patch({ dest: null, browse: false })}>
+              Another room
+            </Button>
+          </div>
+        </div>
+      )}
       {(ui.tool === "furniture" || ui.tool === "outdoor") && ui.item && (
         <div className="space-y-2">
           <p className="font-semibold text-secondary">
-            {ui.moving ? "Moving" : "Placing"}: {thingName(ui.item)}
+            {ui.moving ? "Moving" : destRoom ? `Furnishing: ${destName} ·` : "Placing:"} {thingName(ui.item)}
           </p>
+          {destRoom && !ui.at && !b.reason && <p className="text-sm text-muted-foreground">It goes where the outline is — or tap another square inside the {destName}.</p>}
           {b.reason && <p className="text-sm font-semibold text-destructive">{b.reason}</p>}
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" className="h-11" onClick={() => b.patch({ rot: ((ui.rot + 1) % 4) as Rot })}>
+            <Button variant="outline" className="h-11" onClick={b.rotate}>
               Rotate
             </Button>
-            <Button className="h-11 flex-1" disabled={!ui.at || !!b.reason} onClick={b.place}>
-              Place
+            <Button className="h-11 flex-1" disabled={!b.placeAt || !!b.reason} onClick={b.place}>
+              {destRoom && !ui.moving ? `Put it in ${destName}${ui.at ? " here" : ""}` : "Place"}
             </Button>
-            <Button variant="outline" className="h-11" onClick={() => (ui.moving ? b.setTool(null) : b.patch({ item: null, at: null }))}>
+            <Button variant="outline" className="h-11" onClick={() => (ui.moving ? b.setTool(null) : b.patch({ item: null, at: null, browse: false }))}>
               Cancel
             </Button>
           </div>
@@ -359,8 +560,9 @@ export function BuildToolbar({ b, state, act, onBuyPack, hidePaid = false }: { b
         level={level(state)}
         coins={state.coins}
         owned={ownedPaid()}
-        onPick={(kind) => b.patch({ item: kind, at: null, rot: 0 })}
-        onClose={() => b.setTool(null)}
+        onPick={(kind) => b.patch({ item: kind, at: null, rot: 0, browse: false })}
+        onClose={() => (ui.tool === "furniture" ? b.patch({ browse: false }) : b.setTool(null))}
+        room={destRoom?.type ? { type: destRoom.type, name: destName } : null}
         onBuyPack={onBuyPack}
         hidePaid={hidePaid}
       />

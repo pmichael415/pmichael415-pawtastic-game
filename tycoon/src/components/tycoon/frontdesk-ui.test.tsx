@@ -110,3 +110,21 @@ describe("a pup's panel", () => {
     expect(focused.length).toBeGreaterThan(0);
   });
 });
+
+describe("building pauses the day (§3)", () => {
+  it("entering Build pauses; leaving restores what it was — running stays running, paused stays paused", () => {
+    open(withPups());
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Build" }));
+    expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Done building" }));
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+    // paused before building: still paused after
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    fireEvent.click(screen.getByRole("button", { name: "Build" }));
+    fireEvent.click(screen.getByRole("button", { name: "Done building" }));
+    expect(screen.getAllByRole("button", { name: "Resume" }).length).toBeGreaterThan(0); // (the paused notice has one too)
+    expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
+  });
+});
+
