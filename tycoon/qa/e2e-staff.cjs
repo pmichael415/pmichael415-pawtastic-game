@@ -161,7 +161,12 @@ async function run(browser, label, opts) {
     // ---------- 6. wages come out of profit ----------
     const strip = page.getByRole('button', { name: /^Today: revenue/ });
     const wages = 40 * (await f()).staff.length;
-    check(`${label}: the Today strip shows the day's wages (tonight's ${wages} + sign-on ${fees})`, (await strip.textContent()).includes(`−${(wages + fees).toLocaleString('en-US')}`), await strip.textContent());
+    // audit finding 5: the strip shows operating costs (paid so far + due tonight), not wages alone. The sign-on fees
+    // are paid now; tonight's wages are part of what's due tonight (with upkeep and supplies).
+    const aria = (await strip.getAttribute('aria-label')) ?? '';
+    const m = /operating costs ([\d,]+) \(([\d,]+) so far, ([\d,]+) due tonight\)/.exec(aria);
+    const n = (x) => Number(String(x).replace(/,/g, ''));
+    check(`${label}: the Today strip's operating costs include the sign-on (${fees}) so far and tonight's wages (${wages}) due tonight`, !!m && n(m[2]) >= fees && n(m[3]) >= wages && n(m[1]) === n(m[2]) + n(m[3]) && (await strip.textContent()).includes(`−${m[1]}`), aria);
     await speed(0.0001);
     await page.evaluate(() => window.__tycoonSet((s) => ({ ...s, pendingLevel: null, facilities: { f1: { ...s.facilities.f1, clockMin: 1078, dogs: [] } } })));
     const day0 = (await f()).day;

@@ -20,19 +20,27 @@ const LIMIT_MS = Number(process.env.PLAY_LIMIT_MIN || 22) * 60 * 1000;
 const ZERO = !!process.env.PLAY_ZERO;
 const t0 = Date.now();
 const log = [];
-// Pacing (empire milestone §6): the script speeds game time up between beats, so each log line also carries the
-// normal-speed equivalent — real time × the speed it ran at (taps take the same real time; waiting scales).
-let curSpeed = 1, playerS = 0, lastT = Date.now();
+// Pacing (audit finding 8): two separate measures, never multiplied together.
+//   realS     — actual elapsed wall-clock seconds of this scripted run (it taps far faster than a person, and runs game
+//               time 2× between beats, so this is NOT how long a person would take);
+//   runMin    — running game time: game minutes the clock actually advanced (paused, held and guide time add nothing);
+//   runRealMin— that running time at normal speed (GAME_MIN_PER_SEC = 2 → an open day of 660 game minutes is 5.5 min).
+// A person's reading, tapping and paused time is NOT measured here; the report estimates it separately and says so.
+const GAME_MIN_PER_SEC = 2, DAY_OPEN_MIN = 7 * 60, DAY_CLOSE = 18 * 60;
+let curSpeed = 1, runMin = 0, prev = null;
+const advanced = (a, b) => (b.day === a.day ? Math.max(0, b.clock - a.clock) : DAY_CLOSE - a.clock + (b.clock - DAY_OPEN_MIN) + (b.day - a.day - 1) * (DAY_CLOSE - DAY_OPEN_MIN));
 const milestones = {};
 const counts = { checkIns: 0, turnedAway: 0, plays: 0, baths: 0, mops: 0, checkouts: 0, complaintsAnswered: 0, momentsAnswered: 0, hires: 0, expansions: 0, tapsMissed: 0, dialogs: 0 };
 const note = async (page, what, extra = {}) => {
   const s = await page.evaluate(() => { const st = window.__tycoonState(); const f = st.facilities.f1; return { day: f.day, clock: f.clockMin, coins: st.coins, xp: st.xp }; }).catch(() => ({}));
-  playerS += ((Date.now() - lastT) / 1000) * curSpeed;
-  lastT = Date.now();
+  if (s.day != null && s.clock != null) {
+    if (prev) runMin += advanced(prev, s);
+    prev = { day: s.day, clock: s.clock };
+  }
   const hm = s.clock != null ? `${String(Math.floor(s.clock / 60)).padStart(2, '0')}:${String(Math.floor(s.clock % 60)).padStart(2, '0')}` : '';
-  const line = { realS: Math.round((Date.now() - t0) / 1000), playerMin: +(playerS / 60).toFixed(1), day: s.day, time: hm, coins: s.coins, what, ...extra };
+  const line = { realS: Math.round((Date.now() - t0) / 1000), runMin: Math.round(runMin), runRealMin: +(runMin / GAME_MIN_PER_SEC / 60).toFixed(1), day: s.day, time: hm, coins: s.coins, what, ...extra };
   log.push(line);
-  const mark = (key) => { if (!milestones[key]) milestones[key] = { playerMin: line.playerMin, realS: line.realS, day: s.day, time: hm, what }; };
+  const mark = (key) => { if (!milestones[key]) milestones[key] = { realS: line.realS, runMin: line.runMin, runRealMin: line.runRealMin, day: s.day, time: hm, what }; };
   if (/^checked .* out|^careTour done/.test(what)) mark('1 first visit complete');
   if (/no room for|asked today|arrives with no room/.test(what)) mark('2 capacity problem noticed');
   if (/^built /.test(what)) mark('3 expansion chosen, placed and connected');
@@ -549,7 +557,7 @@ const note = async (page, what, extra = {}) => {
   await note(page, 'session over', { xp: final.xp, rooms: f.rooms.map((r) => r.type), staff: f.staff.map((x) => x.role ?? 'founder'), outcomes: f.outcomes.length, reputation: f.reputation });
   await ctx.close();
   await browser.close();
-  const summary = { realMinutes: +((Date.now() - t0) / 60000).toFixed(1), playerMinutes: +(playerS / 60).toFixed(1), milestones, counts, errors, diag, final: { day: f.day, coins: final.coins, xp: final.xp, reputation: f.reputation, rooms: f.rooms.map((r) => `${r.type}${r.group ? ':' + r.group : ''}`), items: f.items.filter((i) => i.room === null && i.kind !== 'path').map((i) => i.kind), staff: f.staff.map((x) => `${x.name}:${x.role ?? 'founder'}`), asked: f.asked, ledger: f.ledger.map((l) => ({ day: l.day, income: l.income, expenses: l.expenses })), moods: f.outcomes.reduce((a, o) => ({ ...a, [`${o.how}:${o.mood}`]: (a[`${o.how}:${o.mood}`] ?? 0) + 1 }), {}), complaints: f.outcomes.flatMap((o) => o.complaints.map((c) => c.kind)), repLog: (f.repLog ?? []).slice(-25) } };
+  const summary = { realMinutes: +((Date.now() - t0) / 60000).toFixed(1), runningGameMinutes: Math.round(runMin), runningAtNormalSpeedMinutes: +(runMin / GAME_MIN_PER_SEC / 60).toFixed(1), milestones, counts, errors, diag, final: { day: f.day, coins: final.coins, xp: final.xp, reputation: f.reputation, rooms: f.rooms.map((r) => `${r.type}${r.group ? ':' + r.group : ''}`), items: f.items.filter((i) => i.room === null && i.kind !== 'path').map((i) => i.kind), staff: f.staff.map((x) => `${x.name}:${x.role ?? 'founder'}`), asked: f.asked, ledger: f.ledger.map((l) => ({ day: l.day, income: l.income, expenses: l.expenses })), moods: f.outcomes.reduce((a, o) => ({ ...a, [`${o.how}:${o.mood}`]: (a[`${o.how}:${o.mood}`] ?? 0) + 1 }), {}), complaints: f.outcomes.flatMap((o) => o.complaints.map((c) => c.kind)), repLog: (f.repLog ?? []).slice(-25) } };
   fs.writeFileSync(path.join(OUT, 'log.json'), JSON.stringify({ summary, log }, null, 1));
   console.log('\n' + JSON.stringify(summary, null, 1));
 })().catch((e) => { console.error(e); process.exit(1); });
