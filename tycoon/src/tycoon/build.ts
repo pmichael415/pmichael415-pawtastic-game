@@ -19,7 +19,7 @@ import { COLS, DOOR_PRICE, FLOORS, PARCELS, ROWS, SELL_RATE, WALL_COLORS, upgrad
 import { roomPrice } from "./grid";
 import { fac, withFac } from "./state";
 import { buildXp, gainXp, level } from "./progress";
-import { spend, today } from "./business";
+import { recordSale, spend, today } from "./business";
 import { PAID_GONE, PAID_LOCK, isActive, ownedPaid } from "./paid";
 import type { PaidItemId } from "@/lib/paidVisuals";
 import type { Door, FloorStyle, ParcelId, Rot, RoomType, TResult, ThingKind, TycoonState } from "./types";
@@ -166,7 +166,7 @@ export function removeDoor(s: TycoonState, roomUid: string, door: Door): TResult
   const after = updateRoom(s, next);
   const trapped = cutsOff(f, fac(after));
   if (trapped) return { ok: false, error: trapped };
-  return { ok: true, state: { ...after, coins: s.coins + back }, msg: `Door removed (+${back}).` };
+  return { ok: true, state: recordSale(after, back), msg: `Door removed (+${back}).` };
 }
 
 export function setRoomType(s: TycoonState, roomUid: string, type: RoomType, group?: GroupId): TResult {
@@ -226,7 +226,7 @@ export function sellRoom(s: TycoonState, roomUid: string): TResult {
   };
   const trapped = cutsOff(f, next);
   if (trapped) return { ok: false, error: trapped };
-  return { ok: true, state: { ...withFac(s, next), coins: s.coins + back }, msg: `Sold for ${back} coins.` };
+  return { ok: true, state: recordSale(withFac(s, next), back), msg: `Sold for ${back} coins.` };
 }
 
 // ---------- furniture, outdoor items, paths, land ----------
@@ -296,7 +296,7 @@ export function sellThing(s: TycoonState, uid: string): TResult {
   const nf = { ...f, items: f.items.filter((i) => i.uid !== uid) };
   const trapped = thing.kind === "path" ? cutsOff(f, nf) : null;
   if (trapped) return { ok: false, error: trapped };
-  return { ok: true, state: { ...withFac(s, nf), coins: s.coins + back }, msg: `Sold for ${back} coins.` };
+  return { ok: true, state: recordSale(withFac(s, nf), back), msg: `Sold for ${back} coins.` };
 }
 
 /** Paves every free, owned square in `tiles` (as many as the coins cover). */

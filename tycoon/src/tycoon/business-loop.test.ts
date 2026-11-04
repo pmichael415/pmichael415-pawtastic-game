@@ -51,7 +51,8 @@ function serve(s: TycoonState, paid: Paid[]): TycoonState {
         // a level reached by this checkout pays its own reward (bonus income, not part of the family's bill)
         let levelUp = 0;
         for (let n = lv0 + 1; n <= level(s); n++) levelUp += levelReward(n);
-        paid.push({ day: f.day, min: f.clockMin, dog: d.name, group: groupOf(d), room, total: receipt.total, incomeDelta: income1 - income0 - levelUp });
+        // and a loyalty milestone's reward is its own (bonus income, shown apart from the bill)
+        paid.push({ day: f.day, min: f.clockMin, dog: d.name, group: groupOf(d), room, total: receipt.total, incomeDelta: income1 - income0 - levelUp - (receipt.reward?.amount ?? 0) });
       }
     }
   }
@@ -164,6 +165,16 @@ describe("a receipt explains what each line earned", () => {
     for (const l of daycare) expect(l.label).toMatch(new RegExp(`^Daycare — \\d+% happy, so ${l.amount} of ${fac(r).prices.daycare}`));
     const tips = receipts.flatMap((o) => o.lines).filter((l) => /^Tip/.test(l.label) && !/told them/.test(l.label));
     for (const l of tips) expect(l.label).toMatch(/^Tip — (delighted|happy) with the day \(Appeal \d+\)$/);
+  });
+});
+
+describe("the bill is what the family paid; game rewards are shown apart (audit finding 2)", () => {
+  it("every receipt's total is the sum of its lines; a loyalty bonus is a separate reward, not part of the bill", () => {
+    const { s } = play(6);
+    const receipts = fac(s).outcomes;
+    for (const o of receipts) expect(o.total).toBe(o.lines.reduce((a, l) => a + l.amount, 0));
+    expect(receipts.some((o) => o.reward && o.reward.amount > 0)).toBe(true);
+    for (const o of receipts) expect(o.lines.some((l) => /Loyalty bonus/.test(l.label))).toBe(false);
   });
 });
 

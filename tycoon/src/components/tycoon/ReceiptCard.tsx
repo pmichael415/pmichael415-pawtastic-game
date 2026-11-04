@@ -24,6 +24,11 @@ export function ReceiptCard({ outcome, onClose }: { outcome: Outcome; onClose: (
         <details className="pointer-events-auto mt-1">
           <summary className="min-h-8 cursor-pointer text-xs font-semibold text-primary">See the bill</summary>
           <Receipt lines={outcome.lines} total={outcome.total} />
+          {outcome.reward && outcome.reward.amount > 0 && (
+            <p className="mt-1 text-xs text-secondary">
+              🎁 {outcome.reward.label}: +{outcome.reward.amount} coins <span className="text-muted-foreground">(a game reward, not part of the bill)</span>
+            </p>
+          )}
           {outcome.review && <p className="mt-2 text-xs text-muted-foreground">“{outcome.review.text}”</p>}
         </details>
       </div>

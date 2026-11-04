@@ -23,7 +23,7 @@ export const wageRecovery = (wage: Wage) => ({ lean: 0.8, standard: 1, generous:
 
 const zeroIncome = (): Record<IncomeKey, number> => ({ daycare: 0, boarding: 0, baths: 0, exitBaths: 0, tips: 0, bonus: 0 });
 const zeroExpenses = (): Record<ExpenseKey, number> => ({ wages: 0, upkeep: 0, supplies: 0, marketing: 0, building: 0, refunds: 0 });
-const emptyDay = (day: number): DayLedger => ({ day, income: zeroIncome(), expenses: zeroExpenses(), checkIns: 0, checkouts: 0 });
+const emptyDay = (day: number): DayLedger => ({ day, income: zeroIncome(), expenses: zeroExpenses(), sales: 0, checkIns: 0, checkouts: 0 });
 
 /** Today's ledger entry (a fresh one if today has none yet). */
 export const today = (f: Facility): DayLedger => {
@@ -88,6 +88,13 @@ export function earn(s: TycoonState, parts: Partial<Record<IncomeKey, number>>):
     return { ...d, income };
   });
   return withFac({ ...s, coins: s.coins + total }, f);
+}
+
+/** Adds what selling a room, a door or a thing paid back, recorded as today's sale proceeds (not service revenue). */
+export function recordSale(s: TycoonState, amount: number): TycoonState {
+  if (!(amount > 0)) return s;
+  const f = withToday(fac(s), (d) => ({ ...d, sales: (d.sales ?? 0) + amount }));
+  return withFac({ ...s, coins: s.coins + amount }, f);
 }
 
 /** Takes coins and records them as today's expense. Paused while coins are below zero. */

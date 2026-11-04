@@ -458,9 +458,10 @@ export function settle(s: TycoonState, dogId: string, how: Outcome["how"], exitB
     how,
     mood: a.mood,
     satisfaction: a.satisfaction,
-    // the receipt is everything this family paid, a loyalty milestone bonus included (it was income too)
-    total: a.total + bonus,
-    lines: [...a.lines.map((l) => ({ label: l.label, amount: l.amount })), ...(bonus && milestone ? [{ label: `Loyalty bonus — ${v.owner}'s family are now ${milestone.label}s`, amount: bonus }] : [])],
+    // the bill is what the family paid; a loyalty milestone bonus is a game reward, shown apart (audit finding 2)
+    total: a.total,
+    lines: a.lines.map((l) => ({ label: l.label, amount: l.amount })),
+    reward: bonus && milestone ? { label: `Loyalty bonus — ${v.owner}'s family are now ${milestone.label}s`, amount: bonus } : null,
     complaints: a.complaints.map((c) => ({ kind: c.kind, text: c.text, remedy: c.remedy, resolved: c.resolved })),
     repDelta: Math.round((st.reputation - repBefore) * 10) / 10,
     review,

@@ -127,6 +127,8 @@ export type Outcome = {
   satisfaction: number;
   total: number;
   lines: { label: string; amount: number }[];
+  /** A game reward that came with this visit (a loyalty milestone): shown apart from the bill, recorded as bonus income. */
+  reward?: { label: string; amount: number } | null;
   complaints: { kind: ComplaintKind; text: string; remedy: RemedyKind | null; resolved: boolean }[];
   repDelta: number;
   review: Review | null;
@@ -177,7 +179,11 @@ export type CampaignId = "flyers" | "online" | "openhouse";
 export type IncomeKey = "daycare" | "boarding" | "baths" | "exitBaths" | "tips" | "bonus";
 export type ExpenseKey = "wages" | "upkeep" | "supplies" | "marketing" | "building" | "refunds";
 
-export type DayLedger = { day: number; income: Record<IncomeKey, number>; expenses: Record<ExpenseKey, number>; checkIns: number; checkouts: number };
+/**
+ * One game day's books. `sales` is what selling rooms, doors and things paid back (75%): money in, but not revenue
+ * from serving families. Coins always equal opening coins + Σ income + sales − Σ expenses (audit finding 2).
+ */
+export type DayLedger = { day: number; income: Record<IncomeKey, number>; expenses: Record<ExpenseKey, number>; sales: number; checkIns: number; checkouts: number };
 export type TReport = {
   day: number;
   income: number;

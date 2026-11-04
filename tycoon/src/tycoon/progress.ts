@@ -45,13 +45,25 @@ export function gainXp(s: TycoonState, amount: number, onLevel: ((n: number) => 
  * Finances add up). Local, not business.earn, because business imports this module.
  */
 function withBonusIncome(s: TycoonState, amount: number): TycoonState {
+  if (!(amount > 0)) return s;
   const f = s.facilities?.[s.active];
   if (!f) return { ...s, coins: s.coins + amount };
   const last = f.ledger[f.ledger.length - 1];
+  // today's entry, created when the day has none yet (an old save, or nothing recorded so far today)
   const ledger =
     last && last.day === f.day
       ? [...f.ledger.slice(0, -1), { ...last, income: { ...last.income, bonus: last.income.bonus + amount } }]
-      : f.ledger;
+      : [
+          ...f.ledger,
+          {
+            day: f.day,
+            income: { daycare: 0, boarding: 0, baths: 0, exitBaths: 0, tips: 0, bonus: amount },
+            expenses: { wages: 0, upkeep: 0, supplies: 0, marketing: 0, building: 0, refunds: 0 },
+            sales: 0,
+            checkIns: 0,
+            checkouts: 0,
+          },
+        ].slice(-14);
   return { ...s, coins: s.coins + amount, facilities: { ...s.facilities, [s.active]: { ...f, ledger } } };
 }
 

@@ -229,6 +229,7 @@ function parseOutcomes(x: unknown): Outcome[] {
         .filter((c): c is Record<string, unknown> => isObj(c) && COMPLAINTS.includes(c["kind"] as ComplaintKind))
         .map((c) => ({ kind: c["kind"] as ComplaintKind, text: str(c["text"], ""), remedy: REMEDIES.includes(c["remedy"] as RemedyKind) ? (c["remedy"] as RemedyKind) : null, resolved: bool(c["resolved"], false) }))
         .slice(0, 6),
+      reward: isObj(o["reward"]) && typeof o["reward"]["label"] === "string" ? { label: (o["reward"]["label"] as string).slice(0, 80), amount: Math.max(0, Math.round(num(o["reward"]["amount"], 0))) } : null,
       repDelta: clamp(num(o["repDelta"], 0), -20, 20),
       review: parseReviews([o["review"]])[0] ?? null,
     });
@@ -254,6 +255,7 @@ function parseLedger(x: unknown): DayLedger[] {
       day: int(e["day"], 0),
       income: { daycare: num(inc["daycare"], 0), boarding: num(inc["boarding"], 0), baths: num(inc["baths"], 0), exitBaths: num(inc["exitBaths"], 0), tips: num(inc["tips"], 0), bonus: num(inc["bonus"], 0) },
       expenses: { wages: num(exp["wages"], 0), upkeep: num(exp["upkeep"], 0), supplies: num(exp["supplies"], 0), marketing: num(exp["marketing"], 0), building: num(exp["building"], 0), refunds: num(exp["refunds"], 0) },
+      sales: Math.max(0, num(e["sales"], 0)), // added with audit finding 2; older saves have none
       checkIns: Math.max(0, int(e["checkIns"], 0)),
       checkouts: Math.max(0, int(e["checkouts"], 0)),
     });
