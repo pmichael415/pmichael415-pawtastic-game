@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { caps } from "./connect";
+import { caps, connectedRooms } from "./connect";
 import { fac, newTycoon } from "./state";
 import { ok } from "./testkit";
 import { startTour } from "./tour";
@@ -16,6 +16,16 @@ describe("the tour's one-tap choices", () => {
     const spentBefore = fac(s).rooms.reduce((n, r) => n + r.spent, 0) + fac(s).items.reduce((n, i) => n + i.spent, 0);
     const spentAfter = fac(after).rooms.reduce((n, r) => n + r.spent, 0) + fac(after).items.reduce((n, i) => n + i.spent, 0);
     expect(spentAfter - spentBefore).toBe(cost);
+  });
+  it("the new playroom joins the building — next to a room, with a door into it — not out on the lot behind a path (play-session finding)", () => {
+    const s = startTour({ ...newTycoon(0), coins: 5000 }, "quick", 0);
+    const after = ok(buildPlayroomFor(s, "large-active"));
+    const f = fac(after);
+    const room = f.rooms.at(-1)!;
+    expect(connectedRooms(f).has(room.uid)).toBe(true);
+    const touching = fac(s).rooms.some((r) => room.c < r.c + r.w + 1 && r.c < room.c + room.w + 1 && room.r < r.r + r.d + 1 && r.r < room.r + room.d + 1);
+    expect(touching).toBe(true);
+    expect(f.items.filter((i) => i.kind === "path").length).toBe(fac(s).items.filter((i) => i.kind === "path").length);
   });
   it("letting a pup rest sends them home free, from the lobby, with no pay", () => {
     const s = startTour(newTycoon(0), "quick", 0);

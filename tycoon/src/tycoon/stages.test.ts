@@ -56,6 +56,24 @@ describe("facility stages", () => {
   });
 });
 
+describe("the next objective names the next stage's next step", () => {
+  it("with nothing urgent, Next is the next thing the stage needs, with its price and progress — not a vague 'keep growing'", async () => {
+    const { nextObjective } = await import("./objectives");
+    const { hire } = await import("./team");
+    const { withFac } = await import("./state");
+    let s = grow(ready(), "playroom");
+    s = ok(hire(ok(hire(s, "reception")), "attendant"));
+    s = withFac(s, { ...fac(s), open: true, clockMin: 9 * 60, introDay: 0, stats: { ...fac(s).stats, checkouts: 3 } });
+    const o = nextObjective({ ...s, coins: 300 });
+    expect(o.id).toBe("stage-bath");
+    expect(o.title).toMatch(/bath station/i);
+    expect(o.detail).toMatch(/Full-service/);
+    expect(o.action).toBe("expand");
+    expect(o.progress?.[0]).toBe(300);
+    expect(o.progress?.[1]).toBeGreaterThan(300);
+  });
+});
+
 describe("the goal ladder follows the stages", () => {
   it("after a profitable day, the long goal is the next stage, with what it still needs", () => {
     expect(longGoal({ ...ready(), bestProfit: 0 }).id).toBe("long-profit");

@@ -1,7 +1,8 @@
 // PAWtastic Daycare Tycoon — the tour's one-tap choices (Stage A), made of the normal game actions so they follow
 // every rule: building a playroom with a dog spot for the decision pup, or letting a pup rest and go home free.
 import { groupName, type GroupId } from "@/game/engine";
-import { placeFirstFree, placeThing } from "./build";
+import { placeFirstFree, placeThing, setRoomType } from "./build";
+import { attachedRoom } from "./expansion";
 import { roomTiles } from "./grid";
 import { checkout, toCalm } from "./run";
 import { fac, withFac } from "./state";
@@ -9,9 +10,14 @@ import type { Facility, TResult, TycoonState } from "./types";
 
 const spent = (f: Facility) => f.rooms.reduce((n, r) => n + r.spent, 0) + f.items.reduce((n, i) => n + i.spent, 0);
 
-/** A playroom for this group (first free spot, with its door and path) plus one Dog Bed inside it. */
+/**
+ * A playroom for this group plus one Dog Bed inside it: joined to the building (next to a room, with a door into it)
+ * when there's a spot, else at the first free spot on the lot with its door and path.
+ */
 export function buildPlayroomFor(s: TycoonState, group: GroupId): TResult {
-  const r = placeFirstFree(s, { room: "playroom", group });
+  const joined = attachedRoom(s, 3, 3);
+  const typed = joined ? setRoomType(joined.state, joined.uid, "playroom", group) : null;
+  const r = typed && typed.ok ? typed : placeFirstFree(s, { room: "playroom", group });
   if (!r.ok) return r;
   const room = fac(r.state).rooms.at(-1)!;
   for (const t of roomTiles(room)) {

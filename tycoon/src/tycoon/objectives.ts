@@ -2,7 +2,7 @@
 // from the save. Recovery comes first: when income is blocked, the next objective is the free fix.
 import { WAGES } from "./business";
 import { canOpen, caps } from "./connect";
-import { EXPANSION_LEVEL, askedToday, demandGroup, expansionOptions } from "./expansion";
+import { EXPANSION_LEVEL, EXPANSION_LEVELS, askedToday, demandGroup, expansionOptions, type ExpansionId } from "./expansion";
 import { groupName } from "@/game/engine";
 import { pickupView } from "./pickup";
 import { level, xpForLevel } from "./progress";
@@ -11,9 +11,11 @@ import { ROLE_NAME } from "./roles";
 import { fac } from "./state";
 import { hireCostFor, recommendRole } from "./team";
 import { waitStage } from "./waiting";
-import { facilityStage } from "./stages";
+import { facilityStage, type GrowthWay } from "./stages";
 import type { TycoonState } from "./types";
 
+/** Which way to grow builds each part of a facility stage. */
+const WAY_EXPANSION: Record<GrowthWay, ExpansionId> = { playrooms: "playroom", bath: "bath", boarding: "boarding", yard: "yard", staff: "staff" };
 export type ObjectiveAction = "team" | "expand" | "finances" | "build";
 export type Objective = { id: string; title: string; detail: string; progress?: [number, number]; action?: ObjectiveAction };
 const coins = (n: number) => n.toLocaleString("en-US");
@@ -53,6 +55,15 @@ export function nextObjective(s: TycoonState): Objective {
     return { id: "expand", title: "Choose your first expansion", detail: "Five ways to grow — more families, new services, comfort or your team — or keep saving. Compare what each costs and makes possible, then choose where it goes.", action: "expand", ...(Number.isFinite(cheapest) ? { progress: [Math.max(0, Math.min(s.coins, cheapest)), cheapest] as [number, number] } : {}) };
   }
   if (!f.staff.some((x) => x.role === "attendant")) return { id: "attendant", title: "Hire a daycare attendant", detail: "Busy days need someone keeping pups happy while you run the business.", action: "team" };
+  // nothing urgent: the next step toward the next facility stage, with its price and how close you are
+  const st = facilityStage(f);
+  const need = st.next?.needs.find((n) => !n.done);
+  if (st.next && need) {
+    const id = WAY_EXPANSION[need.way];
+    const o = expansionOptions(s).find((x) => x.id === id);
+    if (o && level(s) < EXPANSION_LEVELS[id]) return { id: `stage-${id}`, title: `Reach level ${EXPANSION_LEVELS[id]} for ${need.label}`, detail: `It's the next step to a ${st.next.name}. Every check-in, play and happy checkout earns experience.`, progress: [s.xp - xpForLevel(level(s)), xpForLevel(EXPANSION_LEVELS[id]) - xpForLevel(level(s))] };
+    if (o && o.cost > 0) return { id: `stage-${id}`, title: `Next: ${need.label}`, detail: `A step to a ${st.next.name}. ${o.unlocks}`, action: "expand", progress: [Math.max(0, Math.min(s.coins, o.cost)), o.cost] };
+  }
   return { id: "grow", title: "Keep the families happy and grow", detail: "Watch the Today strip: when revenue beats wages comfortably, hire or expand again.", action: "finances" };
 }
 

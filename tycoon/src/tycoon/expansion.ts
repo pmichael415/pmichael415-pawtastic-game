@@ -158,6 +158,20 @@ function yardPlans(s: TycoonState): YardPlan[] {
   return spread(all, 3, far).map(({ rank: _rank, ...p }) => p);
 }
 
+/**
+ * A new w × d room joined to the building: at the first offered spot next to a connected room, with a door into it
+ * (the same spots the expansions offer). Null when there's no such spot. Used by the tour's one-tap playroom.
+ */
+export function attachedRoom(s: TycoonState, w: number, d: number): { state: TycoonState; uid: string } | null {
+  const plan = roomPlans(s, w, d)[0];
+  if (!plan) return null;
+  const a = drawRoom(s, plan.c, plan.r, plan.w, plan.d);
+  if (!a.ok) return null;
+  const uid = newest(a.state);
+  const b = addDoor(a.state, uid, plan.door);
+  return b.ok ? { state: b.state, uid } : null;
+}
+
 const working = (s: TycoonState, uid: string) => {
   const f = fac(s);
   const room = f.rooms.find((r) => r.uid === uid);
