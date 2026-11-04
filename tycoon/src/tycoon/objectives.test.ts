@@ -60,8 +60,8 @@ describe("the longer-term goal", () => {
       expect(o.long.id).not.toBe(o.next.id);
     }
   });
-  it("climbs: a profitable day, then a team of 3 with a bath station", () => {
+  it("climbs: a profitable day, then the next facility stage (see stages.test.ts)", () => {
     expect(longGoal(started()).id).toBe("long-profit");
-    expect(longGoal({ ...started(), bestProfit: 50 }).id).toBe("long-team");
+    expect(longGoal({ ...started(), bestProfit: 50 }).id).toBe("long-stage-growing");
   });
 });

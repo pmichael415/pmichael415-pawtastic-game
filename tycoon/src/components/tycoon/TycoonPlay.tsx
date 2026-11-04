@@ -61,6 +61,8 @@ import { EditPanel } from "./EditPanel";
 import { GuideCard } from "./GuideCard";
 import { WeeklyCard } from "./WeeklyCard";
 import { LevelUp } from "./LevelUp";
+import { StageUp } from "./StageUp";
+import { facilityStage } from "@/tycoon/stages";
 import { ListView } from "./ListView";
 import { PaintSheet } from "./PaintSheet";
 import { RunHud } from "./RunHud";
@@ -182,8 +184,18 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
   const [repOpen, setRepOpen] = useState(false);
   const [teamOpen, setTeamOpen] = useState(false);
   const [diagUi, setDiagUi] = useState(diagOn());
-  // A level-up or the day's report covers the screen: time stops until it's closed (no one waits while you can't act).
-  const blocking = (!tourHolds(state) && state.pendingLevel != null) || !!fac(state).report;
+  // A new facility stage is celebrated once: worked out from the layout, compared with the highest seen since the
+  // screen opened (so loading a grown daycare, or reopening a closed room, isn't celebrated again).
+  const stageNow = facilityStage(fac(state));
+  const bestStage = useRef(stageNow.index);
+  const [stageUp, setStageUp] = useState(false);
+  useEffect(() => {
+    if (stageNow.index > bestStage.current) setStageUp(true);
+    bestStage.current = Math.max(bestStage.current, stageNow.index);
+  }, [stageNow.index]);
+  // A level-up, a new stage or the day's report covers the screen: time stops until it's closed (no one waits while
+  // you can't act).
+  const blocking = (!tourHolds(state) && (state.pendingLevel != null || stageUp)) || !!fac(state).report;
   const autoPaused = useRef(false);
   useEffect(() => {
     if (blocking && !paused) {
@@ -622,6 +634,16 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
       {teamOpen && <TeamSheet state={state} act={act} onClose={() => setTeamOpen(false)} />}
       {receipt && <ReceiptCard outcome={receipt} onClose={() => setReceipt(null)} />}
       {/* Held during the guided tour (the level and its coins are already earned): nothing covers the first pup. */}
+      {/* after any level-up, so two celebrations never stack */}
+      {!holding && stageUp && state.pendingLevel == null && (
+        <StageUp
+          stage={stageNow}
+          onClose={() => {
+            setStageUp(false);
+            if (!settings.reducedMotion) fx("confetti", "hud");
+          }}
+        />
+      )}
       {!holding && <LevelUp
         state={state}
         set={(fn) => {

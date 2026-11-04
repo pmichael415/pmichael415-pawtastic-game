@@ -10,17 +10,15 @@ import { ROLE_NAME } from "./roles";
 import { fac } from "./state";
 import { hireCostFor, recommendRole } from "./team";
 import { waitStage } from "./waiting";
+import { facilityStage } from "./stages";
 import type { TycoonState } from "./types";
 
 export type ObjectiveAction = "team" | "expand" | "finances" | "build";
 export type Objective = { id: string; title: string; detail: string; progress?: [number, number]; action?: ObjectiveAction };
 const coins = (n: number) => n.toLocaleString("en-US");
 
-/** True once the daycare has grown past the starter layout (a bath station or a second playroom). */
-export const hasExpanded = (s: TycoonState) => {
-  const f = fac(s);
-  return caps(f).tubs.length > 0 || caps(f).playrooms.length >= 2;
-};
+/** True once the daycare has grown past the starter layout (any of the five ways to grow — a Growing daycare). */
+export const hasExpanded = (s: TycoonState) => facilityStage(fac(s)).index >= 1;
 
 export function nextObjective(s: TycoonState): Objective {
   const f = fac(s);
@@ -44,22 +42,30 @@ export function nextObjective(s: TycoonState): Objective {
   if (!hasExpanded(s)) {
     if (level(s) < EXPANSION_LEVEL) return { id: "level-expand", title: `Reach level ${EXPANSION_LEVEL} to unlock your first expansion`, detail: "Every check-in, play and happy checkout earns experience.", progress: [s.xp - xpForLevel(level(s)), xpForLevel(EXPANSION_LEVEL) - xpForLevel(level(s))] };
     const cheapest = Math.min(...expansionOptions(s).map((o) => o.cost).filter((c) => c > 0));
-    return { id: "expand", title: "Choose your first expansion", detail: "A playroom wing or a bath station — or keep saving. Compare the costs, capacity and staffing.", action: "expand", ...(Number.isFinite(cheapest) ? { progress: [Math.max(0, Math.min(s.coins, cheapest)), cheapest] as [number, number] } : {}) };
+    return { id: "expand", title: "Choose your first expansion", detail: "Five ways to grow — more families, new services, comfort or your team — or keep saving. Compare what each costs and makes possible, then choose where it goes.", action: "expand", ...(Number.isFinite(cheapest) ? { progress: [Math.max(0, Math.min(s.coins, cheapest)), cheapest] as [number, number] } : {}) };
   }
   if (!f.staff.some((x) => x.role === "attendant")) return { id: "attendant", title: "Hire a daycare attendant", detail: "Busy days need someone keeping pups happy while you run the business.", action: "team" };
   return { id: "grow", title: "Keep the families happy and grow", detail: "Watch the Today strip: when revenue beats wages comfortably, hire or expand again.", action: "finances" };
 }
 
-/** The longer-term ladder: a profitable day → a team of 3 with a bath station → level 6 with 2 playrooms. */
+/**
+ * The longer-term ladder: a profitable day, then the facility stages (Growing → Full-service → Campus) with what the
+ * next one still needs, then a second location.
+ */
 export function longGoal(s: TycoonState): Objective {
   const f = fac(s);
   if (s.bestProfit <= 0) return { id: "long-profit", title: "Have a profitable day", detail: "Earn more than the day's wages, upkeep and supplies by closing time (18:00).", action: "finances" };
-  const team = f.staff.length;
-  const bath = caps(f).tubs.length > 0;
-  if (team < 3 || !bath) return { id: "long-team", title: "Build a team of 3 and a bath station", detail: `${team} of 3 on the team${bath ? ", bath station built" : ", no bath station yet"}.`, progress: [Math.min(3, team) + (bath ? 1 : 0), 4] };
-  const play = caps(f).playrooms.length;
-  if (level(s) < 6 || play < 2) return { id: "long-location", title: "Reach level 6 with 2 playrooms", detail: "Then you're ready to plan a second PAWtastic location (Hawthorne and Hillsdale come next).", progress: [Math.min(s.xp, xpForLevel(6)), xpForLevel(6)] };
-  return { id: "long-next", title: "A second location is the next milestone", detail: "Coming in a future update: plan Hawthorne or Hillsdale (fictional layouts)." };
+  const st = facilityStage(f);
+  if (st.next) {
+    const n = st.next;
+    const list = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} ${n.anyOf ? "or" : "and"} ${xs.at(-1)}`);
+    const todo = n.needs.filter((x) => !x.done).map((x) => x.label);
+    const detail = n.anyOf
+      ? `You're a ${st.name}. Grow one way — ${list(n.needs.map((x) => x.label))}. ${n.means}`
+      : `You're a ${st.name}. Still to build: ${list(todo)}. ${n.means}`;
+    return { id: `long-stage-${n.id}`, title: `Grow into a ${n.name}`, detail, progress: n.progress, action: "expand" };
+  }
+  return { id: "long-next", title: "A second location is the next milestone", detail: "You've built a whole PAWtastic campus. Coming in a future update: plan Hawthorne or Hillsdale (fictional layouts)." };
 }
 
 export function objectives(s: TycoonState): { next: Objective; long: Objective } {

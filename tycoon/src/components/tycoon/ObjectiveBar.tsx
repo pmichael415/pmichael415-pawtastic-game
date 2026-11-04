@@ -4,6 +4,8 @@ import { Progress } from "@/components/ui/progress";
 import { EXPANSION_LEVEL } from "@/tycoon/expansion";
 import { objectives, type Objective, type ObjectiveAction } from "@/tycoon/objectives";
 import { level } from "@/tycoon/progress";
+import { facilityStage } from "@/tycoon/stages";
+import { fac } from "@/tycoon/state";
 import type { TycoonState } from "@/tycoon/types";
 
 const ACTION_LABEL: Record<ObjectiveAction, string> = { team: "Open Team", expand: "See options", finances: "Finances", build: "Start building" };
@@ -11,6 +13,7 @@ const pct = (o: Objective) => (o.progress ? Math.round((100 * o.progress[0]) / M
 
 export function ObjectiveBar({ state, onAction }: { state: TycoonState; onAction: (a: ObjectiveAction) => void }) {
   const { next, long } = objectives(state);
+  const stage = facilityStage(fac(state));
   return (
     <section aria-label="Objectives" className="space-y-2 rounded-2xl border border-border bg-card p-3 shadow-soft">
       <div className="flex items-start gap-2">
@@ -27,7 +30,12 @@ export function ObjectiveBar({ state, onAction }: { state: TycoonState; onAction
         )}
       </div>
       <div className="border-t border-border pt-2">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Goal</p>
+        <p className="flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+          <span>Goal</span>
+          <span data-testid="facility-stage" className="rounded-full bg-accent/40 px-2 py-0.5 normal-case tracking-normal text-secondary">
+            {stage.name} · stage {stage.index + 1} of 4
+          </span>
+        </p>
         <p data-testid="objective-long" className="text-sm font-semibold text-secondary">{long.title}</p>
         <p className="text-xs text-muted-foreground">{long.detail}</p>
         {pct(long) !== null && <Progress value={pct(long)!} className="mt-1 h-1.5" aria-label={`${long.title}: ${pct(long)}%`} />}

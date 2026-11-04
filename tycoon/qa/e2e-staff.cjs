@@ -139,6 +139,8 @@ async function run(browser, label, opts) {
     // ---------- 5. the family comes back; the receptionist sends them home; the bill is right ----------
     const coinsBefore = (await st()).coins;
     const bonusBefore = (await f()).ledger.at(-1)?.income.bonus ?? 0;
+    // another family checked in meanwhile can prepay a bath at the desk: that's their money, not part of Luna's bill
+    const inBefore = new Set((await f()).dogs.filter((d) => d.checkedIn).map((d) => d.id));
     await page.evaluate(() => window.__tycoonSet((s) => {
       const f1 = s.facilities.f1;
       return { ...s, pendingLevel: null, facilities: { f1: { ...f1, cleanliness: 95, roomClean: Object.fromEntries(f1.rooms.map((r) => [r.uid, 95])), dogs: f1.dogs.map((d) => (d.id === 'e1' ? { ...d, happiness: Math.max(d.happiness, 85), visit: { ...d.visit, pickup: f1.clockMin + 2 } } : d)) } } };
@@ -150,7 +152,8 @@ async function run(browser, label, opts) {
     check(`${label}: Luna went home with Taylor (a routine pickup by the receptionist)`, o.dog === 'Luna' && o.how === 'checkout');
     check(`${label}: the bill has the daycare and the bath, each once`, bathLines.length === 1 && dayLines.length === 1, o.lines.map((l) => `${l.label} ${l.amount}`).join(' · '));
     const bonus = ((await f()).ledger.at(-1)?.income.bonus ?? 0) - bonusBefore;
-    check(`${label}: coins rose by exactly the bill`, (await st()).coins - coinsBefore === o.total + bonus, `${(await st()).coins - coinsBefore} vs ${o.total} + bonus ${bonus}`);
+    const prepaidOthers = (await f()).dogs.filter((d) => d.checkedIn && !inBefore.has(d.id)).reduce((a, d) => a + (d.visit?.paid ?? 0), 0);
+    check(`${label}: coins rose by exactly the bill`, (await st()).coins - coinsBefore === o.total + bonus + prepaidOthers, `${(await st()).coins - coinsBefore} vs ${o.total} + bonus ${bonus} + others' prepaid ${prepaidOthers}`);
     await page.getByRole('region', { name: 'Receipt' }).waitFor({ timeout: 5000 }).catch(() => {});
     check(`${label}: a receipt shows the result`, (await page.getByRole('region', { name: 'Receipt' }).count()) === 1);
     if ((await page.getByRole('region', { name: 'Receipt' }).count()) === 1) await shot('4-receipt');
