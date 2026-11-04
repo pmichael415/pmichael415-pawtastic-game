@@ -1,6 +1,6 @@
 // The business screen (spec §3): Summary with a 14-day profit chart, Prices, Staff, Upkeep, Marketing, and the
 // trophy shelf. All amounts are game coins.
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
@@ -8,7 +8,7 @@ import { MAX_STAFF, hireCost } from "@/game/engine";
 import { track } from "@/lib/analytics";
 import { CAMPAIGNS, PRICE_RANGES, furnitureDef, outdoorDef, ROOM_TYPE_NAMES } from "@/tycoon/catalog";
 import { setClosed } from "@/tycoon/build";
-import { SUPPLY_COST, WAGES, campaignBoost, demand, facilityUpkeep, fairPrice, setPrice, setSupplies, setWage, startCampaign, upkeepOf } from "@/tycoon/business";
+import { SUPPLY_COST, WAGES, campaignBoost, dayExpenses, dayMoney, demand, facilityUpkeep, fairPrice, setPrice, setSupplies, setWage, startCampaign, upkeepOf } from "@/tycoon/business";
 import { funAppeal } from "@/tycoon/effects";
 import { level } from "@/tycoon/progress";
 import { hireStaff } from "@/tycoon/run";
@@ -21,22 +21,26 @@ type Act = (fn: (s: TycoonState) => TResult, opts?: ActOpts) => ActResult;
 const TABS = ["Summary", "Prices", "Staff", "Upkeep", "Marketing"] as const;
 type Tab = (typeof TABS)[number];
 
-const INCOME: [IncomeKey, string][] = [["daycare", "Daycare"], ["boarding", "Boarding"], ["baths", "Baths"], ["exitBaths", "Exit baths"], ["tips", "Tips"], ["bonus", "Bonuses"]];
+const INCOME: [IncomeKey, string][] = [["daycare", "Daycare"], ["boarding", "Boarding"], ["baths", "Baths"], ["exitBaths", "Exit baths"], ["tips", "Tips"]];
 const EXPENSES: [ExpenseKey, string][] = [["wages", "Wages"], ["upkeep", "Upkeep"], ["supplies", "Supplies"], ["marketing", "Marketing"], ["refunds", "Refunds"]];
 const PROFIT = "#2a78d6";
 const LOSS = "#d0473f";
 
 const sum = (r: Record<string, number>) => Object.values(r).reduce((a, n) => a + n, 0);
 /** What running the daycare made that day: income minus running costs. Building is an investment, shown apart. */
-const profitOf = (d: DayLedger) => sum(d.income) - (sum(d.expenses) - d.expenses.building);
+const profitOf = (d: DayLedger) => dayMoney(d).profitAtClose;
 const fmt = (n: number) => (n > 0 ? `+${n.toLocaleString()}` : n.toLocaleString());
 
-function addUp(days: DayLedger[]) {
+function addUp(days: DayLedger[], dueTonight = 0) {
   const income = Object.fromEntries(INCOME.map(([k]) => [k, days.reduce((a, d) => a + d.income[k], 0)])) as Record<IncomeKey, number>;
   const expenses = Object.fromEntries(EXPENSES.map(([k]) => [k, days.reduce((a, d) => a + d.expenses[k], 0)])) as Record<ExpenseKey, number>;
-  const invested = days.reduce((a, d) => a + d.expenses.building, 0);
-  const profit = sum(income) - sum(expenses); // running costs only: building isn't in EXPENSES
-  return { income, expenses, profit, invested, change: profit - invested };
+  // the same calculation as the Today strip and the day report (audit finding 5)
+  const m = days.map((d) => dayMoney(d)).reduce(
+    (a, x) => ({ revenue: a.revenue + x.revenue, bonuses: a.bonuses + x.bonuses, sales: a.sales + x.sales, costs: a.costs + x.costsSoFar, invested: a.invested + x.invested }),
+    { revenue: 0, bonuses: 0, sales: 0, costs: 0, invested: 0 },
+  );
+  const profit = m.revenue - m.costs - dueTonight;
+  return { income, expenses, dueTonight, revenue: m.revenue, bonuses: m.bonuses, sales: m.sales, profit, invested: m.invested, change: profit + m.bonuses + m.sales - m.invested };
 }
 
 /** 14-day profit, one bar per game day from a zero line: blue up for profit, red down for a loss. */
@@ -100,11 +104,31 @@ function Summary({ f }: { f: Facility }) {
   const today = ledger.find((d) => d.day === f.day) ?? null;
   const yesterday = ledger.find((d) => d.day === f.day - 1) ?? null;
   const week = ledger.filter((d) => d.day > f.day - 7);
+  // today's column also counts what closing will charge tonight, so its profit is the day's, as the Today strip shows
+  const due = dayExpenses(f);
+  const tonight = due.wages + due.upkeep + due.supplies;
   const cols = [
-    { name: "Today", v: addUp(today ? [today] : []) },
+    { name: "Today", v: addUp(today ? [today] : [], tonight) },
     { name: "Yesterday", v: addUp(yesterday ? [yesterday] : []) },
-    { name: "7 days", v: addUp(week) },
+    { name: "7 days", v: addUp(week, tonight) },
   ];
+  const row = (label: string, value: (v: (typeof cols)[number]["v"]) => string, cls = "") => (
+    <tr className={cls}>
+      <td className={cls.includes("font-bold") ? "pt-1" : ""}>{label}</td>
+      {cols.map((c) => (
+        <td key={c.name} className={`text-right tabular-nums ${cls.includes("font-bold") ? "pt-1" : ""}`}>
+          {value(c.v)}
+        </td>
+      ))}
+    </tr>
+  );
+  const head = (label: string) => (
+    <tr>
+      <td colSpan={4} className="pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </td>
+    </tr>
+  );
   return (
     <div>
       <table className="w-full text-sm">
@@ -119,63 +143,23 @@ function Summary({ f }: { f: Facility }) {
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td colSpan={4} className="pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Income
-            </td>
-          </tr>
-          {INCOME.map(([k, name]) => (
-            <tr key={k}>
-              <td>{name}</td>
-              {cols.map((c) => (
-                <td key={c.name} className="text-right tabular-nums">
-                  {c.v.income[k].toLocaleString()}
-                </td>
-              ))}
-            </tr>
-          ))}
-          <tr>
-            <td colSpan={4} className="pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Running costs
-            </td>
-          </tr>
-          {EXPENSES.map(([k, name]) => (
-            <tr key={k}>
-              <td>{name}</td>
-              {cols.map((c) => (
-                <td key={c.name} className="text-right tabular-nums">
-                  {c.v.expenses[k].toLocaleString()}
-                </td>
-              ))}
-            </tr>
-          ))}
-          <tr className="border-t border-border font-bold text-secondary">
-            <td className="pt-1">Profit</td>
-            {cols.map((c) => (
-              <td key={c.name} className="pt-1 text-right tabular-nums">
-                {fmt(c.v.profit)}
-              </td>
-            ))}
-          </tr>
-          <tr>
-            <td>Invested in building</td>
-            {cols.map((c) => (
-              <td key={c.name} className="text-right tabular-nums">
-                {c.v.invested.toLocaleString()}
-              </td>
-            ))}
-          </tr>
-          <tr className="text-muted-foreground">
-            <td>Change in coins</td>
-            {cols.map((c) => (
-              <td key={c.name} className="text-right tabular-nums">
-                {fmt(c.v.change)}
-              </td>
-            ))}
-          </tr>
+          {head("Revenue from families")}
+          {INCOME.map(([k, name]) => <Fragment key={k}>{row(name, (v) => v.income[k].toLocaleString())}</Fragment>)}
+          {row("Revenue", (v) => v.revenue.toLocaleString(), "font-semibold text-secondary")}
+          {head("Operating costs")}
+          {EXPENSES.map(([k, name]) => <Fragment key={k}>{row(name, (v) => v.expenses[k].toLocaleString())}</Fragment>)}
+          {row("Due tonight (wages, upkeep, supplies)", (v) => (v.dueTonight ? v.dueTonight.toLocaleString() : "—"), "text-muted-foreground")}
+          {row("Operating profit", (v) => fmt(v.profit), "border-t border-border font-bold text-secondary")}
+          {head("Apart from running the daycare")}
+          {row("Bonuses (game rewards)", (v) => v.bonuses.toLocaleString())}
+          {row("Sale proceeds", (v) => v.sales.toLocaleString())}
+          {row("Invested in building", (v) => v.invested.toLocaleString())}
+          {row("Change in coins", (v) => fmt(v.change), "text-muted-foreground")}
         </tbody>
       </table>
-      <p className="mt-1 text-[11px] text-muted-foreground">Profit is what running the daycare made; building is what you put back in to grow. Wages, upkeep and supplies are charged when each game day ends.</p>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        Operating profit is what serving families made after running costs (today's includes what closing will charge tonight). Bonuses, sales and building are shown apart. Wages, upkeep and supplies are charged when each game day ends.
+      </p>
       <ProfitChart days={ledger.slice(-14)} />
     </div>
   );

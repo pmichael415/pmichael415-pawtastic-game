@@ -95,10 +95,12 @@ describe("pups, money and objectives", () => {
     expect(panel.getByText(/Needs: check-in/)).toBeTruthy();
     expect(panel.getByText(/Looked after by You/)).toBeTruthy();
   });
-  it("the Today strip shows revenue, wages due, other costs and the net, in game coins", () => {
+  it("the Today strip shows revenue, operating costs (with what's due tonight) and the profit by closing, in game coins", () => {
     open(ok(hire(base(), "reception")));
     const strip = screen.getByRole("button", { name: /^Today: revenue/ });
-    expect(strip.textContent).toMatch(/Wages\s*−330/); // tonight 80 + the sign-on fee 250 paid today
+    // the sign-on fee (250) paid today, plus tonight's wages, upkeep and supplies (audit finding 5: one calculation)
+    expect(strip.getAttribute("aria-label")).toMatch(/operating costs [\d,]+ \(250 so far, [\d,]+ due tonight\)/);
+    expect(strip.textContent).toMatch(/Profit by closing/);
     expect(strip.textContent).toMatch(/game coins/);
   });
   it("after the first checkout the next objective is the staffing decision, and its button opens the team", () => {

@@ -189,12 +189,20 @@ export type TReport = {
   income: number;
   /** Every expense, building included. */
   expenses: number;
-  /** income − expenses: the change in coins from the day. */
+  /** income + sale proceeds − expenses: the change in coins from the day. */
   profit: number;
-  /** income − running costs (wages, upkeep, supplies, marketing, refunds): what the business itself made. */
+  /**
+   * Operating profit: revenue from serving families (daycare, boarding, baths, exit baths, tips) − operating costs
+   * (wages, upkeep, supplies, marketing, refunds). Bonuses and sales are left out, so a reward can't make service look
+   * profitable (audit finding 5).
+   */
   running: number;
   /** Coins put into building that day (an investment, not a running cost). */
   invested: number;
+  /** Game rewards that day (level-ups, trophies, the guide, loyalty milestones, rush hour, welcome back). */
+  bonuses: number;
+  /** What selling rooms, doors and things paid back. */
+  sales: number;
   record: boolean;
   tip: string;
   admitted: number;

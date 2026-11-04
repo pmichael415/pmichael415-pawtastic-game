@@ -90,6 +90,45 @@ export function earn(s: TycoonState, parts: Partial<Record<IncomeKey, number>>):
   return withFac({ ...s, coins: s.coins + total }, f);
 }
 
+// ---------- one set of numbers for every money screen (audit finding 5) ----------
+
+const SERVICE_INCOME: IncomeKey[] = ["daycare", "boarding", "baths", "exitBaths", "tips"];
+const OPERATING_COSTS: ExpenseKey[] = ["wages", "upkeep", "supplies", "marketing", "refunds"];
+export type DayMoney = {
+  /** From serving families: daycare, boarding, baths, exit baths and tips. */
+  revenue: number;
+  /** Game rewards (kept apart from revenue). */
+  bonuses: number;
+  /** What selling rooms, doors and things paid back. */
+  sales: number;
+  /** Operating costs recorded so far: wages (sign-on fees during the day), marketing, refunds; at closing also tonight's. */
+  costsSoFar: number;
+  /** Still due when the day closes (wages, upkeep, supplies); 0 for a closed day. */
+  dueTonight: number;
+  /** Coins put into building. */
+  invested: number;
+  /** revenue − costs so far. */
+  profitSoFar: number;
+  /** revenue − costs so far − what's due tonight: the day's operating profit once it closes. */
+  profitAtClose: number;
+  /** Every coin in − every coin out, so far. */
+  changeSoFar: number;
+};
+export function dayMoney(d: DayLedger, dueTonight = 0): DayMoney {
+  const revenue = SERVICE_INCOME.reduce((a, k) => a + (d.income[k] ?? 0), 0);
+  const bonuses = d.income.bonus ?? 0;
+  const sales = d.sales ?? 0;
+  const costsSoFar = OPERATING_COSTS.reduce((a, k) => a + (d.expenses[k] ?? 0), 0);
+  const invested = d.expenses.building ?? 0;
+  return { revenue, bonuses, sales, costsSoFar, dueTonight, invested, profitSoFar: revenue - costsSoFar, profitAtClose: revenue - costsSoFar - dueTonight, changeSoFar: revenue + bonuses + sales - costsSoFar - invested };
+}
+/** Today's money: recorded so far, plus what closing will charge tonight. */
+export function todayMoney(s: TycoonState): DayMoney {
+  const f = fac(s);
+  const due = dayExpenses(f);
+  return dayMoney(today(f), due.wages + due.upkeep + due.supplies);
+}
+
 /** Adds what selling a room, a door or a thing paid back, recorded as today's sale proceeds (not service revenue). */
 export function recordSale(s: TycoonState, amount: number): TycoonState {
   if (!(amount > 0)) return s;
@@ -225,13 +264,14 @@ export function closeDay(s: TycoonState): TycoonState {
   const day = today(f1);
   const income = sum(day.income);
   const expenses = sum(day.expenses);
-  const profit = income - expenses;
-  const invested = day.expenses.building;
-  const running = profit + invested;
+  const m = dayMoney(day);
+  const profit = income + m.sales - expenses; // the change in coins
+  const invested = m.invested;
+  const running = m.profitAtClose; // operating profit: service revenue − operating costs (no bonuses, no sales)
   // a record is about running the business well: building for growth doesn't spoil a good day
   const record = running > s.bestProfit;
   const avgHappy = f1.dogs.length ? Math.round(f1.dogs.reduce((a, d) => a + d.happiness, 0) / f1.dogs.length) : 100;
-  const report: TReport = { day: f1.day, income, expenses, profit, running, invested, record, tip: moneyTip(f1, { profit }), admitted: day.checkIns, checkouts: day.checkouts, avgHappy };
+  const report: TReport = { day: f1.day, income, expenses, profit, running, invested, bonuses: m.bonuses, sales: m.sales, record, tip: moneyTip(f1, { profit }), admitted: day.checkIns, checkouts: day.checkouts, avgHappy };
   const nextDay = f1.day + 1;
   const campaign = f1.campaign && nextDay < f1.campaign.untilDay ? f1.campaign : null;
   const f2: Facility = { ...f1, day: nextDay, campaign, report, ledger: [...f1.ledger, emptyDay(nextDay)].slice(-LEDGER_DAYS) };

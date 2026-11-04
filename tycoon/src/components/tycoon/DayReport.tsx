@@ -15,7 +15,7 @@ export function DayReport({ state, set, onFinances }: { state: TycoonState; set:
   const running = r?.running ?? 0;
   // where the money came from and went (explains the numbers: empire milestone, "earn, reinvest, expand")
   const day0 = r ? f.ledger.find((l) => l.day === r.day) : undefined;
-  const IN: [keyof NonNullable<typeof day0>["income"], string][] = [["daycare", "daycare"], ["boarding", "boarding"], ["baths", "baths"], ["exitBaths", "exit baths"], ["tips", "tips"], ["bonus", "bonuses"]];
+  const IN: [keyof NonNullable<typeof day0>["income"], string][] = [["daycare", "daycare"], ["boarding", "boarding"], ["baths", "baths"], ["exitBaths", "exit baths"], ["tips", "tips"]];
   const OUT: [keyof NonNullable<typeof day0>["expenses"], string][] = [["wages", "wages"], ["upkeep", "upkeep"], ["supplies", "supplies"], ["marketing", "marketing"], ["refunds", "refunds"]];
   const earnedFrom = day0 ? IN.filter(([k]) => day0.income[k] > 0).map(([k, n]) => `${n} ${day0.income[k].toLocaleString()}`).join(" · ") : "";
   const spentOn = day0 ? OUT.filter(([k]) => day0.expenses[k] > 0).map(([k, n]) => `${n} ${day0.expenses[k].toLocaleString()}`).join(" · ") : "";
@@ -31,25 +31,27 @@ export function DayReport({ state, set, onFinances }: { state: TycoonState; set:
           <AlertDialogDescription asChild>
             <div className="space-y-3 text-sm text-secondary">
               {r?.record && <p className="rounded-xl bg-accent px-3 py-2 text-center font-display text-lg font-bold text-accent-foreground">New record!</p>}
-              {built > 0 && r ? (
-                // a day you built on: the running result leads, and the building is shown as what you invested
+              {r && (
+                // operating profit leads (what serving families made after running costs — the same number as the
+                // Today strip and Finances); bonuses, sales and building are shown apart (audit finding 5)
                 <div className="text-center">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Running the daycare</p>
                   <p className={`font-display text-4xl font-bold tabular-nums ${running < 0 ? "text-destructive" : "text-secondary"}`}>{signed(running)}</p>
                   <p className="text-xs text-muted-foreground">
-                    income {r.income.toLocaleString()} · running costs {(r.expenses - built).toLocaleString()}
+                    revenue {(r.income - (r.bonuses ?? 0)).toLocaleString()} · operating costs {(r.expenses - built).toLocaleString()}
                   </p>
-                  <p className="mt-1 text-xs font-semibold text-secondary">
-                    You invested {built.toLocaleString()} in building — your daycare grew. Profit after building {signed(r.profit, true)}.
-                  </p>
-                </div>
-              ) : (
-                <div className="text-center">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Profit</p>
-                  <p className={`font-display text-4xl font-bold tabular-nums ${r && r.profit < 0 ? "text-destructive" : "text-secondary"}`}>{r ? signed(r.profit) : ""}</p>
-                  <p className="text-xs text-muted-foreground">
-                    income {r?.income.toLocaleString()} · expenses {r?.expenses.toLocaleString()}
-                  </p>
+                  {((r.bonuses ?? 0) > 0 || (r.sales ?? 0) > 0) && (
+                    <p className="text-xs text-muted-foreground">
+                      {(r.bonuses ?? 0) > 0 ? `bonuses (game rewards) +${(r.bonuses ?? 0).toLocaleString()}` : ""}
+                      {(r.bonuses ?? 0) > 0 && (r.sales ?? 0) > 0 ? " · " : ""}
+                      {(r.sales ?? 0) > 0 ? `sale proceeds +${(r.sales ?? 0).toLocaleString()}` : ""}
+                    </p>
+                  )}
+                  {built > 0 && (
+                    <p className="mt-1 text-xs font-semibold text-secondary">
+                      You invested {built.toLocaleString()} in building — your daycare grew. Change in coins after building {signed(r.profit, true)}.
+                    </p>
+                  )}
                 </div>
               )}
               {(earnedFrom || spentOn) && (
