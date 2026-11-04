@@ -160,7 +160,11 @@ async function staffing(browser) {
     await page.waitForTimeout(400);
     check('building the playroom wing closes the card', (await page.getByRole('region', { name: 'Expand your daycare' }).count()) === 0);
     check('… and shows the new playroom', /Playroom/.test(await page.getByTestId('panel-sheet').innerText().catch(() => '')));
-    await page.mouse.click(5, 5).catch(() => {});
+    // a second playroom makes it a Growing daycare: the celebration is closed like a player would
+    const grew = page.getByRole('dialog', { name: /Growing daycare/ });
+    check('the new stage is celebrated (Growing daycare)', await grew.waitFor({ timeout: 3000 }).then(() => true, () => false));
+    await grew.getByRole('button', { name: 'Continue' }).click().catch(() => {});
+    await page.getByTestId('panel-sheet').getByRole('button', { name: 'Close panel' }).click().catch(() => {});
     await page.getByRole('button', { name: /^(Expansion options|See options)$/ }).first().click();
     card = page.getByRole('region', { name: 'Expand your daycare' });
     await card.waitFor();

@@ -49,8 +49,8 @@ const note = async (page, what, extra = {}) => {
   const canvasIntoView = (block = 'center') => page.evaluate((b) => document.querySelector('section[aria-label="3D daycare view"] canvas')?.scrollIntoView({ block: b }), block);
 
   /** Taps a pup in the 3D view where it's drawn (retrying while it walks); true when its panel opened. */
-  async function tapDog(id, name) {
-    for (let i = 0; i < 6; i++) {
+  async function tapDog(id, name, tries = 6) {
+    for (let i = 0; i < tries; i++) {
       for (const block of ['center', 'start', 'end']) {
         await canvasIntoView(block);
         await page.waitForTimeout(100);
@@ -73,6 +73,22 @@ const note = async (page, what, extra = {}) => {
     return false;
   }
   const inSheet = (name) => sheet().getByRole('button', { name }).first();
+  /**
+   * Opens a pup's panel the way a player would: the chip over the daycare when it names this pup (a button — reliable),
+   * else a tap on the pup in 3D. A pup just missed is left for a few seconds (no player taps the same spot forever).
+   */
+  const missedUntil = new Map();
+  async function selectDog(id, name) {
+    const chip = page.getByRole('button', { name: new RegExp(`is waiting to (pick up|drop off) ${name}$`) });
+    if (await chip.count()) {
+      await chip.first().click();
+      if (await sheet().getByRole('article', { name }).first().waitFor({ timeout: 1000 }).then(() => true, () => false)) return true;
+    }
+    if ((missedUntil.get(id) ?? 0) > Date.now()) return false;
+    const ok = await tapDog(id, name, 2);
+    if (!ok) missedUntil.set(id, Date.now() + 10000);
+    return ok;
+  }
   /** Closes the panel with its Close panel button (never a room's business "Close"). */
   const closeSheet = async () => {
     const x = sheet().getByRole('button', { name: 'Close panel' });
@@ -120,7 +136,7 @@ const note = async (page, what, extra = {}) => {
     const f = await fac();
     // a family waiting at pickup
     const pick = f.dogs.find((d) => d.checkedIn && d.visit?.ownerHere != null && !d.visit?.finishing && !d.bathing);
-    if (pick && (await tapDog(pick.id, pick.name))) {
+    if (pick && (await selectDog(pick.id, pick.name))) {
       const out = inSheet(/^Check out/);
       if (await out.count()) {
         await out.click();
@@ -167,7 +183,7 @@ const note = async (page, what, extra = {}) => {
     const arrive = f.dogs.find((d) => !d.checkedIn && d.place.kind === 'lobby');
     if (arrive) {
       if (firstArrivalShot) { firstArrivalShot = false; await canvasIntoView('center'); await page.waitForTimeout(400); await shot('families-at-desk', 'families wait at the desk to drop off'); }
-      if (!(await tapDog(arrive.id, arrive.name))) return;
+      if (!(await selectDog(arrive.id, arrive.name))) return;
       if (!roomFor(f, arrive)) {
         await inSheet("Can't take today").click().catch(() => {});
         counts.turnedAway++;
@@ -175,7 +191,7 @@ const note = async (page, what, extra = {}) => {
       } else {
         await inSheet(/^Check in/).click().catch(() => {});
         await page.waitForTimeout(150);
-        if (!(await sheet().count())) await tapDog(arrive.id, arrive.name);
+        if (!(await sheet().count())) await selectDog(arrive.id, arrive.name);
         const to = arrive.boarding ? inSheet(/^To a boarding bed/) : inSheet(new RegExp(`^To ${GROUP(arrive)}`));
         await to.click().catch(() => {});
         counts.checkIns++;
@@ -188,7 +204,7 @@ const note = async (page, what, extra = {}) => {
     const hasBather = f.staff.some((x) => x.role === 'bath');
     const tub = f.items.some((i) => i.kind === 'bath_tub' || i.kind === 'deluxe_tub');
     const bathPup = !hasBather && tub && f.dogs.find((d) => d.checkedIn && (d.place.kind === 'room' || d.place.kind === 'bed') && !d.bathed && !d.bathing && d.visit?.requests?.includes('bath'));
-    if (bathPup && !f.dogs.some((d) => d.bathing) && (await tapDog(bathPup.id, bathPup.name))) {
+    if (bathPup && !f.dogs.some((d) => d.bathing) && (await selectDog(bathPup.id, bathPup.name))) {
       await inSheet('Bath').click().catch(() => {});
       counts.baths++;
       await note(page, `gave ${bathPup.name} a bath`);
@@ -199,7 +215,7 @@ const note = async (page, what, extra = {}) => {
     const rc = f.roomClean ?? {};
     const dirty = f.rooms.find((r) => r.type === 'playroom' && (rc[r.uid] ?? 100) < 55);
     const inDirty = dirty && f.dogs.find((d) => d.place.kind === 'room' && d.place.room === dirty.uid);
-    if (inDirty && (await tapDog(inDirty.id, inDirty.name))) {
+    if (inDirty && (await selectDog(inDirty.id, inDirty.name))) {
       const mop = inSheet('Mop floors');
       if (await mop.count()) { await mop.click().catch(() => {}); counts.mops++; await note(page, 'mopped the floors'); }
       await closeSheet();
@@ -207,7 +223,7 @@ const note = async (page, what, extra = {}) => {
     }
     // the unhappiest settled pup gets a playtime
     const sad = f.dogs.filter((d) => d.checkedIn && (d.place.kind === 'room' || d.place.kind === 'bed') && !d.bathing && d.happiness < 60).sort((a, b) => a.happiness - b.happiness)[0];
-    if (sad && (await tapDog(sad.id, sad.name))) {
+    if (sad && (await selectDog(sad.id, sad.name))) {
       await inSheet(/^Playtime/).click().catch(() => {});
       counts.plays++;
       await closeSheet();
