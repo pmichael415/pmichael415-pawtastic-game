@@ -96,6 +96,56 @@ After a new room opens — from **Expansion options** or from the Rooms tool —
 Staff use the player's own actions (check-in, rooms, play, bath, checkout), so a handoff can't double a charge or a
 reward; that rule and its tests are unchanged.
 
+### 4. Earn → cover costs → reinvest → serve more (your follow-up brief)
+
+Most of the money loop already existed (visits pay at checkout, nightly wages/upkeep/supplies, the ledger, the Today
+strip, Finances, expansions with exact quotes). What changed:
+
+- **Profit means what running the daycare made:** revenue − running costs (wages, upkeep, supplies, marketing,
+  refunds). Building is shown on its own as **what you invested**. Before, a day you expanded showed as a red "loss"
+  and couldn't count as a "profitable day" — even though the goal's own words said "more than the day's wages, upkeep
+  and supplies". Now the day report ("Running the daycare +404 · You invested 540"), the Today strip
+  (Revenue · Wages · Other · **Profit** · **Invested**), Finances (Profit, Invested in building, Change in coins; the
+  14-day chart) and the records all use it.
+- **The day report says where the money came from and went:** "Earned: daycare 420 · baths 60 · tips 22 · Running
+  costs: wages 80 · upkeep 37 · supplies 18".
+- **Receipts explain each line:** "Daycare — 85% happy, so 46 of 50", "Tip — delighted with the day (Appeal 6)",
+  "Boarding — 1 night", "Bath — deluxe tub (+10)". A loyalty milestone bonus is now a receipt line too, so the
+  receipt total is exactly what the family paid.
+- **Coins always follow the books:** level-up rewards were added to coins without being recorded; they are now
+  bonus income, so the ledger and your coins match to the coin.
+- **Staff checkouts look and sound paid:** coins fly at the desk and the receipt shows, as when you do it yourself.
+  They were already paid exactly once under the same rules; that's now proven again (below).
+- **The next expansion is always in view:** the objectives show "💰 Saving for Playroom wing for Large & Active pups ·
+  350 of 540 coins" with a progress bar — what families asked for first, otherwise the cheapest unlocked option.
+
+**Proved by a deterministic run** (`business-loop.test.ts`, a player pressing each pup's next-action button, in a
+daycare that starts with **every starting coin spent — 0 coins**):
+
+| Day | Income | Running profit | Invested | Coins at night |
+|---|---|---|---|---|
+| 1 | 334 | +239 | 0 | 239 |
+| 2 | 351 | +254 | 0 | 493 |
+| 3 | 523 | +404 | **540** (playroom wing for Large & Gentle pups, bought at 14:00 with 669 earned coins) | 357 |
+| 4 | 519 | +406 | 0 | 763 |
+| 5 | 866 | +743 | 0 | 1,506 |
+| 6 | 540 | +421 | 0 | 1,927 |
+
+- **A visit earns coins:** the first checkout (Willow, Small & Gentle, 13:42 on day 1) paid 36, and today's income rose
+  by exactly 36. All 68 payments in the run matched their receipts exactly.
+- **Costs are accounted for:** every night wages, upkeep and supplies were charged, and coins at night equal the
+  morning's coins + income − every expense, to the coin, every day.
+- **The expansion was bought with earned profits** on day 3: the daycare had started at 0.
+- **It served demand that was being turned away:** no Large & Gentle family could stay before it; in the three and a
+  half days after, **17 families paid 691 coins from that room** — against about 32 coins of its upkeep. Payments went
+  from 18 in the first two and a half days to 50 in the rest.
+- **Staff checkouts:** a receptionist's checkout paid the receipt once (income and coins both rose by exactly the
+  total), and the pup can't be charged again.
+- **A free way back:** at −150 coins building pauses, letting an employee go is free, care and checkouts still
+  work, and serving by hand brought coins back above zero within two days. Dog safety never depended on coins.
+- **Opportunity, not a guarantee:** a new room costs upkeep from its first night and earns only when pups are served
+  in it.
+
 ## The combined session, played
 
 <!-- SESSION -->

@@ -144,6 +144,7 @@ describe("earn → cover costs → reinvest → serve more", () => {
     const after = run.paid.filter((p) => !before.includes(p));
     expect(before.filter((p) => p.group === b.group)).toHaveLength(0); // nobody of that kind could stay before
     const served = after.filter((p) => p.room === b.room);
+    console.log(`new room: ${served.length} families paid ${served.reduce((a, p) => a + p.total, 0)} from it; ${before.length} payments before it, ${after.length} after`);
     expect(served.length).toBeGreaterThanOrEqual(3);
     expect(served.every((p) => p.group === b.group && p.total > 0)).toBe(true);
     // and it pays its way: what it took in beats what it cost to keep open over those days
