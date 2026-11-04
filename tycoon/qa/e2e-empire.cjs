@@ -137,6 +137,7 @@ async function session(browser, device, extra = {}) {
     check('the catalog offers what fits the bath room, and says where the rest goes', fits === 1 && counter >= 1);
     await dlg.getByRole('button', { name: 'Bath Tub', exact: true }).click();
     await page.waitForTimeout(300);
+    await clearOverlays(); // a new stage is celebrated when the first bath room opens
     await page.screenshot({ path: path.join(OUT, '3-furnish.png') });
     const c1 = (await st()).coins;
     await mode().getByRole('button', { name: /^Put it in Bath Room/ }).dblclick();
@@ -222,9 +223,12 @@ async function session(browser, device, extra = {}) {
       const next = sheet.getByTestId('next-action');
       const nextText = await next.innerText().catch(() => '');
       if (kind === 'playroom') {
-        const move = t.page.getByRole('region', { name: 'Rooms' }).getByRole('button', { name: new RegExp(`^✓ Move ${pup.name} to Playroom`) }).first();
-        const offered = await move.count();
-        await (offered ? move.click() : next.getByRole('button').first().click());
+        // the pup's panel leads with the new room (its next action); the rooms strip shows the same as ✓
+        const primary = next.getByRole('button').first();
+        const label = await primary.innerText().catch(() => '');
+        const gname = group.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' & ');
+        check("playroom wing: the pup's next action is the new room", label.startsWith(`To ${gname}`), label);
+        await primary.click();
         await t.page.waitForTimeout(300);
         const placed = (await t.f()).dogs.find((d) => d.id === pup.id);
         check('playroom wing: a pup of the new group is offered the new room (✓) and goes there', placed?.place?.room === room.uid, `${nextText.split('\n').join(' / ')} · placed in ${placed?.place?.room} vs ${room.uid}`);
