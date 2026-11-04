@@ -301,6 +301,10 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
   const momentsOpen = f.dogs.filter((d) => d.visit?.moment?.state === "open").map((d) => `${d.id}@${d.visit!.moment!.day}:${d.visit!.moment!.at}`).join(",");
   const seenMoments = useRef<Set<string> | null>(null);
   const asking = f.dogs.filter((d) => d.visit?.moment?.state === "open");
+  const kept = (() => {
+    const all = f.dogs.map((d) => ({ d, w: waitStage(f, d) })).filter((x): x is { d: TDog; w: NonNullable<ReturnType<typeof waitStage>> } => !!x.w && x.w.stage !== "waiting" && !!x.d.visit);
+    return all.sort((a, b) => (b.w.stage === "upset" ? 1 : 0) - (a.w.stage === "upset" ? 1 : 0) || b.w.minutes - a.w.minutes)[0] ?? null;
+  })();
   useEffect(() => {
     const here = new Set(momentsOpen ? momentsOpen.split(",") : []);
     if (seenMoments.current)
@@ -522,7 +526,18 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
         ) : (
           no3d && <TycoonMap state={state} selected={sel?.id ?? null} onPick={onPick} preview={spot ? { ...spot, label: `Spot ${placing!.i + 1}` } : null} />
         )}
-        {!building && !sel && asking.length > 0 && (
+        {/* the most urgent thing only you can sort out: a family kept waiting first (they can't wait forever), then a
+            pup asking for you (a moment fades at no cost) */}
+        {!building && !sel && kept && (
+          <button
+            type="button"
+            className={`absolute left-2 top-2 z-10 min-h-11 rounded-full border-2 bg-background/95 px-3 text-sm font-semibold text-secondary shadow-soft ${kept.w.stage === "upset" ? "border-destructive" : "border-amber-500"}`}
+            onClick={() => setSel({ kind: "dog", id: kept.d.id })}
+          >
+            ⏳ {kept.d.visit!.owner} is waiting to {kept.w.kind === "pickup" ? "pick up" : "drop off"} {kept.d.name}
+          </button>
+        )}
+        {!building && !sel && !kept && asking.length > 0 && (
           <button
             type="button"
             className="absolute left-2 top-2 z-10 min-h-11 rounded-full border-2 border-primary bg-background/95 px-3 text-sm font-semibold text-secondary shadow-soft"

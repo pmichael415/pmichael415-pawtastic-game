@@ -94,6 +94,15 @@ describe("when a pup asks for you", () => {
     fireEvent.click(within(within(panel()).getByRole("region", { name: /asking for you/ })).getByRole("button"));
     expect(screen.queryByRole("button", { name: /is asking for you/ })).toBeNull();
   });
+  it("a family kept waiting comes first: the chip shows them before a pup's moment (a moment can wait; they can't)", () => {
+    let s = openMoments(midday());
+    const f = fac(s);
+    s = withFac(s, { ...f, dogs: f.dogs.map((d) => ({ ...d, visit: { ...d.visit!, owner: "Lee", ownerHere: f.clockMin - 32 } })) });
+    open(s);
+    const chip = screen.getByRole("button", { name: /Lee is waiting to pick up Biscuit/ });
+    fireEvent.click(chip);
+    expect(within(panel()).getByText(/Lee is here for pickup/)).toBeTruthy();
+  });
   it("the same moment isn't announced twice, and moments already open when you come back aren't repeated", () => {
     open(openMoments(midday()));
     act(() => tycoonStore.set((s) => ({ ...s })));
