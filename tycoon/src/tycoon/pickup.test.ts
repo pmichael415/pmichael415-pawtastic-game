@@ -54,7 +54,8 @@ describe("the owner brief's scenario: daycare + bath, owner arrives before the b
     const view = pickupView(s, id, false);
     expect(view.assessment.complaints.map((c) => c.kind)).toEqual(["bath"]);
     expect(view.assessment.complaints[0]!.text).toMatch(/still in the bath/);
-    expect(view.options.bath).toEqual(expect.arrayContaining(["finish", "credit", "explain"]));
+    expect(view.options.bath).toEqual(expect.arrayContaining(["finish", "explain"]));
+    expect(view.options.bath).not.toContain("credit"); // no daycare credit, ever (audit finding 6)
     const coins = s.coins;
     s = ok(remedy(s, id, "bath", "finish"));
     expect(dog(s, id)!.visit!.finishing).toBe("bath");
@@ -70,17 +71,24 @@ describe("the owner brief's scenario: daycare + bath, owner arrives before the b
     expect(fac(s).guestBook[0]!.sat).toBe(out.satisfaction);
     expect(checkout(s, id, false).ok).toBe(false); // never twice
   });
-  it("or a credit: the bath isn't charged, they're less unhappy, and the credit comes off their next visit", () => {
+  it("no credit for next time (audit finding 6): a missed bath can be put right with a game-coin goodwill refund now", () => {
     let { s, id } = bookedWithBath();
     s = until(s, 16 * 60 + 1);
-    const none = pickupView(s, id, false).assessment.satisfaction;
-    s = ok(remedy(s, id, "bath", "credit"));
+    const view = pickupView(s, id, false);
+    expect(Object.values(view.options).flat()).not.toContain("credit");
+    expect(view.options.bath).toContain("refund");
+    expect(remedy(s, id, "bath", "credit" as never).ok).toBe(false);
+    const none = view.assessment.satisfaction;
+    const coins = s.coins;
+    s = ok(remedy(s, id, "bath", "refund"));
     s = ok(checkout(s, id, false));
     const out = fac(s).outcomes.at(-1)!;
-    expect(out.satisfaction).toBe(Math.min(100, none + 12));
-    expect(out.lines.find((l) => /^Bath/.test(l.label))!.amount).toBe(0);
-    const reg = fac(s).guestBook[0]!;
-    expect(reg.credit).toBe(Math.round(fac(s).prices.daycare / 2));
+    expect(out.complaints[0]).toMatchObject({ kind: "bath", remedy: "refund", resolved: true });
+    expect(out.satisfaction).toBeGreaterThan(none);
+    expect(out.lines.find((l) => /^Bath/.test(l.label))!.amount).toBe(0); // the bath that wasn't done isn't charged
+    expect(out.lines.some((l) => /^Refund — the bath/.test(l.label) && l.amount < 0)).toBe(true);
+    expect(s.coins - coins).toBe(out.total); // paid once, the refund already off
+    expect(fac(s).guestBook[0]!).not.toHaveProperty("credit");
   });
   it("a generic apology doesn't erase a bath that wasn't done", () => {
     let { s, id } = bookedWithBath();

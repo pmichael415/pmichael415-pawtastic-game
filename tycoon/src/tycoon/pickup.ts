@@ -1,5 +1,5 @@
 // PAWtastic Daycare Tycoon — answering a complaint at pickup (service design, "Complaints"): finish the service
-// while the owner waits, refund, offer a credit for next time, or explain. One answer per complaint; an
+// while the owner waits, a game-coin refund, or explain (no credit for next time). One answer per complaint; an
 // explanation alone never clears a bath, billing or attention complaint.
 import { freeTub } from "./rooms";
 import { assessVisit, refundFor, type Assessment } from "./assess";
@@ -19,8 +19,7 @@ export function pickupView(s: TycoonState, dogId: string, exitBath: boolean): Pi
   const dog = f.dogs.find((d) => d.id === dogId);
   if (!dog) throw new Error("That pup already went home.");
   const v = visitOf(f, dog);
-  const reg = f.guestBook.find((g) => g.name === dog.name && g.breed === dog.breed);
-  const assessment = assessVisit(f, dog, { exitBath, credit: reg?.credit ?? 0 });
+  const assessment = assessVisit(f, dog, { exitBath });
   const daycare = assessment.lines.find((l) => l.key === "daycare")?.amount ?? 0;
   const energy = Math.max(0, ...f.staff.map((x) => x.energy));
   const placed = dog.place.kind === "room" || dog.place.kind === "bed";
@@ -34,7 +33,7 @@ export function pickupView(s: TycoonState, dogId: string, exitBath: boolean): Pi
     if (c.kind === "attention" && placed && !dog.bathing && energy >= 10) o.push("finish");
     if (c.kind === "dirty" && energy >= 10) o.push("finish");
     if (refundFor(c.kind, v.paid, daycare) > 0) o.push("refund");
-    o.push("credit", "explain");
+    o.push("explain");
     options[c.kind] = o;
   }
   return { assessment, options };
@@ -74,8 +73,6 @@ export function remedy(s: TycoonState, dogId: string, kind: ComplaintKind, choic
     }
   } else if (choice === "refund") {
     reaction = `${v.owner}: "Thank you — that's fair."`;
-  } else if (choice === "credit") {
-    reaction = `${v.owner}: "OK — we'll use that next time."`;
   } else {
     const minor = kind === "wait" && complaint && v.ownerHere !== null && f.clockMin - v.ownerHere <= 45;
     reaction = minor ? `${v.owner}: "No problem — thanks for letting me know."` : `${v.owner}: "An apology isn't enough — ${kind === "wait" ? "I waited a long time" : kind === "dirty" ? "the rooms were dirty" : kind === "attention" ? "my dog needed attention" : "I booked a bath"}."`;

@@ -134,11 +134,10 @@ export function createArrival(s: TycoonState, rand: () => number, boarding = fal
   if (!c.lobby) return { ok: false, error: "Build a working Lobby first." };
   if (lobbyDogs(f).length >= c.waiting) return { ok: false, error: "The lobby is full — move waiting pups to a playroom or bed first." };
   if (boarding && c.beds.length - f.dogs.filter((d) => d.boarding).length <= 0) return { ok: false, error: "No free boarding bed." };
-  // regulars come back — not a family that left upset with nothing fixed (for 3 days); one owed a credit is likelier
+  // regulars come back — not a family that left upset with nothing fixed (for 3 days)
   const away = f.guestBook.filter((g) => !f.dogs.some((d) => d.name === g.name && d.breed === g.breed) && !((g.lostUntil ?? 0) > f.day));
-  const owed = away.filter((g) => (g.credit ?? 0) > 0);
-  const regChance = owed.length ? Math.min(0.9, REGULAR_CHANCE * 1.5) : REGULAR_CHANCE;
-  const pool = owed.length && rand() < 0.5 ? owed : away;
+  const regChance = REGULAR_CHANCE;
+  const pool = away;
   const reg = away.length && rand() < regChance ? pool[Math.floor(rand() * pool.length)]! : null;
   const breed = reg ? reg.breed : Math.floor(rand() * BREEDS.length);
   const dog: TDog = {
@@ -371,7 +370,6 @@ export function clean(s: TycoonState): TResult {
 }
 
 export const OWNER_GIVES_UP = 60; // game minutes an owner waits at pickup before taking the pup home
-export const CREDIT_SHARE = 0.5; // a future credit is worth half a daycare day
 
 const MOOD_LINE: Record<Mood, (owner: string, dog: string, why: string) => string> = {
   delighted: (o, d) => `${o} is delighted — ${d} had a great day!`,
@@ -408,10 +406,10 @@ export function settle(s: TycoonState, dogId: string, how: Outcome["how"], exitB
   // collected without the player (gave up, closing time, a finish that ran out): a prepaid bath not done is refunded
   const autoRefund = how !== "checkout" && v.prepaid.includes("bath") && !dog.bathed && !v.remedies.billing;
   const billed = autoRefund ? { ...dog, visit: { ...v, remedies: { ...v.remedies, billing: "refund" as const } } } : dog;
-  const a = assessVisit(st, billed, { exitBath: doExit, credit: prev?.credit ?? 0 });
+  const a = assessVisit(st, billed, { exitBath: doExit });
   const unresolved = a.complaints.filter((c) => !c.resolved);
 
-  // loyalty: friendship grows with how the visit felt; a credit is owed; an upset family with nothing fixed stays away
+  // loyalty: friendship grows with how the visit felt; an upset family with nothing fixed stays away
   let guestBook = st.guestBook;
   let bonus = 0;
   let milestone: ReturnType<typeof friendshipLevel> | null = null;
@@ -419,7 +417,6 @@ export function settle(s: TycoonState, dogId: string, how: Outcome["how"], exitB
   if (dog.checkedIn) {
     const gain = servedVisit ? Math.round(a.satisfaction / 10) + (dog.bathed || doExit ? 2 : 0) + (dog.played > 0 ? 2 : 0) : 0;
     const friendship = Math.min(100, (prev?.friendship ?? 0) + gain);
-    const credit = v.remedies && Object.values(v.remedies).includes("credit") ? Math.round(f.prices.daycare * CREDIT_SHARE) : 0;
     const entry: TRegular = {
       name: dog.name,
       breed: dog.breed,
@@ -429,7 +426,6 @@ export function settle(s: TycoonState, dogId: string, how: Outcome["how"], exitB
       friendship,
       lastDay: f.day,
       sat: a.satisfaction,
-      ...(credit ? { credit } : {}),
       ...(a.mood === "upset" && unresolved.length ? { lostUntil: f.day + 3 } : {}),
     };
     guestBook = [entry, ...st.guestBook.filter((g) => !(g.name === dog.name && g.breed === dog.breed))].slice(0, GUESTBOOK_MAX);

@@ -53,8 +53,7 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
   const moment = v.moment ?? null;
   const waited = v.ownerHere === null ? 0 : Math.max(0, Math.round(f.clockMin - v.ownerHere));
   // the honest total, the same as the bill (no tip for an unhappy family, baths only if done, credits off)
-  const credit = f.guestBook.find((g) => g.name === dog.name && g.breed === dog.breed)?.credit ?? 0;
-  const billFor = (exitBath: boolean) => (dog.checkedIn ? assessVisit(f, dog, { exitBath, credit }).total : 0);
+  const billFor = (exitBath: boolean) => (dog.checkedIn ? assessVisit(f, dog, { exitBath }).total : 0);
   const c = caps(f);
   const scuffle = inActiveScuffle(f, dog);
   const placed = dog.place.kind === "room" || dog.place.kind === "bed";

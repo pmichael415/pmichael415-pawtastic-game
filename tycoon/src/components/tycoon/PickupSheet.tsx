@@ -1,11 +1,11 @@
 // Pickup with a complaint (service design, "Complaints"): the bill as it stands, what went wrong, and the player's
-// choices — finish the service while the owner waits, refund, a credit for next time, or explain. One checkout.
+// choices — finish the service while the owner waits, a game-coin refund, or explain (no credit for next time). One checkout.
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { refundFor } from "@/tycoon/assess";
 import { pickupView, remedy } from "@/tycoon/pickup";
-import { CREDIT_SHARE, checkout } from "@/tycoon/run";
+import { checkout } from "@/tycoon/run";
 import { fac } from "@/tycoon/state";
 import { visitOf } from "@/tycoon/visit";
 import type { ActOpts, ActResult } from "@/tycoon/store";
@@ -35,8 +35,7 @@ export function PickupSheet({ state, dogId, exitBath, act, onClose }: { state: T
   const label = (kind: ComplaintKind, r: RemedyKind) =>
     r === "finish"
       ? kind === "attention" ? "Quick playtime now" : kind === "dirty" ? "Mop now" : dog.bathing ? "Ask them to wait for the bath" : "Finish the bath now (they'll wait)"
-      : r === "refund" ? `Refund ${refundFor(kind, v.paid, daycare)}`
-      : r === "credit" ? `Credit ${Math.round(f.prices.daycare * CREDIT_SHARE)} next visit`
+      : r === "refund" ? `Refund ${refundFor(kind, v.paid, daycare)} game coins`
       : "Explain and apologise";
   const answer = (kind: ComplaintKind, r: RemedyKind) => {
     const res = act((s) => remedy(s, dogId, kind, r), { quiet: true });

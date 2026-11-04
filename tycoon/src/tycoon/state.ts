@@ -201,7 +201,8 @@ function withVisit(x: Record<string, unknown>, f: Facility, d: { name: string; b
   };
 }
 const COMPLAINTS: ComplaintKind[] = ["wait", "bath", "billing", "attention", "dirty"];
-const REMEDIES: RemedyKind[] = ["finish", "refund", "credit", "explain"];
+// "credit" (credit next visit) was removed (audit finding 6); a saved one is dropped, so checkout asks again
+const REMEDIES: RemedyKind[] = ["finish", "refund", "explain"];
 function parseRemedies(x: unknown): Partial<Record<ComplaintKind, RemedyKind>> {
   const out: Partial<Record<ComplaintKind, RemedyKind>> = {};
   if (!isObj(x)) return out;
@@ -279,7 +280,6 @@ function parseRegular(x: unknown): TRegular | null {
     friendship: clamp(num(x["friendship"], 0), 0, 100),
     lastDay: Math.max(0, int(x["lastDay"], 0)),
     ...(typeof x["sat"] === "number" ? { sat: clamp(x["sat"], 0, 100) } : {}),
-    ...(typeof x["credit"] === "number" && x["credit"] > 0 ? { credit: Math.min(500, Math.round(x["credit"])) } : {}),
     ...(typeof x["lostUntil"] === "number" ? { lostUntil: Math.max(0, int(x["lostUntil"], 0)) } : {}),
   };
 }
@@ -454,9 +454,15 @@ export function parseTycoon(raw: unknown): TycoonState | null {
   const active = own(raw["active"]) ? raw["active"] : Object.keys(facilities)[0] ?? "f1";
   if (!Object.hasOwn(facilities, active)) facilities[active] = newFacility("My Daycare");
   const g = isObj(raw["guide"]) ? raw["guide"] : {};
+  // Migration (audit finding 6): the game no longer offers "credit next visit". A family still owed one is settled
+  // once, here, as a game-coin refund recorded on today's books — the alternative they could have had — and the
+  // promise is removed from the guest book. Credits only existed in the active daycare's guest book.
+  const settled = owedCredits(facs, active);
+  if (settled > 0) facilities[active] = withRefundToday(facilities[active]!, settled);
   return {
     v: SAVE_VERSION,
-    coins: num(raw["coins"], START_COINS),
+    coins: num(raw["coins"], START_COINS) - settled,
+    ...(settled > 0 ? { settledCredits: settled } : {}),
     xp: Math.max(0, int(raw["xp"], 0)),
     seq: Math.max(1, int(raw["seq"], 1), nextSeq(facilities)),
     lastSeen: num(raw["lastSeen"], Date.now()),
@@ -470,6 +476,23 @@ export function parseTycoon(raw: unknown): TycoonState | null {
     deliveries: parseDeliveryLog(raw["deliveries"]),
     tour: parseTour(raw["tour"]),
   };
+}
+
+/** What a save from before audit finding 6 still owed families as "credit next visit" (each capped as it was, 500). */
+function owedCredits(facs: Record<string, unknown>, active: string): number {
+  const f = facs[active];
+  if (!isObj(f) || !Array.isArray(f["guestBook"])) return 0;
+  return f["guestBook"].reduce((a: number, g) => a + (isObj(g) && typeof g["credit"] === "number" && g["credit"] > 0 ? Math.min(500, Math.round(g["credit"])) : 0), 0);
+}
+/** Records a refund on today's books (creating today's entry if it has none). */
+function withRefundToday(f: Facility, amount: number): Facility {
+  const last = f.ledger[f.ledger.length - 1];
+  const day: DayLedger =
+    last && last.day === f.day
+      ? last
+      : { day: f.day, income: { daycare: 0, boarding: 0, baths: 0, exitBaths: 0, tips: 0, bonus: 0 }, expenses: { wages: 0, upkeep: 0, supplies: 0, marketing: 0, building: 0, refunds: 0 }, sales: 0, checkIns: 0, checkouts: 0 };
+  const next = { ...day, expenses: { ...day.expenses, refunds: day.expenses.refunds + amount } };
+  return { ...f, ledger: [...(last && last.day === f.day ? f.ledger.slice(0, -1) : f.ledger), next].slice(-14) };
 }
 
 const TOUR_BEATS: TourBeat[] = ["meet", "checkin", "place", "play", "checkout", "upgrade", "benefit", "decision", "goals"];

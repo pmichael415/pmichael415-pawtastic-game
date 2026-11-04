@@ -60,8 +60,15 @@ describe("pickup on screen", () => {
     expect(within(sheet).getByText(/Bath — not done \(not charged\)/)).toBeTruthy();
     expect(within(sheet).getByRole("button", { name: /Finish the bath/ })).toBeTruthy();
     expect(within(sheet).getByRole("button", { name: /Explain/ })).toBeTruthy();
-    fireEvent.click(within(sheet).getByRole("button", { name: /Credit/ }));
-    expect(within(sheet).getByText(/we'll use that next time/)).toBeTruthy();
+    // audit finding 6: no "credit next visit" — a game-coin refund, finishing the bath, or an explanation
+    expect(within(sheet).queryByRole("button", { name: /credit/i })).toBeNull();
+    expect(within(sheet).queryByText(/next (visit|time)/i)).toBeNull();
+    const refund = within(sheet).getByRole("button", { name: /^Refund \d+ game coins$/ });
+    const amount = Number(/\d+/.exec(refund.textContent ?? "")![0]);
+    expect(amount).toBeGreaterThan(0);
+    fireEvent.click(refund);
+    expect(within(sheet).getByText(/that's fair/)).toBeTruthy();
+    expect(within(sheet).getByText(/Refund — the bath/)).toBeTruthy();
     const before = now().coins;
     const bonusBefore = fac(now()).ledger.at(-1)?.income.bonus ?? 0;
     const pay = within(sheet).getByRole("button", { name: /say goodbye/ });

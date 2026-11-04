@@ -114,7 +114,8 @@ export type Visit = {
   moment?: { kind: Favorite; at: number; day: number; state: "open" | "done" | "missed" } | null;
 };
 export type ComplaintKind = "wait" | "bath" | "billing" | "attention" | "dirty";
-export type RemedyKind = "finish" | "refund" | "credit" | "explain";
+/** No credit for next time (audit finding 6): game-coin refunds, finishing the service, or an explanation. */
+export type RemedyKind = "finish" | "refund" | "explain";
 export type Mood = "delighted" | "content" | "disappointed" | "upset";
 /** How a visit ended: what was billed, how the family felt, what went wrong and how it was answered. */
 export type Outcome = {
@@ -169,8 +170,8 @@ export type TStaff = Staff & {
 /** Why reputation moved, for the Reputation panel. */
 export type RepEntry = { day: number; min: number; delta: number; reason: string };
 export type Review = { day: number; stars: 1 | 2 | 3 | 4 | 5; owner: string; dog: string; text: string };
-/** A guest-book entry: the pup, plus how the family felt last time, any credit owed, and if they've stopped coming. */
-export type TRegular = Regular & { sat?: number; credit?: number; lostUntil?: number };
+/** A guest-book entry: the pup, plus how the family felt last time, and if they've stopped coming. */
+export type TRegular = Regular & { sat?: number; lostUntil?: number };
 
 export type Prices = { daycare: number; boarding: number; bath: number; exitBath: number };
 export type Wage = "lean" | "standard" | "generous";
@@ -270,6 +271,8 @@ export type TycoonState = {
   facilities: Record<string, Facility>;
   trophies: string[];
   bestProfit: number;
+  /** Set on the load that settled credits from an older save as refunds (audit finding 6), to tell the player once. */
+  settledCredits?: number;
   pendingLevel: number | null;
   weekly: TWeekly | null;
   /** Purchases added to this save (ids) — see src/lib/purchases/delivery.ts. */

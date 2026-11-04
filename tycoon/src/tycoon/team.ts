@@ -213,7 +213,7 @@ function pickBath(s: TycoonState, st: TStaff, claims: Claims): Pick {
   const f = fac(s);
   const used = tubsInUse(f);
   const tub = caps(f).tubs.find((t) => !used.has(t.uid) && !claims.tubs.has(t.uid));
-  // a family already here, or a bath that can't finish before closing, is the player's call (finish, refund, credit)
+  // a family already here, or a bath that can't finish before closing, is the player's call (finish, refund)
   let note: string | null = null;
   const queue = bathQueue(f).filter((d) => {
     if (claims.dogs.has(d.id) || inActiveScuffle(f, d)) return false;

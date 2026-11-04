@@ -52,11 +52,11 @@ describe("C2/I5: finishing a bath, and prepaid baths that weren't done", () => {
   });
 });
 
-describe("I4: a credit plus refunds never pays out more than the family paid", () => {
+describe("I4: refunds never pay out more than the family paid", () => {
   it("the total refund is capped at what was charged today plus what was prepaid", () => {
     const s = withPup({ happiness: 5, played: 0 }, { ownerHere: 15 * 60, remedies: { wait: "refund", attention: "refund" } }, { clockMin: 16 * 60, cleanliness: 95 });
     const f = fac(s);
-    const a = assessVisit(f, f.dogs[0]!, { credit: 1000 });
+    const a = assessVisit(f, f.dogs[0]!, {});
     expect(a.total).toBeGreaterThanOrEqual(0); // nothing was prepaid, so nothing is paid out
   });
 });

@@ -29,8 +29,8 @@ export const SAFE_FLOOR = 50;
 
 export const moodOf = (sat: number): Mood => (sat >= 80 ? "delighted" : sat >= 60 ? "content" : sat >= 40 ? "disappointed" : "upset");
 
-/** `credit`: a credit owed from a past visit, taken off this bill. `exitBath`: an exit bath chosen at pickup. */
-export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; credit?: number }): Assessment {
+/** `exitBath`: an exit bath chosen at pickup. */
+export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean }): Assessment {
   const v = visitOf(f, dog);
   const now = f.clockMin;
   const placed = dog.place.kind === "room" || dog.place.kind === "bed";
@@ -71,7 +71,7 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
   if (v.scuffle) sat -= 20;
   if (!safe && (!provided || dog.happiness < 45)) add("attention", provided ? `${dog.name} seemed unhappy — not enough attention.` : dog.checkedIn ? `${dog.name} never got a playroom.` : `${dog.name} was never checked in.`, 0);
 
-  // ---- the player's answers: completing the service, a refund, a credit — or just an explanation ----
+  // ---- the player's answers: completing the service, a game-coin refund — or just an explanation ----
   const daycareCharge = safe || !provided ? 0 : Math.round(f.prices.daycare * (0.6 + (0.4 * dog.happiness) / 100));
   const refunds: { label: string; amount: number }[] = [];
   for (const c of complaints) {
@@ -79,9 +79,6 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
       const amt = refundFor(c.kind, v.paid, daycareCharge);
       if (amt > 0) refunds.push({ label: `Refund — ${REFUND_LABEL[c.kind]}`, amount: -amt });
       sat += 20;
-      c.resolved = true;
-    } else if (c.remedy === "credit") {
-      sat += 12;
       c.resolved = true;
     } else if (c.remedy === "explain") {
       if (c.kind === "wait" && ownerWait <= 45) {
@@ -125,10 +122,8 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
   const charged = lines.some((l) => (l.key === "daycare" || l.key === "boarding") && l.amount > 0);
   if (v.moment?.state === "done" && charged && ownerWait < 60) lines.push({ label: `Tip — ${dog.name} told them about ${activityOf(v.moment.kind)} with you`, amount: MOMENT_TIP, key: "tips" });
   const subtotal = lines.reduce((n, l) => n + l.amount, 0);
-  const credit = Math.min(subtotal, Math.max(0, Math.round(opts.credit ?? 0)));
-  if (credit > 0) lines.push({ label: "Credit from last visit", amount: -credit });
-  // refunds never pay out more than the family paid: today's bill (after any credit) plus anything prepaid
-  let allowed = Math.max(0, subtotal - credit) + v.paid;
+  // refunds never pay out more than the family paid: today's bill plus anything prepaid
+  let allowed = Math.max(0, subtotal) + v.paid;
   for (const r of refunds) {
     const amt = Math.min(-r.amount, allowed);
     allowed -= amt;
@@ -137,17 +132,17 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
   const refundLines = lines.filter((l) => /^Refund/.test(l.label));
   const refunded = -refundLines.reduce((n, r) => n + r.amount, 0);
 
-  // income parts: the credit and refunds come off daycare first, then the rest (a bigger refund is paid out)
+  // income parts: refunds come off daycare first, then the rest (a bigger refund is paid out)
   const parts: Partial<Record<IncomeKey, number>> = {};
   for (const l of lines) if (l.key && l.amount > 0) parts[l.key] = (parts[l.key] ?? 0) + l.amount;
-  let owed = credit + refunded;
+  let owed = refunded;
   for (const k of ["daycare", "baths", "boarding", "exitBaths", "tips"] as IncomeKey[]) {
     if (!owed || !parts[k]) continue;
     const take = Math.min(owed, parts[k]!);
     parts[k] = parts[k]! - take;
     owed -= take;
   }
-  return { lines, total: subtotal - credit - refunded, parts, satisfaction: sat, mood, complaints, praise };
+  return { lines, total: subtotal - refunded, parts, satisfaction: sat, mood, complaints, praise };
 }
 
 const REFUND_LABEL: Record<ComplaintKind, string> = { wait: "the wait", bath: "the bath", billing: "prepaid bath not done", attention: "not enough attention", dirty: "dirty rooms" };
@@ -161,7 +156,9 @@ const FINISHED_TEXT: Record<ComplaintKind, string> = {
 /** What a refund gives back for each complaint (0 when there's nothing to refund). */
 export function refundFor(kind: ComplaintKind, paid: number, daycareCharge: number): number {
   if (kind === "billing") return paid;
-  if (kind === "bath") return 0; // nothing was charged for it
+  // nothing was charged for a bath that wasn't done; a goodwill refund off today's daycare puts it right (it replaced
+  // "credit next visit", audit finding 6)
+  if (kind === "bath") return Math.round(daycareCharge * 0.25);
   if (kind === "attention") return Math.round(daycareCharge * 0.5);
   return Math.round(daycareCharge * 0.25);
 }

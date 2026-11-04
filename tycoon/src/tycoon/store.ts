@@ -314,10 +314,10 @@ export function playHere() {
   else emit();
 }
 
-function activate(): { bonus: number; weekly: number } {
+function activate(): { bonus: number; weekly: number; settled: number } {
   users++;
   setOnLevel((n) => track("tycoon_level", { level: n }));
-  if (users > 1 && snap.state) return { bonus: 0, weekly: 0 };
+  if (users > 1 && snap.state) return { bonus: 0, weekly: 0, settled: 0 };
   const st = storage();
   leading = st ? claimLease(st, TAB, Date.now()) : true;
   snap = { ...snap, spectator: !leading };
@@ -325,7 +325,10 @@ function activate(): { bonus: number; weekly: number } {
   const loaded = load();
   const days = readStored() ? daysBetween(loaded.lastSeen, Date.now()) : 0;
   if (days > 0) track("tycoon_guide", { beat: "return", days, tour: !loaded.tour ? "none" : loaded.tour.done ? "done" : loaded.tour.skipped ? "skipped" : loaded.tour.beat, ...withControls() });
-  const { state, bonus } = welcomeBack(loaded, Date.now());
+  // credits from an older save were settled as refunds while loading (audit finding 6): say so once
+  const settled = loaded.settledCredits ?? 0;
+  const { state: welcomed, bonus } = welcomeBack(loaded, Date.now());
+  const { settledCredits: _done, ...state } = welcomed;
   // a page that went away while something held time (mid-build, a level-up…) comes back paused: nothing restarts on
   // its own, and no time is caught up (the clock only ever moves while running and on screen)
   const st2 = storage();
@@ -336,7 +339,7 @@ function activate(): { bonus: number; weekly: number } {
   commit(state, { paused: wasHeld });
   const weekly = checkWeek(true);
   startClock();
-  return { bonus, weekly };
+  return { bonus, weekly, settled };
 }
 function deactivate() {
   users = Math.max(0, users - 1);
@@ -433,7 +436,8 @@ export function useTycoon() {
 
   useEffect(() => {
     weeklyPaidListener = (n) => toast.success(`Last week's challenge was finished — +${n} coins`);
-    const { bonus, weekly } = activate();
+    const { bonus, weekly, settled } = activate();
+    if (settled > 0) toast.info(`Credits promised for a next visit (${settled} coins) were settled as refunds today — the game no longer offers credit.`);
     if (bonus > 0) toast.success(`Welcome back! Your team kept everyone safe and comfy. +${bonus} coins`);
     if (weekly > 0) toast.success(`Last week's challenge was finished — +${weekly} coins`);
     // Save only when this tab goes away; coming back must never overwrite what another tab saved meanwhile.
