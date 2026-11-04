@@ -148,7 +148,59 @@ daycare that starts with **every starting coin spent — 0 coins**):
 
 ## The combined session, played
 
-<!-- SESSION -->
+**How this was played:** AI play — Claude driving the real screen in Chromium with iPhone 13 emulation (software
+WebGL). It is **not a person and not a real iPhone**. Game time ran 2× faster between beats, and the script taps far
+faster than a person, so the pacing below separates what was measured from what is estimated.
+
+**The session (fresh save, Quick start), beat by beat:**
+
+1. **A familiar hands-on visit.** The guide brings Biscuit: Check in at the desk → ✓ Move to Playroom → Playtime →
+   Check out, paid with a receipt. Then Daisy, and a choice of first upgrade (Toy Bin).
+2. **A capacity problem.** Rocket arrives with no room for a Large & Active pup ("build or let him rest"). After the
+   guide, families of kinds with no playroom book elsewhere and are counted: "9 Small & Active families asked today
+   — give them a playroom".
+3. **The choice.** The ways-to-grow card compares a **Playroom wing** ("+3 spots for Small & Active pups… each worth
+   about 40 coins a day") with a **Bath station** ("families can book baths, about 3 in 10 do, 25 coins each") and
+   others, each with price, upkeep and what it needs to run.
+4. **Place and connect.** The session chose the playroom wing, flipped through the offered spots (each shown as an
+   outline in the daycare), and built at spot 2 — 540, connected, charged once. The other path, Build → Rooms →
+   type → tap, was played in the browser checks.
+5. **Furnish it** from the new room's panel: a Toy Bin, put in that room.
+6. **Assign staff** from the same panel: "Hire a daycare attendant · 250, then 40 coins a day".
+7. **Serve arrivals there:** Bear, a Small & Active pup, was checked in and played in the new room the next morning.
+8. **Back to personal care:** checking Scout in and answering ✨ moments by hand.
+9. **Save toward the next expansion:** the objectives show the next step and its progress. On day 4 the session
+   bought a **Bath station (830)**, and baths were booked and paid that day (25) and the next (75).
+
+**Measured (game clock — exact at normal speed, where an open game day is 5.5 real minutes):**
+
+| Beat | When (game time) | Running clock to get there |
+|---|---|---|
+| First visit complete (Biscuit) | during the guide (the clock waits) | 0 |
+| First "no room" family | day 1 08:38 | 49 s |
+| Families-asked objective | day 1 16:20 (this run) · 08:49 (the run before) | 4.6 min · 55 s |
+| Expansion built, furnished, staffed | day 1 16:27–16:34 (the clock waits while building) | 4.7 min · 1.3 min |
+| First family served in the new room | day 2 07:10 (this run) · day 1 10:14 (the run before) | — |
+
+**Estimated for a person:** the guide takes about 3–5 minutes of reading and tapping (it waits for you). Taps and
+choices while the clock is paused add roughly 2–3 minutes. So the **first visit lands in about 3–5 minutes and the
+first meaningful building decision in about 7–13 minutes**, within your 10–15 minute target. This is an estimate
+from the game clock plus a count of actions, not a stopwatch on a person — your iPhone test is the real measure.
+
+**What the session also showed (honestly):**
+
+- **Spending everything has consequences.** The script bought a second playroom wing at 16:57 with 558 coins and was
+  left with 18, then started day 2 at **−115**. Building paused while caring and checkouts went on, and by day 3's
+  morning it was back at **+532** — the free way back working in play. Since then, a purchase that would leave less
+  than tonight's costs says so before you confirm.
+- **Over-expanding without staff hurts service.** By day 3 it had four playrooms, one attendant and no receptionist,
+  and the script (which can't keep up like a person) let families wait 60 minutes at the desk and rooms get dirty.
+  Reputation fell from 84 to 40 and fewer families came (day 4 income 198). That's the economy doing what you asked:
+  more rooms are an opportunity, not a guarantee. The game names each cause ("waited 60 minutes at the front desk",
+  "Playroom 4 looked dirty"). It also shows that a hire would have helped, but the script's early hire failed (a
+  pup's panel covered the Team button; the script now closes it first).
+- **Two script slips fixed along the way:** it once left build mode open, which pauses the day, and it once tried
+  to furnish with no coins. Neither was a game bug.
 
 ## Checks completed
 
@@ -228,6 +280,18 @@ The reviewer also checked and found correct:
 7. **Staffing from a room's panel** only offers someone free, or adding a room to an attendant's rooms, or a new hire —
    it never takes someone off another job (that's a trade-off you make in Team).
 8. **Fun items go where pups play** when you use "first free spot"; your own choice of room always wins.
+9. **"Profit" is running profit** (before building); building is "invested". The report still keeps the change in coins
+   (profit after building), which an older audited test pins. Records and the "profitable day" goal use running profit,
+   as the goal's wording already said. **If wrong:** a record can come on a day your coins went down because you built.
+10. **Level-up rewards are recorded as bonus income** (they were added to coins silently), so the books always match
+    coins. One older test that read the day's whole bonus income now reads the rush-hour bonus alone.
+11. **A loyalty milestone bonus is a line on the receipt,** so the receipt total is exactly what the family paid.
+12. **The low-coins warning never blocks.** It explains tonight's costs; you can still buy. **If wrong:** players can
+    still spend down to below zero, then recover by serving families, with building paused until they do.
+13. **"Saving for" picks Next's expansion first,** then what families asked for, then the cheapest unlocked option. It
+    hides when Next already shows that progress.
+14. **Waiting pups at the desk:** pups checked in but waiting for a spot (or in the calm room) are listed at the front
+    desk, so they're never lost behind a closed panel.
 
 ## Commits (since `9e1e506`)
 
