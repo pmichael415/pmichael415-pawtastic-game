@@ -96,13 +96,12 @@ export function longGoal(s: TycoonState): Objective {
  * your progress toward affording it"). What families asked for comes first, then the cheapest that's unlocked and has a
  * spot. Null before expansions unlock, or when nothing is left to buy.
  */
-export function savingFor(s: TycoonState): { id: string; title: string; cost: number; have: number } | null {
+export function savingFor(s: TycoonState, next: Objective = nextObjective(s)): { id: string; title: string; cost: number; have: number } | null {
   if (level(s) < EXPANSION_LEVEL) return null;
   const f = fac(s);
   const open = expansionOptions(s).filter((o) => o.cost > 0 && (o.why === null || /more coins needed/.test(o.why)));
   if (!open.length) return null;
   // what Next is pointing at comes first, then what families asked for, then the cheapest
-  const next = nextObjective(s);
   const named = next.id.startsWith("stage-") ? open.find((o) => o.id === next.id.slice("stage-".length)) : undefined;
   const want = demandGroup(f);
   const pick = named || (want && open.find((o) => o.id === "playroom" && o.mode === "new")) || [...open].sort((a, b) => a.cost - b.cost)[0]!;

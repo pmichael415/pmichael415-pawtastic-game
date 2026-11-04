@@ -2,7 +2,7 @@
 // checked-in pup selected, the rooms it can safely go to show ✓ and one tap moves it there (the ordinary assignRoom /
 // assignBed rules — the same ones staff use).
 import { groupName, groupOf } from "@/game/engine";
-import { caps, roomStatus } from "@/tycoon/connect";
+import { caps, connectedRooms, roomStatus } from "@/tycoon/connect";
 import { safeRooms } from "@/tycoon/nextAction";
 import { roomName } from "@/tycoon/rooms";
 import { assignBed, assignRoom } from "@/tycoon/run";
@@ -14,6 +14,7 @@ const ICON: Record<string, string> = { playroom: "🎾", bath: "🛁", boarding:
 
 export function RoomsStrip({ f, dog, act, onSelectRoom }: { f: Facility; dog: TDog | null; act: Act; onSelectRoom: (uid: string) => void }) {
   const c = caps(f);
+  const connected = connectedRooms(f); // one search for every chip
   const waiting = !!dog && dog.checkedIn && (dog.place.kind === "lobby" || dog.place.kind === "calm");
   const safe = waiting && dog && !dog.boarding ? new Set(safeRooms(f, dog).map((r) => r.uid)) : new Set<string>();
   const freeBed = waiting && dog?.boarding ? c.beds.find((b) => !f.dogs.some((x) => x.place.kind === "bed" && x.place.bed === b.bed)) : undefined;
@@ -22,7 +23,7 @@ export function RoomsStrip({ f, dog, act, onSelectRoom }: { f: Facility; dog: TD
   return (
     <section aria-label="Rooms" className="flex gap-1.5 overflow-x-auto pb-0.5">
       {rooms.map((r) => {
-        const status = roomStatus(f, r);
+        const status = roomStatus(f, r, connected);
         const inside = f.dogs.filter((d) => (d.place.kind === "room" || d.place.kind === "calm" || d.place.kind === "bed") && "room" in d.place && d.place.room === r.uid).length;
         const spots = r.type === "playroom" ? (c.playrooms.find((p) => p.room.uid === r.uid)?.spots ?? 0) : r.type === "boarding" ? c.beds.filter((b) => b.room === r.uid).length : r.type === "bath" ? c.tubs.filter((t) => t.room === r.uid).length : 0;
         const bathing = r.type === "bath" ? f.dogs.filter((d) => d.bathing && c.tubs.some((t) => t.uid === d.bathTub && t.room === r.uid)).length : 0;

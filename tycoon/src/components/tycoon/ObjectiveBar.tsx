@@ -1,4 +1,5 @@
 // Always one clear next objective and one longer-term goal (staff design §7).
+import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { EXPANSION_LEVEL } from "@/tycoon/expansion";
@@ -13,6 +14,9 @@ const pct = (o: Objective) => (o.progress ? Math.round((100 * o.progress[0]) / M
 
 export function ObjectiveBar({ state, onAction }: { state: TycoonState; onAction: (a: ObjectiveAction) => void }) {
   const { next, long } = objectives(state);
+  const f = fac(state);
+  // the expansion options are worked out spot by spot, so only when something they depend on changes (performance)
+  const save = useMemo(() => savingFor(state, next), [state.coins, state.xp, f.rooms, f.items, f.land, f.asked, f.staff, f.prices, next.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const stage = facilityStage(fac(state));
   return (
     <section aria-label="Objectives" className="space-y-2 rounded-2xl border border-border bg-card p-3 shadow-soft">
@@ -31,7 +35,6 @@ export function ObjectiveBar({ state, onAction }: { state: TycoonState; onAction
       </div>
       {(() => {
         // always in view: the next expansion's price and how close you are (owner brief: earn, reinvest, expand)
-        const save = savingFor(state);
         if (!save || (next.action === "expand" && next.progress)) return null; // Next already shows it
         const pctSaved = Math.min(100, Math.round((100 * save.have) / Math.max(1, save.cost)));
         const n = (x: number) => x.toLocaleString("en-US");
