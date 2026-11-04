@@ -431,7 +431,16 @@ function cheapestDoor(f: Facility, room: Room, reached: { rooms: Set<string>; ti
  * The cheapest way to connect an existing room that isn't connected: a door (reusing one it has when that's cheapest)
  * and the path squares to the entrance, with the price. Null when it's already connected or there's no way.
  */
-export function connectionPlan(f: Facility, roomUid: string): { door: Door; newDoor: boolean; paths: { c: number; r: number }[]; cost: number; blocked: string | null } | null {
+export type ConnectPlan = {
+  door: Door;
+  /** The room whose wall gets the door: null for this room, or a connected neighbour's uid (for rooms too small for one). */
+  doorOn: string | null;
+  newDoor: boolean;
+  paths: { c: number; r: number }[];
+  cost: number;
+  blocked: string | null;
+};
+export function connectionPlan(f: Facility, roomUid: string): ConnectPlan | null {
   const room = findRoom(f, roomUid);
   if (!room) return null;
   const reached = reach(f);
@@ -439,16 +448,21 @@ export function connectionPlan(f: Facility, roomUid: string): { door: Door; newD
   const per = outdoorDef("path")!.price;
   // An existing door only needs its path; a new door costs DOOR_PRICE more. Compare both.
   const fresh = cheapestDoor(f, room, reached);
-  let best: { door: Door; newDoor: boolean; paths: { c: number; r: number }[]; cost: number; blocked: string | null } | null = null;
+  let best: ConnectPlan | null = null;
   for (const d of room.doors) {
     const only = routeFor(f, room, d, reached);
-    if (only && (!best || only.length * per < best.cost)) best = { door: d, newDoor: false, paths: only, cost: only.length * per, blocked: null };
+    if (only && (!best || only.length * per < best.cost)) best = { door: d, doorOn: null, newDoor: false, paths: only, cost: only.length * per, blocked: null };
   }
   if (fresh) {
     const exists = room.doors.some((d) => sameDoor(d, fresh.door));
     const cost = (exists ? 0 : DOOR_PRICE) + fresh.paths.length * per;
     // never a fifth door
-    if ((exists || room.doors.length < MAX_DOORS) && (!best || cost < best.cost)) best = { door: fresh.door, newDoor: !exists, paths: fresh.paths, cost, blocked: null };
+    if ((exists || room.doors.length < MAX_DOORS) && (!best || cost < best.cost)) best = { door: fresh.door, doorOn: null, newDoor: !exists, paths: fresh.paths, cost, blocked: null };
+  }
+  // a room too small for a door of its own (a 2 × 2): a doorway on a connected neighbour's wall (audit finding 4A)
+  if (!best || best.cost > DOOR_PRICE) {
+    const n = neighbourDoor(f, room, reached);
+    if (n) best = { door: n.door, doorOn: n.room, newDoor: true, paths: [], cost: DOOR_PRICE, blocked: null };
   }
   if (best) best.blocked = tooFull(f, best.paths.length);
   return best;
@@ -460,16 +474,16 @@ function tooFull(f: Facility, newSquares: number): string | null {
 }
 
 /** Connects a room that isn't connected, for exactly connectionPlan's price — and, given `shown`, exactly that plan. */
-export function connectRoom(s: TycoonState, roomUid: string, shown?: { door: Door; newDoor: boolean; paths: { c: number; r: number }[]; cost: number }): TResult {
+export function connectRoom(s: TycoonState, roomUid: string, shown?: { door: Door; doorOn?: string | null; newDoor: boolean; paths: { c: number; r: number }[]; cost: number }): TResult {
   const plan = connectionPlan(fac(s), roomUid);
   if (!plan) return { ok: false, error: connectedRoomsOf(fac(s)).has(roomUid) ? "It's already connected." : "There's no way to reach it from here — move it or make space." };
   if (plan.blocked) return { ok: false, error: plan.blocked };
-  if (shown && (shown.newDoor !== plan.newDoor || planChanged({ door: plan.door, paths: plan.paths, total: plan.cost }, { door: shown.door, paths: shown.paths, cost: { total: shown.cost } })))
+  if (shown && (shown.newDoor !== plan.newDoor || planChanged({ door: plan.door, doorOn: plan.doorOn, paths: plan.paths, total: plan.cost }, { door: shown.door, doorOn: shown.doorOn ?? null, paths: shown.paths, cost: { total: shown.cost } })))
     return { ok: false, error: `The way to connect it changed since you saw it (now ${plan.cost} coins) — check it and confirm again.` };
   if (s.coins < plan.cost) return { ok: false, error: `${plan.cost - s.coins} more coins needed.` };
   const before = today(fac(s)).expenses.building;
   let t: TResult = { ok: true, state: s };
-  if (plan.newDoor) t = addDoor(s, roomUid, plan.door);
+  if (plan.newDoor) t = addDoor(s, plan.doorOn ?? roomUid, plan.door);
   if (t.ok && plan.paths.length) t = paintPaths(t.state, plan.paths);
   if (!t.ok) return t;
   // all of it, for exactly the price shown — or nothing
@@ -620,8 +634,12 @@ export function firstFreeRoomPlan(f: Facility, type: RoomType, group?: GroupId):
         }
         const plan = cheapestDoor(f, draft, reached);
         if (!plan) continue;
+        // too many things for this route's path squares: keep looking — a spot beside a room needs none (finding 4B)
         const full = tooFull(f, plan.paths.length);
-        if (full) return { ok: false, rect, reason: full };
+        if (full) {
+          firstWhy ??= full;
+          continue;
+        }
         const out = doorOutside(draft, plan.door);
         const via = plan.paths.length === 0 ? (f.rooms.find((x) => containsTile(x, out) && reached.rooms.has(x.uid))?.uid ?? null) : null;
         const room = roomPrice(sh.w, sh.d);
