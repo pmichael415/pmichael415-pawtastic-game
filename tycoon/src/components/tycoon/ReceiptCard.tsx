@@ -1,5 +1,5 @@
 // The receipt after a pickup (any kind: at the desk, an owner who gave up waiting, closing time, a finished bath):
-// what the family said, the itemized bill, and the reputation change. Dismisses itself.
+// what the family said, what they paid and the reputation change, with the itemized bill a tap away. Dismisses itself.
 import { X } from "lucide-react";
 import { outcomeLine } from "@/tycoon/run";
 import type { Outcome } from "@/tycoon/types";
@@ -16,11 +16,16 @@ export function ReceiptCard({ outcome, onClose }: { outcome: Outcome; onClose: (
             <X className="h-4 w-4" />
           </button>
         </div>
-        <Receipt lines={outcome.lines} total={outcome.total} />
-        <p className="mt-2 text-xs text-muted-foreground">
-          {outcome.repDelta ? `Reputation ${outcome.repDelta > 0 ? "+" : ""}${outcome.repDelta}` : "Reputation unchanged"}
-          {outcome.review ? ` · New ${outcome.review.stars}★ review: “${outcome.review.text}”` : ""}
+        <p className="text-xs font-semibold text-secondary">
+          Paid {outcome.total} · {outcome.repDelta ? `Reputation ${outcome.repDelta > 0 ? "+" : ""}${outcome.repDelta}` : "Reputation unchanged"}
+          {outcome.review ? ` · New ${outcome.review.stars}★ review` : ""}
         </p>
+        {/* compact on a phone: the itemized bill opens on tap (it used to cover the buttons underneath) */}
+        <details className="pointer-events-auto mt-1">
+          <summary className="min-h-8 cursor-pointer text-xs font-semibold text-primary">See the bill</summary>
+          <Receipt lines={outcome.lines} total={outcome.total} />
+          {outcome.review && <p className="mt-2 text-xs text-muted-foreground">“{outcome.review.text}”</p>}
+        </details>
       </div>
     </section>
   );

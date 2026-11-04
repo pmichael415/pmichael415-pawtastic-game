@@ -123,6 +123,21 @@ describe("day report, money banner and sign", () => {
     unmount();
   });
 
+  it("a day you built on: the running profit leads, and the building is shown as what you invested (play-session finding)", () => {
+    const s = newTycoon(Date.now());
+    const f = fac(s);
+    const built: TReport = { day: 1, income: 756, expenses: 3045, profit: -2289, record: false, tip: "", admitted: 10, checkouts: 9, avgHappy: 100 };
+    const ledger = [{ day: 1, income: { daycare: 700, boarding: 0, baths: 0, exitBaths: 0, tips: 56, bonus: 0 }, expenses: { wages: 40, upkeep: 60, supplies: 20, marketing: 0, building: 2925, refunds: 0 } }];
+    load(withFac(s, { ...f, day: 2, ledger: ledger as never }));
+    const { unmount } = render(<Harness show="report" />);
+    act(() => tycoonStore.set((x) => withFac(x, { ...fac(x), report: built })));
+    expect(screen.getByText("Running the daycare")).toBeTruthy();
+    expect(screen.getByText("+636")).toBeTruthy();
+    expect(screen.getByText(/You invested 2,925 in building/)).toBeTruthy();
+    expect(screen.getByText(/after building −2,289/)).toBeTruthy();
+    unmount();
+  });
+
   it("the money banner shows below zero, with a saving idea", () => {
     load({ ...newTycoon(Date.now()), coins: -36 });
     const { unmount } = render(<Harness show="banner" />);

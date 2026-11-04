@@ -73,6 +73,19 @@ describe("a pup's panel on a phone", () => {
   });
 });
 
+describe("the receipt on a phone", () => {
+  it("is compact: what the family said, what they paid and the reputation change; the itemized bill opens on tap", () => {
+    open(day());
+    act(() => tycoonStore.set((s) => ok(checkout(s, "b", false))));
+    const r = screen.getByRole("region", { name: "Receipt" });
+    expect(within(r).getByText(/Paid \d+ · Reputation/)).toBeTruthy();
+    const bill = r.querySelector("details")!;
+    expect(bill.open).toBe(false);
+    fireEvent.click(within(r).getByText("See the bill"));
+    expect(bill.open).toBe(true);
+  });
+});
+
 describe("mopping from the daycare view", () => {
   it("a pup in a room that's getting dirty offers Mop floors right in its panel (not only in the list view)", () => {
     const s = day();
