@@ -117,7 +117,9 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean; 
   const tipNow = mood === "delighted" ? t : mood === "content" ? Math.floor(t / 2) : 0;
   if (tipNow > 0) lines.push({ label: "Tip", amount: tipNow, key: "tips" });
   // a personal moment you shared: the pup tells the family, and they add a little extra (once per visit)
-  if (v.moment?.state === "done") lines.push({ label: `Tip — ${dog.name} told them about ${activityOf(v.moment.kind)} with you`, amount: MOMENT_TIP, key: "tips" });
+  // only from a visit that was charged (not a no-charge safety visit) and a family that didn't give up waiting
+  const charged = lines.some((l) => (l.key === "daycare" || l.key === "boarding") && l.amount > 0);
+  if (v.moment?.state === "done" && charged && ownerWait < 60) lines.push({ label: `Tip — ${dog.name} told them about ${activityOf(v.moment.kind)} with you`, amount: MOMENT_TIP, key: "tips" });
   const subtotal = lines.reduce((n, l) => n + l.amount, 0);
   const credit = Math.min(subtotal, Math.max(0, Math.round(opts.credit ?? 0)));
   if (credit > 0) lines.push({ label: "Credit from last visit", amount: -credit });

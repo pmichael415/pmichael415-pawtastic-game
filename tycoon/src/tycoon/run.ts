@@ -700,7 +700,8 @@ function tickStep(s: TycoonState, seconds: number, rand: () => number): TycoonSt
         const pup = fac(r.state).dogs.at(-1)!;
         const g = groupOf(pup);
         const h = fac(out);
-        if (!pup.boarding && !caps(h).playrooms.some((p) => p.group === g)) {
+        // (a playroom of that kind that's closed still counts: they come and wait, and the blockers say to reopen it)
+        if (!pup.boarding && !h.rooms.some((x) => x.type === "playroom" && x.group === g)) {
           const asked = h.asked && h.asked.day === h.day ? h.asked.groups : {};
           out = withFac(out, { ...h, asked: { day: h.day, groups: { ...asked, [g]: (asked[g] ?? 0) + 1 } } });
         } else out = r.state;

@@ -86,6 +86,32 @@ describe("the receipt on a phone", () => {
   });
 });
 
+describe("the compact receipt says refunds plainly (review fix)", () => {
+  it("a refund reads 'Refunded 25', nothing charged reads 'No charge' — never 'Paid -25'", async () => {
+    const { ReceiptCard } = await import("./ReceiptCard");
+    const base = { dog: "Otis", owner: "Lee", day: 1, min: 600, how: "checkout" as const, mood: "content" as const, satisfaction: 70, lines: [], complaints: [], repDelta: 0, review: null };
+    const a = render(<ReceiptCard outcome={{ ...base, total: -25 }} onClose={() => {}} />);
+    expect(screen.getByText(/Refunded 25/)).toBeTruthy();
+    expect(screen.queryByText(/Paid -/)).toBeNull();
+    a.unmount();
+    render(<ReceiptCard outcome={{ ...base, total: 0 }} onClose={() => {}} />);
+    expect(screen.getByText(/No charge/)).toBeTruthy();
+  });
+});
+
+describe("while you choose a spot (review fix)", () => {
+  it("the chip over the daycare steps aside, so no pup panel opens over the spot bar", () => {
+    const s = day();
+    const f = fac(s);
+    open(withFac(s, { ...f, dogs: f.dogs.map((d) => ({ ...d, visit: { ...d.visit!, owner: "Lee", ownerHere: f.clockMin - 35 } })) }));
+    expect(screen.getByRole("button", { name: /is waiting to pick up/ })).toBeTruthy();
+    if (!screen.queryByRole("region", { name: "Expand your daycare" })) fireEvent.click(screen.getByRole("button", { name: /^(Expansion options|See options)$/ }));
+    const card = within(screen.getByRole("region", { name: "Expand your daycare" }));
+    fireEvent.click(within(card.getByRole("article", { name: "Play yard" })).getByRole("button", { name: /^Choose a spot/ }));
+    expect(screen.queryByRole("button", { name: /is waiting to pick up/ })).toBeNull();
+  });
+});
+
 describe("mopping from the daycare view", () => {
   it("a pup in a room that's getting dirty offers Mop floors right in its panel (not only in the list view)", () => {
     const s = day();

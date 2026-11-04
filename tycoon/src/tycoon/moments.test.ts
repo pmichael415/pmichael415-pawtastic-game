@@ -81,6 +81,24 @@ describe("answering", () => {
     expect(o.lines.filter((l) => /told them about/.test(l.label))).toHaveLength(1);
     expect(s.coins - before).toBeGreaterThanOrEqual(o.total);
   });
+  it("no tip on a visit that charged nothing: a pup kept safe in the calm room (review fix)", () => {
+    let s = openMoments(withFac(day(1), { ...fac(day(1)), clockMin: 12 * 60 }));
+    s = ok(answerMoment(s, "m0"));
+    const f = fac(s);
+    const calm = f.rooms.find((r) => r.type === "calm")!.uid;
+    s = withFac(s, { ...f, dogs: f.dogs.map((d) => ({ ...d, place: { kind: "calm" as const, room: calm }, visit: { ...d.visit!, safeMove: true } })) });
+    const a = assessVisit(fac(s), fac(s).dogs[0]!, {});
+    expect(a.lines.some((l) => /told them about/.test(l.label))).toBe(false);
+    expect(a.total).toBe(0);
+  });
+  it("no tip from a family that gave up waiting at pickup (review fix)", () => {
+    let s = openMoments(withFac(day(1), { ...fac(day(1)), clockMin: 12 * 60 }));
+    s = ok(answerMoment(s, "m0"));
+    const f = fac(s);
+    s = withFac(s, { ...f, clockMin: 17 * 60 + 5, dogs: f.dogs.map((d) => ({ ...d, visit: { ...d.visit!, ownerHere: 16 * 60 } })) });
+    const a = assessVisit(fac(s), fac(s).dogs[0]!, {});
+    expect(a.lines.some((l) => /told them about/.test(l.label))).toBe(false);
+  });
   it("staff never take a moment: an attendant's play leaves it open for you", () => {
     let s = ok(hire(day(1, { happiness: 40 }), "attendant"));
     s = openMoments(withFac(s, { ...fac(s), clockMin: 12 * 60 }));

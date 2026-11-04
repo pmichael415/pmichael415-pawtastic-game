@@ -178,16 +178,21 @@ const working = (s: TycoonState, uid: string) => {
   return !!room && roomStatus(f, room).working;
 };
 
+/** A playroom of this kind exists (working or not — a closed one is reopened, not built again). */
+export const hasPlayroomFor = (f: Facility, g: GroupId) => f.rooms.some((r) => r.type === "playroom" && r.group === g);
+/** Rooms that would count toward growing but are closed or not working right now. */
+export function idleRooms(f: Facility): Room[] {
+  const connected = connectedRooms(f);
+  return f.rooms.filter((r) => (r.type === "playroom" || r.type === "bath" || r.type === "boarding" || r.type === "staff") && !roomStatus(f, r, connected).working);
+}
 /** Families who asked today for each kind of pup with no playroom here (most first). */
 export function askedToday(f: Facility): { group: GroupId; n: number }[] {
-  const c = caps(f);
   const groups = f.asked && f.asked.day === f.day ? f.asked.groups : {};
-  return (Object.entries(groups) as [GroupId, number][]).filter(([g, n]) => n > 0 && !c.playrooms.some((p) => p.group === g)).map(([group, n]) => ({ group, n })).sort((a, b) => b.n - a.n);
+  return (Object.entries(groups) as [GroupId, number][]).filter(([g, n]) => n > 0 && !hasPlayroomFor(f, g)).map(([group, n]) => ({ group, n })).sort((a, b) => b.n - a.n);
 }
 /** A kind of pup families want a room for right now: one waiting at the desk with no room, else the most asked today. */
 export function demandGroup(f: Facility): GroupId | null {
-  const c = caps(f);
-  const has = (g: GroupId) => c.playrooms.some((p) => p.group === g);
+  const has = (g: GroupId) => hasPlayroomFor(f, g);
   const waiting = f.dogs.filter((d) => !d.checkedIn && d.place.kind === "lobby" && !d.boarding).map((d) => groupOf(d)).find((g) => !has(g));
   return waiting ?? askedToday(f)[0]?.group ?? null;
 }
@@ -410,7 +415,9 @@ export function expansionOptions(s: TycoonState): ExpansionOption[] {
     const q = !lvl ? null : mode === "new" && !first ? NO_SPOT : quote(s, id, first);
     const cost = q && typeof q !== "string" ? q.cost : 0;
     const upkeep = q && typeof q !== "string" ? q.upkeep : 0;
-    const why = !lvl ? `Unlocks at level ${EXPANSION_LEVELS[id]}.` : typeof q === "string" ? q : s.coins < cost ? `${(cost - s.coins).toLocaleString("en-US")} more coins needed.` : null;
+    // a room of this kind you already have, closed or not working: open it again (free) rather than build another
+    const idle = id !== "playroom" && id !== "yard" && mode === "new" ? idleRooms(f).find((r) => r.type === id) : undefined;
+    const why = !lvl ? `Unlocks at level ${EXPANSION_LEVELS[id]}.` : idle ? `Your ${roomName(f, idle.uid)} is closed or not working — open it again from its panel first (free).` : typeof q === "string" ? q : s.coins < cost ? `${(cost - s.coins).toLocaleString("en-US")} more coins needed.` : null;
     return { id, group: GROUP_OF[id], mode, ...describe(f, id, mode, q && typeof q !== "string" ? q : null), cost, upkeep, available: why === null, why };
   });
 }

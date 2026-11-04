@@ -159,7 +159,7 @@ function RootComponent() {
       </nav>
       <ShareSheet />
       <TeamPicker />
-      <Toaster position="top-center" offset={8} mobileOffset={{ top: 8 }} richColors duration={1800} visibleToasts={2} />
+      <Toaster position="top-center" offset={8} mobileOffset={{ top: 8 }} richColors duration={1800} />
       </EntitlementsProvider>
     </QueryClientProvider>
   );

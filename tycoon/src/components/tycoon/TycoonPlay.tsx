@@ -224,7 +224,9 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
   }, [state]);
   const [expandOpen, setExpandOpen] = useState(false);
   const spots = placing ? expansionSpots(state, placing.id) : [];
-  const spot = placing ? (spots[placing.i] ?? null) : null;
+  // the same spot the bar shows (its index is kept inside the list if the list gets shorter)
+  const spotIndex = placing ? Math.min(placing.i, Math.max(0, spots.length - 1)) : 0;
+  const spot = placing ? (spots[spotIndex] ?? null) : null;
   const stageWrap = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!spot) return;
@@ -314,7 +316,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
           const d = f.dogs.find((x) => x.id === id);
           const m = d?.visit?.moment;
           if (d && m) {
-            toast(`✨ ${d.name} ${MOMENT_ASK[m.kind]}`, { action: { label: `Go to ${d.name}`, onClick: () => setSel({ kind: "dog", id: d.id }) } });
+            toast(`✨ ${d.name} ${MOMENT_ASK[m.kind]}`, { action: { label: `Go to ${d.name}`, onClick: () => { setPlacing(null); setSel({ kind: "dog", id: d.id }); } } });
             sound.play("sparkle");
           }
         }
@@ -513,7 +515,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
             ref={stage}
             state={state}
             selected={sel?.id ?? null}
-            ghost={building ? b.ghost : spot ? { kind: "room", c: spot.c, r: spot.r, w: spot.w, d: spot.d, ok: true, label: `Spot ${placing!.i + 1}` } : null}
+            ghost={building ? b.ghost : spot ? { kind: "room", c: spot.c, r: spot.r, w: spot.w, d: spot.d, ok: true, label: `Spot ${spotIndex + 1}` } : null}
             looks={looks}
             overlay={building}
             pickMode={building ? b.pickMode : "objects"}
@@ -524,11 +526,11 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
             }}
           />
         ) : (
-          no3d && <TycoonMap state={state} selected={sel?.id ?? null} onPick={onPick} preview={spot ? { ...spot, label: `Spot ${placing!.i + 1}` } : null} />
+          no3d && <TycoonMap state={state} selected={sel?.id ?? null} onPick={onPick} preview={spot ? { ...spot, label: `Spot ${spotIndex + 1}` } : null} />
         )}
         {/* the most urgent thing only you can sort out: a family kept waiting first (they can't wait forever), then a
             pup asking for you (a moment fades at no cost) */}
-        {!building && !sel && kept && (
+        {!building && !sel && !placing && kept && (
           <button
             type="button"
             className={`absolute left-2 top-2 z-10 min-h-11 rounded-full border-2 bg-background/95 px-3 text-sm font-semibold text-secondary shadow-soft ${kept.w.stage === "upset" ? "border-destructive" : "border-amber-500"}`}
@@ -537,7 +539,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
             ⏳ {kept.d.visit!.owner} is waiting to {kept.w.kind === "pickup" ? "pick up" : "drop off"} {kept.d.name}
           </button>
         )}
-        {!building && !sel && !kept && asking.length > 0 && (
+        {!building && !sel && !placing && !kept && asking.length > 0 && (
           <button
             type="button"
             className="absolute left-2 top-2 z-10 min-h-11 rounded-full border-2 border-primary bg-background/95 px-3 text-sm font-semibold text-secondary shadow-soft"
@@ -615,7 +617,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
           act={act}
           id={placing.id}
           spots={spots}
-          index={Math.min(placing.i, Math.max(0, spots.length - 1))}
+          index={spotIndex}
           onIndex={(i) => setPlacing({ ...placing, i })}
           onCancel={() => {
             setPlacing(null);

@@ -12,6 +12,7 @@ import { quickStart } from "./start";
 import { fac, parseTycoon, withFac } from "./state";
 import { hire } from "./team";
 import { ok } from "./testkit";
+import { setClosed } from "./build";
 import { newTycoon } from "./state";
 import type { TycoonState } from "./types";
 
@@ -92,3 +93,34 @@ describe("the reason to grow", () => {
     expect(nextObjective(s).id).toBe("demand");
   });
 });
+
+describe("a room you have but closed isn't a reason to build another (review fix)", () => {
+  it("families whose kind has a closed playroom still come and wait — not counted as asking; the wing isn't offered for them", () => {
+    let s = ok(buyExpansion(open(), "playroom")); // a playroom for a new kind of pup
+    const wing = fac(s).rooms.at(-1)!;
+    s = ok(setClosed(s, wing.uid, true));
+    s = withFac(s, { ...fac(s), asked: null });
+    s = morning(s, "closed");
+    expect(askedToday(fac(s)).some((a) => a.group === wing.group)).toBe(false);
+    expect(neededGroup(fac(s))).not.toBe(wing.group);
+  });
+  it("a closed bath room: the bath option says to open it again (free) instead of building a second", () => {
+    let s = ok(buyExpansion(open(), "bath"));
+    const bath = fac(s).rooms.find((r) => r.type === "bath")!;
+    s = ok(setClosed(s, bath.uid, true));
+    const o = expansionOptions(s).find((x) => x.id === "bath")!;
+    expect(o.available).toBe(false);
+    expect(o.why).toMatch(/closed|open it/i);
+  });
+  it("the next objective for a stage need you have but closed says to reopen it, not to buy something", () => {
+    let s = ok(buyExpansion(open(), "playroom"));
+    s = ok(hire(ok(hire(s, "reception")), "attendant"));
+    const wing = fac(s).rooms.at(-1)!;
+    s = ok(setClosed(s, wing.uid, true));
+    s = withFac(s, { ...fac(s), asked: null, clockMin: 9 * 60 });
+    const o = nextObjective({ ...s, coins: 300 });
+    expect(o.title).toMatch(/Reopen/);
+    expect(o.action).toBeUndefined();
+  });
+});
+

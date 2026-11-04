@@ -17,7 +17,7 @@ export function ReceiptCard({ outcome, onClose }: { outcome: Outcome; onClose: (
           </button>
         </div>
         <p className="text-xs font-semibold text-secondary">
-          Paid {outcome.total} · {outcome.repDelta ? `Reputation ${outcome.repDelta > 0 ? "+" : ""}${outcome.repDelta}` : "Reputation unchanged"}
+          {outcome.total > 0 ? `Paid ${outcome.total}` : outcome.total < 0 ? `Refunded ${-outcome.total}` : "No charge"} · {outcome.repDelta ? `Reputation ${outcome.repDelta > 0 ? "+" : ""}${outcome.repDelta}` : "Reputation unchanged"}
           {outcome.review ? ` · New ${outcome.review.stars}★ review` : ""}
         </p>
         {/* compact on a phone: the itemized bill opens on tap (it used to cover the buttons underneath) */}

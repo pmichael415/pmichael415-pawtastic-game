@@ -42,16 +42,22 @@ describe("I1: the bath attendant doesn't start a bath the family would have to w
 });
 
 describe("I2: the expansion price is never stale", () => {
-  it("closing the bath room changes the option and its price, and buying spends exactly what the card says", () => {
+  it("closing the bath room changes the option (open it again, free — never a duplicate), and after reopening, buying spends exactly what the card says", () => {
     let s = { ...richState(), coins: 20000, xp: xpForLevel(EXPANSION_LEVEL) + 10000 };
     const before = expansionOptions(s).find((o) => o.id === "bath")!;
     const bath = fac(s).rooms.find((r) => r.type === "bath")!.uid;
     s = ok(setClosed(s, bath, true));
     const after = expansionOptions(s).find((o) => o.id === "bath")!;
     expect(after.mode).not.toBe(before.mode);
+    expect(after.available).toBe(false);
+    expect(after.why).toMatch(/open it again/);
     const spent = (x: TycoonState) => fac(x).ledger.find((l) => l.day === fac(x).day)?.expenses.building ?? 0;
+    expect(buyExpansion(s, "bath").ok).toBe(false);
+    s = ok(setClosed(s, bath, false));
+    const reopened = expansionOptions(s).find((o) => o.id === "bath")!;
+    expect(reopened.mode).toBe(before.mode);
     const r = ok(buyExpansion(s, "bath"));
-    expect(spent(r) - spent(s)).toBe(after.cost);
+    expect(spent(r) - spent(s)).toBe(reopened.cost);
   });
 });
 
