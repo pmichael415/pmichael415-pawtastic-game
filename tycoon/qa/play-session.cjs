@@ -422,6 +422,7 @@ const note = async (page, what, extra = {}) => {
       if ((await b.count()) && !(await b.isDisabled())) { await b.click(); item = name; break; }
     }
     const put = page.getByRole('button', { name: /^Put it in / });
+    if (item) await put.waitFor({ timeout: 3000 }).catch(() => {});
     if (item && (await put.count()) && !(await put.isDisabled())) {
       await page.waitForTimeout(300);
       await once(`furnish-${room.type}`, `furnish-${room.type}`, `furnishing the new ${room.type}: the item waits at the room's first free spot`);
