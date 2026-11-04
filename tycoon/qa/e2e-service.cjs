@@ -27,6 +27,37 @@ async function steady(page, fn) {
 /** A visit as the game stores it. */
 const visit = (over) => ({ owner: 'Taylor', requests: ['daycare'], prepaid: [], arrivedDay: 1, arrived: 480, pickupDay: 1, pickup: 940, ownerHere: null, waitedLobby: 0, checkedInAt: 480, history: [], scuffle: false, safeMove: false, finishing: null, remedies: {}, paid: 0, ...over });
 
+/**
+ * A pup's panel, opened the way a player does now (the list under the 3D view is gone): from the front desk when the
+ * family is there, otherwise by tapping the pup in the daycare.
+ */
+async function cardOf(page, name) {
+  const open = () => page.getByRole('article', { name });
+  if (await open().count()) return open();
+  const desk = page.getByRole('region', { name: 'Front desk' }).getByRole('button', { name: new RegExp(`(🐕 ${name}\\b| for ${name}\\b|^${name} · )`) });
+  if (await desk.count()) { await desk.first().click(); if (await open().first().waitFor({ timeout: 1500 }).then(() => true, () => false)) return open(); }
+  const id = await page.evaluate((n) => window.__tycoonState().facilities.f1.dogs.find((d) => d.name === n)?.id, name);
+  for (let i = 0; i < 8 && id; i++) {
+    for (const block of ['center', 'start', 'end']) {
+      await page.evaluate((b) => document.querySelector('section[aria-label="3D daycare view"] canvas')?.scrollIntoView({ block: b }), block);
+      await page.waitForTimeout(100);
+      const p = await page.evaluate((id) => {
+        const w = window.__tycoonWorld;
+        const a = w.debugInfo().dogs.find((x) => x.id === id);
+        if (!a) return null;
+        const q = w.project(a.x, 0.3, a.z);
+        const el = document.elementFromPoint(q.x, q.y);
+        return { ...q, onCanvas: !!el && el.tagName === 'CANVAS' };
+      }, id);
+      if (!p || !p.visible || !p.onCanvas) continue;
+      await page.mouse.click(p.x, p.y);
+      if (await open().first().waitFor({ timeout: 700 }).then(() => true, () => false)) return open();
+    }
+    await page.waitForTimeout(200);
+  }
+  return open();
+}
+
 async function run(browser, label, opts) {
   const ctx = await browser.newContext(opts);
   await ctx.addInitScript(() => { try { sessionStorage.setItem('pawtastic-team-dismissed', '1'); } catch {} });
@@ -37,7 +68,7 @@ async function run(browser, label, opts) {
   const st = () => page.evaluate(() => window.__tycoonState());
   const f = async () => (await st()).facilities.f1;
   const dog = async (id) => (await f()).dogs.find((d) => d.id === id);
-  const article = (name) => page.getByRole('article', { name });
+  const card = (name) => cardOf(page, name);
 
   // A daycare with a bath room (the test kit's fixture), the guide skipped, opened straight from a direct link.
   await page.goto(BASE + '/help', { waitUntil: 'domcontentloaded' });
@@ -57,7 +88,7 @@ async function run(browser, label, opts) {
   try {
     // ---------- 1. the owner brief's scenario ----------
     await setPups([pup('e1', 'Biscuit', visit({ requests: ['daycare', 'bath'], pickup: 940 }))]);
-    await article('Biscuit').getByRole('button', { name: 'Bath', exact: true }).click();
+    await (await card('Biscuit')).getByRole('button', { name: 'Bath', exact: true }).click();
     check(`${label}: the bath starts and takes time (not paid yet)`, (await dog('e1')).bathing > 0 && (await dog('e1')).bathed === false);
     const coins0 = (await st()).coins;
     // reload mid-visit: the visit and the running bath survive
@@ -69,12 +100,12 @@ async function run(browser, label, opts) {
     await page.waitForFunction(() => window.__tycoonState().facilities.f1.dogs.find((d) => d.id === 'e1')?.visit.ownerHere != null, null, { timeout: 15000 });
     await page.evaluate(() => { window.__tycoonSpeed = 1; });
     check(`${label}: the owner arrives at pickup time, before the bath is done`, (await dog('e1')).bathing > 0);
-    check(`${label}: the panel says Taylor is here`, (await article('Biscuit').getByText(/Taylor is here for pickup/).count()) > 0);
+    check(`${label}: the panel says Taylor is here`, (await (await card('Biscuit')).getByText(/Taylor is here for pickup/).count()) > 0);
     if (opts.viewport && opts.viewport.width > 500) {
       const owners = await page.evaluate(() => window.__tycoonWorld?.debugInfo().owners ?? -1);
       check(`${label}: Taylor is standing in the 3D lobby`, owners >= 1, `owners ${owners}`);
     }
-    await article('Biscuit').getByRole('button', { name: /^Check out/ }).click();
+    await (await card('Biscuit')).getByRole('button', { name: /^Check out/ }).click();
     const sheet = page.getByRole('dialog', { name: /Pickup — Biscuit/ });
     await sheet.waitFor();
     check(`${label}: the pickup sheet shows the complaint`, (await sheet.getByText(/still in the bath/).count()) > 0);
@@ -99,7 +130,7 @@ async function run(browser, label, opts) {
     // ---------- 2. a visit that went well ----------
     await setPups([pup('e2', 'Daisy', visit({ owner: 'Morgan', ownerHere: 940 }))], 945);
     const n2 = (await f()).outcomes.length;
-    await article('Daisy').getByRole('button', { name: /^Check out/ }).click();
+    await (await card('Daisy')).getByRole('button', { name: /^Check out/ }).click();
     await page.waitForTimeout(300);
     check(`${label}: a good visit checks out at once (no sheet)`, (await page.getByRole('dialog', { name: /Pickup/ }).count()) === 0);
     const o2 = (await f()).outcomes.at(-1);
@@ -110,7 +141,7 @@ async function run(browser, label, opts) {
     await setPups([pup('e3', 'Rocket', visit({ owner: 'Casey', ownerHere: 905 }))], 940); // waited 35 min → a complaint (gives up at 60)
     const n3 = (await f()).outcomes.length;
     const c3 = (await st()).coins;
-    await article('Rocket').getByRole('button', { name: /^Check out/ }).click();
+    await (await card('Rocket')).getByRole('button', { name: /^Check out/ }).click();
     const s3 = page.getByRole('dialog', { name: /Pickup — Rocket/ });
     await s3.waitFor();
     await s3.getByRole('button', { name: /^Refund/ }).click();
@@ -165,7 +196,8 @@ async function oldSave(browser) {
     await page.waitForFunction(() => !!window.__tycoonState && !!window.__tycoonState());
     const d = await page.evaluate(() => window.__tycoonState().facilities.f1.dogs[0]);
     check('old save: a pup from before visits loads with a plain daycare booking', !!d && d.visit.requests.join() === 'daycare' && d.visit.pickup === 1050);
-    check('old save: its panel shows the booking', (await page.getByRole('article', { name: 'Pepper' }).getByText(/Booked daycare/).count()) > 0);
+    const card = (name) => cardOf(page, name);
+    check('old save: its panel shows the booking', (await (await card('Pepper')).getByText(/Booked daycare/).count()) > 0);
     check('old save: no page errors', errors.length === 0, errors.slice(0, 2).join(' | '));
   } catch (e) {
     check('old save checks ran', false, String(e).split('\n')[0]);
