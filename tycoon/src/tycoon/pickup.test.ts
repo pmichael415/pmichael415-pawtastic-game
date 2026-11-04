@@ -101,6 +101,25 @@ describe("the owner brief's scenario: daycare + bath, owner arrives before the b
     expect(out.satisfaction).toBe(none);
     expect(out.complaints[0]).toMatchObject({ kind: "bath", remedy: "explain", resolved: false });
   });
+  it("nothing charged, so nothing to refund: an honest explanation settles it — no dead end without credit (review finding)", () => {
+    // checked in but never given a playroom: no daycare charge, no refund possible, and "finish" can't be offered
+    let s = at(ok(setOpen(richState(), true)), 9 * 60);
+    s = ok(createArrival(s, () => 0.1));
+    const id = fac(s).dogs.at(-1)!.id;
+    s = ok(checkIn(s, id));
+    s = withFac(at(s, 16 * 60), { ...fac(at(s, 16 * 60)), dogs: fac(s).dogs.map((d) => (d.id === id ? { ...d, visit: { ...d.visit!, pickup: 16 * 60, ownerHere: 16 * 60 } } : d)) });
+    const view = pickupView(s, id, false);
+    const c = view.assessment.complaints.find((x) => x.kind === "attention")!;
+    expect(c.text).toMatch(/never got a playroom/);
+    expect(view.options.attention).toEqual(["explain"]);
+    const r = remedy(s, id, "attention", "explain");
+    expect(r.ok && r.msg).not.toMatch(/isn't enough/);
+    s = ok(checkout(ok(r), id, false));
+    const out = fac(s).outcomes.at(-1)!;
+    expect(out.total).toBe(0);
+    expect(out.complaints.find((x) => x.kind === "attention")).toMatchObject({ remedy: "explain", resolved: true });
+    expect(out.mood).not.toBe("delighted"); // it was still a poor visit
+  });
   it("a prepaid bath not done: a refund pays the prepaid amount back, once", () => {
     let { s, id } = bookedWithBath(true);
     const paid = dog(s, id)!.visit!.paid;

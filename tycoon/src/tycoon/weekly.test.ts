@@ -79,6 +79,17 @@ describe("weekly challenge", () => {
     expect(weeklyStatus(s)!.progress).toBe(300); // 600 − 40 wages, capped at the target, building ignored
     expect(weeklyStatus(s)!.done).toBe(true);
   });
+  it("a profit day is the day's operating profit, as the day report shows it: game rewards don't count, refunds do (review finding)", () => {
+    let s = withGoal(setF(newTycoon(0), { open: true }), "profit_day");
+    s = { ...s, coins: 5000 };
+    s = earn(s, { daycare: 200, bonus: 500 });
+    s = setF(s, { ledger: fac(s).ledger.map((d) => (d.day === fac(s).day ? { ...d, expenses: { ...d.expenses, refunds: 30 } } : d)) });
+    s = closeDay(s);
+    const report = fac(s).report!;
+    expect(report.running).toBe(200 - 40 - 30); // revenue − wages − refunds; the 500 reward is a bonus, apart
+    expect(weeklyStatus(s)!.progress).toBe(report.running);
+    expect(weeklyStatus(s)!.done).toBe(false);
+  });
   it("Fun and Appeal goals use the daycare's current value", () => {
     const s = withGoal(newTycoon(0), "fun");
     expect(weeklyStatus(s)).toMatchObject({ progress: 0, target: 20 });

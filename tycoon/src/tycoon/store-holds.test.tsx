@@ -84,4 +84,22 @@ describe("holds vs the pause preference", () => {
     expect(clock()).toBe(t0);
     again.unmount();
   });
+  it("full or blocked storage: a hold still stops time, and nothing throws (review finding)", () => {
+    openDay();
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("quota", "QuotaExceededError");
+    });
+    try {
+      expect(() => act(() => tycoonStore.hold("screen", true))).not.toThrow();
+      expect(tycoonStore.getSnapshot().held).toBe(true);
+      const c = clock();
+      run(5000);
+      expect(clock()).toBe(c);
+      expect(() => act(() => tycoonStore.hold("screen", false))).not.toThrow();
+      expect(tycoonStore.getSnapshot().held).toBe(false);
+    } finally {
+      set.mockRestore();
+    }
+  });
 });
+

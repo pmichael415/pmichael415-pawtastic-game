@@ -2,7 +2,7 @@
 // while the owner waits, a game-coin refund, or explain (no credit for next time). One answer per complaint; an
 // explanation alone never clears a bath, billing or attention complaint.
 import { freeTub } from "./rooms";
-import { assessVisit, refundFor, type Assessment } from "./assess";
+import { assessVisit, explainSettles, refundFor, type Assessment } from "./assess";
 import { caps } from "./connect";
 import { BATH_MIN, bath, clean, playtime } from "./run";
 import { DAY_CLOSE } from "@/game/engine";
@@ -74,8 +74,14 @@ export function remedy(s: TycoonState, dogId: string, kind: ComplaintKind, choic
   } else if (choice === "refund") {
     reaction = `${v.owner}: "Thank you — that's fair."`;
   } else {
-    const minor = kind === "wait" && complaint && v.ownerHere !== null && f.clockMin - v.ownerHere <= 45;
-    reaction = minor ? `${v.owner}: "No problem — thanks for letting me know."` : `${v.owner}: "An apology isn't enough — ${kind === "wait" ? "I waited a long time" : kind === "dirty" ? "the rooms were dirty" : kind === "attention" ? "my dog needed attention" : "I booked a bath"}."`;
+    const waited = v.ownerHere !== null ? f.clockMin - v.ownerHere : 0;
+    const daycare = view.assessment.lines.find((l) => l.key === "daycare")?.amount ?? 0;
+    const minor = kind === "wait" && waited <= 45;
+    reaction = minor
+      ? `${v.owner}: "No problem — thanks for letting me know."`
+      : explainSettles(kind, waited, refundFor(kind, v.paid, daycare))
+        ? `${v.owner}: "Thanks for being honest — at least we weren't charged for it."`
+        : `${v.owner}: "An apology isn't enough — ${kind === "wait" ? "I waited a long time" : kind === "dirty" ? "the rooms were dirty" : kind === "attention" ? "my dog needed attention" : "I booked a bath"}."`;
   }
   const g = fac(out);
   const waiting = choice === "finish" && (kind === "bath" || kind === "billing");

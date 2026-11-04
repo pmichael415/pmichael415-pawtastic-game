@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { addDoor, buildConnectedRoom, buyLand, connectRoom, connectionPlan, firstFreeRoomPlan, moveRoom, moveThing, placeThing, removeDoor, sellRoom, sellThing } from "./build";
 import { MAX_THINGS } from "./catalog";
 import { connectedRooms } from "./connect";
+import { doorOutside } from "./grid";
 import { createArrival } from "./run";
 import { quickStart } from "./start";
 import { fac, newTycoon, withFac } from "./state";
@@ -59,6 +60,22 @@ describe("A. a 2 × 2 room whose doorway is on the neighbour's wall", () => {
     expect(room(s, "lobby").doors.length).toBe(4);
     const plan = connectionPlan(fac(s), small.uid);
     expect(plan === null || plan.doorOn !== room(s, "lobby").uid).toBe(true);
+  });
+});
+
+describe("A2. a doorway on the neighbour's wall never makes a fifth way into the neighbour (review finding)", () => {
+  it("the lobby owns three doors but four doorways open into it (the playroom's door counts): no new lobby doorway", () => {
+    let s = ok(buildConnectedRoom(started(), { c: 16, r: 20, w: 2, d: 2 }, "calm"));
+    const small = fac(s).rooms.at(-1)!;
+    s = ok(removeDoor(s, room(s, "lobby").uid, room(s, "lobby").doors.find((d) => d.side === "N")!));
+    s = ok(addDoor(s, room(s, "lobby").uid, { side: "S", i: 1 }));
+    const lobby = room(s, "lobby");
+    const into = (x: typeof lobby) => fac(s).rooms.filter((r) => r.uid !== x.uid).reduce((n, r) => n + r.doors.filter((d) => { const o = doorOutside(r, d); return o.c >= x.c && o.c < x.c + x.w && o.r >= x.r && o.r < x.r + x.d; }).length, 0);
+    expect(lobby.doors.length).toBe(3);
+    expect(lobby.doors.length + into(lobby)).toBe(4);
+    expect(connectedRooms(fac(s)).has(small.uid)).toBe(false);
+    const plan = connectionPlan(fac(s), small.uid);
+    expect(plan === null || plan.doorOn !== lobby.uid).toBe(true);
   });
 });
 

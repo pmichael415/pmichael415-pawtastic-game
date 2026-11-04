@@ -81,7 +81,7 @@ export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean }
       sat += 20;
       c.resolved = true;
     } else if (c.remedy === "explain") {
-      if (c.kind === "wait" && ownerWait <= 45) {
+      if (explainSettles(c.kind, ownerWait, refundFor(c.kind, v.paid, daycareCharge))) {
         sat += 5;
         c.resolved = true;
       }
@@ -153,6 +153,15 @@ const FINISHED_TEXT: Record<ComplaintKind, string> = {
   attention: "A quick playtime before going home.",
   dirty: "The rooms were mopped before pickup.",
 };
+/**
+ * Whether an honest explanation settles a complaint: a short wait, or anything where nothing was charged so there is
+ * nothing to refund (with no "credit next visit", an apology is then all a family can fairly be offered — the poor
+ * visit still shows in how they felt). Where a refund is possible, an apology alone doesn't clear it.
+ */
+export function explainSettles(kind: ComplaintKind, ownerWait: number, refund: number): boolean {
+  return (kind === "wait" && ownerWait <= 45) || refund <= 0;
+}
+
 /** What a refund gives back for each complaint (0 when there's nothing to refund). */
 export function refundFor(kind: ComplaintKind, paid: number, daycareCharge: number): number {
   if (kind === "billing") return paid;

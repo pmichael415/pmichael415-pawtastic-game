@@ -8,7 +8,8 @@ import { closeDay } from "./business";
 import { claimGuide } from "./guide";
 import { gainXp, level, levelReward, xpForLevel } from "./progress";
 import { checkTrophies } from "./trophies";
-import { assignRoom, checkIn, checkout, playtime, setOpen, tick, welcomeBack } from "./run";
+import { assignRoom, checkIn, checkout, createArrival, playtime, setOpen, tick, welcomeBack } from "./run";
+import { pickupView, remedy } from "./pickup";
 import { nextAction } from "./nextAction";
 import { quickStart } from "./start";
 import { fac, newTycoon, parseTycoon, withFac } from "./state";
@@ -77,13 +78,31 @@ describe("every coin is on the books", () => {
         if (r.ok) s = step(r.state, "build a bath room");
       }
     }
+    // a refund, for real: a family kept waiting over 45 minutes at pickup gets part of the daycare back in game coins
+    {
+      const f = fac(s);
+      const play = f.rooms.find((r) => r.type === "playroom")!.uid;
+      let t: TycoonState = withFac(s, { ...f, open: true, clockMin: 10 * 60 });
+      t = ok(createArrival(t, () => 0.1));
+      const pup = fac(t).dogs.at(-1)!;
+      t = withFac(t, { ...fac(t), dogs: fac(t).dogs.map((d) => (d.id === pup.id ? { ...d, size: "small" as const, temper: "gentle" as const, boarding: false } : d)) });
+      t = ok(checkIn(t, pup.id));
+      t = ok(assignRoom(t, pup.id, play));
+      t = ok(playtime(t, pup.id));
+      t = withFac(t, { ...fac(t), clockMin: 15 * 60, dogs: fac(t).dogs.map((d) => (d.id === pup.id ? { ...d, happiness: 85, visit: { ...d.visit!, pickup: 14 * 60, ownerHere: 14 * 60 } } : d)) });
+      expect(pickupView(t, pup.id, false).options.wait).toContain("refund");
+      t = ok(remedy(t, pup.id, "wait", "refund"));
+      t = ok(checkout(t, pup.id, false));
+      expect(fac(t).outcomes.at(-1)!.lines.some((l) => /^Refund — the wait/.test(l.label) && l.amount < 0)).toBe(true);
+      s = step(t, "refund");
+    }
     s = step({ ...s, guide: { ...s.guide, painted: true } }, "paint");
     const g = claimGuide(s);
     if (g.ok) s = step(g.state, "guide reward");
     s = step(welcomeBack({ ...s, lastSeen: 0 }, 2 * 60 * 60 * 1000).state, "welcome back");
     s = step(closeDay(s), "close the day");
     // the run really did each kind of transaction (not skipped)
-    for (const k of ["checkin", "room", "play", "checkout", "buy a rug", "sell it", "build a bath room", "guide reward", "welcome back", "close the day"]) expect(did, k).toContain(k);
+    for (const k of ["checkin", "room", "play", "checkout", "buy a rug", "sell it", "build a bath room", "refund", "guide reward", "welcome back", "close the day"]) expect(did, k).toContain(k);
     expect(fac(s).ledger.some((d) => d.sales > 0)).toBe(true);
     const reloaded = parseTycoon(JSON.parse(JSON.stringify(s)))!;
     expect(reloaded.coins).toBe(s.coins);

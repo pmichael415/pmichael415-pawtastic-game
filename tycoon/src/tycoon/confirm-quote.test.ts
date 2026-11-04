@@ -2,7 +2,7 @@
 // doorway, the route and the total — and is re-checked against the current daycare before anything changes. A
 // changed or stale plan charges nothing and asks for a fresh confirmation; replaying a confirmation does nothing.
 import { describe, expect, it } from "vitest";
-import { buildConnectedRoom, connectRoom, connectionPlan, firstFreeRoomPlan, paintPaths, placeFirstFree, placeThing, planRoom, removeDoor, sellThing, spotInRoom } from "./build";
+import { buildConnectedRoom, connectRoom, connectionPlan, firstFreeRoomPlan, placeFirstFree, placeThing, planRoom, removeDoor, sellThing, spotInRoom } from "./build";
 import { quickStart } from "./start";
 import { fac, newTycoon } from "./state";
 import { ok } from "./testkit";
@@ -58,13 +58,20 @@ describe("Connect it is bound to its plan", () => {
     const a = ok(connectRoom(s, play.uid, plan));
     expect(spent(a) - spent(s)).toBe(plan.cost);
     expect(connectRoom(a, play.uid, plan).ok).toBe(false); // replay
-    // stale: the plan shown before a path was paved elsewhere that changes nothing → still fine; one that changes → refused
+    // stale: a change elsewhere that leaves the plan as it was → the shown plan still connects, for its price
     const lobby = fac(s).rooms.find((r) => r.type === "lobby")!;
-    let t = ok(removeDoor(s, lobby.uid, lobby.doors.find((d) => d.side === "S")!));
-    const stale = connectionPlan(fac(t), lobby.uid)!;
-    t = ok(paintPaths(t, [{ c: 17, r: 25 }]));
-    const fresh = connectionPlan(fac(t), lobby.uid);
-    if (fresh && (fresh.cost !== stale.cost || fresh.paths.length !== stale.paths.length)) expect(connectRoom(t, lobby.uid, stale).ok).toBe(false);
+    const off = ok(removeDoor(s, lobby.uid, lobby.doors.find((d) => d.side === "S")!));
+    const shownPlan = connectionPlan(fac(off), lobby.uid)!;
+    const elsewhere = ok(placeThing(off, "flowers", 12, 18, 0));
+    expect(connectionPlan(fac(elsewhere), lobby.uid)).toEqual(shownPlan);
+    expect(spent(ok(connectRoom(elsewhere, lobby.uid, shownPlan))) - spent(elsewhere)).toBe(shownPlan.cost);
+    // …but a change that alters it (the path square in front of the doorway goes) → refused, nothing charged
+    const changed = ok(sellThing(off, fac(off).items.find((i) => i.kind === "path" && i.c === 18 && i.r === 25)!.uid));
+    const fresh = connectionPlan(fac(changed), lobby.uid)!;
+    expect(fresh.cost !== shownPlan.cost || fresh.paths.length !== shownPlan.paths.length).toBe(true);
+    const r = connectRoom(changed, lobby.uid, shownPlan);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/changed/);
   });
 });
 

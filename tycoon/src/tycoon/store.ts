@@ -331,9 +331,14 @@ function activate(): { bonus: number; weekly: number; settled: number } {
   const { settledCredits: _done, ...state } = welcomed;
   // a page that went away while something held time (mid-build, a level-up…) comes back paused: nothing restarts on
   // its own, and no time is caught up (the clock only ever moves while running and on screen)
-  const st2 = storage();
-  const wasHeld = !!st2 && st2.getItem(HELD_KEY) === "1";
-  if (st2 && wasHeld) st2.removeItem(HELD_KEY);
+  let wasHeld = false;
+  try {
+    const st2 = storage();
+    wasHeld = !!st2 && st2.getItem(HELD_KEY) === "1";
+    if (st2 && wasHeld) st2.removeItem(HELD_KEY);
+  } catch {
+    /* unreadable storage: nothing was held */
+  }
   holds.clear();
   snap = { ...snap, held: false };
   commit(state, { paused: wasHeld });
@@ -395,10 +400,15 @@ export const tycoonStore = {
     if (on) holds.add(key);
     else holds.delete(key);
     lastTick = Date.now();
-    const st = storage();
-    if (st) {
-      if (holds.size) st.setItem(HELD_KEY, "1");
-      else st.removeItem(HELD_KEY);
+    // the "came back held" flag is best effort: full or blocked storage must never stop the hold itself
+    try {
+      const st = storage();
+      if (st) {
+        if (holds.size) st.setItem(HELD_KEY, "1");
+        else st.removeItem(HELD_KEY);
+      }
+    } catch {
+      /* the hold still stands in memory */
     }
     snap = { ...snap, held: holds.size > 0 };
     emit();

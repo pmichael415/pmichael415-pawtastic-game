@@ -27,8 +27,11 @@ const PROFIT = "#2a78d6";
 const LOSS = "#d0473f";
 
 const sum = (r: Record<string, number>) => Object.values(r).reduce((a, n) => a + n, 0);
-/** What running the daycare made that day: income minus running costs. Building is an investment, shown apart. */
-const profitOf = (d: DayLedger) => dayMoney(d).profitAtClose;
+/**
+ * What running the daycare made that day: revenue minus operating costs. Building is an investment, shown apart. Today
+ * (still open) also counts what closing will charge tonight, as the Today column and the Today strip do.
+ */
+const profitOf = (d: DayLedger, today: { day: number; tonight: number } | null = null) => dayMoney(d, today && d.day === today.day ? today.tonight : 0).profitAtClose;
 const fmt = (n: number) => (n > 0 ? `+${n.toLocaleString()}` : n.toLocaleString());
 
 function addUp(days: DayLedger[], dueTonight = 0) {
@@ -44,12 +47,12 @@ function addUp(days: DayLedger[], dueTonight = 0) {
 }
 
 /** 14-day profit, one bar per game day from a zero line: blue up for profit, red down for a loss. */
-function ProfitChart({ days }: { days: DayLedger[] }) {
+function ProfitChart({ days, today }: { days: DayLedger[]; today: { day: number; tonight: number } }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 320;
   const H = 140;
   const pad = { l: 8, r: 8, t: 18, b: 22 };
-  const vals = days.map(profitOf);
+  const vals = days.map((d) => profitOf(d, today));
   const max = Math.max(10, ...vals.map((v) => Math.abs(v)));
   const hasNeg = vals.some((v) => v < 0);
   const hasPos = vals.some((v) => v > 0) || !hasNeg;
@@ -160,7 +163,7 @@ function Summary({ f }: { f: Facility }) {
       <p className="mt-1 text-[11px] text-muted-foreground">
         Operating profit is what serving families made after running costs (today's includes what closing will charge tonight). Bonuses, sales and building are shown apart. Wages, upkeep and supplies are charged when each game day ends.
       </p>
-      <ProfitChart days={ledger.slice(-14)} />
+      <ProfitChart days={ledger.slice(-14)} today={{ day: f.day, tonight }} />
     </div>
   );
 }

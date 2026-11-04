@@ -65,4 +65,16 @@ describe("one set of numbers", () => {
     expect(summary.getByRole("row", { name: /^Sale proceeds/ })).toBeTruthy();
     unmount();
   });
+  it("the Finances chart's bar for today is the same operating profit by closing as the Today column (review finding)", () => {
+    const s = midDay();
+    const m = todayMoney(s);
+    const { unmount } = render(<FinancesSheet open state={s} act={() => ({ ok: false, error: "" })} onClose={() => {}} />);
+    const bar = screen.getByRole("img", { name: /^Profit for the last/ });
+    const day = fac(s).day;
+    const v = new RegExp(`day ${day} ([+−-]?[\\d,]+)`).exec(bar.getAttribute("aria-label") ?? "");
+    expect(v).not.toBeNull();
+    expect(num(v![1])).toBe(m.profitAtClose);
+    unmount();
+  });
 });
+

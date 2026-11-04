@@ -70,7 +70,8 @@ describe("the front desk", () => {
     open(s2);
     const coins = now().coins;
     const bonusBefore = fac(now()).ledger.at(-1)?.income.bonus ?? 0;
-    // a real double tap: the same button, twice, before anything re-renders around it
+    // a double tap on the same button: the first pays and the family leaves the desk, so the second lands on a button
+    // that's gone — nothing more is charged (the rules refuse a second checkout too: frontdesk and run tests)
     const out = desk().getByRole("button", { name: "Check out Hazel" });
     fireEvent.click(out);
     fireEvent.click(out);

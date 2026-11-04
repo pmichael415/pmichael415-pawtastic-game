@@ -52,7 +52,9 @@ describe("list view", () => {
     unmount();
   });
 
-  it("Build charges the quote on screen; a quote that went stale behind you charges nothing and shows the new one; a double tap builds once (audit finding 3)", () => {
+  it("the quote on screen follows the daycare: one that changed behind you shows its new price, and Build charges exactly that; a double tap builds once (audit finding 3)", () => {
+    // (a plan that changed after it was shown and still reaches the rules is refused with nothing charged:
+    // confirm-quote.test.ts. On screen the row re-renders with the new quote, so the stale one can't be tapped.)
     const { unmount } = render(<Harness />);
     place("Lobby");
     fireEvent.click(screen.getByRole("button", { name: "Place Playroom — Small & Gentle in first free spot" }));
@@ -64,20 +66,14 @@ describe("list view", () => {
     });
     const coins = tycoonStore.getState()!.coins;
     const rooms = fac(tycoonStore.getState()!).rooms.length;
-    // the row shows the refreshed quote; tapping a stale one would have been refused — check it really changed
     const fresh = shown();
-    if (fresh !== price) {
-      // tap: the fresh quote builds, exactly once, at the fresh price (two quick taps)
-      const btn = screen.getByRole("button", { name: `Build Playroom — Small & Gentle for ${fresh}` });
-      fireEvent.click(btn);
-      fireEvent.click(btn);
-      expect(coins - tycoonStore.getState()!.coins).toBe(fresh);
-    } else {
-      const btn = screen.getByRole("button", { name: `Build Playroom — Small & Gentle for ${price}` });
-      fireEvent.click(btn);
-      fireEvent.click(btn);
-      expect(coins - tycoonStore.getState()!.coins).toBe(price);
-    }
+    expect(fresh).not.toBe(price); // the row really shows a different, current price
+    // two quick taps on the button showing it: one room, charged the price on screen, once (the row closes after the
+    // first tap, so the second lands on nothing — the row's own guard is a second line of defence)
+    const btn = screen.getByRole("button", { name: `Build Playroom — Small & Gentle for ${fresh}` });
+    fireEvent.click(btn);
+    fireEvent.click(btn);
+    expect(coins - tycoonStore.getState()!.coins).toBe(fresh);
     expect(fac(tycoonStore.getState()!).rooms).toHaveLength(rooms + 1);
     // and a deliberate second purchase still works
     place("Playroom — Large & Active");

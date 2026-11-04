@@ -1,7 +1,7 @@
 // Weekly challenge for the new Daycare: one goal per New York week (Monday start), paid in game coins. Missing a week
 // costs nothing; a finished goal that wasn't claimed pays automatically when the next week starts.
 import { mulberry, seedFrom } from "@/game/engine";
-import { earn } from "./business";
+import { dayMoney, earn } from "./business";
 import { funAppeal } from "./effects";
 import { level } from "./progress";
 import { fac } from "./state";
@@ -43,12 +43,11 @@ export function weeklyStatus(s: TycoonState): WeeklyStatus | null {
       value = f.stats[goal.metric.stat] - w.base[goal.metric.stat];
       break;
     case "profitDay":
-      // finished days this week; building is an investment, so it doesn't count against the day
+      // finished days this week, by the day's operating profit (the same calculation as the day report): revenue from
+      // families minus operating costs. Building is an investment and game rewards are bonuses, so neither counts.
       for (const d of f.ledger) {
         if (d.day < w.baseDay || d.day >= f.day) continue;
-        const income = Object.values(d.income).reduce((a, n) => a + n, 0);
-        const costs = d.expenses.wages + d.expenses.upkeep + d.expenses.supplies + d.expenses.marketing;
-        value = Math.max(value, income - costs);
+        value = Math.max(value, dayMoney(d).profitAtClose);
       }
       break;
     case "fun":

@@ -134,13 +134,24 @@ describe("pups, money and objectives", () => {
     expect(screen.queryByRole("region", { name: "Expand your daycare" })).toBeNull();
   });
   it("a level-up covering the screen stops the clock until it's closed", () => {
-    const s = base();
-    open({ ...withFac(s, { ...fac(s), open: true }), pendingLevel: 4 });
-    // a hold, not the player's pause (audit finding 1): the preference stays "running" and comes back after
-    expect(tycoonStore.getSnapshot().held).toBe(true);
-    expect(tycoonStore.getSnapshot().paused).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect(tycoonStore.getSnapshot().held).toBe(false);
-    expect(tycoonStore.getSnapshot().paused).toBe(false);
+    vi.useFakeTimers();
+    try {
+      const s = base();
+      open({ ...withFac(s, { ...fac(s), open: true, clockMin: 9 * 60 }), pendingLevel: 4 });
+      const clock = () => fac(tycoonStore.getState()!).clockMin;
+      // a hold, not the player's pause (audit finding 1): the preference stays "running" and comes back after
+      expect(tycoonStore.getSnapshot().held).toBe(true);
+      expect(tycoonStore.getSnapshot().paused).toBe(false);
+      const c = clock();
+      act(() => vi.advanceTimersByTime(5000));
+      expect(clock()).toBe(c); // the game clock really stood still
+      fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+      expect(tycoonStore.getSnapshot().held).toBe(false);
+      expect(tycoonStore.getSnapshot().paused).toBe(false);
+      act(() => vi.advanceTimersByTime(5000));
+      expect(clock()).toBeGreaterThan(c); // and runs again once it's closed
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -551,7 +551,8 @@ function openingsInto(f: Facility, room: Room): number {
 /** A door on a connected neighbour's wall that opens into this rectangle, and how it looks from inside it. */
 function neighbourDoor(f: Facility, rect: { c: number; r: number; w: number; d: number }, reached: { rooms: Set<string> }): { room: string; door: Door; inner: Door } | null {
   for (const x of f.rooms) {
-    if (!reached.rooms.has(x.uid) || x.doors.length >= MAX_DOORS) continue;
+    // never a fifth way into the neighbour either: its own doors and doorways from other rooms all count
+    if (!reached.rooms.has(x.uid) || openingsInto(f, x) >= MAX_DOORS) continue;
     for (const side of SIDES) {
       const len = side === "N" || side === "S" ? x.w : x.d;
       for (let i = 1; i < len - 1; i++) {
