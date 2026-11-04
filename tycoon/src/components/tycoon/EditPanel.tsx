@@ -5,9 +5,9 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GROUPS, groupName } from "@/game/engine";
 import { ROOM_TYPE_NAMES, SELL_RATE, furnitureDef, outdoorDef, upgradePrice } from "@/tycoon/catalog";
-import { moveThing, sellRoom, sellThing, setClosed, setRoomType, upgradeThing } from "@/tycoon/build";
+import { connectRoom, connectionPlan, moveThing, sellRoom, sellThing, setClosed, setRoomType, upgradeThing } from "@/tycoon/build";
 import { upkeepOf } from "@/tycoon/business";
-import { roomCleanOf } from "@/tycoon/rooms";
+import { roomCleanOf, wayIn } from "@/tycoon/rooms";
 import { clean } from "@/tycoon/run";
 import { roomStatus } from "@/tycoon/connect";
 import { isActive } from "@/tycoon/paid";
@@ -95,6 +95,26 @@ export function EditPanel({
               {room.w} × {room.d} · {dogs} pup{dogs === 1 ? "" : "s"} inside · upkeep {upkeepOf(room)}/day
             </p>
             {status.reason && <p className="mt-1 text-sm font-semibold text-destructive">{status.reason}</p>}
+            {(() => {
+              // How you get in — or why you can't, with a one-tap fix (empire milestone §2).
+              const way = wayIn(f, room);
+              const fix = way.ok ? null : connectionPlan(f, room.uid);
+              return (
+                <>
+                  <p className={`mt-1 text-sm ${way.ok ? "text-success" : "text-secondary"}`}>{way.ok ? `✓ ${way.text}` : way.text}</p>
+                  {fix && (
+                    <Button
+                      size="sm"
+                      className="mt-1 h-11"
+                      disabled={state.coins < fix.cost}
+                      onClick={() => act((s) => connectRoom(s, room.uid), { event: { name: "tycoon_build", props: { kind: "door", action: "connect" } } })}
+                    >
+                      Connect it · {fix.cost}
+                    </Button>
+                  )}
+                </>
+              );
+            })()}
           </div>
           {close}
         </div>

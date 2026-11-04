@@ -6,11 +6,13 @@ import { fac } from "./state";
 import type { TResult, TycoonState } from "./types";
 
 export const GUIDE_STEPS = [
-  { title: "Draw a Lobby", detail: "Drag out a 4 × 3 room, add a door on the road side and a path to the entrance, then place the Front Desk Counter and a Waiting Bench." },
-  { title: "Draw a Playroom", detail: "Draw it next to the Lobby and pick its group. Add a door into the Lobby, then place 2 Dog Beds and a Water Bowl." },
-  { title: "Draw a Calm-Down Room", detail: "A small room with a door, where overwhelmed pups can settle." },
+  { title: "Build a Lobby", detail: "Rooms → Lobby by the entrance path (it comes with its door and path), then the Front Desk Counter and a Waiting Bench." },
+  { title: "Build a Playroom", detail: "Rooms → Playroom beside the Lobby, pick its group, then 2 Dog Beds and a Water Bowl." },
+  { title: "Build a Calm-Down Room", detail: "A small connected room where overwhelmed pups can settle." },
   { title: "Paint the Lobby", detail: "Pick a floor and a wall colour. This step is optional." },
-  { title: "Open for business", detail: "Check the first pup in, put it in the playroom, give it playtime, then check it out." },
+  // Ticks on the first checkout, so it's named for that (the hub build called it "Open for business" and left it
+  // unticked while the daycare was open).
+  { title: "Serve your first family", detail: "Switch Open on, check the first pup in, put it in the playroom, give it playtime, then check it out." },
 ] as const;
 
 /** Which steps the daycare already shows; `step` is the first one left (6 = all done). */

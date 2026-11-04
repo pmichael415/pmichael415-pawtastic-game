@@ -1,11 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { placeFirstFree } from "./build";
+import { firstFreeRoomPlan, placeFirstFree, rankedRoomsFor } from "./build";
 import { canOpen, connectedRooms } from "./connect";
 import { fac, newTycoon } from "./state";
 import { ok } from "./testkit";
 import type { TycoonState } from "./types";
 
 const newest = (s: TycoonState) => fac(s).rooms.at(-1)!;
+
+describe("the exact quote before you build (empire milestone §2: the hub build listed 'from 430' and charged 570)", () => {
+  it("quotes the room, its door and every path square — and building charges exactly that", () => {
+    const s0 = newTycoon(0);
+    const q = firstFreeRoomPlan(fac(s0), "lobby");
+    expect(q.ok).toBe(true);
+    if (!q.ok) return;
+    expect(q.cost.total).toBe(q.cost.room + q.cost.door + q.cost.paths);
+    expect(q.cost.paths).toBe(q.paths.length * 10);
+    const s = ok(placeFirstFree(s0, { room: "lobby" }));
+    expect(s0.coins - s.coins).toBe(q.cost.total);
+    expect(newest(s)).toMatchObject(q.rect);
+  });
+  it("says why when there's no spot (one lobby per daycare)", () => {
+    const s = ok(placeFirstFree(newTycoon(0), { room: "lobby" }));
+    const q = firstFreeRoomPlan(fac(s), "lobby");
+    expect(q.ok).toBe(false);
+    if (!q.ok) expect(q.reason).toMatch(/Only one Lobby/);
+  });
+  it("furniture: the rooms it fits, best first (fun goes where pups play)", () => {
+    let s = ok(placeFirstFree(newTycoon(0), { room: "lobby" }));
+    s = ok(placeFirstFree(s, "front_counter"));
+    s = ok(placeFirstFree(s, { room: "playroom", group: "small-gentle" }));
+    s = ok(placeFirstFree(s, "dog_bed"));
+    const f = fac(s);
+    expect(rankedRoomsFor(f, "water_bowl").map((r) => r.type)).toEqual(["playroom", "lobby"]);
+    expect(rankedRoomsFor(f, "bath_tub")).toEqual([]);
+  });
+});
 
 describe("place in first free spot", () => {
   it("a room gets its type, a door and a paved route to the entrance, all charged", () => {

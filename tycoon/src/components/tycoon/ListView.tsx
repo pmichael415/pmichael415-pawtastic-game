@@ -1,15 +1,16 @@
 // The list view: the whole game without the 3D stage — lobby, rooms, pups, and a "first free spot" builder.
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { GROUPS, groupName, hireCost, MAX_STAFF } from "@/game/engine";
 import type { GroupId } from "@/game/engine";
 import { FURNITURE, OUTDOOR, PARCELS, ROOM_TYPE_NAMES, DOOR_PRICE, SELL_RATE, furnitureDef, outdoorDef, thingName, upgradePrice } from "@/tycoon/catalog";
-import { DEFAULT_ROOM_SIZE, buyLand, placeFirstFree, sellRoom, sellThing, setClosed, setRoomType, upgradeThing, type FirstFree } from "@/tycoon/build";
+import { DEFAULT_ROOM_SIZE, buyLand, costLine, firstFreeRoomPlan, placeFirstFree, placeInRoom, rankedRoomsFor, sellRoom, sellThing, setClosed, setRoomType, upgradeThing, type FirstFree } from "@/tycoon/build";
 import { isActive, ownedPaid } from "@/tycoon/paid";
 import { connectedRooms, roomStatus } from "@/tycoon/connect";
 import { roomPrice } from "@/tycoon/grid";
 import { level } from "@/tycoon/progress";
 import { clean, hasScuffle, hireStaff, lobbyDogs, roomAtRisk, roomDogs, separate } from "@/tycoon/run";
+import { roomName } from "@/tycoon/rooms";
 import { fac } from "@/tycoon/state";
 import type { ActOpts, ActResult } from "@/tycoon/store";
 import type { Facility, Placed, Room, RoomType, TResult, TycoonState } from "@/tycoon/types";
@@ -171,6 +172,88 @@ function RoomCard({ f, room, act }: { f: Facility; room: Room; act: Act }) {
   );
 }
 
+/**
+ * One thing to build. Rooms show their exact price (room + door + every path square) and where they'd go, and ask
+ * before charging; furniture asks which room it goes in, best room first (empire milestone §2 — the hub build listed
+ * "from 430", charged 570 at once, and put a water bowl in the lobby).
+ */
+function BuildRow({ e, f, coins, locked, act }: { e: BuildEntry; f: Facility; coins: number; locked: boolean; act: Act }) {
+  const [open, setOpen] = useState(false);
+  const room = typeof e.what === "string" ? null : e.what;
+  const fd = typeof e.what === "string" ? furnitureDef(e.what) : null;
+  const quote = useMemo(() => (room ? firstFreeRoomPlan(f, room.room, room.group) : null), [room?.room, room?.group, f.rooms, f.items, f.land]);
+  const ev = { event: { name: "tycoon_build" as const, props: { kind: e.kind, action: "place" } } };
+  const where = quote?.ok ? (quote.via ? `door into the ${roomName(f, quote.via)}` : quote.paths.length ? `door + ${quote.paths.length} path square${quote.paths.length === 1 ? "" : "s"} to the entrance` : "door onto the path") : null;
+  const targets = open && fd ? rankedRoomsFor(f, fd.id) : [];
+  return (
+    <li className="py-2">
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-secondary">{e.name}</p>
+          <p className="text-xs text-muted-foreground">{quote ? (quote.ok ? `${costLine(quote.cost)} · ${quote.rect.w} × ${quote.rect.d}, ${where}` : quote.reason) : `${e.price} coins · ${e.note}`}</p>
+        </div>
+        {locked ? (
+          <span className="text-xs font-semibold text-muted-foreground">Unlocks at level {e.unlock}</span>
+        ) : open ? null : (
+          <Button
+            size="sm"
+            className="h-11"
+            aria-label={`Place ${e.name} in first free spot`}
+            disabled={!!quote && !quote.ok}
+            onClick={() => (room || fd ? setOpen(true) : act((s) => placeFirstFree(s, e.what), ev))}
+          >
+            Place
+          </Button>
+        )}
+      </div>
+      {open && quote?.ok && (
+        <div className="mt-1 flex flex-wrap items-center gap-2 rounded-xl bg-muted p-2">
+          <p className="min-w-0 flex-1 text-sm text-secondary">{coins >= quote.cost.total ? `Build it for ${quote.cost.total.toLocaleString("en-US")}?` : `Need ${(quote.cost.total - coins).toLocaleString("en-US")} more coins.`}</p>
+          <Button
+            size="sm"
+            className="h-11"
+            aria-label={`Build ${e.name} for ${quote.cost.total}`}
+            disabled={coins < quote.cost.total}
+            onClick={() => {
+              if (act((s) => placeFirstFree(s, e.what), ev).ok) setOpen(false);
+            }}
+          >
+            Build · {quote.cost.total.toLocaleString("en-US")}
+          </Button>
+          <Button size="sm" variant="outline" className="h-11" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+        </div>
+      )}
+      {open && fd && (
+        <div className="mt-1 space-y-1 rounded-xl bg-muted p-2">
+          <p className="text-sm text-secondary">{targets.length ? "Which room?" : fd.allowed === "any" ? "Build a room first." : `Build a ${fd.allowed.map((t) => ROOM_TYPE_NAMES[t]).join(" or ")} first.`}</p>
+          <div className="flex flex-wrap gap-2">
+            {targets.map((r, i) => (
+              <Button
+                key={r.uid}
+                size="sm"
+                variant={i === 0 ? "default" : "outline"}
+                className="h-11"
+                aria-label={`Put ${e.name} in ${roomName(f, r.uid)}`}
+                onClick={() => {
+                  if (act((s) => placeInRoom(s, r.uid, fd.id), ev).ok) setOpen(false);
+                }}
+              >
+                {roomName(f, r.uid)}
+                {i === 0 && targets.length > 1 ? " (suggested)" : ""}
+              </Button>
+            ))}
+            <Button size="sm" variant="outline" className="h-11" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </li>
+  );
+}
+
 /** The full list view, or (compact, beside the 3D view) just the front desk and the pups in each room. */
 export function ListView({ state, act, compact = false }: { state: TycoonState; act: Act; compact?: boolean }) {
   const f = fac(state);
@@ -256,31 +339,9 @@ export function ListView({ state, act, compact = false }: { state: TycoonState; 
           ))}
         </div>
         <ul className="mt-2 divide-y divide-border">
-          {shown.map((e) => {
-            const locked = e.unlock > lv;
-            return (
-              <li key={e.key} className="flex items-center gap-2 py-2">
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-secondary">{e.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {e.price} coins · {e.note}
-                  </p>
-                </div>
-                {locked ? (
-                  <span className="text-xs font-semibold text-muted-foreground">Unlocks at level {e.unlock}</span>
-                ) : (
-                  <Button
-                    size="sm"
-                    className="h-11"
-                    aria-label={`Place ${e.name} in first free spot`}
-                    onClick={() => act((s) => placeFirstFree(s, e.what), { event: { name: "tycoon_build", props: { kind: e.kind, action: "place" } } })}
-                  >
-                    Place
-                  </Button>
-                )}
-              </li>
-            );
-          })}
+          {shown.map((e) => (
+            <BuildRow key={e.key} e={e} f={f} coins={state.coins} locked={e.unlock > lv} act={act} />
+          ))}
           {tab === "land" &&
             PARCELS.filter((p) => p.price > 0).map((p) => {
               const owned = f.land.includes(p.id);

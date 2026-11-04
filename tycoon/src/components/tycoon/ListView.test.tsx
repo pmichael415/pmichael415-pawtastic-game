@@ -9,6 +9,7 @@ import { tycoonStore, useTycoon } from "@/tycoon/store";
 import { createArrival } from "@/tycoon/run";
 import { connectedRooms } from "@/tycoon/connect";
 import { fac } from "@/tycoon/state";
+import { firstFreeRoomPlan } from "@/tycoon/build";
 import { groupName, groupOf } from "@/game/engine";
 
 function Harness() {
@@ -21,13 +22,51 @@ function Harness() {
     </>
   );
 }
-const place = (name: string) => fireEvent.click(screen.getByRole("button", { name: `Place ${name} in first free spot` }));
+/** Place, then confirm: Build at the quoted price (rooms) or Put it in the suggested room (furniture). */
+const place = (name: string) => {
+  fireEvent.click(screen.getByRole("button", { name: `Place ${name} in first free spot` }));
+  const confirm = screen.queryAllByRole("button", { name: new RegExp(`^(Build|Put) ${name.replace(/[()]/g, "\\$&")} (for|in) `) })[0];
+  if (confirm) fireEvent.click(confirm);
+};
 const tab = (name: string) => fireEvent.click(screen.getByRole("tab", { name }));
 
 describe("list view", () => {
   beforeEach(() => {
     localStorage.clear();
     tycoonStore._reset(null);
+  });
+
+  it("a room's listing is its exact price, and Place asks before charging; Cancel costs nothing", () => {
+    const { unmount } = render(<Harness />);
+    const q = firstFreeRoomPlan(fac(tycoonStore.getState()!), "lobby");
+    if (!q.ok) throw new Error("no spot");
+    expect(screen.getByText(new RegExp(`^Room ${q.cost.room} \\+ door 30 \\+ path ${q.paths.length} × 10 = ${q.cost.total} · 4 × 3`))).toBeTruthy();
+    const coins = tycoonStore.getState()!.coins;
+    fireEvent.click(screen.getByRole("button", { name: "Place Lobby in first free spot" }));
+    expect(tycoonStore.getState()!.coins).toBe(coins); // nothing yet
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(tycoonStore.getState()!.coins).toBe(coins);
+    fireEvent.click(screen.getByRole("button", { name: "Place Lobby in first free spot" }));
+    fireEvent.click(screen.getByRole("button", { name: `Build Lobby for ${q.cost.total}` }));
+    expect(coins - tycoonStore.getState()!.coins).toBe(q.cost.total);
+    unmount();
+  });
+
+  it("furniture asks which room, suggesting where it does its job", () => {
+    const { unmount } = render(<Harness />);
+    place("Lobby");
+    place("Playroom — Small & Gentle");
+    tab("furniture");
+    place("Front Desk Counter");
+    place("Dog Bed");
+    fireEvent.click(screen.getByRole("button", { name: "Place Water Bowl in first free spot" }));
+    const first = screen.getAllByRole("button", { name: /^Put Water Bowl in / })[0]!;
+    expect(first.getAttribute("aria-label")).toBe("Put Water Bowl in Playroom");
+    expect(first.textContent).toMatch(/suggested/);
+    fireEvent.click(screen.getByRole("button", { name: "Put Water Bowl in Lobby" }));
+    const f = fac(tycoonStore.getState()!);
+    expect(f.items.at(-1)).toMatchObject({ kind: "water_bowl", room: f.rooms.find((r) => r.type === "lobby")!.uid }); // your choice wins
+    unmount();
   });
 
   it("runs the whole guided start without the 3D view", () => {

@@ -58,7 +58,7 @@ describe("starting a new daycare", () => {
     expect(screen.queryByRole("button", { name: "Get coins" })).toBeNull();
     expect(fac(now()).dogs.map((d) => d.name)).toEqual(["Biscuit"]);
   });
-  it("the coach sits above the daycare view (never over it) and is scrolled into view; Build waits for the tour", () => {
+  it("the coach sits above the daycare view (never over it) and is scrolled into view; Build is there during the tour too", () => {
     const scrolled: Element[] = [];
     const orig = Element.prototype.scrollIntoView;
     Element.prototype.scrollIntoView = function (this: Element) {
@@ -72,7 +72,8 @@ describe("starting a new daycare", () => {
       expect(stage.parentElement?.contains(coach())).toBe(false);
       expect(scrolled).toContain(coach());
       expect(coach().style.scrollMarginTop).toMatch(/px$/); // lands just below the sticky status bar
-      expect(screen.queryByRole("button", { name: "Build" })).toBeNull();
+      // step into building whenever you like (empire milestone §2: the hub build hid every building tool)
+      expect(screen.getByRole("button", { name: "Build" })).toBeTruthy();
     } finally {
       Element.prototype.scrollIntoView = orig;
     }

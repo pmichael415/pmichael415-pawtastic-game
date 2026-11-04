@@ -18,7 +18,7 @@ function firstCheckout(s: TycoonState): TycoonState {
 
 describe("guided start", () => {
   it("has the five steps", () => {
-    expect(GUIDE_STEPS.map((x) => x.title)).toEqual(["Draw a Lobby", "Draw a Playroom", "Draw a Calm-Down Room", "Paint the Lobby", "Open for business"]);
+    expect(GUIDE_STEPS.map((x) => x.title)).toEqual(["Build a Lobby", "Build a Playroom", "Build a Calm-Down Room", "Paint the Lobby", "Serve your first family"]);
   });
   it("a new game starts at step 1", () => {
     expect(guideProgress(newTycoon(0))).toEqual({ step: 1, checks: [false, false, false, false, false] });

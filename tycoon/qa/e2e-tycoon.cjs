@@ -65,17 +65,37 @@ async function session(browser, deviceName) {
   };
   const btn = (name) => page.getByRole('button', { name });
   const panel = () => page.locator('section[aria-label="Build mode"]').innerText();
-  async function room(c0, r0, c1, r1, type, group) {
+  /** Rooms → the type (and group) → tap where it goes → Build here: room, door, path and type in one step. */
+  async function room(c, r, type, group) {
     log('room', type);
     await tool('Rooms');
-    await tile(c0, r0); await tile(c1, r1);
-    await btn(/^Build room/).click();
-    await page.waitForTimeout(150);
-    await clearOverlays();
-    await btn(type).first().click();
+    const change = page.getByRole('button', { name: 'Change room type' });
+    if (await change.count()) await change.click();
+    await page.getByRole('region', { name: 'Choose a room to build' }).getByRole('button', { name: type, exact: true }).click();
     if (group) await btn(group).first().click();
-    await page.waitForTimeout(150);
+    await tile(c, r);
+    await btn(/^Build here/).click();
+    await page.waitForTimeout(200);
     await clearOverlays();
+  }
+  /** Furniture for a chosen room: pick the room, then the item, then tap each square inside it and Put it in. */
+  async function furnish(roomName, name, spots) {
+    log('furnish', roomName, name);
+    await clearOverlays();
+    if (await page.getByRole('dialog').count()) { await page.keyboard.press('Escape'); await page.waitForTimeout(250); }
+    await tool('Furniture');
+    const mode = page.locator('section[aria-label="Build mode"]');
+    const cancel = mode.getByRole('button', { name: 'Cancel', exact: true });
+    if (await cancel.count()) { await cancel.click(); await page.waitForTimeout(150); }
+    if (!(await panel()).includes(`Furnishing: ${roomName}`)) {
+      const other = btn('Another room');
+      if (await other.count()) { await other.click(); await page.waitForTimeout(150); }
+      await page.getByRole('region', { name: 'Choose a room to furnish' }).getByRole('button', { name: new RegExp(`^${roomName}`) }).click();
+    } else await btn(`Choose furniture for the ${roomName}`).click();
+    await page.waitForTimeout(300);
+    await page.getByRole('dialog').getByRole('button', { name, exact: true }).click();
+    await page.waitForTimeout(300);
+    for (const [c, r] of spots) { await tile(c, r); await btn(new RegExp(`^Put it in ${roomName}`)).click(); await page.waitForTimeout(150); await clearOverlays(); }
   }
   async function door(c, r, s) { log('door', c, r, s); await tool('Doors'); await edge(c, r, s); await btn(/^Add door/).click(); await page.waitForTimeout(120); await clearOverlays(); }
   /** Picks an item from the catalog (opening it as needed) and places it on each square. */
@@ -91,29 +111,32 @@ async function session(browser, deviceName) {
     await page.waitForTimeout(300);
     for (const [c, r] of spots) { await tile(c, r); await page.getByRole('button', { name: 'Place', exact: true }).click(); await page.waitForTimeout(150); await clearOverlays(); }
   }
-  return { ctx, page, errors, st, f, fresh, clearOverlays, tile, edge, tool, btn, panel, room, door, item };
+  return { ctx, page, errors, st, f, fresh, clearOverlays, tile, edge, tool, btn, panel, room, door, item, furnish };
 }
 
 /** The guided start, built by tapping the 3D view. */
 async function guidedStart(s, label) {
-  const { page, f, fresh, tool, btn, room, door, item, tile, clearOverlays } = s;
+  const { page, f, fresh, tool, btn, room, furnish, tile, clearOverlays } = s;
   await fresh();
   // A brand-new save shows only the start card; this run builds by hand, so it picks Build from scratch.
   check(`${label}: a new save offers only the start card (no Build yet)`, (await page.getByRole('button', { name: 'Build', exact: true }).count()) === 0);
   await page.getByRole('button', { name: /Build from scratch/ }).click();
   await page.getByRole('button', { name: 'Build', exact: true }).click();
   check(`${label}: the building step stays on screen while building`, await page.getByRole('status', { name: 'Building step' }).isVisible());
-  await room(16, 22, 19, 24, 'Lobby');
-  await door(18, 24, 'S');
-  await tool('Paths'); await tile(18, 25); await tile(18, 26); await btn(/^Done · 2 squares/).click(); await clearOverlays();
-  await item('Furniture', 'Front Desk Counter', [[16, 24]]);
-  await item('Furniture', 'Waiting Bench', [[16, 22]]);
-  await room(20, 22, 22, 24, 'Playroom', 'Small & Gentle');
-  await door(20, 23, 'W');
-  await item('Furniture', 'Dog Bed', [[21, 24], [22, 24]]);
-  await item('Furniture', 'Water Bowl', [[22, 23]]);
-  await room(13, 22, 15, 23, 'Calm-Down Room');
-  await door(16, 23, 'W');
+  const c0 = (await s.st()).coins;
+  await room(17, 23, 'Lobby'); // 4 × 3 at (16,22)
+  const lobbyBuilt = await f();
+  check(`${label}: Build here charges exactly the price shown, and the lobby comes with its door and path`, c0 - (await s.st()).coins === lobbyBuilt.ledger.at(-1).expenses.building && lobbyBuilt.rooms[0]?.doors.length === 1);
+  check(`${label}: a new room leads straight into furnishing it`, (await s.panel()).includes('Furnishing: Lobby'));
+  await furnish('Lobby', 'Front Desk Counter', [[16, 24]]);
+  await furnish('Lobby', 'Waiting Bench', [[16, 22]]);
+  await room(21, 23, 'Playroom', 'Small & Gentle'); // beside the lobby: its door snaps into it
+  const snapped = (await f()).rooms.find((r) => r.type === 'playroom');
+  check(`${label}: a room beside the lobby gets a door into it (no path)`, snapped?.doors.length === 1 && snapped.doors[0].side === 'W', JSON.stringify(snapped?.doors));
+  await furnish('Playroom', 'Dog Bed', [[21, 24], [22, 24]]);
+  await furnish('Playroom', 'Water Bowl', [[22, 23]]);
+  check(`${label}: furniture goes into the room you chose`, (await f()).items.filter((i) => i.kind === 'water_bowl' || i.kind === 'dog_bed').every((i) => i.room === snapped?.uid));
+  await room(14, 22, 'Calm-Down Room'); // 3 × 2 at (13,22)
   let fac = await f();
   check(`${label}: guided build — lobby, playroom and calm room with doors, path, counter, bench, 2 beds, bowl`,
     fac.rooms.map((r) => r.type).join(',') === 'lobby,playroom,calm' && fac.items.filter((i) => i.kind === 'dog_bed').length === 2 && fac.items.some((i) => i.kind === 'front_counter') && fac.items.some((i) => i.kind === 'bench') && fac.items.some((i) => i.kind === 'water_bowl'),
@@ -341,7 +364,12 @@ async function guidedStart(s, label) {
   const l = await session(browser, 'iPhone 13');
   try {
     await l.fresh({ view: 'list' });
-    const place = async (n) => { await l.page.getByRole('button', { name: `Place ${n} in first free spot` }).click(); await l.page.waitForTimeout(100); await l.clearOverlays(); };
+    const place = async (n) => {
+      await l.page.getByRole('button', { name: `Place ${n} in first free spot` }).click();
+      const ok = l.page.getByRole('button', { name: new RegExp(`^(Build|Put) ${n.replace(/[()]/g, '\\$&')} (for|in) `) });
+      if (await ok.count()) await ok.first().click();
+      await l.page.waitForTimeout(100); await l.clearOverlays();
+    };
     const tabL = (n) => l.page.getByRole('tab', { name: n }).click();
     await place('Lobby'); await tabL('furniture'); await place('Front Desk Counter'); await place('Waiting Bench');
     await tabL('rooms'); await place('Playroom — Small & Gentle');

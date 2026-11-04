@@ -1,6 +1,7 @@
 // The skippable guided start checklist (spec §3).
 import { Check, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { fac } from "@/tycoon/state";
 import { GUIDE_STEPS, claimGuide, guideProgress, guideVisible, markPainted, skipGuide } from "@/tycoon/guide";
 import type { ActOpts, ActResult } from "@/tycoon/store";
 import type { TResult, TycoonState } from "@/tycoon/types";
@@ -29,7 +30,7 @@ export function GuideCard({
             {checks[i] ? <Check className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-label="done" /> : <Circle className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-label="to do" />}
             <div className="min-w-0">
               <p className="font-semibold text-secondary">{g.title}</p>
-              {i + 1 === step && <p className="text-sm text-muted-foreground">{guideText(i + 1, controls)}</p>}
+              {i + 1 === step && <p className="text-sm text-muted-foreground">{guideText(i + 1, controls, fac(state).open)}</p>}
               {i + 1 === step && i === 3 && (
                 <Button size="sm" variant="ghost" className="mt-1 h-11 px-2" onClick={() => set(markPainted)}>
                   Skip this step

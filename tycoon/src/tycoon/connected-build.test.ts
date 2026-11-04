@@ -2,12 +2,14 @@
 // price before you pay; confirming builds room + door + path + type in one step for exactly that price, or refuses with
 // nothing charged. A door snaps into a neighbouring room when there is one; otherwise a path leads to the entrance.
 import { describe, expect, it } from "vitest";
-import { buildConnectedRoom, placeInRoom, planRoom, spotInRoom } from "./build";
+import { buildConnectedRoom, connectRoom, connectionPlan, placeInRoom, planRoom, removeDoor, sellRoom, sellThing, spotInRoom } from "./build";
 import { DOOR_PRICE } from "./catalog";
 import { connectedRooms, roomStatus } from "./connect";
+import { wayIn } from "./rooms";
 import { roomPrice } from "./grid";
 import { quickStart } from "./start";
-import { fac, newTycoon } from "./state";
+import { createArrival } from "./run";
+import { fac, newTycoon, withFac } from "./state";
 import { ok } from "./testkit";
 import type { TycoonState } from "./types";
 
@@ -78,5 +80,67 @@ describe("furnishing a chosen room", () => {
     const r = placeInRoom(s, play.uid, "bath_tub");
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/Bath Room/);
+  });
+});
+
+describe("never trapping pups (empire milestone §2)", () => {
+  const withPupIn = (s: TycoonState, room: string): TycoonState => {
+    const f = fac(s);
+    const pup = { ...fac(ok(createArrival(withFac(s, { ...f, open: true, clockMin: 480 }), () => 0.1))).dogs.at(-1)!, checkedIn: true, place: { kind: "room" as const, room } };
+    return withFac(s, { ...f, dogs: [...f.dogs, pup] });
+  };
+  const play = (s: TycoonState) => fac(s).rooms.find((r) => r.type === "playroom")!;
+  const lobby = (s: TycoonState) => fac(s).rooms.find((r) => r.type === "lobby")!;
+  it("removing the only door of a room with pups inside is refused, with nothing changed", () => {
+    const s = withPupIn(start(), play(start()).uid);
+    const r = removeDoor(s, play(s).uid, play(s).doors[0]!);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/cut off the Playroom/);
+  });
+  it("selling the path or the lobby that pups depend on is refused", () => {
+    const s = withPupIn(start(), play(start()).uid);
+    const path = fac(s).items.find((i) => i.kind === "path" && i.c === 18 && i.r === 26)!;
+    const a = sellThing(s, path.uid);
+    expect(a.ok).toBe(false);
+    if (!a.ok) expect(a.error).toMatch(/cut off/);
+    const b = sellRoom(s, lobby(s).uid);
+    expect(b.ok).toBe(false);
+    if (!b.ok) expect(b.error).toMatch(/cut off the Playroom/);
+  });
+  it("with nobody inside it's your call: the door comes off and the room shows it isn't connected", () => {
+    const s = start();
+    const r = ok(removeDoor(s, play(s).uid, play(s).doors[0]!));
+    expect(roomStatus(fac(r), play(r)).connected).toBe(false);
+  });
+});
+
+describe("how a room is reached, and fixing it (empire milestone §2)", () => {
+  const room = (s: TycoonState, type: string) => fac(s).rooms.find((r) => r.type === type)!;
+  it("a connected room says how you get in", () => {
+    const s = start();
+    expect(wayIn(fac(s), room(s, "playroom"))).toEqual({ ok: true, text: "Way in: a door into the Lobby" });
+    expect(wayIn(fac(s), room(s, "lobby")).text).toMatch(/^Way in: a door onto the path/);
+  });
+  it("a room with no door says so; Connect it adds the cheapest door for its price", () => {
+    let s = start();
+    s = ok(removeDoor(s, room(s, "playroom").uid, room(s, "playroom").doors[0]!));
+    expect(wayIn(fac(s), room(s, "playroom"))).toMatchObject({ ok: false, text: expect.stringMatching(/no door/i) });
+    const plan = connectionPlan(fac(s), room(s, "playroom").uid)!;
+    expect(plan).toMatchObject({ newDoor: true, paths: [], cost: DOOR_PRICE });
+    const r = ok(connectRoom(s, room(s, "playroom").uid));
+    expect(roomStatus(fac(r), room(r, "playroom")).connected).toBe(true);
+    expect(spent(r) - spent(s)).toBe(DOOR_PRICE);
+  });
+  it("a door onto grass says to pave a path; Connect it paves it", () => {
+    let s = start();
+    const path = fac(s).items.find((i) => i.kind === "path" && i.c === 18 && i.r === 26)!;
+    s = ok(sellThing(s, path.uid));
+    expect(wayIn(fac(s), room(s, "lobby"))).toMatchObject({ ok: false, text: expect.stringMatching(/path/) });
+    const plan = connectionPlan(fac(s), room(s, "lobby").uid)!;
+    expect(plan.newDoor).toBe(false);
+    expect(plan.cost).toBe(plan.paths.length * 10);
+    const r = ok(connectRoom(s, room(s, "lobby").uid));
+    expect(roomStatus(fac(r), room(r, "lobby")).connected).toBe(true);
+    expect(roomStatus(fac(r), room(r, "playroom")).connected).toBe(true);
   });
 });

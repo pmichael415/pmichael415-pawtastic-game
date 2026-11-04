@@ -240,6 +240,9 @@ async function scratchRun(browser, dev, { map }) {
     check(`${L}: building steps match the controls`, map ? !/\bdrag/i.test(await s.page.locator('main').innerText()) : true);
     const place = async (n) => {
       await s.page.getByRole('button', { name: `Place ${n} in first free spot` }).click();
+      // confirm: Build at the quoted price (rooms) or Put it in the suggested room (furniture)
+      const ok = s.page.getByRole('button', { name: new RegExp(`^(Build|Put) ${n.replace(/[()]/g, '\\$&')} (for|in) `) });
+      if (await ok.count()) await ok.first().click();
       await s.page.waitForTimeout(120);
       for (const b of ['Continue']) { const x = s.page.getByRole('button', { name: b }); if (await x.count()) await x.first().click(); }
     };

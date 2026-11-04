@@ -19,7 +19,7 @@ vi.mock("@/components/tycoon/TycoonStage", async () => {
 
 import { TycoonPlay } from "./TycoonPlay";
 import { KEY, tycoonStore } from "@/tycoon/store";
-import { planRoom } from "@/tycoon/build";
+import { planRoom, removeDoor } from "@/tycoon/build";
 import { connectedRooms } from "@/tycoon/connect";
 import { xpForLevel } from "@/tycoon/progress";
 import { quickStart } from "@/tycoon/start";
@@ -34,8 +34,8 @@ const button = (name: string | RegExp) => screen.getByRole("button", { name });
 const tool = (name: string) => fireEvent.click(within(screen.getByRole("toolbar", { name: "Build tools" })).getByRole("button", { name }));
 const SKIPPED = { mode: "quick", beat: "meet", startedAt: 0, upgrade: null, done: false, skipped: true } as const;
 const spent = (s: TycoonState) => fac(s).ledger.find((l) => l.day === fac(s).day)?.expenses.building ?? 0;
-function start() {
-  const s = { ...ok(quickStart(newTycoon(Date.now()))), coins: 5000, xp: xpForLevel(4), pendingLevel: null, tour: SKIPPED };
+function start(edit: (s: TycoonState) => TycoonState = (s) => s) {
+  const s = edit({ ...ok(quickStart(newTycoon(Date.now()))), coins: 5000, xp: xpForLevel(4), pendingLevel: null, tour: SKIPPED });
   localStorage.setItem(KEY, JSON.stringify(s));
   render(<TycoonPlay />);
   fireEvent.click(button("Build"));
@@ -108,5 +108,24 @@ describe("furnishing: choose the room first", () => {
     const placed = fac(now()).items.at(-1)!;
     expect(fac(now()).items.length).toBe(items + 1);
     expect(placed).toMatchObject({ kind: "water_bowl", room: play.uid });
+  });
+});
+
+describe("inspecting a room's connection", () => {
+  it("a room shows its way in; one with no door says so, and Connect it fixes it for the price shown", () => {
+    start((s) => {
+      const play = fac(s).rooms.find((r) => r.type === "playroom")!;
+      return ok(removeDoor(s, play.uid, play.doors[0]!));
+    });
+    fireEvent.click(button("Done building"));
+    const play = fac(now()).rooms.find((r) => r.type === "playroom")!;
+    tap({ kind: "room", uid: play.uid });
+    const panel = within(screen.getByRole("region", { name: /^Edit Playroom/ }));
+    expect(panel.getByText(/No door yet/)).toBeTruthy();
+    const before = now();
+    fireEvent.click(panel.getByRole("button", { name: "Connect it · 30" }));
+    expect(connectedRooms(fac(now())).has(play.uid)).toBe(true);
+    expect(spent(now()) - spent(before)).toBe(30);
+    expect(within(screen.getByRole("region", { name: /^Edit Playroom/ })).getByText(/Way in: a door into the Lobby/)).toBeTruthy();
   });
 });

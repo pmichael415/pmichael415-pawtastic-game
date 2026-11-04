@@ -54,22 +54,24 @@ export function beatText(beat: TourBeat, c: Controls, x: BeatCtx): { title: stri
 }
 
 /** The building checklist's step text (steps 1–5) for these controls. */
-export function guideText(step: number, c: Controls): string {
+export function guideText(step: number, c: Controls, open = false): string {
   const three = c === "3d";
   switch (step) {
     case 1:
       return three
-        ? "Drag out a 4 × 3 room, add a door on the road side and a path to the entrance, then place the Front Desk Counter and a Waiting Bench."
+        ? "In Build, choose Rooms → Lobby and tap a spot by the entrance path — it comes with its door and path. Then furnish it (Furniture): the Front Desk Counter and a Waiting Bench."
         : "In Build below, tap Place next to Lobby (it comes with a door and a path). Then, under Furniture, place the Front Desk Counter and a Waiting Bench.";
     case 2:
       return three
-        ? "Draw it next to the Lobby and pick its group. Add a door into the Lobby, then place 2 Dog Beds and a Water Bowl."
+        ? "In Build, choose Rooms → Playroom, pick its group and tap a spot beside the Lobby so its door opens into it. Then furnish it (Furniture): 2 Dog Beds and a Water Bowl."
         : "In Build below, place a Playroom for one group of pups. Then, under Furniture, place 2 Dog Beds and a Water Bowl.";
     case 3:
-      return three ? "A small room with a door, where overwhelmed pups can settle." : "In Build below, place a Calm-Down Room — where overwhelmed pups can settle.";
+      return three ? "In Build, choose Rooms → Calm-Down Room — a small room where overwhelmed pups can settle." : "In Build below, place a Calm-Down Room — where overwhelmed pups can settle.";
     case 4:
       return three ? "Pick a floor and a wall colour. This step is optional." : "Tap a room, then Paint to pick a floor and wall colour. This step is optional.";
     default:
-      return "Switch Open on, check the first pup in, put it in the playroom, give it playtime, then check it out.";
+      return open
+        ? "✓ You're open. Now check the first pup in, put it in the playroom, give it playtime, then check it out."
+        : "Switch Open on, check the first pup in, put it in the playroom, give it playtime, then check it out.";
   }
 }

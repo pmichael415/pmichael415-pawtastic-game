@@ -291,14 +291,15 @@ describe("arrivals and prices", () => {
 });
 
 describe("Review Focus 1: doors and paths", () => {
-  it("after selling the only path, a pup inside still checks out, but new placements say Not connected", () => {
+  it("the only path can't be sold while a pup is inside (never trap pups); once it's out, it can, and new placements say Not connected", () => {
     let s = opened();
     const play = roomOfType(s, "playroom").uid;
-    s = withDogs(s, [dog("a", { place: { kind: "room", room: play } }), dog("b")]);
+    s = withDogs(s, [dog("a", { place: { kind: "room", room: play } })]);
     const path = fac(s).items.find((i) => i.kind === "path" && i.uid !== "entrance")!;
+    expect(sellThing(s, path.uid)).toMatchObject({ ok: false, error: expect.stringMatching(/cut off/) });
+    s = ok(checkout(s, "a", false));
     s = ok(sellThing(s, path.uid));
-    expect(placed(s, "a")).toEqual({ kind: "room", room: play });
-    expect(ok(checkout(s, "a", false)).coins).toBeGreaterThan(s.coins);
+    s = withDogs(s, [dog("b")]);
     expect(assignRoom(s, "b", play)).toMatchObject({ ok: false, error: expect.stringMatching(/^Not connected/) });
   });
 });

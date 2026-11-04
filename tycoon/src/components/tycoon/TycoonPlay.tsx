@@ -481,8 +481,8 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
       <RunHud state={state} act={act} paused={paused} setPaused={setPaused} onFinances={() => setFinances(true)} onReputation={() => setRepOpen(true)} onTeam={() => setTeamOpen(true)} {...(quiet ? {} : { onShop: () => setShop(true) })} />
       {!quiet && <TodayStrip state={state} onOpen={() => setFinances(true)} />}
       {isFreshSave(state) && <StartCard onPick={(mode) => set((s) => startTour(s, mode, Date.now()))} />}
-      {/* During the tour Build waits (one thing at a time), except while building from scratch. */}
-      {show3d && !preTour && (!holding || state.tour?.beat === "meet") && (
+      {/* Build is always there once you've started (empire milestone §2: step into building whenever you like). */}
+      {show3d && !preTour && (
         <Button
           variant={building ? "default" : "outline"}
           className="h-11 w-full"

@@ -22,8 +22,12 @@ describe("instructions for each kind of control", () => {
       for (let step = 1; step <= 5; step++) expect(guideText(step, c)).not.toMatch(/drag|draw/i);
     }
   });
-  it("3D keeps the drag-out wording for rooms, and the map says where to tap", () => {
-    expect(guideText(1, "3d")).toMatch(/Drag out/);
+  it("3D names the tools the player actually has (Rooms → Lobby, then furnish it), and the map says where to tap", () => {
+    // the hub build said "drag out a room" while its buttons placed rooms in the first free spot (empire milestone §2)
+    expect(guideText(1, "3d")).toMatch(/Rooms → Lobby/);
+    expect(guideText(1, "3d")).not.toMatch(/drag|draw/i);
+    expect(guideText(2, "3d")).toMatch(/Rooms → Playroom/);
+    expect(guideText(2, "3d")).toMatch(/Furniture/);
     expect(guideText(1, "map")).toMatch(/In Build below, tap Place next to Lobby/);
     expect(beatText("checkin", "map", ctx).action).toMatch(/on the map/);
     expect(beatText("checkin", "list", ctx).action).toMatch(/Front desk/);
@@ -36,6 +40,10 @@ describe("instructions for each kind of control", () => {
     const ready = beatText("decision", "map", { ...ctx, roomReady: true });
     expect(ready.title).toBe("Rocket's room is ready");
     expect(ready.action).toMatch(/Tap Rocket on the map, check him in, then “To Large & Active”/);
+  });
+  it("the last step says what ticks it: once you're open, it says so and what's left", () => {
+    expect(guideText(5, "3d", false)).toMatch(/^Switch Open on/);
+    expect(guideText(5, "3d", true)).toMatch(/^✓ You're open\. Now check the first pup in/);
   });
   it("map and list building steps point at the Build list's Place buttons, and never promise moving things", () => {
     for (const c of ["map", "list"] as const) {
