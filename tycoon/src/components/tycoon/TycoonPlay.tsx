@@ -614,7 +614,18 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
         </div>
       )}
       {stalled && !holding && <BlockersCard blockers={blockers} />}
-      {!quiet && <ObjectiveBar state={state} onAction={(a) => (a === "team" ? setTeamOpen(true) : a === "expand" ? setExpandOpen(true) : a === "finances" ? setFinances(true) : setBuilding(true))} />}
+      {!quiet && (
+        <ObjectiveBar
+          state={state}
+          onAction={(a) => {
+            setSel(null); // a pup's panel would cover what opens (found in the play session)
+            if (a === "team") setTeamOpen(true);
+            else if (a === "expand") setExpandOpen(true);
+            else if (a === "finances") setFinances(true);
+            else setBuilding(true);
+          }}
+        />
+      )}
       {!quiet && (expandOpen || (objectives(state).next.action === "expand" && !expandSaved)) && (
         <ExpansionCard
           state={state}

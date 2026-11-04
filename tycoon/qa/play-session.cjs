@@ -17,12 +17,27 @@ const IPHONE = { ...devices['iPhone 13'], deviceScaleFactor: 2 };
 const LIMIT_MS = 22 * 60 * 1000;
 const t0 = Date.now();
 const log = [];
+// Pacing (empire milestone §6): the script speeds game time up between beats, so each log line also carries the
+// normal-speed equivalent — real time × the speed it ran at (taps take the same real time; waiting scales).
+let curSpeed = 1, playerS = 0, lastT = Date.now();
+const milestones = {};
 const counts = { checkIns: 0, turnedAway: 0, plays: 0, baths: 0, mops: 0, checkouts: 0, complaintsAnswered: 0, momentsAnswered: 0, hires: 0, expansions: 0, tapsMissed: 0, dialogs: 0 };
 const note = async (page, what, extra = {}) => {
   const s = await page.evaluate(() => { const st = window.__tycoonState(); const f = st.facilities.f1; return { day: f.day, clock: f.clockMin, coins: st.coins, xp: st.xp }; }).catch(() => ({}));
+  playerS += ((Date.now() - lastT) / 1000) * curSpeed;
+  lastT = Date.now();
   const hm = s.clock != null ? `${String(Math.floor(s.clock / 60)).padStart(2, '0')}:${String(Math.floor(s.clock % 60)).padStart(2, '0')}` : '';
-  const line = { realS: Math.round((Date.now() - t0) / 1000), day: s.day, time: hm, coins: s.coins, what, ...extra };
+  const line = { realS: Math.round((Date.now() - t0) / 1000), playerMin: +(playerS / 60).toFixed(1), day: s.day, time: hm, coins: s.coins, what, ...extra };
   log.push(line);
+  const mark = (key) => { if (!milestones[key]) milestones[key] = { playerMin: line.playerMin, realS: line.realS, day: s.day, time: hm, what }; };
+  if (/^checked .* out|^careTour done/.test(what)) mark('1 first visit complete');
+  if (/no room for|asked today|arrives with no room/.test(what)) mark('2 capacity problem noticed');
+  if (/^built /.test(what)) mark('3 expansion chosen, placed and connected');
+  if (/^furnished /.test(what)) mark('4 new room furnished');
+  if (/^staffed /.test(what)) mark('5 staff assigned to it');
+  if (/^served in the new room/.test(what)) mark('6 arrivals served there');
+  if (milestones['6 arrivals served there'] && /^(checked in|checked .* out|gave .* a bath|played with|answered a moment)/.test(what)) mark('7 back to personal care');
+  if (/^saving toward/.test(what)) mark('8 saving toward the next expansion');
   console.log(`[${line.realS}s] day ${s.day} ${hm} · ${s.coins} coins · ${what}${Object.keys(extra).length ? ' ' + JSON.stringify(extra) : ''}`);
 };
 
@@ -45,7 +60,7 @@ const note = async (page, what, extra = {}) => {
     await page.screenshot({ path: path.join(OUT, file) }).catch(() => {});
     await note(page, `screenshot ${file}${what ? ' — ' + what : ''}`);
   };
-  const speed = (x) => page.evaluate((x) => { window.__tycoonSpeed = x; }, x);
+  const speed = async (x) => { await note(page, `speed ${x}×`); curSpeed = x; await page.evaluate((x) => { window.__tycoonSpeed = x; }, x); };
   const canvasIntoView = (block = 'center') => page.evaluate((b) => document.querySelector('section[aria-label="3D daycare view"] canvas')?.scrollIntoView({ block: b }), block);
 
   /** Taps a pup in the 3D view where it's drawn (retrying while it walks); true when its panel opened. */
@@ -279,6 +294,7 @@ const note = async (page, what, extra = {}) => {
     await page.waitForTimeout(300);
   };
   await careTour('Biscuit', 'Small & Gentle');
+  await note(page, 'careTour done: Biscuit checked in, played with and checked out by hand');
   await waitBeat('upgrade');
   await shot('tour-upgrade', 'first payout, then the first upgrade choice');
   await coach().getByRole('button', { name: /Toy Bin · 80 coins/ }).click();
@@ -286,6 +302,7 @@ const note = async (page, what, extra = {}) => {
   await careTour('Daisy', 'Small & Gentle');
   await waitBeat('decision');
   await shot('tour-decision', 'Rocket arrives with no room: build or let him rest');
+  await note(page, 'Rocket arrives with no room for a Large & Active pup');
   await coach().getByRole('button', { name: /Build a Large & Active playroom/ }).click();
   await page.waitForTimeout(400);
   const rocket = await byName('Rocket');
@@ -326,6 +343,7 @@ const note = async (page, what, extra = {}) => {
   let spotTurn = 0;
   /** Opens the options and buys `pick` (a title prefix) — a new room at a chosen spot, or an improvement. */
   const expand = async (pick, why) => {
+    await closeSheet(); // a pup's panel covers the bottom of the screen; a player closes it to read the options
     const card = page.getByRole('region', { name: 'Expand your daycare' });
     if (!(await card.count())) await page.getByRole('button', { name: /^(Expansion options|See options)$/ }).first().click();
     await card.waitFor();
@@ -352,6 +370,12 @@ const note = async (page, what, extra = {}) => {
       await page.waitForTimeout(700);
       await once(`built-${pick}`, `built-${pick.split(' ')[0].toLowerCase()}`, `${pick} built at spot ${steps + 1}`);
       await note(page, `built ${pick} at spot ${steps + 1} (${why})`);
+      if (!/yard/i.test(pick)) {
+        await followUp(pick).catch((e) => note(page, `follow-up error: ${String(e).split('\n')[0]}`));
+        // never leave the daycare in build mode (building pauses the day)
+        const done = page.getByRole('button', { name: 'Done building' });
+        if (await done.count()) { await page.keyboard.press('Escape').catch(() => {}); await done.click().catch(() => {}); }
+      }
     } else {
       const imp = art.getByRole('button', { name: /^Improve/ });
       if (!(await imp.count()) || (await imp.isDisabled())) return false;
@@ -363,6 +387,55 @@ const note = async (page, what, extra = {}) => {
     await closeSheet();
     return true;
   };
+  /** After a new room opens: furnish it from its panel, then give someone the job of running it (empire milestone §6). */
+  let newRoom = null;
+  async function followUp(pick) {
+    for (let i = 0; i < 3; i++) await dismiss();
+    const g = await fac();
+    const room = g.rooms.at(-1);
+    newRoom = { uid: room.uid, type: room.type, pick };
+    const panel = () => page.getByRole('region', { name: /^Edit / }).first();
+    if (!(await panel().count())) return note(page, 'no room panel opened after building');
+    await once(`newroom-${room.type}`, `new-room-${room.type}`, `${pick}: what it does, who runs it, Furnish it`);
+    await panel().getByRole('button', { name: 'Furnish it' }).click();
+    await page.getByRole('button', { name: /^Choose furniture for the / }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.waitFor();
+    let item = null;
+    const coinsNow = (await st()).coins;
+    for (const [name, price] of [['Toy Bin', 80], ['Rug', 40], ['House Plant', 60], ['Water Bowl', 20]]) {
+      if (coinsNow < price) continue;
+      const b = dialog.getByRole('button', { name, exact: true });
+      if ((await b.count()) && !(await b.isDisabled())) { await b.click(); item = name; break; }
+    }
+    const put = page.getByRole('button', { name: /^Put it in / });
+    if (item && (await put.count()) && !(await put.isDisabled())) {
+      await page.waitForTimeout(300);
+      await once(`furnish-${room.type}`, `furnish-${room.type}`, `furnishing the new ${room.type}: the item waits at the room's first free spot`);
+      await put.click();
+      await note(page, `furnished the new ${room.type} with a ${item}`);
+    } else {
+      if (!item) await page.keyboard.press('Escape');
+      await note(page, `not furnishing the new ${room.type} now (${coinsNow} coins)`);
+    }
+    await page.getByRole('button', { name: 'Done building' }).click();
+    await page.waitForTimeout(300);
+    // back to the room's panel through its chip in the rooms strip
+    const chip = page.getByRole('region', { name: 'Rooms' }).getByRole('button').filter({ hasText: new RegExp(room.type === 'bath' ? 'Bath' : room.type === 'boarding' ? 'Boarding' : room.type === 'staff' ? 'Staff' : 'Playroom') }).last();
+    if (await chip.count()) await chip.click();
+    await page.waitForTimeout(300);
+    const staff = panel().getByRole('button', { name: /^(Hire a|Make |Add it to)/ });
+    if ((await staff.count()) && !(await staff.isDisabled())) {
+      const label = await staff.innerText();
+      await staff.click();
+      if (/^Hire/.test(label)) counts.hires++;
+      await note(page, `staffed the new ${room.type}: ${label}`);
+    } else {
+      const text = (await panel().innerText().catch(() => '')).split('\n').find((x) => /^✓ .* (runs|looks after|checks)/.test(x)) ?? '';
+      await note(page, `staffed the new ${room.type}: ${text || 'nobody needed'}`);
+    }
+    await closeSheet();
+  }
   /** What a player reading the Objectives would do now. */
   async function manage() {
     if (await dismiss()) return;
@@ -398,6 +471,16 @@ const note = async (page, what, extra = {}) => {
       const g = await fac();
       if (g.day >= untilDay) return;
       await step().catch((e) => note(page, `step error: ${String(e).split('\n')[0]}`));
+      if (newRoom && !milestones['6 arrivals served there']) {
+        const g2 = await fac();
+        const tubs = g2.items.filter((i) => i.room === newRoom.uid && /tub/.test(i.kind)).map((i) => i.uid);
+        const there = g2.dogs.find((d) => (d.place.room === newRoom.uid) || (d.bathing && tubs.includes(d.bathTub)));
+        if (there) await note(page, `served in the new room: ${there.name} (${newRoom.type})`);
+      }
+      if (milestones['7 back to personal care'] && !milestones['8 saving toward the next expansion']) {
+        const bar = page.getByRole('region', { name: 'Objectives' }).getByRole('progressbar').first();
+        if (await bar.count()) await note(page, `saving toward: ${await bar.getAttribute('aria-label')}`);
+      }
       if (++k % 12 === 0) await manage().catch((e) => note(page, `manage error: ${String(e).split('\n')[0]}`));
       if (k % 40 === 0) await note(page, `status`, { level: (await st()).xp, rep: g.reputation, pups: g.dogs.length });
       // every reputation loss, with its reason, as it happens
@@ -451,7 +534,7 @@ const note = async (page, what, extra = {}) => {
   await note(page, 'session over', { xp: final.xp, rooms: f.rooms.map((r) => r.type), staff: f.staff.map((x) => x.role ?? 'founder'), outcomes: f.outcomes.length, reputation: f.reputation });
   await ctx.close();
   await browser.close();
-  const summary = { realMinutes: +((Date.now() - t0) / 60000).toFixed(1), counts, errors, diag, final: { day: f.day, coins: final.coins, xp: final.xp, reputation: f.reputation, rooms: f.rooms.map((r) => `${r.type}${r.group ? ':' + r.group : ''}`), items: f.items.filter((i) => i.room === null && i.kind !== 'path').map((i) => i.kind), staff: f.staff.map((x) => `${x.name}:${x.role ?? 'founder'}`), asked: f.asked, ledger: f.ledger.map((l) => ({ day: l.day, income: l.income, expenses: l.expenses })), moods: f.outcomes.reduce((a, o) => ({ ...a, [`${o.how}:${o.mood}`]: (a[`${o.how}:${o.mood}`] ?? 0) + 1 }), {}), complaints: f.outcomes.flatMap((o) => o.complaints.map((c) => c.kind)), repLog: (f.repLog ?? []).slice(-25) } };
+  const summary = { realMinutes: +((Date.now() - t0) / 60000).toFixed(1), playerMinutes: +(playerS / 60).toFixed(1), milestones, counts, errors, diag, final: { day: f.day, coins: final.coins, xp: final.xp, reputation: f.reputation, rooms: f.rooms.map((r) => `${r.type}${r.group ? ':' + r.group : ''}`), items: f.items.filter((i) => i.room === null && i.kind !== 'path').map((i) => i.kind), staff: f.staff.map((x) => `${x.name}:${x.role ?? 'founder'}`), asked: f.asked, ledger: f.ledger.map((l) => ({ day: l.day, income: l.income, expenses: l.expenses })), moods: f.outcomes.reduce((a, o) => ({ ...a, [`${o.how}:${o.mood}`]: (a[`${o.how}:${o.mood}`] ?? 0) + 1 }), {}), complaints: f.outcomes.flatMap((o) => o.complaints.map((c) => c.kind)), repLog: (f.repLog ?? []).slice(-25) } };
   fs.writeFileSync(path.join(OUT, 'log.json'), JSON.stringify({ summary, log }, null, 1));
   console.log('\n' + JSON.stringify(summary, null, 1));
 })().catch((e) => { console.error(e); process.exit(1); });

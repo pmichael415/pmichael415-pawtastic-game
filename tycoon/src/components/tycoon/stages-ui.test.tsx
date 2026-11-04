@@ -1,15 +1,17 @@
 // Facility stages on screen (combined-loop plan, task 5): reaching a new stage is celebrated once, and the objectives
 // always show where you are and what the next stage needs.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { TPick } from "@/tycoon/render/world";
 
 vi.mock("sonner", () => ({ toast: Object.assign(() => {}, { success: () => {}, error: () => {}, warning: () => {}, info: () => {} }) }));
+let pick: (p: TPick | null) => void = () => {};
 vi.mock("@/components/tycoon/TycoonStage", async () => {
   const React = await import("react");
   return {
-    TycoonStage: React.forwardRef(function Stub(_props: { onPick: (p: TPick | null) => void }, ref) {
+    TycoonStage: React.forwardRef(function Stub(props: { onPick: (p: TPick | null) => void }, ref) {
       React.useImperativeHandle(ref, () => ({ fx: () => {}, resetCamera: () => {}, focus: () => {}, debug: () => null }));
+      pick = props.onPick;
       return React.createElement("div", { "data-testid": "stage" });
     }),
   };
@@ -22,6 +24,7 @@ import { xpForLevel } from "@/tycoon/progress";
 import { quickStart } from "@/tycoon/start";
 import { fac, newTycoon, withFac } from "@/tycoon/state";
 import { hire } from "@/tycoon/team";
+import { createArrival } from "@/tycoon/run";
 import { ok } from "@/tycoon/testkit";
 import type { TycoonState } from "@/tycoon/types";
 
@@ -98,5 +101,20 @@ describe("after the new room opens (empire milestone §6: place → furnish → 
     expect(panel().getByText(/runs the baths/)).toBeTruthy();
     fireEvent.click(panel().getByRole("button", { name: "Furnish it" }));
     expect(screen.getByText("Furnishing: Bath Room")).toBeTruthy();
+  });
+});
+
+describe("opening the options with a pup's panel open (found in the play session)", () => {
+  it("the pup's panel closes, so it can't cover the options", () => {
+    const s = grown();
+    const withPup = ok(createArrival(withFac(s, { ...fac(s), clockMin: 9 * 60 }), () => 0.1));
+    const pup = fac(withPup).dogs.at(-1)!;
+    open(withPup);
+    closeLevelUp();
+    act(() => pick({ kind: "dog", id: pup.id }));
+    expect(screen.queryByTestId("panel-sheet")).toBeTruthy();
+    fireEvent.click(within(screen.getByRole("region", { name: "Objectives" })).getByRole("button", { name: /^(Expansion options|See options)$/ }));
+    expect(screen.queryByTestId("panel-sheet")).toBeNull();
+    expect(screen.getByRole("region", { name: "Expand your daycare" })).toBeTruthy();
   });
 });
