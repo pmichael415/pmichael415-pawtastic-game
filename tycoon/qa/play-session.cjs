@@ -14,7 +14,10 @@ const OUT = process.env.PLAY_OUT || path.join(__dirname, 'out', 'play-session');
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(path.join(OUT, 'video'), { recursive: true });
 const IPHONE = { ...devices['iPhone 13'], deviceScaleFactor: 2 };
-const LIMIT_MS = 22 * 60 * 1000;
+const LIMIT_MS = Number(process.env.PLAY_LIMIT_MIN || 22) * 60 * 1000;
+// PLAY_ZERO=1: after the guided start, every starting coin is gone (coins set to 0), so whatever the daycare builds
+// afterwards is paid from what it earned — the "earn, reinvest, expand" proof. Said in the log.
+const ZERO = !!process.env.PLAY_ZERO;
 const t0 = Date.now();
 const log = [];
 // Pacing (empire milestone §6): the script speeds game time up between beats, so each log line also carries the
@@ -317,6 +320,10 @@ const note = async (page, what, extra = {}) => {
   await dismiss();
   await dismiss();
   await note(page, 'the guided start is done');
+  if (ZERO) {
+    await page.evaluate(() => window.__tycoonSet((st) => ({ ...st, coins: 0 })));
+    await note(page, 'PLAY_ZERO: coins set to 0 — from here on, everything is paid from what the daycare earns');
+  }
   await shot('after-tour', 'the guide is done; the day clock starts');
 
   // ===================== 3. running the daycare, following the game's own Next objective =====================
@@ -366,10 +373,16 @@ const note = async (page, what, extra = {}) => {
       if (steps) await once(`spotN-${pick}`, `spot-${steps + 1}-${pick.split(' ')[0].toLowerCase()}`, (await bar.innerText()).split('\n').slice(0, 3).join(' — '));
       const build = bar.getByRole('button', { name: /^Build here/ });
       if (await build.isDisabled()) { await bar.getByRole('button', { name: 'Cancel' }).click(); return false; }
+      const buildLabel = await build.innerText();
+      const coinsBefore = (await st()).coins;
       await build.click();
       await page.waitForTimeout(700);
       await once(`built-${pick}`, `built-${pick.split(' ')[0].toLowerCase()}`, `${pick} built at spot ${steps + 1}`);
-      await note(page, `built ${pick} at spot ${steps + 1} (${why})`);
+      {
+        const g0 = await fac();
+        const earned = g0.ledger.reduce((a, l) => a + Object.values(l.income).reduce((x, y) => x + y, 0), 0);
+        await note(page, `built ${pick} at spot ${steps + 1} (${why})`, { cost: Number(buildLabel.replace(/[^\d]/g, '')) || null, coinsBefore, earnedSoFar: earned });
+      }
       if (!/yard/i.test(pick)) {
         await followUp(pick).catch((e) => note(page, `follow-up error: ${String(e).split('\n')[0]}`));
         // never leave the daycare in build mode (building pauses the day)
