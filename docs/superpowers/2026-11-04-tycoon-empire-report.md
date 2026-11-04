@@ -7,7 +7,31 @@ play free; no forced waiting. The legacy game (`/daycare`) and its save are unto
 
 ## In short
 
-<!-- IN-SHORT -->
+- **Private preview:** https://claude.ai/artifact/Nyuw3aGUoE3Mani6HUgfeP — **version 14** (branch
+  `claude/pawtastic-games-unified`, commit `cd04e29`). Nothing was published or released.
+- **The old game's flow is back on the world screen:**
+  - a front desk above the daycare;
+  - rooms at a glance, with a green ✓ where a waiting pup can safely go;
+  - one big next-action button in a pup's panel;
+  - the camera moves to the pup you select.
+  Every familiar interaction is kept, and the legacy game and its save are untouched.
+- **The builder works the way you described:**
+  - choose a room → see its footprint, door and route in green and the itemised price → confirm → it's built,
+    connected and typed for exactly that price;
+  - furnish a room you chose; see and fix how each room is reached;
+  - pups can never be cut off; the build pause restores your pause state.
+  All six symptoms your tester saw are traced to causes and fixed (they tested the hub's older Lovable build).
+- **The combined session plays through:** visit → capacity problem → playroom wing or bath station → place → furnish →
+  staff → serve → back to hands-on care → save toward the next step. On the game clock (measured) plus an estimate of
+  reading and tapping time, it reaches a meaningful building decision in about 7–13 minutes.
+- **Earn → reinvest → expand is clear and proven:**
+  - profit is shown apart from what you invest, and receipts explain each line;
+  - coins match the books to the coin, and staff payments pay once, with coin feedback;
+  - the next expansion's price and your progress are always in view, and a purchase that would leave too little for
+    tonight's costs warns you first;
+  - a run starting from 0 coins bought a playroom wing on day 3 from earnings, and that room then took 691 coins from
+    17 families it couldn't serve before.
+- **Not proven yet:** a person playing it and a real iPhone. Everything here is tests and AI play in an emulator.
 
 ## The build that was tested
 
@@ -204,11 +228,56 @@ from the game clock plus a count of actions, not a stopwatch on a person — you
 
 ## Checks completed
 
-<!-- CHECKS -->
+| Check | Result |
+|---|---|
+| Unit and UI tests | **1,065 / 1,065** (987 before this milestone). New suites: builder flow, connected building, next action, front desk, room care, business loop, review fixes |
+| Typecheck | clean |
+| Browser suites (Chromium, **simulated** iPhone 13 / Pixel 7 / desktop, software WebGL) | **empire 29/29** (new: snap/path/blocked, double taps and coins, furniture targeting, both investments then serving there, build pause, reload, landscape) · tycoon 45/45 · onboarding 100/100 (both starts, all views) · staff 58/58 (handoffs) · service 46/46 (old save, reload, double-tapped checkout) · phone 40/40 (background pause, portrait) · legacy daycare 36/36 · hub 37/37 · games 35/35 |
+| First-week balance bot and hands-off team | pass |
+| Preview security check | passes, apart from the same three blocked self-hosted font loads as before (the page falls back to the system font) |
+| Play sessions (AI play, iPhone 13 emulation) | three: two cut short (one by my own code reload, one restarted for a script slip), one complete to day 6 |
+| **Not tested** | a person playing; **real iPhone Safari** (all phone checks above are simulated) |
+
+**What each part of your test list was checked by:**
+
+| Your test list | Covered by |
+|---|---|
+| Fresh and existing saves | onboarding suite (fresh saves); service suite (an old save loads; a reload mid-visit); saves parse through the same validator as before; the legacy `/daycare` save is untouched |
+| Both starts | onboarding suite (Quick start and Build from scratch, in 3D, map and list); the tycoon suite builds from scratch in 3D the new way |
+| Both investments | empire suite (playroom wing and bath station, each furnished, staffed and serving); play session (both, bought in that order) |
+| Doors, paths, blocked routes | empire suite and unit tests: snap into a neighbour, an 11-square path, an overlap refused, Connect it, a neighbour's door for small rooms |
+| Furniture targeting | builder-flow, build-ui and list tests; empire suite (tub in the bath room only) |
+| Double taps and coins | empire suite (Build here and Put it in double-tapped: one each, charged once); service suite (double-tapped checkout); business-loop proof (68 payments, each exactly once) |
+| Player/staff handoffs | staff suite 58/58; staff-checkout proof |
+| Save/reload and background pause | empire suite (reload after building); phone suite (hidden tab pauses, resumes) |
+| Familiar interactions after expansion | empire suite (check in at the desk → the new room → play → out); play session |
+| Portrait and landscape | every phone suite is portrait; the empire suite builds in landscape |
+| Normal and busy performance | below |
 
 ## Performance
 
-<!-- PERF -->
+**Environment:**
+- **Browser:** Chromium headless, SwiftShader software rendering, no GPU.
+- **Screen:** iPhone 13 size.
+- **Build:** the private review build.
+- **Method:** 10-second samples after a warm-up.
+
+**These are not phone numbers.** This machine was slower today than for the last report, so I measured the build from
+before this milestone on the same machine, for a fair comparison:
+
+| Scenario | Before this milestone (`9e1e506`) | Now |
+|---|---|---|
+| Normal day, battery saver | 59.1 fps · p95 16.8 ms | 54.5 fps · p95 33.3 ms · 1/574 frames over 50 ms |
+| Normal day, standard | 39.7 fps | 40.9 fps |
+| Normal day, desktop | 26.6 fps | 27.1 fps |
+| Busy scene, battery saver | 33.5 fps · p95 50 ms | 31.2 fps · p95 66.6 ms |
+| Busy scene, standard | 25.4 fps | 24.1 fps |
+| Busy scene, desktop | 14.4 fps | 14.5 fps |
+
+- **Comparable:** four scenarios are within about ±5%. The two battery-saver scenarios are 7–8% lower.
+- **Screen updates:** they got cheaper in the busy scene (8 ms → 5 ms a render) because the long list is gone.
+- **The savings line:** it is now worked out only when something it depends on changes.
+- **On a physical iPhone:** still not verified.
 
 ## Independent review
 
@@ -245,7 +314,20 @@ The reviewer also checked and found correct:
 
 ## Limitations and what's not done
 
-<!-- LIMITS -->
+- **A person and a real iPhone:** everything here is tests and AI play in an emulator. The pacing is the game clock
+  plus an estimate of reading and tapping time, not a stopwatch on a player.
+- **A player working alone still gets overwhelmed when they over-expand:** with four playrooms and one attendant,
+  families waited at the desk and rooms got dirty, and reputation fell. The game explains each cause and suggests
+  hiring. But nothing yet nudges a player *before* they over-build (for example, "your team can look after about N
+  pups"). It is worth watching in your test.
+- **The list builder still picks the first free spot from the top-left.** It now quotes it exactly and asks first; in
+  3D you choose the spot yourself.
+- **The stage celebration** can appear while you're furnishing (the moment a room starts working). Continue returns
+  you to where you were.
+- **On the next-milestone roadmap, as you asked:** relationships with returning families, collections, more
+  customization, new land beyond today's parcels, and other fictional locations.
+- **Nothing published:** the live hub, the Lovable project, Stripe, purchases, DNS, app.pawtasticacademy.com and the
+  other games were not touched. The preview is private.
 
 ## Phil's iPhone test (about 15 minutes, private preview)
 
@@ -295,4 +377,16 @@ The reviewer also checked and found correct:
 
 ## Commits (since `9e1e506`)
 
-<!-- COMMITS -->
+- `4da3fa9` The old game's flow on the world screen: front desk, rooms at a glance, next-action button, camera focus.
+- `fe9ac42` Building by type → spot → door and route → price → confirm; furnish a chosen room.
+- `cc11acc` Exact quotes and a confirm step in the list builder; the guide names the real tools; Build always there;
+  "Way in" and Connect it; never cut off pups.
+- `01cfefa` One front desk in the list view; the browser walkthrough builds the new way.
+- `acb74bd` A new room's panel: what it does, who runs it, Furnish it.
+- `5ee1b9e` Objective buttons close a covering pup panel; pacing measurement; the empire browser check.
+- `1093810` Economy: running profit vs invested; receipts that explain; coins follow the books; the loop proven.
+- `36799d1` The independent review's 11 fixes.
+- `7d1dd0d` Staff payments fly coins; "Saving for" the next expansion.
+- `2bd3fc2` Smart-spending warning; the savings line follows Next.
+- `cd04e29` Performance: the savings line and rooms strip do less work.
+- Plus QA script updates and this report.
