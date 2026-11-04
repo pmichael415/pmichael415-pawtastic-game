@@ -19,6 +19,7 @@ vi.mock("@/components/tycoon/TycoonStage", async () => {
 });
 
 import { TycoonPlay } from "./TycoonPlay";
+import { setSettings } from "@/lib/settings";
 import { KEY, tycoonStore } from "@/tycoon/store";
 import { quickStart } from "@/tycoon/start";
 import { fac, newTycoon, withFac } from "@/tycoon/state";
@@ -80,6 +81,19 @@ describe("the front desk", () => {
     open(withPups());
     act(() => tycoonStore.set((x) => withFac(x, { ...fac(x), dogs: [] })));
     expect(desk().getByText(/No one at the desk/)).toBeTruthy();
+  });
+});
+
+describe("in the list view", () => {
+  it("there's one front desk (the list's own), not a second one on top", () => {
+    setSettings({ view: "list" });
+    try {
+      open(withPups({}));
+      expect(screen.queryByTestId("stage")).toBeNull();
+      expect(screen.getAllByRole("region", { name: "Front desk" })).toHaveLength(1);
+    } finally {
+      setSettings({ view: "overhead" });
+    }
   });
 });
 

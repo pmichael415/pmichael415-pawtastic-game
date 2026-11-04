@@ -518,7 +518,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
         </div>
       )}
       {/* the old game's flow, on the world screen: who's at the desk, and the rooms at a glance */}
-      {!building && !placing && !isFreshSave(state) && (
+      {show3d && !building && !placing && !isFreshSave(state) && (
         <div className="space-y-1.5">
           <FrontDesk f={f} act={act} onSelect={(id) => setSel({ kind: "dog", id })} onCheckout={onCheckout} />
           <RoomsStrip f={f} dog={pickedDog} act={act} onSelectRoom={(uid) => setSel({ kind: "room", id: uid })} />

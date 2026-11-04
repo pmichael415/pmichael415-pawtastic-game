@@ -40,6 +40,13 @@ async function session(browser, deviceName) {
   }
   /** Taps a square or a wall edge in the 3D view, making sure the point isn't covered by the HUD or a toast. */
   async function tapWorld(kind, ...args) {
+    if (await tapWorldOnce(kind, args)) return true;
+    // Selecting a pup moves the camera to it; a player would reset the view to reach the far side of the lot.
+    await page.getByRole('button', { name: 'Reset camera' }).click().catch(() => {});
+    await page.waitForTimeout(400);
+    return tapWorldOnce(kind, args);
+  }
+  async function tapWorldOnce(kind, args) {
     for (const block of ['center', 'end', 'start']) {
       await page.evaluate((b) => document.querySelector('section[aria-label="3D daycare view"] canvas').scrollIntoView({ block: b }), block);
       await page.waitForTimeout(180);
@@ -248,7 +255,7 @@ async function guidedStart(s, label) {
     const confirmText = await page.getByText(/^Sell the Play Yard for \d+ coins\?$/).innerText();
     await btn('Yes, sell').click(); await page.waitForTimeout(200);
     check('selling it, after a confirmation showing the refund', !(await f()).items.some((i) => i.kind === 'play_yard') && /420 coins/.test(confirmText), confirmText);
-  } catch (e) { check('build checks ran', false, String(e).split('\n')[0]); }
+  } catch (e) { check('build checks ran', false, String(e).split('\n')[0]); await page.screenshot({ path: require('path').join(__dirname, 'out', 'tycoon-build-checks-error.png') }).catch(() => {}); log('build panel:', await panel().catch(() => '')); }
 
   // finances
   try {
