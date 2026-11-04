@@ -459,11 +459,13 @@ function tooFull(f: Facility, newSquares: number): string | null {
   return f.items.length + newSquares > MAX_THINGS ? `Your daycare is full (${MAX_THINGS} things) — sell something to make room for ${newSquares} path square${newSquares === 1 ? "" : "s"}.` : null;
 }
 
-/** Connects a room that isn't connected, for exactly connectionPlan's price. */
-export function connectRoom(s: TycoonState, roomUid: string): TResult {
+/** Connects a room that isn't connected, for exactly connectionPlan's price — and, given `shown`, exactly that plan. */
+export function connectRoom(s: TycoonState, roomUid: string, shown?: { door: Door; newDoor: boolean; paths: { c: number; r: number }[]; cost: number }): TResult {
   const plan = connectionPlan(fac(s), roomUid);
   if (!plan) return { ok: false, error: connectedRoomsOf(fac(s)).has(roomUid) ? "It's already connected." : "There's no way to reach it from here — move it or make space." };
   if (plan.blocked) return { ok: false, error: plan.blocked };
+  if (shown && (shown.newDoor !== plan.newDoor || planChanged({ door: plan.door, paths: plan.paths, total: plan.cost }, { door: shown.door, paths: shown.paths, cost: { total: shown.cost } })))
+    return { ok: false, error: `The way to connect it changed since you saw it (now ${plan.cost} coins) — check it and confirm again.` };
   if (s.coins < plan.cost) return { ok: false, error: `${plan.cost - s.coins} more coins needed.` };
   const before = today(fac(s)).expenses.building;
   let t: TResult = { ok: true, state: s };
@@ -549,12 +551,29 @@ function neighbourDoor(f: Facility, rect: { c: number; r: number; w: number; d: 
  * Builds the planned room in one step — walls and floor, its door, the path squares and its type — for exactly the
  * planned price, or refuses with nothing changed (an invalid spot, no route, not enough coins).
  */
-export function buildConnectedRoom(s: TycoonState, rect: { c: number; r: number; w: number; d: number }, type: RoomType | null, group?: GroupId, quoted?: number): TResult {
+/** What the player saw before confirming: the doorway, the route and the total (audit finding 3). */
+export type ShownPlan = { door: Door; doorOn?: string | null; paths: { c: number; r: number }[]; cost: { total: number } };
+const samePaths = (a: { c: number; r: number }[], b: { c: number; r: number }[]) => {
+  const k = (t: { c: number; r: number }) => tileKey(t.c, t.r);
+  const x = new Set(a.map(k));
+  return a.length === b.length && b.every((t) => x.has(k(t)));
+};
+/** Why the plan now differs from the one shown, or null when it's the same (footprint is the caller's rect). */
+function planChanged(now: { door: Door; doorOn?: string | null; paths: { c: number; r: number }[]; total: number }, shown: ShownPlan): string | null {
+  const same = sameDoor(now.door, shown.door) && (now.doorOn ?? null) === (shown.doorOn ?? null) && samePaths(now.paths, shown.paths) && now.total === shown.cost.total;
+  return same ? null : `The plan changed since you saw it (now ${now.total.toLocaleString("en-US")} coins, ${now.paths.length} path square${now.paths.length === 1 ? "" : "s"}) — check it and confirm again.`;
+}
+
+export function buildConnectedRoom(s: TycoonState, rect: { c: number; r: number; w: number; d: number }, type: RoomType | null, group?: GroupId, shown?: number | ShownPlan): TResult {
   if (type === "playroom" && !group) return { ok: false, error: "Pick a group for this playroom." };
   const plan = planRoom(fac(s), rect);
   if (!plan.ok) return { ok: false, error: plan.reason };
-  // you pay the price you saw, or nothing
-  if (quoted !== undefined && quoted !== plan.cost.total) return { ok: false, error: `The price is now ${plan.cost.total.toLocaleString("en-US")} (it was ${quoted.toLocaleString("en-US")}) — check it and confirm again.` };
+  // you get exactly what you saw — the doorway, the route and the price — or nothing changes
+  if (typeof shown === "number" && shown !== plan.cost.total) return { ok: false, error: `The plan changed since you saw it (now ${plan.cost.total.toLocaleString("en-US")} coins) — check it and confirm again.` };
+  if (typeof shown === "object") {
+    const why = planChanged({ door: plan.door, doorOn: plan.doorOn, paths: plan.paths, total: plan.cost.total }, shown);
+    if (why) return { ok: false, error: why };
+  }
   if (s.coins < plan.cost.total) return { ok: false, error: `${(plan.cost.total - s.coins).toLocaleString("en-US")} more coins needed.` };
   const before = fac(s).ledger.find((l) => l.day === fac(s).day)?.expenses.building ?? 0;
   const a = drawRoom(s, rect.c, rect.r, rect.w, rect.d);

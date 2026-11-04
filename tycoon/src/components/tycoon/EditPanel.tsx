@@ -112,7 +112,7 @@ export function EditPanel({
                       size="sm"
                       className="mt-1 h-11"
                       disabled={state.coins < fix.cost}
-                      onClick={() => act((s) => connectRoom(s, room.uid), { event: { name: "tycoon_build", props: { kind: "door", action: "connect" } } })}
+                      onClick={() => act((s) => connectRoom(s, room.uid, fix), { event: { name: "tycoon_build", props: { kind: "door", action: "connect" } } })}
                     >
                       Connect it · {fix.cost}
                     </Button>

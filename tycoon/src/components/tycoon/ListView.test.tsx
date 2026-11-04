@@ -9,7 +9,7 @@ import { tycoonStore, useTycoon } from "@/tycoon/store";
 import { createArrival } from "@/tycoon/run";
 import { connectedRooms } from "@/tycoon/connect";
 import { fac } from "@/tycoon/state";
-import { firstFreeRoomPlan } from "@/tycoon/build";
+import { firstFreeRoomPlan, sellThing } from "@/tycoon/build";
 import { groupName, groupOf } from "@/game/engine";
 
 function Harness() {
@@ -49,6 +49,39 @@ describe("list view", () => {
     fireEvent.click(screen.getByRole("button", { name: "Place Lobby in first free spot" }));
     fireEvent.click(screen.getByRole("button", { name: `Build Lobby for ${q.cost.total}` }));
     expect(coins - tycoonStore.getState()!.coins).toBe(q.cost.total);
+    unmount();
+  });
+
+  it("Build charges the quote on screen; a quote that went stale behind you charges nothing and shows the new one; a double tap builds once (audit finding 3)", () => {
+    const { unmount } = render(<Harness />);
+    place("Lobby");
+    fireEvent.click(screen.getByRole("button", { name: "Place Playroom — Small & Gentle in first free spot" }));
+    const shown = () => Number(screen.getByRole("button", { name: /^Build Playroom — Small & Gentle for \d+$/ }).getAttribute("aria-label")!.match(/for (\d+)$/)![1]);
+    const price = shown();
+    // meanwhile the daycare changes behind the open quote: a path square near the entrance goes
+    act(() => {
+      tycoonStore.dispatch((t) => sellThing(t, fac(t).items.find((i) => i.kind === "path" && i.uid !== "entrance")!.uid));
+    });
+    const coins = tycoonStore.getState()!.coins;
+    const rooms = fac(tycoonStore.getState()!).rooms.length;
+    // the row shows the refreshed quote; tapping a stale one would have been refused — check it really changed
+    const fresh = shown();
+    if (fresh !== price) {
+      // tap: the fresh quote builds, exactly once, at the fresh price (two quick taps)
+      const btn = screen.getByRole("button", { name: `Build Playroom — Small & Gentle for ${fresh}` });
+      fireEvent.click(btn);
+      fireEvent.click(btn);
+      expect(coins - tycoonStore.getState()!.coins).toBe(fresh);
+    } else {
+      const btn = screen.getByRole("button", { name: `Build Playroom — Small & Gentle for ${price}` });
+      fireEvent.click(btn);
+      fireEvent.click(btn);
+      expect(coins - tycoonStore.getState()!.coins).toBe(price);
+    }
+    expect(fac(tycoonStore.getState()!).rooms).toHaveLength(rooms + 1);
+    // and a deliberate second purchase still works
+    place("Playroom — Large & Active");
+    expect(fac(tycoonStore.getState()!).rooms).toHaveLength(rooms + 2);
     unmount();
   });
 

@@ -1,10 +1,10 @@
 // The list view: the whole game without the 3D stage — lobby, rooms, pups, and a "first free spot" builder.
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { GROUPS, groupName, hireCost, MAX_STAFF } from "@/game/engine";
 import type { GroupId } from "@/game/engine";
 import { FURNITURE, OUTDOOR, PARCELS, ROOM_TYPE_NAMES, DOOR_PRICE, SELL_RATE, furnitureDef, outdoorDef, thingName, upgradePrice } from "@/tycoon/catalog";
-import { DEFAULT_ROOM_SIZE, buyLand, costLine, firstFreeRoomPlan, placeFirstFree, placeInRoom, rankedRoomsFor, sellRoom, sellThing, setClosed, setRoomType, upgradeThing, type FirstFree } from "@/tycoon/build";
+import { DEFAULT_ROOM_SIZE, buildConnectedRoom, buyLand, costLine, firstFreeRoomPlan, placeFirstFree, placeThing, rankedRoomsFor, spotInRoom, sellRoom, sellThing, setClosed, setRoomType, upgradeThing, type FirstFree } from "@/tycoon/build";
 import { isActive, ownedPaid } from "@/tycoon/paid";
 import { connectedRooms, roomStatus } from "@/tycoon/connect";
 import { roomPrice } from "@/tycoon/grid";
@@ -179,6 +179,7 @@ function RoomCard({ f, room, act }: { f: Facility; room: Room; act: Act }) {
  */
 function BuildRow({ e, f, coins, locked, act }: { e: BuildEntry; f: Facility; coins: number; locked: boolean; act: Act }) {
   const [open, setOpen] = useState(false);
+  const used = useRef<unknown>(null); // the quote already confirmed (a second tap on it does nothing)
   const room = typeof e.what === "string" ? null : e.what;
   const fd = typeof e.what === "string" ? furnitureDef(e.what) : null;
   const quote = useMemo(() => (room ? firstFreeRoomPlan(f, room.room, room.group) : null), [room?.room, room?.group, f.rooms, f.items, f.land]);
@@ -215,7 +216,12 @@ function BuildRow({ e, f, coins, locked, act }: { e: BuildEntry; f: Facility; co
             aria-label={`Build ${e.name} for ${quote.cost.total}`}
             disabled={coins < quote.cost.total}
             onClick={() => {
-              if (act((s) => placeFirstFree(s, e.what), ev).ok) setOpen(false);
+              // the quote on screen, bound: same spot, doorway, route and price, or nothing (audit finding 3); once
+              if (used.current === quote || !room) return;
+              used.current = quote;
+              const r = act((s) => buildConnectedRoom(s, quote.rect, room.room, room.group, quote), ev);
+              if (r.ok) setOpen(false);
+              else used.current = null;
             }}
           >
             Build · {quote.cost.total.toLocaleString("en-US")}
@@ -237,7 +243,13 @@ function BuildRow({ e, f, coins, locked, act }: { e: BuildEntry; f: Facility; co
                 className="h-11"
                 aria-label={`Put ${e.name} in ${roomName(f, r.uid)}`}
                 onClick={() => {
-                  if (act((s) => placeInRoom(s, r.uid, fd.id), ev).ok) setOpen(false);
+                  // the spot that's free right now in that room, bound (a replay can't put a second one in)
+                  const spot = spotInRoom(f, r.uid, fd.id);
+                  if ("error" in spot) {
+                    act(() => ({ ok: false, error: spot.error }), ev);
+                    return;
+                  }
+                  if (act((s) => placeThing(s, fd.id, spot.c, spot.r, spot.rot), ev).ok) setOpen(false);
                 }}
               >
                 {roomName(f, r.uid)}

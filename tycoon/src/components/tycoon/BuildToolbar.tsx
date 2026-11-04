@@ -216,8 +216,8 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
     if (!ui.corner || !ui.end || !plan?.ok || derived.reason) return;
     const { rect } = plan;
     const uid = "r" + state.seq;
-    const quoted = plan.cost.total;
-    const res = act((s) => buildConnectedRoom(s, rect, null, undefined, quoted), { event: { name: "tycoon_build", props: { kind: "room", action: "place" } } });
+    const shown = plan; // exactly what's on screen: doorway, route and price
+    const res = act((s) => buildConnectedRoom(s, rect, null, undefined, shown), { event: { name: "tycoon_build", props: { kind: "room", action: "place" } } });
     if (res.ok) {
       fx("drop", { c: rect.c + Math.floor(rect.w / 2), r: rect.r + Math.floor(rect.d / 2) });
       patch({ typing: uid, corner: null, end: null });
@@ -245,8 +245,8 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
     const kind = ui.kind;
     const group = ui.group ?? undefined;
     const uid = "r" + state.seq;
-    const quoted = plan.cost.total;
-    const res = act((s) => buildConnectedRoom(s, rect, kind, group, quoted), { event: { name: "tycoon_build", props: { kind: "room", action: "place" } } });
+    const shown = plan; // exactly what's on screen: doorway, route and price
+    const res = act((s) => buildConnectedRoom(s, rect, kind, group, shown), { event: { name: "tycoon_build", props: { kind: "room", action: "place" } } });
     if (res.ok) {
       fx("drop", { c: rect.c + Math.floor(rect.w / 2), r: rect.r + Math.floor(rect.d / 2) });
       setUi({ ...EMPTY, tool: "furniture", dest: uid });

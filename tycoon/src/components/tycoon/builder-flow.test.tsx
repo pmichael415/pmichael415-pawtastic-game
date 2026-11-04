@@ -55,15 +55,18 @@ describe("placing a room", () => {
     const g = ghost();
     expect(g).toMatchObject({ kind: "room", ok: true });
     expect(g.door).toBeTruthy();
-    const plan = planRoom(fac(now()), { c: g.c, r: g.r, w: g.w, d: g.d });
-    if (!plan.ok) throw new Error("expected a plan");
-    expect(screen.getAllByText(new RegExp(`= ${plan.cost.total}$`)).length).toBeGreaterThan(0);
+    // the price is read from what's on screen — the itemised line and the button — not recomputed (audit finding 7)
+    const line = screen.getAllByText(/^Bath Room 3 × 2 · Room \d+ \+ door 30( \+ path \d+ × 10)? = \d+$/)[0]!.textContent!;
+    const shownTotal = Number(line.split("= ")[1]);
+    const go = button(/^Build here · /);
+    expect(Number(go.textContent!.replace(/[^\d]/g, ""))).toBe(shownTotal);
     const before = now();
-    fireEvent.click(button(new RegExp(`^Build here · ${plan.cost.total}`)));
+    fireEvent.click(go);
     const room = fac(now()).rooms.at(-1)!;
     expect(room).toMatchObject({ type: "bath", c: g.c, r: g.r });
     expect(connectedRooms(fac(now())).has(room.uid)).toBe(true);
-    expect(spent(now()) - spent(before)).toBe(plan.cost.total);
+    expect(spent(now()) - spent(before)).toBe(shownTotal);
+    expect(before.coins - now().coins).toBe(shownTotal);
     // furnishing that room is next
     expect(screen.getByText(/Furnishing: Bath Room/)).toBeTruthy();
   });
@@ -169,5 +172,25 @@ describe("reloading mid-build (audit finding 1)", () => {
     expect(now().coins).toBe(before.coins);
     expect(tycoonStore.getSnapshot().paused).toBe(true);
     expect(screen.getByRole("region", { name: "Paused" })).toBeTruthy();
+  });
+});
+
+describe("Connect it charges the plan it shows, once (audit finding 3)", () => {
+  it("a double tap connects once, for the price on the button", () => {
+    start((s) => {
+      const play = fac(s).rooms.find((r) => r.type === "playroom")!;
+      return ok(removeDoor(s, play.uid, play.doors[0]!));
+    });
+    fireEvent.click(button("Done building"));
+    const play = fac(now()).rooms.find((r) => r.type === "playroom")!;
+    tap({ kind: "room", uid: play.uid });
+    const panel = within(screen.getByRole("region", { name: /^Edit Playroom/ }));
+    const connect = panel.getByRole("button", { name: /^Connect it · \d+$/ });
+    const price = Number(connect.textContent!.replace(/[^\d]/g, ""));
+    const before = now();
+    fireEvent.click(connect);
+    fireEvent.click(connect);
+    expect(before.coins - now().coins).toBe(price);
+    expect(connectedRooms(fac(now())).has(play.uid)).toBe(true);
   });
 });
