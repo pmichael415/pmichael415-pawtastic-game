@@ -8,6 +8,7 @@ import { ROOM_TYPE_NAMES, SELL_RATE, furnitureDef, outdoorDef, upgradePrice } fr
 import { connectRoom, connectionPlan, moveThing, sellRoom, sellThing, setClosed, setRoomType, upgradeThing } from "@/tycoon/build";
 import { upkeepOf } from "@/tycoon/business";
 import { roomCleanOf, wayIn } from "@/tycoon/rooms";
+import { applyStaffPlan, roomServes, staffPlanFor } from "@/tycoon/roomCare";
 import { clean } from "@/tycoon/run";
 import { roomStatus } from "@/tycoon/connect";
 import { isActive } from "@/tycoon/paid";
@@ -41,6 +42,7 @@ export function EditPanel({
   onMoveThing,
   onMoveRoom,
   onPaint,
+  onFurnish,
   onClose,
 }: {
   state: TycoonState;
@@ -51,6 +53,8 @@ export function EditPanel({
   onMoveThing: (t: Placed) => void;
   onMoveRoom: (r: Room) => void;
   onPaint: (r: Room) => void;
+  /** Furnish this room: build mode with the room already chosen. */
+  onFurnish?: (r: Room) => void;
   onClose: () => void;
 }) {
   const f = fac(state);
@@ -148,7 +152,36 @@ export function EditPanel({
             ))}
           </div>
         ) : (
+          <>
+          {room.type && (() => {
+            // Running it (empire milestone §6): what it does for families, who looks after it — one tap to get someone on it.
+            const staff = staffPlanFor(f, room);
+            return (
+              <div className="mt-2 space-y-1 rounded-xl bg-muted p-2 text-sm">
+                <p className="text-secondary">{roomServes(f, room)}</p>
+                <p className={staff.kind === "covered" ? "font-semibold text-success" : "text-secondary"}>{staff.text}</p>
+                {(staff.kind === "assign" || staff.kind === "hire") && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      className="h-11"
+                      disabled={staff.kind === "hire" && state.coins < staff.cost}
+                      onClick={() => act((s) => applyStaffPlan(s, staff))}
+                    >
+                      {staff.label}
+                    </Button>
+                    {staff.kind === "hire" && <span className="text-xs text-muted-foreground">then {staff.wage} coins a day</span>}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           <div className="mt-2 flex flex-wrap gap-2">
+            {onFurnish && room.type && (
+              <Button className="h-11" onClick={() => onFurnish(room)}>
+                Furnish it
+              </Button>
+            )}
             {roomCleanOf(f, room.uid) < 100 && (
               <Button variant="secondary" className="h-11" onClick={() => act(clean)}>
                 Mop floors
@@ -170,6 +203,7 @@ export function EditPanel({
               Sell
             </Button>
           </div>
+          </>
         )}
       </section>
     );

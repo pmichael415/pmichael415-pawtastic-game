@@ -294,10 +294,12 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
     const base = derived.placeAt;
     patch({ at: base?.at ?? ui.at, rot: (((base?.rot ?? ui.rot) + 1) % 4) as Rot });
   };
+  /** Furnish a room chosen elsewhere (its panel): build mode with that room picked. */
+  const furnish = (uid: string) => setUi({ ...EMPTY, tool: "furniture", dest: uid });
   const startMoveThing = (t: Placed) => setUi({ ...EMPTY, tool: furnitureDef(t.kind) ? "furniture" : "outdoor", item: t.kind, rot: t.rot, moving: t.uid, at: { c: t.c, r: t.r } });
   const startMoveRoom = (room: Room) => setUi({ ...EMPTY, movingRoom: room.uid, roomAt: { c: room.c, r: room.r } });
 
-  return { ui, setUi, patch, setTool, onPick, buildRoom, setType, chooseKind, resize, turn, buildHere, toggleDoor, place, rotate, moveRoomHere, pave, startMoveThing, startMoveRoom, ...derived };
+  return { ui, setUi, patch, setTool, onPick, buildRoom, setType, chooseKind, resize, turn, buildHere, furnish, toggleDoor, place, rotate, moveRoomHere, pave, startMoveThing, startMoveRoom, ...derived };
 }
 export type Build = ReturnType<typeof useBuild>;
 

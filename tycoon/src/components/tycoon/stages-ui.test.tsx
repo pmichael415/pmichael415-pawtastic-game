@@ -79,3 +79,24 @@ describe("the objectives show the stage", () => {
     expect(bar.getByTestId("objective-long").textContent).toMatch(/Full-service/);
   });
 });
+
+describe("after the new room opens (empire milestone §6: place → furnish → staff → serve)", () => {
+  it("its panel says what it does and who runs it; one tap hires for it, and Furnish leads into furnishing that room", () => {
+    open(grown());
+    fireEvent.click(within(card().getByRole("article", { name: "Bath station" })).getByRole("button", { name: /^Choose a spot · / }));
+    fireEvent.click(within(screen.getByRole("region", { name: "Choose a spot" })).getByRole("button", { name: /^Build here · / }));
+    closeLevelUp();
+    const stage = screen.queryByRole("dialog", { name: /daycare/ });
+    if (stage) fireEvent.click(within(stage).getByRole("button", { name: "Continue" }));
+    const panel = () => within(screen.getByRole("region", { name: /^Edit Bath Room/ }));
+    expect(panel().getByText(/families who book a bath or an exit bath get one here/)).toBeTruthy();
+    expect(panel().getByText(/No one runs baths yet/)).toBeTruthy();
+    const team = fac(tycoonStore.getState()!).staff.length;
+    fireEvent.click(panel().getByRole("button", { name: /^Hire a bath attendant · / }));
+    expect(fac(tycoonStore.getState()!).staff).toHaveLength(team + 1);
+    expect(fac(tycoonStore.getState()!).staff.at(-1)!.role).toBe("bath");
+    expect(panel().getByText(/runs the baths/)).toBeTruthy();
+    fireEvent.click(panel().getByRole("button", { name: "Furnish it" }));
+    expect(screen.getByText("Furnishing: Bath Room")).toBeTruthy();
+  });
+});

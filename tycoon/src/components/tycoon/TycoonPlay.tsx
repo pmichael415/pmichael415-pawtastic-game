@@ -602,6 +602,11 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
             b.startMoveRoom(r);
           }}
           onPaint={(r) => setPainting(r.uid)}
+          onFurnish={(r) => {
+            setBuilding(true);
+            setSel(null);
+            b.furnish(r.uid);
+          }}
           onClose={() => setSel(null)}
         />
       )}
