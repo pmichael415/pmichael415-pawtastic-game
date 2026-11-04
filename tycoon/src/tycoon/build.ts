@@ -453,14 +453,15 @@ export function connectionPlan(f: Facility, roomUid: string): ConnectPlan | null
     const only = routeFor(f, room, d, reached);
     if (only && (!best || only.length * per < best.cost)) best = { door: d, doorOn: null, newDoor: false, paths: only, cost: only.length * per, blocked: null };
   }
+  // never a fifth way in: its own doors and any doorway on a neighbour's wall that opens into it all count
+  const full = openingsInto(f, room) >= MAX_DOORS;
   if (fresh) {
     const exists = room.doors.some((d) => sameDoor(d, fresh.door));
     const cost = (exists ? 0 : DOOR_PRICE) + fresh.paths.length * per;
-    // never a fifth door
-    if ((exists || room.doors.length < MAX_DOORS) && (!best || cost < best.cost)) best = { door: fresh.door, doorOn: null, newDoor: !exists, paths: fresh.paths, cost, blocked: null };
+    if ((exists || !full) && (!best || cost < best.cost)) best = { door: fresh.door, doorOn: null, newDoor: !exists, paths: fresh.paths, cost, blocked: null };
   }
   // a room too small for a door of its own (a 2 × 2): a doorway on a connected neighbour's wall (audit finding 4A)
-  if (!best || best.cost > DOOR_PRICE) {
+  if (!full && (!best || best.cost > DOOR_PRICE)) {
     const n = neighbourDoor(f, room, reached);
     if (n) best = { door: n.door, doorOn: n.room, newDoor: true, paths: [], cost: DOOR_PRICE, blocked: null };
   }
@@ -540,6 +541,11 @@ export function planRoom(f: Facility, rect: { c: number; r: number; w: number; d
   const via = plan.paths.length === 0 ? (f.rooms.find((x) => containsTile(x, out) && reached.rooms.has(x.uid))?.uid ?? null) : null;
   const paths = plan.paths.length * outdoorDef("path")!.price;
   return { ok: true, rect, door: plan.door, doorOn: null, inner: plan.door, via, paths: plan.paths, cost: { room, door: DOOR_PRICE, paths, total: room + DOOR_PRICE + paths } };
+}
+
+/** Every doorway into a room: its own doors and those on other rooms' walls that open into it. */
+function openingsInto(f: Facility, room: Room): number {
+  return room.doors.length + f.rooms.reduce((n, x) => (x.uid === room.uid ? n : n + x.doors.filter((d) => containsTile(room, doorOutside(x, d))).length), 0);
 }
 
 /** A door on a connected neighbour's wall that opens into this rectangle, and how it looks from inside it. */

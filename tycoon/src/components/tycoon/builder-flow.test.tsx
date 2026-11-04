@@ -126,9 +126,12 @@ describe("inspecting a room's connection", () => {
     const panel = within(screen.getByRole("region", { name: /^Edit Playroom/ }));
     expect(panel.getByText(/No door yet/)).toBeTruthy();
     const before = now();
-    fireEvent.click(panel.getByRole("button", { name: "Connect it · 30" }));
+    const connect = panel.getByRole("button", { name: /^Connect it · \d+$/ });
+    const shown = Number(connect.textContent!.replace(/[^\d]/g, ""));
+    expect(shown).toBe(30); // a doorway into the lobby, no path squares
+    fireEvent.click(connect);
     expect(connectedRooms(fac(now())).has(play.uid)).toBe(true);
-    expect(spent(now()) - spent(before)).toBe(30);
+    expect(spent(now()) - spent(before)).toBe(shown);
     expect(within(screen.getByRole("region", { name: /^Edit Playroom/ })).getByText(/Way in: a door into the Lobby/)).toBeTruthy();
   });
 });

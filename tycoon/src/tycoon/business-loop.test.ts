@@ -1,13 +1,12 @@
-// The business loop, proven (owner brief "EARN, REINVEST, EXPAND"): customers arrive → you serve them → they pay in game
-// coins → the day's running costs are charged → you reinvest what you earned → the new room serves families you had
-// to send elsewhere. A deterministic player presses each pup's next-action button (the same rules staff use) in a
-// daycare that starts with **every starting coin already spent** (0 coins after Quick start), so whatever it builds
-// later is paid for by what it earned.
+// Zero-liquidity recovery scenario (audit finding 7 relabelled it; it is NOT a new game). Quick start, then every
+// starting coin removed (0 coins) and the starter accounting cleared, so whatever the daycare builds later can only be
+// paid for by what it earns from there. A deterministic player presses each pup's next-action button (the same rules
+// staff use). The proof that starts from a real new game, with nothing injected or erased, is business-loop-real.test.ts.
 import { describe, expect, it } from "vitest";
 import { groupOf, mulberry, seedFrom } from "@/game/engine";
 import type { GroupId } from "@/game/engine";
 import { assessVisit } from "./assess";
-import { dayExpenses, facilityUpkeep } from "./business";
+import { SUPPLY_COST, dayExpenses, facilityUpkeep, upkeepOf } from "./business";
 import { EXPANSION_LEVEL, askedToday, buyExpansion, expansionOptions } from "./expansion";
 import { nextAction } from "./nextAction";
 import { level, levelReward } from "./progress";
@@ -15,7 +14,7 @@ import { assignBed, assignRoom, bath, checkIn, checkout, clean, createArrival, p
 import { quickStart } from "./start";
 import { fac, newTycoon, withFac } from "./state";
 import { hire, letGo } from "./team";
-import { ok } from "./testkit";
+import { ok, richState } from "./testkit";
 import type { TReport, TycoonState } from "./types";
 
 type Paid = { day: number; min: number; dog: string; group: GroupId; room: string | null; total: number; incomeDelta: number };
@@ -106,7 +105,7 @@ function play(days: number) {
   return { s, paid, reports, bought };
 }
 
-describe("earn → cover costs → reinvest → serve more", () => {
+describe("zero-liquidity recovery scenario: from 0 coins, earn → cover costs → reinvest → serve more", () => {
   const run = play(6);
 
   it("prints the story", () => {
@@ -148,15 +147,20 @@ describe("earn → cover costs → reinvest → serve more", () => {
     console.log(`new room: ${served.length} families paid ${served.reduce((a, p) => a + p.total, 0)} from it; ${before.length} payments before it, ${after.length} after`);
     expect(served.length).toBeGreaterThanOrEqual(3);
     expect(served.every((p) => p.group === b.group && p.total > 0)).toBe(true);
-    // and it pays its way: what it took in beats what it cost to keep open over those days
+    // and it pays its way: what it took in beats what it cost to run over those days — the room's upkeep and its
+    // furniture's, the supplies for each check-in, and wages for anyone hired for it (nobody is, in this scenario)
+    const f = fac(run.s);
     const daysOpen = run.reports.filter((r) => r.day >= b.day).length;
-    const upkeep = fac(run.s).rooms.find((r) => r.uid === b.room)!.spent * 0.02 * daysOpen;
-    expect(served.reduce((a, p) => a + p.total, 0)).toBeGreaterThan(upkeep);
+    const room = f.rooms.find((r) => r.uid === b.room)!;
+    const upkeep = (upkeepOf(room) + f.items.filter((i) => i.room === b.room).reduce((a, i) => a + upkeepOf(i), 0)) * daysOpen;
+    const supplies = SUPPLY_COST[f.supplies] * served.length;
+    expect(f.staff.filter((x) => !x.founder)).toHaveLength(0);
+    expect(served.reduce((a, p) => a + p.total, 0) - upkeep - supplies).toBeGreaterThan(0);
   });
 });
 
 describe("a receipt explains what each line earned", () => {
-  it("daycare pay follows happiness; tips follow how the family felt and the daycare's Appeal; boarding is per night", () => {
+  it("daycare pay follows happiness; tips follow how the family felt and the daycare's Appeal", () => {
     const { paid, s: r } = play(1);
     const receipts = fac(r).outcomes.filter((o) => o.how === "checkout");
     expect(paid.length).toBeGreaterThan(0);
@@ -165,6 +169,40 @@ describe("a receipt explains what each line earned", () => {
     for (const l of daycare) expect(l.label).toMatch(new RegExp(`^Daycare — \\d+% happy, so ${l.amount} of ${fac(r).prices.daycare}`));
     const tips = receipts.flatMap((o) => o.lines).filter((l) => /^Tip/.test(l.label) && !/told them/.test(l.label));
     for (const l of tips) expect(l.label).toMatch(/^Tip — (delighted|happy) with the day \(Appeal \d+\)$/);
+  });
+});
+
+describe("boarding is charged per night (audit finding 7: this used to be claimed without a boarder)", () => {
+  /** A boarder dropped off in the afternoon, checked in, put in a bed (or not), then picked up the next morning. */
+  function overnight(bed: boolean) {
+    let s: TycoonState = ok(setOpen({ ...richState(), tour: null }, true));
+    s = withFac(s, { ...fac(s), clockMin: 14 * 60 });
+    s = ok(createArrival(s, mulberry(seedFrom("boarder")), true));
+    const pup = fac(s).dogs.at(-1)!;
+    expect(pup.boarding).toBe(true);
+    s = ok(checkIn(s, pup.id));
+    const n = nextAction(fac(s), fac(s).dogs.find((d) => d.id === pup.id)!);
+    if (bed) s = ok(assignBed(s, pup.id, n.bed!));
+    else return { refused: assignRoom(s, pup.id, fac(s).rooms.find((r) => r.type === "playroom")!.uid) };
+    const day = fac(s).day;
+    const rand = mulberry(seedFrom("overnight"));
+    for (let i = 0; i < 24 * 60 && fac(s).dogs.find((d) => d.id === pup.id)?.visit?.ownerHere == null; i++) s = tick(s, 1, rand);
+    const income0 = fac(s).ledger.at(-1)!.income.boarding;
+    s = ok(checkout(s, pup.id, false));
+    return { s, pup, day, income0, refused: null };
+  }
+  it("a boarder who slept in a bed pays one night's boarding the next morning, recorded as boarding income", () => {
+    const { s, pup, day, income0 } = overnight(true) as { s: TycoonState; pup: { name: string }; day: number; income0: number };
+    expect(fac(s).day).toBe(day + 1); // picked up the morning after
+    const receipt = fac(s).outcomes.find((o) => o.dog === pup.name)!;
+    const line = receipt.lines.find((l) => /^Boarding/.test(l.label))!;
+    expect(line).toMatchObject({ label: "Boarding — 1 night", amount: fac(s).prices.boarding });
+    expect(fac(s).ledger.at(-1)!.income.boarding - income0).toBe(fac(s).prices.boarding);
+  });
+  it("the night has to be in a boarding bed: a playroom instead is refused", () => {
+    const { refused } = overnight(false);
+    expect(refused?.ok).toBe(false);
+    if (refused && !refused.ok) expect(refused.error).toMatch(/boarding bed/);
   });
 });
 

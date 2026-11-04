@@ -70,8 +70,11 @@ describe("the front desk", () => {
     open(s2);
     const coins = now().coins;
     const bonusBefore = fac(now()).ledger.at(-1)?.income.bonus ?? 0;
-    fireEvent.click(desk().getByRole("button", { name: "Check out Hazel" }));
-    fireEvent.click(desk().queryByRole("button", { name: "Check out Hazel" }) ?? document.body);
+    // a real double tap: the same button, twice, before anything re-renders around it
+    const out = desk().getByRole("button", { name: "Check out Hazel" });
+    fireEvent.click(out);
+    fireEvent.click(out);
+    expect(fac(now()).ledger.at(-1)!.checkouts).toBe(1);
     expect(fac(now()).dogs).toHaveLength(0);
     expect(fac(now()).outcomes.at(-1)!.dog).toBe("Hazel");
     // the bill once (plus any trophy or level reward the visit earned, which the ledger counts as a bonus)

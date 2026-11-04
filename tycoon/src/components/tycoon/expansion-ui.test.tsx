@@ -78,12 +78,16 @@ describe("choosing where a new room goes", () => {
     expect(bar.getByText(new RegExp(`Spot 2 of ${spots.length}`))).toBeTruthy();
     expect(bar.getByText(new RegExp(spots[1]!.near))).toBeTruthy();
     expect(ghost).toMatchObject({ c: spots[1]!.c, r: spots[1]!.r });
-    const coins = now().coins;
-    fireEvent.click(bar.getByRole("button", { name: new RegExp(`^Build here · ${spots[1]!.cost.toLocaleString("en-US")}`) }));
+    // the price is read off the button the player taps, and that is exactly what building costs
+    const build = bar.getByRole("button", { name: /^Build here · [\d,]+/ });
+    const shown = Number(/Build here · ([\d,]+)/.exec(build.textContent ?? "")![1]!.replace(/,/g, ""));
+    const building = () => fac(now()).ledger.find((l) => l.day === fac(now()).day)?.expenses.building ?? 0;
+    const spentBefore = building();
+    fireEvent.click(build);
     const room = fac(now()).rooms.find((r) => r.type === "boarding")!;
     expect({ c: room.c, r: room.r }).toEqual({ c: spots[1]!.c, r: spots[1]!.r });
     expect(caps(fac(now())).beds.length).toBe(3);
-    expect(coins - now().coins).toBeGreaterThanOrEqual(spots[1]!.cost - 1000); // (a level-up reward can come back)
+    expect(building() - spentBefore).toBe(shown); // (coins alone could include a level-up reward, so the books are read)
     expect(screen.queryByRole("region", { name: "Choose a spot" })).toBeNull();
     expect(within(screen.getByTestId("panel-sheet")).getByText(/Boarding Room/)).toBeTruthy();
   });

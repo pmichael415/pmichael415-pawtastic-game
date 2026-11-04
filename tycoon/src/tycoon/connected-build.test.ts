@@ -2,7 +2,7 @@
 // price before you pay; confirming builds room + door + path + type in one step for exactly that price, or refuses with
 // nothing charged. A door snaps into a neighbouring room when there is one; otherwise a path leads to the entrance.
 import { describe, expect, it } from "vitest";
-import { buildConnectedRoom, connectRoom, connectionPlan, placeInRoom, planRoom, removeDoor, sellRoom, sellThing, spotInRoom } from "./build";
+import { buildConnectedRoom, connectRoom, connectionPlan, placeInRoom, placeThing, planRoom, removeDoor, sellRoom, sellThing, spotInRoom } from "./build";
 import { DOOR_PRICE } from "./catalog";
 import { connectedRooms, roomStatus } from "./connect";
 import { wayIn } from "./rooms";
@@ -42,17 +42,26 @@ describe("planning a room", () => {
 });
 
 describe("confirming", () => {
-  it("builds a typed, connected, working room for exactly the planned price — once", () => {
+  it("builds a typed, connected room for exactly the price shown; it works once it has its tub; replaying it does nothing", () => {
     const s = start();
     const rect = { c: 11, r: 17, w: 3, d: 3 };
     const p = planRoom(fac(s), rect);
     if (!p.ok) throw new Error("plan failed");
-    const r = ok(buildConnectedRoom(s, rect, "bath"));
+    const r = ok(buildConnectedRoom(s, rect, "bath", undefined, p));
     const room = fac(r).rooms.at(-1)!;
     expect(room).toMatchObject({ type: "bath", ...rect });
     expect(connectedRooms(fac(r)).has(room.uid)).toBe(true);
     expect(roomStatus(fac(r), room).connected).toBe(true);
     expect(spent(r) - spent(s)).toBe(p.cost.total);
+    // connected isn't working: a bath room does nothing for families until it has a tub
+    expect(roomStatus(fac(r), room).working).toBe(false);
+    expect(roomStatus(fac(r), room).reason).toMatch(/tub/i);
+    const tubbed = ok(placeInRoom(r, room.uid, "bath_tub"));
+    expect(roomStatus(fac(tubbed), fac(tubbed).rooms.at(-1)!).working).toBe(true);
+    // the same confirmation again (a replay or a retry): refused, nothing more built or charged
+    const again = buildConnectedRoom(r, rect, "bath", undefined, p);
+    expect(again.ok).toBe(false);
+    expect(fac(r).rooms).toHaveLength(fac(s).rooms.length + 1);
   });
   it("a playroom needs its group; not enough coins: refused with nothing charged", () => {
     const s = start();
@@ -65,14 +74,21 @@ describe("confirming", () => {
 });
 
 describe("furnishing a chosen room", () => {
-  it("puts the item inside that room — never another — for its price, once", () => {
+  it("puts the item inside that room — never another — for its price; a replayed placement does nothing, a new purchase still works", () => {
     const s = start();
     const play = fac(s).rooms.find((r) => r.type === "playroom")!;
-    const spot = spotInRoom(fac(s), play.uid, "water_bowl");
-    expect("c" in spot && spot.c >= play.c && spot.c < play.c + play.w && spot.r >= play.r && spot.r < play.r + play.d).toBe(true);
-    const r = ok(placeInRoom(s, play.uid, "water_bowl"));
-    expect(fac(r).items.at(-1)).toMatchObject({ kind: "water_bowl", room: play.uid });
+    const spot = spotInRoom(fac(s), play.uid, "water_bowl", s.seq);
+    if ("error" in spot) throw new Error(spot.error);
+    expect(spot.c >= play.c && spot.c < play.c + play.w && spot.r >= play.r && spot.r < play.r + play.d).toBe(true);
+    const r = ok(placeThing(s, "water_bowl", spot.c, spot.r, spot.rot));
+    expect(fac(r).items.at(-1)).toMatchObject({ kind: "water_bowl", room: play.uid, c: spot.c, r: spot.r });
     expect(spent(r) - spent(s)).toBe(20);
+    // the same placement again (a replay or a retry): refused, charged once
+    expect(placeThing(r, "water_bowl", spot.c, spot.r, spot.rot).ok).toBe(false);
+    // buying a second one on purpose still works, at a new spot, for its own price
+    const second = ok(placeInRoom(r, play.uid, "water_bowl"));
+    expect(fac(second).items.filter((i) => i.kind === "water_bowl")).toHaveLength(fac(r).items.filter((i) => i.kind === "water_bowl").length + 1);
+    expect(spent(second) - spent(r)).toBe(20);
   });
   it("an item that doesn't belong there is refused with the reason and nothing charged", () => {
     const s = start();

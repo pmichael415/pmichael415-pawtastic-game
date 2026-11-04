@@ -1,6 +1,7 @@
 // Independent review of the empire milestone: each confirmed finding, pinned (they failed before the fix).
 import { describe, expect, it } from "vitest";
-import { buildConnectedRoom, connectRoom, connectionPlan, moveThing, planRoom, removeDoor, sellRoom, sellThing } from "./build";
+import { addDoor, buildConnectedRoom, connectRoom, connectionPlan, moveThing, planRoom, removeDoor, sellRoom, sellThing } from "./build";
+import { doorOutside } from "./grid";
 import { MAX_THINGS } from "./catalog";
 import { connectedRooms } from "./connect";
 import { buyExpansion } from "./expansion";
@@ -85,13 +86,43 @@ describe("5. 'Add it to X's rooms' only lists playrooms, so it can be done", () 
 });
 
 describe("6. Connect it never offers a fifth door", () => {
-  it("a room with 4 doors leading nowhere gets no new-door plan", () => {
-    let s = start();
+  // Every doorway that opens into a room: its own doors and any on a neighbour's wall that lead into it.
+  const openings = (s: TycoonState, uid: string) => {
+    const f = fac(s);
+    const r = f.rooms.find((x) => x.uid === uid)!;
+    const inside = (t: { c: number; r: number }) => t.c >= r.c && t.c < r.c + r.w && t.r >= r.r && t.r < r.r + r.d;
+    return r.doors.length + f.rooms.filter((x) => x.uid !== uid).reduce((n, x) => n + x.doors.filter((d) => inside(doorOutside(x, d))).length, 0);
+  };
+  /** A 4 × 3 calm room north of the lobby, built connected, then given doors on its other walls (all by the rules). */
+  function northRoom(): { s: TycoonState; uid: string } {
+    let s = ok(buildConnectedRoom(start(), { c: 16, r: 19, w: 4, d: 3 }, "calm"));
+    const uid = fac(s).rooms.at(-1)!.uid;
+    // its way in is a doorway on the shared wall with the lobby (on either room): remove it, nobody's inside
     const lobby = room(s, "lobby");
-    const doors = [{ side: "N" as const, i: 1 }, { side: "N" as const, i: 2 }, { side: "E" as const, i: 1 }, { side: "S" as const, i: 1 }];
-    s = withFac(s, { ...fac(s), rooms: fac(s).rooms.map((r) => (r.uid === lobby.uid ? { ...r, doors } : r)) });
-    const plan = connectionPlan(fac(s), lobby.uid);
-    expect(!plan || !plan.newDoor).toBe(true);
+    const shared = lobby.doors.find((d) => d.side === "N");
+    s = shared ? ok(removeDoor(s, lobby.uid, shared)) : ok(removeDoor(s, uid, fac(s).rooms.find((r) => r.uid === uid)!.doors.find((d) => d.side === "S")!));
+    for (const d of [{ side: "N" as const, i: 1 }, { side: "N" as const, i: 2 }, { side: "E" as const, i: 1 }]) s = ok(addDoor(s, uid, d));
+    return { s, uid };
+  }
+  it("the cheapest fix for a disconnected room is a new doorway into the lobby — until it already has four doors", () => {
+    const { s, uid } = northRoom();
+    expect(connectedRooms(fac(s)).has(uid)).toBe(false);
+    expect(openings(s, uid)).toBe(3);
+    const three = connectionPlan(fac(s), uid)!;
+    expect(three.newDoor).toBe(true); // one more doorway, straight into the lobby, is cheapest
+    expect(three.paths).toHaveLength(0);
+    // a fourth door of its own (onto the grass): now the room has all the doors it can have
+    const t = ok(addDoor(s, uid, { side: "W", i: 1 }));
+    expect(openings(t, uid)).toBe(4);
+    expect(connectedRooms(fac(t)).has(uid)).toBe(false);
+    const four = connectionPlan(fac(t), uid)!;
+    expect(four).not.toBeNull();
+    expect(four.newDoor).toBe(false); // the door-limit branch: it reuses one of its doors and paves the way
+    expect(four.paths.length).toBeGreaterThan(0);
+    const after = ok(connectRoom(t, uid, four));
+    expect(connectedRooms(fac(after)).has(uid)).toBe(true);
+    expect(openings(after, uid)).toBe(4); // never a fifth way into the room, on its walls or a neighbour's
+    expect(spent(after) - spent(t)).toBe(four.cost);
   });
 });
 
