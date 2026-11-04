@@ -2,7 +2,8 @@
 // from the save. Recovery comes first: when income is blocked, the next objective is the free fix.
 import { WAGES } from "./business";
 import { canOpen, caps } from "./connect";
-import { EXPANSION_LEVEL, expansionOptions } from "./expansion";
+import { EXPANSION_LEVEL, askedToday, demandGroup, expansionOptions } from "./expansion";
+import { groupName } from "@/game/engine";
 import { pickupView } from "./pickup";
 import { level, xpForLevel } from "./progress";
 import { incomeBlockers } from "./blockers";
@@ -32,6 +33,13 @@ export function nextObjective(s: TycoonState): Objective {
   if (waiting) return { id: "waiting", title: `Check ${waiting.d.name} in`, detail: `${waiting.d.visit!.owner} is ${waiting.w!.stage === "upset" ? `upset and will leave in ${waiting.w!.leavesIn} minutes` : "getting impatient"} at the desk. If there's no spot for them, turning them away is free.` };
   if (!f.open) return { id: "open-doors", title: "Open the doors", detail: "Switch Open on in the status bar so families can drop off." };
   if ((f.stats.checkouts ?? 0) === 0) return { id: "first-pup", title: "Care for your first pup and check them out", detail: "Check them in, settle them in a matching playroom, play, then Check out when their family arrives." };
+  // families asking for a kind of pup you can't take: growth comes before more wages
+  const want = demandGroup(f);
+  const asked = want ? (askedToday(f).find((a) => a.group === want)?.n ?? 0) : 0;
+  if (want && asked >= 2 && level(s) >= EXPANSION_LEVEL) {
+    const wing = expansionOptions(s).find((o) => o.id === "playroom");
+    return { id: "demand", title: `${asked} ${groupName(want)} families asked today — give them a playroom`, detail: `You have no room for ${groupName(want)} pups, so they booked elsewhere. A playroom wing for them adds 3 spots, each worth about ${f.prices.daycare} coins a day.`, action: "expand", ...(wing && wing.cost > 0 ? { progress: [Math.max(0, Math.min(s.coins, wing.cost)), wing.cost] as [number, number] } : {}) };
+  }
   const hired = f.staff.filter((x) => !x.founder);
   if (!hired.length) {
     const role = recommendRole(f);

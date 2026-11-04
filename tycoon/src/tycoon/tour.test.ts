@@ -101,7 +101,9 @@ describe("the tour is comfortable and never a dead end", () => {
     expect(s.guide.skipped).toBe(true);
     const later = tick(s, 120, () => 0);
     expect(fac(later).clockMin).toBeGreaterThan(fac(s).clockMin);
-    expect(fac(later).dogs.length).toBeGreaterThan(1);
+    // families keep coming: they drop off, or ask for a kind of pup with no playroom yet (they book what you offer)
+    const asked = Object.values(fac(later).asked?.groups ?? {}).reduce((a, b) => a + (b ?? 0), 0);
+    expect(fac(later).dogs.length + asked).toBeGreaterThan(1);
   });
   it("Biscuit going home early (calm room, no pay) still moves the tour on", () => {
     const seen: TourBeat[] = [];

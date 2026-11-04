@@ -4,6 +4,7 @@ import { groupOf, mulberry, seedFrom } from "@/game/engine";
 import type { GroupId } from "@/game/engine";
 import { addDoor, buyLand, drawRoom, placeThing, setRoomType } from "./build";
 import { caps } from "./connect";
+import { askedToday } from "./expansion";
 import { level } from "./progress";
 import { assignBed, assignRoom, bath, checkIn, checkout, clean, playtime, setOpen, tick } from "./run";
 import { fac, newTycoon } from "./state";
@@ -101,6 +102,22 @@ function play(): { logs: Log[]; minCoins: number; reachedL3: number | null; reac
           s = built;
           slot++;
           s = tryDo(s, assignRoom(s, d.id, fac(s).rooms.at(-1)!.uid));
+        }
+      }
+    }
+    // families asking for a kind of pup with no playroom here (they book what you offer): build them one
+    {
+      const want = askedToday(fac(s))[0]?.group;
+      if (want && afford(330 + 30 + 120)) {
+        const built = buildRoom(s, slot, (t, uid) => {
+          let u = tryDo(t, setRoomType(t, uid, "playroom", want));
+          const sl = SLOTS[slot]!;
+          for (const [dc, dr] of [[0, 0], [2, 0]]) u = tryDo(u, placeThing(u, "dog_bed", sl.c + dc!, sl.r + dr!, 0));
+          return u;
+        });
+        if (built) {
+          s = built;
+          slot++;
         }
       }
     }

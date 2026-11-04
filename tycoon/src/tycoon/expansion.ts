@@ -164,12 +164,24 @@ const working = (s: TycoonState, uid: string) => {
   return !!room && roomStatus(f, room).working;
 };
 
-/** The group most in need of a playroom: one waiting at the desk with no room, else one with no room at all. */
-export function neededGroup(f: Facility): GroupId {
+/** Families who asked today for each kind of pup with no playroom here (most first). */
+export function askedToday(f: Facility): { group: GroupId; n: number }[] {
+  const c = caps(f);
+  const groups = f.asked && f.asked.day === f.day ? f.asked.groups : {};
+  return (Object.entries(groups) as [GroupId, number][]).filter(([g, n]) => n > 0 && !c.playrooms.some((p) => p.group === g)).map(([group, n]) => ({ group, n })).sort((a, b) => b.n - a.n);
+}
+/** A kind of pup families want a room for right now: one waiting at the desk with no room, else the most asked today. */
+export function demandGroup(f: Facility): GroupId | null {
   const c = caps(f);
   const has = (g: GroupId) => c.playrooms.some((p) => p.group === g);
   const waiting = f.dogs.filter((d) => !d.checkedIn && d.place.kind === "lobby" && !d.boarding).map((d) => groupOf(d)).find((g) => !has(g));
-  return waiting ?? GROUPS.map((g) => g.id).find((g) => !has(g)) ?? c.playrooms[0]?.group ?? "small-gentle";
+  return waiting ?? askedToday(f)[0]?.group ?? null;
+}
+/** The group most in need of a playroom: one families want (waiting or asked today), else one with no room at all. */
+export function neededGroup(f: Facility): GroupId {
+  const c = caps(f);
+  const has = (g: GroupId) => c.playrooms.some((p) => p.group === g);
+  return demandGroup(f) ?? GROUPS.map((g) => g.id).find((g) => !has(g)) ?? c.playrooms[0]?.group ?? "small-gentle";
 }
 
 /** Where an improvement goes: a bed in the fullest playroom that can still take one, else a toy in the fullest one. */
@@ -190,7 +202,8 @@ const modeOf = (f: Facility, id: ExpansionId): "new" | "improve" => {
     case "bath":
       return caps(f).bath ? "improve" : "new";
     case "playroom":
-      return f.rooms.filter((r) => r.type === "playroom").length >= 2 ? "improve" : "new";
+      // a new room when families want one for a kind of pup you can't take; otherwise the second one improves
+      return demandGroup(f) || f.rooms.filter((r) => r.type === "playroom").length < 2 ? "new" : "improve";
     case "boarding":
       return f.rooms.some((r) => r.type === "boarding") ? "improve" : "new";
     case "staff":
@@ -335,7 +348,10 @@ function describe(f: Facility, id: ExpansionId, mode: "new" | "improve", q: Quot
   switch (id) {
     case "playroom": {
       const staffing = `Pups here need play: tap Play yourself, or a daycare attendant (${wage} coins a day) can look after it.`;
-      if (mode === "new") return { title: `Playroom wing for ${group} pups`, capacity: `+3 spots for ${group} pups`, unlocks: `Take ${group} families instead of turning them away — each spot can earn about ${f.prices.daycare} coins a day.`, staffing, goodIf: "Good if families wait at the desk with nowhere to go, or your playrooms are full." };
+      if (mode === "new") {
+        const asked = askedToday(f).find((a) => a.group === neededGroup(f))?.n ?? 0;
+        return { title: `Playroom wing for ${group} pups`, capacity: `+3 spots for ${group} pups`, unlocks: `Take ${group} families instead of sending them elsewhere — each spot can earn about ${f.prices.daycare} coins a day.`, staffing, goodIf: asked ? `${asked} ${group} ${asked === 1 ? "family" : "families"} asked today — you have no room for them yet.` : "Good if families wait at the desk with nowhere to go, or your playrooms are full." };
+      }
       const target = improveTarget(f);
       const where = target ? roomName(f, target.room) : "a playroom";
       return target?.kind === "toy_bin"

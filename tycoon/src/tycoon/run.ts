@@ -695,7 +695,16 @@ function tickStep(s: TycoonState, seconds: number, rand: () => number): TycoonSt
       const freeBeds = c.beds.length - fac(out).dogs.filter((d) => d.boarding).length;
       const boarding = freeBeds > 0 && rand() < boarderChance();
       const r = createArrival(out, rand, boarding);
-      if (r.ok) out = r.state; // lobby full → the customer politely rebooks, no penalty
+      if (r.ok) {
+        // families book what you offer: a pup with no playroom of its kind doesn't drop off — it's counted as asking
+        const pup = fac(r.state).dogs.at(-1)!;
+        const g = groupOf(pup);
+        const h = fac(out);
+        if (!pup.boarding && !caps(h).playrooms.some((p) => p.group === g)) {
+          const asked = h.asked && h.asked.day === h.day ? h.asked.groups : {};
+          out = withFac(out, { ...h, asked: { day: h.day, groups: { ...asked, [g]: (asked[g] ?? 0) + 1 } } });
+        } else out = r.state;
+      } // lobby full → the customer politely rebooks, no penalty
     }
   }
   return out;

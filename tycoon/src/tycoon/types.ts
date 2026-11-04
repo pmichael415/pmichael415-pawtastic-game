@@ -226,6 +226,8 @@ export type Facility = {
   introDay?: number | null;
   /** Families kindly rescheduled (the introductory day's grace, or still at the desk at closing), for a short notice. */
   courtesy?: { day: number; min: number; why: "intro" | "closing"; names: string[] } | null;
+  /** Families who asked today for a kind of pup with no playroom here (they booked elsewhere — no charge, no tap). */
+  asked?: { day: number; groups: Partial<Record<GroupId, number>> } | null;
 };
 
 export type WeeklyStat = "checkouts" | "plays" | "admitted" | "baths" | "boarders";

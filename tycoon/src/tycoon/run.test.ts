@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mulberry, seedFrom } from "@/game/engine";
+import { groupOf, mulberry, seedFrom } from "@/game/engine";
 import { addDoor, drawRoom, placeThing, sellThing, setRoomType } from "./build";
 import { countToday, setPrice } from "./business";
 import { BATH_MIN, assignBed, assignRoom, bath, checkIn, checkout, clean, createArrival, hireStaff, lobbyDogs, playtime, separate, setOpen, tick, toCalm, welcomeBack } from "./run";
@@ -68,7 +68,11 @@ describe("check-in", () => {
   });
   it("arrivals never overflow the lobby's waiting spots", () => {
     // (owners now come back for their pups, so the lobby also empties again: check the most it ever held)
+    // every arrival with rand = 0 is the same kind of pup: give it the playroom, so families drop off (book what you offer)
     let s = opened();
+    const g = groupOf(fac(ok(createArrival(s, () => 0))).dogs.at(-1)!);
+    const play = fac(s).rooms.find((r) => r.type === "playroom")!.uid;
+    s = ok(setRoomType(s, play, "playroom", g));
     let most = 0;
     for (let i = 0; i < 300; i++) {
       s = tick(s, 1, () => 0);
@@ -245,7 +249,8 @@ describe("boarding", () => {
 });
 
 describe("arrivals and prices", () => {
-  /** Drop-offs over one open game day (07:00–18:00) when every pup is taken straight in. */
+  /** Families over one open game day (07:00–18:00) when every pup is taken straight in — those who dropped off, plus
+   *  those who asked for a kind of pup with no playroom here (they book what you offer). */
   function arrivals(price: number): number {
     const rand = mulberry(seedFrom("t"));
     let s = setF(opened(), { clockMin: 7 * 60 });
@@ -253,8 +258,9 @@ describe("arrivals and prices", () => {
     let n = 0;
     for (let i = 0; i < 330; i++) {
       s = tick(s, 1, rand);
-      n += fac(s).dogs.length;
+      n += fac(s).dogs.length + Object.values(fac(s).asked?.groups ?? {}).reduce((a, b) => a + (b ?? 0), 0);
       s = withDogs(s, []);
+      s = setF(s, { asked: null });
     }
     return n;
   }

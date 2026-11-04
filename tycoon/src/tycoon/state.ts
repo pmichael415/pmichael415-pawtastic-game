@@ -391,6 +391,15 @@ function parseFacility(x: unknown): Facility | null {
   f.introDay = typeof x["introDay"] === "number" && Number.isFinite(x["introDay"]) ? Math.max(0, Math.floor(x["introDay"])) : f.day > 1 || (f.stats.checkouts ?? 0) > 0 ? 0 : null;
   const ct = isObj(x["courtesy"]) ? x["courtesy"] : null;
   f.courtesy = ct && (ct["why"] === "intro" || ct["why"] === "closing") && Array.isArray(ct["names"]) ? { day: int(ct["day"], f.day), min: minute(ct["min"], 0), why: ct["why"], names: (ct["names"] as unknown[]).filter((n): n is string => typeof n === "string").map((n) => n.slice(0, 24)).slice(-10) } : null;
+  const ak = isObj(x["asked"]) ? x["asked"] : null;
+  if (ak && isObj(ak["groups"])) {
+    const groups: Partial<Record<GroupId, number>> = {};
+    for (const g of ["small-gentle", "small-active", "large-gentle", "large-active"] as GroupId[]) {
+      const n = (ak["groups"] as Record<string, unknown>)[g];
+      if (typeof n === "number" && Number.isFinite(n) && n > 0) groups[g] = Math.min(999, Math.floor(n));
+    }
+    f.asked = { day: int(ak["day"], f.day), groups };
+  }
   f.open = bool(x["open"], false);
   const pr = isObj(x["prices"]) ? x["prices"] : {};
   const prices = { ...PRICE_DEFAULTS };
