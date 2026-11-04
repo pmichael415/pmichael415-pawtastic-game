@@ -89,7 +89,7 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
           </p>
           <p className="text-[11px] text-muted-foreground">Only you can do this — your team leaves it for you. No rush: if you miss it, nothing is lost.</p>
           <Button className="mt-1 h-11" onClick={() => act((s) => answerMoment(s, dog.id))}>
-            {MOMENT_ACTION[moment.kind]} with {dog.name}
+            {MOMENT_ACTION[moment.kind](dog.name)}
           </Button>
         </section>
       )}

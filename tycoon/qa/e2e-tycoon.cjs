@@ -193,7 +193,7 @@ async function guidedStart(s, label) {
     await tile(21, 23);
     const playPanel = await page.locator('section[aria-label^="Edit Playroom"]').innerText().catch(() => '');
     check('a door between rooms connects the inner room', !!play && !/Not connected/.test(playPanel), playPanel.slice(0, 80));
-    await page.getByRole('button', { name: 'Close' }).click().catch(() => {});
+    await page.getByRole('button', { name: 'Close panel' }).click().catch(() => {});
     log('sell path');
     await tile(18, 26);
     await btn('Sell').click(); await btn('Yes, sell').click();
@@ -201,7 +201,7 @@ async function guidedStart(s, label) {
     await tile(19, 22); // a corner of the lobby, away from the desk where staff stand (tapping a person opens their panel)
     const lobbyPanel = await page.locator('section[aria-label^="Edit Lobby"]').innerText().catch(() => '');
     check('selling a path square shows "Not connected"', /Not connected/.test(lobbyPanel), lobbyPanel.slice(0, 80));
-    await page.getByRole('button', { name: 'Close' }).click().catch(() => {});
+    await page.getByRole('button', { name: 'Close panel' }).click().catch(() => {});
     await page.getByRole('button', { name: 'Build', exact: true }).click();
     await tool('Paths'); await tile(18, 26); await btn(/^Done · 1 square/).click(); await clearOverlays();
 

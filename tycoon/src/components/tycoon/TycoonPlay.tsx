@@ -29,6 +29,7 @@ import { StaffPanel } from "./StaffPanel";
 import { TeamSheet } from "./TeamSheet";
 import { TodayStrip } from "./TodayStrip";
 import { objectives } from "@/tycoon/objectives";
+import { groupName, type GroupId } from "@/game/engine";
 import { waitStage } from "@/tycoon/waiting";
 import { MOMENT_ASK } from "@/tycoon/moments";
 import { StartCard } from "./StartCard";
@@ -193,9 +194,11 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
     if (stageNow.index > bestStage.current) setStageUp(true);
     bestStage.current = Math.max(bestStage.current, stageNow.index);
   }, [stageNow.index]);
-  // A level-up, a new stage or the day's report covers the screen: time stops until it's closed (no one waits while
-  // you can't act).
-  const blocking = (!tourHolds(state) && (state.pendingLevel != null || stageUp)) || !!fac(state).report;
+  // Choosing where a new room goes: which option, and which of its offered spots is shown.
+  const [placing, setPlacing] = useState<{ id: ExpansionId; i: number } | null>(null);
+  // A level-up, a new stage, the day's report or choosing a spot covers the screen: time stops until it's done (no one
+  // waits while you can't act or are deciding).
+  const blocking = (!tourHolds(state) && (state.pendingLevel != null || stageUp || placing !== null)) || !!fac(state).report;
   const autoPaused = useRef(false);
   useEffect(() => {
     if (blocking && !paused) {
@@ -220,8 +223,6 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
     else toast.info(`${who}'s family was still waiting at closing — rescheduled for another day, no charge.`);
   }, [state]);
   const [expandOpen, setExpandOpen] = useState(false);
-  // Choosing where a new room goes: which option, and which of its offered spots is shown.
-  const [placing, setPlacing] = useState<{ id: ExpansionId; i: number } | null>(null);
   const spots = placing ? expansionSpots(state, placing.id) : [];
   const spot = placing ? (spots[placing.i] ?? null) : null;
   const stageWrap = useRef<HTMLDivElement>(null);
@@ -272,11 +273,13 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
     seenOutcome.current = lastKey;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastKey]);
+  // The receipt waits while a panel, the pickup sheet or the spot bar is open (it would cover their buttons on a phone).
+  const showReceipt = !!receipt && !sel && !placing && !pickup;
   useEffect(() => {
-    if (!receipt) return;
+    if (!showReceipt) return;
     const t = setTimeout(() => setReceipt(null), 6000);
     return () => clearTimeout(t);
-  }, [receipt]);
+  }, [receipt, showReceipt]);
   const ownersHere = f.dogs.filter((d) => d.visit?.ownerHere != null).map((d) => d.id).join(",");
   const seenOwners = useRef<Set<string> | null>(null);
   useEffect(() => {
@@ -314,6 +317,23 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
     seenMoments.current = here;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [momentsOpen]);
+  // Families who asked for a kind of pup you have no playroom for: said once per kind a day, with the way to grow.
+  const askedKeys = (() => {
+    const a = f.asked && f.asked.day === f.day ? f.asked.groups : {};
+    return (Object.keys(a) as GroupId[]).filter((g) => (a[g] ?? 0) > 0).map((g) => `${f.day}:${g}`).join(",");
+  })();
+  const seenAsked = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const keys = askedKeys ? askedKeys.split(",") : [];
+    if (seenAsked.current)
+      for (const k of keys)
+        if (!seenAsked.current.has(k)) {
+          const g = groupName(k.split(":")[1] as GroupId);
+          toast(`A ${g} family asked about daycare — you have no ${g} playroom yet, so they booked elsewhere.`, { action: { label: "See options", onClick: () => setExpandOpen(true) } });
+        }
+    seenAsked.current = new Set([...(seenAsked.current ?? []), ...keys]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [askedKeys]);
   const onCheckout = (id: string, exitBath: boolean) => {
     const st = tycoonStore.getState();
     if (!st || !fac(st).dogs.some((d) => d.id === id)) return;
@@ -514,7 +534,12 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
       </div>
       {sel && (
         <div className="fixed inset-x-0 z-40 mx-auto max-w-xl px-2" style={{ bottom: "calc(4rem + env(safe-area-inset-bottom))" }}>
-          <div data-testid="panel-sheet" className="max-h-[min(48svh,440px)] overflow-y-auto overscroll-contain rounded-t-2xl shadow-pop">
+          <div data-testid="panel-sheet" className="relative max-h-[min(48svh,440px)] overflow-y-auto overscroll-contain rounded-t-2xl shadow-pop">
+      {(pickedDog || pickedStaff) && (
+        <button type="button" aria-label="Close panel" onClick={() => setSel(null)} className="absolute right-1 top-1 z-10 grid h-11 w-11 place-items-center rounded-full text-xl text-muted-foreground hover:bg-muted">
+          ×
+        </button>
+      )}
       {pickedDog && <DogPanel f={f} dog={pickedDog} act={act} />}
       {pickedStaff && (
         <StaffPanel
@@ -632,7 +657,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
       {pickup && <PickupSheet state={state} dogId={pickup.id} exitBath={pickup.exitBath} act={act} onClose={() => setPickup(null)} />}
       {repOpen && <ReputationSheet f={f} onClose={() => setRepOpen(false)} />}
       {teamOpen && <TeamSheet state={state} act={act} onClose={() => setTeamOpen(false)} />}
-      {receipt && <ReceiptCard outcome={receipt} onClose={() => setReceipt(null)} />}
+      {showReceipt && <ReceiptCard outcome={receipt} onClose={() => setReceipt(null)} />}
       {/* Held during the guided tour (the level and its coins are already earned): nothing covers the first pup. */}
       {/* after any level-up, so two celebrations never stack */}
       {!holding && stageUp && state.pendingLevel == null && (

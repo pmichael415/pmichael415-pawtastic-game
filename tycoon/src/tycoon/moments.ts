@@ -29,8 +29,14 @@ const MOMENT_DONE: Record<Favorite, (n: string) => string> = {
   cuddles: (n) => `${n} leans into you for a long, happy cuddle. 🤗`,
   splash: (n) => `${n} splashes the water bowl at you — happily. 🫧`,
 };
-/** The button that answers a moment, in the pup's panel. */
-export const MOMENT_ACTION: Record<Favorite, string> = { fetch: "Throw the ball", tug: "Play tug", zoomies: "Zoomies together", cuddles: "Give a cuddle", splash: "Splash together" };
+/** The button that answers a moment, in the pup's panel: a plain sentence with the pup's name. */
+export const MOMENT_ACTION: Record<Favorite, (name: string) => string> = {
+  fetch: (n) => `Throw the ball for ${n}`,
+  tug: (n) => `Play tug with ${n}`,
+  zoomies: (n) => `Do zoomies with ${n}`,
+  cuddles: (n) => `Give ${n} a cuddle`,
+  splash: (n) => `Splash with ${n}`,
+};
 const ACTIVITY: Record<Favorite, string> = { fetch: "fetch", tug: "tug-of-war", zoomies: "zoomies", cuddles: "cuddles", splash: "the splashing" };
 export const activityOf = (k: Favorite) => ACTIVITY[k];
 export { FAVORITE_LABEL };

@@ -66,7 +66,7 @@ export function EditPanel({
   if (!room && !thing) return null;
 
   const close = (
-    <Button size="icon" variant="ghost" className="h-11 w-11" aria-label="Close" onClick={onClose}>
+    <Button size="icon" variant="ghost" className="h-11 w-11" aria-label="Close panel" onClick={onClose}>
       <X className="h-5 w-5" />
     </Button>
   );

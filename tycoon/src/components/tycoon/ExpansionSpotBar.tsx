@@ -22,7 +22,7 @@ export function ExpansionSpotBar({ state, act, id, spots, index, onIndex, onCanc
             <p className="text-sm font-semibold text-secondary">
               Spot {index + 1} of {n} — {sp.near}
             </p>
-            <p className="text-xs text-muted-foreground">The outline in the daycare shows exactly where. {coins(sp.cost)} game coins here.</p>
+            <p className="text-xs text-muted-foreground">The outline in the daycare shows exactly where. {coins(sp.cost)} game coins here. Time waits while you choose.</p>
           </>
         ) : (
           <p className="text-sm text-secondary">There's no free spot next to your rooms — buy more land or build by hand.</p>
