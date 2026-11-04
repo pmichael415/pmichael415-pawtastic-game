@@ -32,7 +32,7 @@ export function ObjectiveBar({ state, onAction }: { state: TycoonState; onAction
       {(() => {
         // always in view: the next expansion's price and how close you are (owner brief: earn, reinvest, expand)
         const save = savingFor(state);
-        if (!save) return null;
+        if (!save || (next.action === "expand" && next.progress)) return null; // Next already shows it
         const pctSaved = Math.min(100, Math.round((100 * save.have) / Math.max(1, save.cost)));
         const n = (x: number) => x.toLocaleString("en-US");
         return (

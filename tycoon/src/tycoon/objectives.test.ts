@@ -82,3 +82,11 @@ describe("saving toward the next expansion (owner brief: see its cost and your p
     expect(savingFor(asked)!.title).toMatch(/Playroom wing for Large & Active/);
   });
 });
+
+describe("the savings line follows Next", () => {
+  it("when Next names an expansion step, you save for that one", () => {
+    const s = { ...ok(buyExpansion({ ...served(started()), coins: 20000, xp: xpForLevel(5) }, "bath")), coins: 100 };
+    const next = nextObjective(s);
+    if (next.id.startsWith("stage-")) expect(savingFor(s)!.id).toBe(next.id.slice("stage-".length));
+  });
+});

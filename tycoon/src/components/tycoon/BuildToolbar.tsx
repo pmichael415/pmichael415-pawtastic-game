@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { GROUPS } from "@/game/engine";
 import type { GroupId } from "@/game/engine";
+import { spendWarning } from "@/tycoon/business";
 import { DOOR_PRICE, ONE_PER_FACILITY, ROOM_MAX, ROOM_MIN, ROOM_TYPE_NAMES, SELL_RATE, furnitureDef, outdoorDef, thingName } from "@/tycoon/catalog";
 import { DEFAULT_ROOM_SIZE, addDoor, buildConnectedRoom, costLine, moveRoom, moveThing, paintPaths, placeThing, planRoom, removeDoor, roomContaining, setRoomType, spotInRoom, validRoomAt, validThingAt, type RoomPlan } from "@/tycoon/build";
 import { OPPOSITE, containsTile, roomPrice, stepFrom, thingTiles, type Tile } from "@/tycoon/grid";
@@ -396,6 +397,7 @@ export function BuildToolbar({ b, state, act, onBuyPack, hidePaid = false }: { b
           {b.label && ui.spot && <p className="font-display text-lg font-bold text-secondary">{b.label}</p>}
           {b.connection && <p className="text-sm font-semibold text-success">✓ {b.connection}</p>}
           {b.reason && <p className="text-sm font-semibold text-destructive">{b.reason}</p>}
+          {b.plan?.ok && !b.reason && spendWarning(state, b.plan.cost.total) && <p className="text-xs font-semibold text-amber-700">⚠️ {spendWarning(state, b.plan.cost.total)}</p>}
           <div className="flex flex-wrap gap-2">
             {b.plan?.ok && (
               <Button className="h-11 flex-1" disabled={!!b.reason} onClick={b.buildHere}>

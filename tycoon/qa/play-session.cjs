@@ -335,6 +335,7 @@ const note = async (page, what, extra = {}) => {
     button: (await page.getByRole('region', { name: 'Objectives' }).getByRole('button').allInnerTexts().catch(() => [])).map((x) => x.trim()),
   });
   const hire = async () => {
+    await closeSheet(); // a pup's panel can cover the status bar's Team button on a phone
     await page.getByRole('button', { name: /^Team, / }).click();
     const ts = page.getByRole('dialog', { name: /^Team ·/ });
     await ts.waitFor();

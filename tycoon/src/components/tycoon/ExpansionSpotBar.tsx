@@ -1,6 +1,7 @@
 // Choosing where a new room (or the yard) goes (combined-loop plan, task 4): one of up to three offered spots, shown
 // in the 3D view as a ghost before you pay. Nothing is built until "Build here"; Cancel changes nothing.
 import { Button } from "@/components/ui/button";
+import { spendWarning } from "@/tycoon/business";
 import { buyExpansion, expansionOptions, type ExpansionId, type ExpansionSpot } from "@/tycoon/expansion";
 import type { ActOpts, ActResult } from "@/tycoon/store";
 import type { TResult, TycoonState } from "@/tycoon/types";
@@ -55,6 +56,7 @@ export function ExpansionSpotBar({ state, act, id, spots, index, onIndex, onCanc
           </Button>
         </div>
         {sp && state.coins < sp.cost && <p className="mt-1 text-xs text-muted-foreground">{coins(sp.cost - state.coins)} more coins needed.</p>}
+        {sp && spendWarning(state, sp.cost) && <p className="mt-1 text-xs font-semibold text-amber-700">⚠️ {spendWarning(state, sp.cost)}</p>}
       </div>
     </section>
   );

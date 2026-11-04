@@ -127,6 +127,17 @@ export function dayExpenses(f: Facility): Record<ExpenseKey, number> {
   };
 }
 
+/**
+ * A warning when a purchase would leave less than tonight's running costs (smart spending): you'd start tomorrow below
+ * zero, and building pauses until you earn it back. Never a block — care and checkouts carry on at any balance.
+ */
+export function spendWarning(s: TycoonState, cost: number): string | null {
+  const tonight = Object.values(dayExpenses(fac(s))).reduce((a, b) => a + b, 0);
+  const left = s.coins - cost;
+  if (cost <= 0 || left < 0 || left >= tonight) return null;
+  return `This leaves ${left.toLocaleString("en-US")} coins — tonight's wages, upkeep and supplies come to about ${tonight.toLocaleString("en-US")}, so you'd start tomorrow below zero (building pauses until you earn it back).`;
+}
+
 export function setWage(s: TycoonState, wage: Wage): TResult {
   if (!(wage in WAGES)) return { ok: false, error: "Pick a wage." };
   const label = { lean: "Lean wages — staff recover 20% slower.", standard: "Standard wages.", generous: "Generous wages — staff recover 25% faster." }[wage];

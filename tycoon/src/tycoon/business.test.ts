@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { placeThing, setClosed } from "./build";
 import {
+  spendWarning,
   bathPay,
   campaignBoost,
   checkoutPay,
@@ -123,6 +124,13 @@ describe("expenses", () => {
     const t = closeDay(s);
     expect(fac(t).report).toMatchObject({ income: 500, running: 460, invested: 300, profit: 160, record: true });
     expect(t.bestProfit).toBe(460); // "Have a profitable day" means beating the day's wages, upkeep and supplies
+  });
+  it("a purchase that leaves less than tonight's running costs says so, before you buy (smart spending)", () => {
+    const s = { ...bare([]), coins: 600 };
+    const tonight = Object.values(dayExpenses(fac(s))).reduce((a, b) => a + b, 0);
+    expect(spendWarning(s, 600 - tonight - 1)).toBeNull();
+    const w = spendWarning(s, 590)!;
+    expect(w).toMatch(new RegExp(`leaves 10 coins.*about ${tonight}.*below zero`));
   });
   it("keeps 14 ledger days", () => {
     let s = bare([]);

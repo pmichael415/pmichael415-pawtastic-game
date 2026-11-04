@@ -19,7 +19,7 @@ vi.mock("@/components/tycoon/TycoonStage", async () => {
 
 import { TycoonPlay } from "./TycoonPlay";
 import { KEY, tycoonStore } from "@/tycoon/store";
-import { buyExpansion } from "@/tycoon/expansion";
+import { buyExpansion, expansionOptions } from "@/tycoon/expansion";
 import { xpForLevel } from "@/tycoon/progress";
 import { quickStart } from "@/tycoon/start";
 import { fac, newTycoon, withFac } from "@/tycoon/state";
@@ -121,11 +121,26 @@ describe("opening the options with a pup's panel open (found in the play session
 
 describe("saving toward the next expansion", () => {
   it("the objectives always show what you're saving for, its price and how close you are", () => {
-    open({ ...grown(), coins: 200 });
+    // after a first expansion Next is about the team, so the savings line shows what's next to buy
+    open({ ...ok(buyExpansion(grown(), "yard")), coins: 200 });
     closeLevelUp();
     const bar = within(screen.getByRole("region", { name: "Objectives" }));
     const coins = tycoonStore.getState()!.coins.toLocaleString("en-US");
     expect(bar.getByTestId("saving-for").textContent).toMatch(new RegExp(`Saving for .+ · ${coins} of [\\d,]+ coins`));
     expect(bar.getByRole("progressbar", { name: /^Saving for/ })).toBeTruthy();
+  });
+});
+
+describe("smart spending", () => {
+  it("a spot whose price would leave less than tonight's costs warns before you build", () => {
+    const g = grown();
+    const cost = expansionOptions(g).find((o) => o.id === "yard")!.cost;
+    open(g);
+    closeLevelUp();
+    act(() => tycoonStore.set((x) => ({ ...x, coins: cost + 5 })));
+    fireEvent.click(within(card().getByRole("article", { name: "Play yard" })).getByRole("button", { name: /^Choose a spot · / }));
+    const bar = within(screen.getByRole("region", { name: "Choose a spot" }));
+    expect(bar.getByText(/This leaves \d+ coins — tonight's wages, upkeep and supplies come to about \d+/)).toBeTruthy();
+    expect(bar.getByRole("button", { name: /^Build here · / })).toHaveProperty("disabled", false); // a warning, never a block
   });
 });
