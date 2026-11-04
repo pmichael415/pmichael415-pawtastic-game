@@ -15,6 +15,10 @@ import { roomCleanOf, roomName, roomOfDog } from "@/tycoon/rooms";
 import { responsibleFor } from "@/tycoon/team";
 import { STAGE_WORDS, waitStage } from "@/tycoon/waiting";
 import { MOMENT_ACTION, MOMENT_ASK, MOMENT_TIP, activityOf, answerMoment } from "@/tycoon/moments";
+import { nextAction, type NextActionId } from "@/tycoon/nextAction";
+
+/** The short caption over the big next-action button. */
+const NEXT_CAPTION: Record<NextActionId, string> = { checkin: "welcome them in", room: "the playroom that matches size and temperament", bed: "settle them into a bed", bath: "the bath they booked", play: "time to play", checkout: "their family is here", none: "" };
 
 /** How the playing screen checks a pup out (the pickup sheet when there's a complaint); falls back to checking out. */
 export const CheckoutContext = createContext<((dogId: string, exitBath: boolean) => void) | null>(null);
@@ -64,6 +68,7 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
     v.requests.includes("bath") && !dog.bathed && !dog.bathing && "a bath (booked)",
   ].filter((x): x is string => !!x);
 
+  const next = nextAction(f, dog);
   const assign = (roomUid: string, confirm = false) => {
     const r = act((s) => assignRoom(s, dog.id, roomUid, confirm));
     setConfirmRoom(!r.ok && r.error.includes("Confirm to place anyway") ? roomUid : null);
@@ -125,75 +130,68 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
         <Meter label="Happy" value={dog.happiness} />
         <Meter label="Clean" value={dog.clean} />
       </div>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {!dog.checkedIn && (
-          <Button className={btn} onClick={() => act((s) => checkIn(s, dog.id))}>
-            Check in {dog.name}
-          </Button>
-        )}
-        {!dog.checkedIn && (
-          <Button variant="ghost" className={btn} onClick={() => act((s) => turnAway(s, dog.id))}>
-            Can't take today
-          </Button>
-        )}
-        {dog.checkedIn && !dog.boarding && dog.place.kind !== "room" &&
-          c.playrooms.map((p) => (
-            <Button key={p.room.uid} variant={p.group === groupOf(dog) ? "default" : "outline"} className={btn} onClick={() => assign(p.room.uid)}>
-              To {groupName(p.group)} ({roomDogs(f, p.room.uid).length}/{p.spots})
-            </Button>
-          ))}
-        {confirmRoom && (
-          <Button variant="destructive" className={btn} onClick={() => assign(confirmRoom, true)}>
-            Place anyway (scuffle risk)
-          </Button>
-        )}
-        {dog.checkedIn && dog.boarding && dog.place.kind !== "bed" && (() => {
+      {(() => {
+        // every action this pup has right now, keyed, so the one next step can lead (big, with a caption) and not repeat
+        const items: { key: string; node: (primary: boolean) => React.ReactNode }[] = [];
+        const cls = (primary: boolean) => (primary ? "h-12 w-full font-display text-base" : btn);
+        if (!dog.checkedIn)
+          items.push({ key: "checkin", node: (p) => <Button className={cls(p)} onClick={() => act((s) => checkIn(s, dog.id))}>Check in {dog.name}</Button> });
+        if (!dog.checkedIn)
+          items.push({ key: "turnaway", node: () => <Button variant="ghost" className={btn} onClick={() => act((s) => turnAway(s, dog.id))}>Can't take today</Button> });
+        if (dog.checkedIn && !dog.boarding && dog.place.kind !== "room")
+          for (const pr of c.playrooms)
+            items.push({ key: `room:${pr.room.uid}`, node: (p) => <Button variant={p || pr.group === groupOf(dog) ? "default" : "outline"} className={cls(p)} onClick={() => assign(pr.room.uid)}>To {groupName(pr.group)} ({roomDogs(f, pr.room.uid).length}/{pr.spots})</Button> });
+        if (confirmRoom)
+          items.push({ key: "confirm", node: () => <Button variant="destructive" className={btn} onClick={() => assign(confirmRoom, true)}>Place anyway (scuffle risk)</Button> });
+        if (dog.checkedIn && dog.boarding && dog.place.kind !== "bed") {
           const free = c.beds.find((b) => !f.dogs.some((x) => x.place.kind === "bed" && x.place.bed === b.bed));
-          return free ? (
-            <Button className={btn} onClick={() => act((s) => assignBed(s, dog.id, free.bed))}>
-              To a boarding bed
-            </Button>
-          ) : (
-            <span className="self-center text-xs text-muted-foreground">No free boarding bed</span>
-          );
-        })()}
-        {placed && (
-          <Button variant="secondary" className={btn} onClick={() => act((s) => playtime(s, dog.id))}>
-            Playtime
-          </Button>
-        )}
-        {dog.checkedIn && placed && !dog.bathed && c.bath && (
-          <Button variant="secondary" className={btn} aria-label="Bath" onClick={() => act((s) => bath(s, dog.id))}>
-            Bath <span className="ml-1 text-xs opacity-80">+{bathPay(f)}</span>
-          </Button>
-        )}
-        {room && roomCleanOf(f, room) < 60 && (
-          <Button variant="secondary" className={btn} onClick={() => act(clean)}>
-            Mop floors
-          </Button>
-        )}
-        {dog.checkedIn && dog.place.kind !== "calm" && (placed || scuffle) && (
-          <Button variant="outline" className={btn} onClick={() => act((s) => toCalm(s, dog.id))}>
-            Calm down
-          </Button>
-        )}
-        {dog.checkedIn && (
-          <Button variant="outline" className={btn} aria-label={placed ? "Check out" : "Check out (nothing to charge)"} disabled={!!v.finishing} onClick={() => leave(false)}>
-            {placed ? (
-              <>
-                Check out <span className="ml-1 text-xs text-primary">+{billFor(false)}</span>
-              </>
+          items.push({ key: free ? "bed" : "nobed", node: (p) => (free ? <Button className={cls(p)} onClick={() => act((s) => assignBed(s, dog.id, free.bed))}>To a boarding bed</Button> : <span className="self-center text-xs text-muted-foreground">No free boarding bed</span>) });
+        }
+        if (placed) items.push({ key: "play", node: (p) => <Button variant={p ? "default" : "secondary"} className={cls(p)} onClick={() => act((s) => playtime(s, dog.id))}>Playtime</Button> });
+        if (dog.checkedIn && placed && !dog.bathed && c.bath)
+          items.push({ key: "bath", node: (p) => <Button variant={p ? "default" : "secondary"} className={cls(p)} aria-label="Bath" onClick={() => act((s) => bath(s, dog.id))}>Bath <span className="ml-1 text-xs opacity-80">+{bathPay(f)}</span></Button> });
+        if (room && roomCleanOf(f, room) < 60) items.push({ key: "mop", node: () => <Button variant="secondary" className={btn} onClick={() => act(clean)}>Mop floors</Button> });
+        if (dog.checkedIn && dog.place.kind !== "calm" && (placed || scuffle))
+          items.push({ key: "calm", node: () => <Button variant="outline" className={btn} onClick={() => act((s) => toCalm(s, dog.id))}>Calm down</Button> });
+        if (dog.checkedIn)
+          items.push({
+            key: "checkout",
+            node: (p) => (
+              <Button variant={p ? "default" : "outline"} className={cls(p)} aria-label={placed ? "Check out" : "Check out (nothing to charge)"} disabled={!!v.finishing} onClick={() => leave(false)}>
+                {placed ? (
+                  <>
+                    Check out <span className={`ml-1 text-xs ${p ? "" : "text-primary"}`}>+{billFor(false)}</span>
+                  </>
+                ) : (
+                  "Check out (nothing to charge)"
+                )}
+              </Button>
+            ),
+          });
+        if (dog.checkedIn && placed && c.bath && !v.finishing)
+          items.push({ key: "exitbath", node: () => <Button variant="outline" className={btn} aria-label="Exit bath + check out" onClick={() => leave(true)}>Exit bath + check out <span className="ml-1 text-xs text-primary">+{billFor(true)}</span></Button> });
+        const lead = next.id === "room" ? `room:${next.room}` : next.id === "none" ? null : next.id;
+        const primary = lead ? items.find((i) => i.key === lead) : undefined;
+        return (
+          <>
+            {primary ? (
+              <div className="mt-2" data-testid="next-action">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-primary">Next: {NEXT_CAPTION[next.id]}</p>
+                {primary.node(true)}
+              </div>
             ) : (
-              "Check out (nothing to charge)"
+              next.reason && <p className="mt-2 rounded-lg bg-muted px-2 py-1 text-xs text-secondary">{next.reason}</p>
             )}
-          </Button>
-        )}
-        {dog.checkedIn && placed && c.bath && !v.finishing && (
-          <Button variant="outline" className={btn} aria-label="Exit bath + check out" onClick={() => leave(true)}>
-            Exit bath + check out <span className="ml-1 text-xs text-primary">+{billFor(true)}</span>
-          </Button>
-        )}
-      </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {items.filter((i) => i !== primary).map((i) => (
+                <span key={i.key} className="contents">
+                  {i.node(false)}
+                </span>
+              ))}
+            </div>
+          </>
+        );
+      })()}
     </article>
   );
 }

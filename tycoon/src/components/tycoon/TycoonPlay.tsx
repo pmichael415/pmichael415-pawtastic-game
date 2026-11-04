@@ -22,6 +22,8 @@ import { CoachBubble } from "./CoachBubble";
 import { FallbackNotice, type FallbackReason } from "./FallbackNotice";
 import type { Diagnostics } from "./TycoonStage";
 import { ExpansionCard } from "./ExpansionCard";
+import { FrontDesk } from "./FrontDesk";
+import { RoomsStrip } from "./RoomsStrip";
 import { ExpansionSpotBar } from "./ExpansionSpotBar";
 import { expansionSpots, type ExpansionId } from "@/tycoon/expansion";
 import { ObjectiveBar } from "./ObjectiveBar";
@@ -451,6 +453,12 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
 
   const pickedDog = sel?.kind === "dog" ? f.dogs.find((d) => d.id === sel.id) ?? null : null;
   const pickedStaff = sel?.kind === "staff" ? f.staff.find((x) => x.id === sel.id) ?? null : null;
+  // selecting a pup shows where it is: the camera goes to it (once per selection, not on every tick)
+  const pickedTile = pickedDog ? dogTile(f, pickedDog) : null;
+  useEffect(() => {
+    if (pickedTile) stage.current?.focus?.(pickedTile.c, pickedTile.r);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickedDog?.id]);
   const paintTarget = painting ? f.rooms.find((r) => r.uid === painting) ?? null : null;
 
   return (
@@ -506,6 +514,13 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
       {!building && (
         <div ref={coachRef} className="scroll-mt-2">
           <CoachBubble state={state} controls={controls} act={act} set={set} />
+        </div>
+      )}
+      {/* the old game's flow, on the world screen: who's at the desk, and the rooms at a glance */}
+      {!building && !placing && !isFreshSave(state) && (
+        <div className="space-y-1.5">
+          <FrontDesk f={f} act={act} onSelect={(id) => setSel({ kind: "dog", id })} onCheckout={onCheckout} />
+          <RoomsStrip f={f} dog={pickedDog} act={act} onSelectRoom={(uid) => setSel({ kind: "room", id: uid })} />
         </div>
       )}
       <div className="relative" ref={stageWrap}>
@@ -658,7 +673,8 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
           }
         }}
       />
-      <ListView state={state} act={act} compact={show3d} />
+      {/* with the 3D view, the front desk and rooms strip above it replace the long list (no scrolling to find a pup) */}
+      {!show3d && <ListView state={state} act={act} />}
       <TestTools
         diag={diagUi}
         onDiag={(v) => {

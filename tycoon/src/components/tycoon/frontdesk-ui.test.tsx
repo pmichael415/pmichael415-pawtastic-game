@@ -1,0 +1,112 @@
+// The old game's flow on the world screen (empire milestone §1, §3): families at the front desk with Check in / Check
+// out at hand, rooms with their occupancy and a ✓ where a waiting pup can safely go, and one big next-action button.
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import type { TPick } from "@/tycoon/render/world";
+
+vi.mock("sonner", () => ({ toast: Object.assign(() => {}, { success: () => {}, error: () => {}, warning: () => {}, info: () => {} }) }));
+let emit: (p: TPick | null) => void = () => {};
+const focused: { c: number; r: number }[] = [];
+vi.mock("@/components/tycoon/TycoonStage", async () => {
+  const React = await import("react");
+  return {
+    TycoonStage: React.forwardRef(function Stub(props: { onPick: (p: TPick | null) => void }, ref) {
+      React.useImperativeHandle(ref, () => ({ fx: () => {}, resetCamera: () => {}, focus: (c: number, r: number) => focused.push({ c, r }), debug: () => null }));
+      emit = props.onPick;
+      return React.createElement("div", { "data-testid": "stage" });
+    }),
+  };
+});
+
+import { TycoonPlay } from "./TycoonPlay";
+import { KEY, tycoonStore } from "@/tycoon/store";
+import { quickStart } from "@/tycoon/start";
+import { fac, newTycoon, withFac } from "@/tycoon/state";
+import { ok } from "@/tycoon/testkit";
+import { defaultVisit } from "@/tycoon/visit";
+import type { TDog, TycoonState, Visit } from "@/tycoon/types";
+
+const now = () => tycoonStore.getState()!;
+const SKIPPED = { mode: "quick", beat: "meet", startedAt: 0, upgrade: null, done: false, skipped: true } as const;
+function withPups(...pups: { over?: Partial<TDog>; visit?: Partial<Visit> }[]): TycoonState {
+  const s = ok(quickStart(newTycoon(0)));
+  const f = fac(s);
+  const dogs = pups.map(({ over = {}, visit = {} }, i) => {
+    const d: TDog = { id: "d" + i, name: ["Hazel", "Biscuit", "Luna"][i] ?? "Pup" + i, breed: 1, size: "small", temper: "gentle", visits: 1, place: { kind: "lobby" }, checkedIn: false, happiness: 80, clean: 70, boarding: false, played: 0, bathed: false, ...over };
+    return { ...d, visit: { ...defaultVisit(f, d), arrivedDay: f.day, arrived: 9 * 60 + 55, owner: ["Taylor", "Morgan", "Lee"][i]!, ...visit } };
+  });
+  return { ...withFac(s, { ...f, open: true, clockMin: 10 * 60, introDay: 0, dogs, stats: { ...f.stats, checkouts: 1 } }), coins: 3000, pendingLevel: null, tour: SKIPPED };
+}
+function open(s: TycoonState) {
+  localStorage.setItem(KEY, JSON.stringify(s));
+  return render(<TycoonPlay />);
+}
+const desk = () => within(screen.getByRole("region", { name: "Front desk" }));
+const panel = () => within(screen.getByTestId("panel-sheet"));
+
+beforeEach(() => {
+  localStorage.clear();
+  tycoonStore._reset(null);
+  focused.length = 0;
+});
+
+describe("the front desk", () => {
+  it("shows who just arrived and what they booked, with Check in at hand; checking in opens the pup with its next step", () => {
+    open(withPups({ visit: { requests: ["daycare", "bath"] } }));
+    expect(desk().getByText(/🐕 Hazel/)).toBeTruthy();
+    expect(desk().getByText(/daycare \+ bath/)).toBeTruthy();
+    fireEvent.click(desk().getByRole("button", { name: "Check in Hazel" }));
+    expect(fac(now()).dogs[0]!.checkedIn).toBe(true);
+    expect(panel().getByTestId("next-action").textContent).toMatch(/To Small & Gentle/);
+  });
+  it("a family back for pickup shows Check out, which pays exactly once", () => {
+    const s = withPups({ over: { checkedIn: true, played: 2, happiness: 95, place: { kind: "room", room: "" } }, visit: { ownerHere: 9 * 60 + 58 } });
+    const f = fac(s);
+    const room = f.rooms.find((r) => r.type === "playroom")!.uid;
+    const s2 = withFac(s, { ...f, dogs: f.dogs.map((d) => ({ ...d, place: { kind: "room" as const, room } })) });
+    open(s2);
+    const coins = now().coins;
+    const bonusBefore = fac(now()).ledger.at(-1)?.income.bonus ?? 0;
+    fireEvent.click(desk().getByRole("button", { name: "Check out Hazel" }));
+    fireEvent.click(desk().queryByRole("button", { name: "Check out Hazel" }) ?? document.body);
+    expect(fac(now()).dogs).toHaveLength(0);
+    expect(fac(now()).outcomes.at(-1)!.dog).toBe("Hazel");
+    // the bill once (plus any trophy or level reward the visit earned, which the ledger counts as a bonus)
+    const bonus = (fac(now()).ledger.at(-1)?.income.bonus ?? 0) - bonusBefore;
+    expect(now().coins - coins).toBe(fac(now()).outcomes.at(-1)!.total + bonus);
+    expect(fac(now()).outcomes.filter((o) => o.dog === "Hazel")).toHaveLength(1);
+  });
+  it("says so when nobody's waiting", () => {
+    open(withPups());
+    act(() => tycoonStore.set((x) => withFac(x, { ...fac(x), dogs: [] })));
+    expect(desk().getByText(/No one at the desk/)).toBeTruthy();
+  });
+});
+
+describe("rooms at a glance", () => {
+  it("each room shows how full it is; with a checked-in pup selected, its safe room shows ✓ and one tap moves the pup there", () => {
+    open(withPups({ over: { checkedIn: true } }));
+    const strip = within(screen.getByRole("region", { name: "Rooms" }));
+    const play = strip.getByRole("button", { name: /Playroom.*Small & Gentle.*0\/3/ });
+    expect(play).toBeTruthy();
+    act(() => emit({ kind: "dog", id: "d0" }));
+    const target = within(screen.getByRole("region", { name: "Rooms" })).getByRole("button", { name: /✓ Move Hazel to Playroom.*Small & Gentle/ });
+    fireEvent.click(target);
+    expect(fac(now()).dogs[0]!.place.kind).toBe("room");
+  });
+});
+
+describe("a pup's panel", () => {
+  it("leads with one big next-action button, not repeated below", () => {
+    open(withPups({ over: { checkedIn: true } }));
+    act(() => emit({ kind: "dog", id: "d0" }));
+    const primary = panel().getByTestId("next-action");
+    expect(primary.textContent).toMatch(/To Small & Gentle/);
+    expect(panel().getAllByRole("button", { name: /^To Small & Gentle/ })).toHaveLength(1);
+  });
+  it("selecting a pup shows where it is: the camera moves to it", () => {
+    open(withPups({ over: { checkedIn: true } }));
+    act(() => emit({ kind: "dog", id: "d0" }));
+    expect(focused.length).toBeGreaterThan(0);
+  });
+});
