@@ -142,6 +142,7 @@ async function session(browser, device, extra = {}) {
     const c1 = (await st()).coins;
     await mode().getByRole('button', { name: /^Put it in Bath Room/ }).dblclick();
     await page.waitForTimeout(400);
+    await clearOverlays(); // the bath works now: a new stage is celebrated
     const tubs = (await f()).items.filter((i) => i.kind === 'bath_tub');
     check('Put it in places it inside that room — a double tap still one each time', tubs.length >= 1 && tubs.every((t) => t.room === bath.uid) && c1 - (await st()).coins === 400 * tubs.length, `${tubs.length} tub(s), charged ${c1 - (await st()).coins}`);
     await btn('Done building').click();

@@ -119,11 +119,11 @@ async function run(browser, label, opts) {
     await page.evaluate(() => { window.__tycoonSpeed = 1; });
     const o1 = (await f()).outcomes.at(-1);
     check(`${label}: handed over when the bath finished`, o1.how === 'finished' && o1.dog === 'Biscuit', o1.how);
-    check(`${label}: the bill has the bath, once`, o1.lines.filter((l) => /^Bath$/.test(l.label)).length === 1, JSON.stringify(o1.lines));
+    check(`${label}: the bill has the bath, once`, o1.lines.filter((l) => /^Bath( — deluxe tub \(\+\d+\))?$/.test(l.label)).length === 1, JSON.stringify(o1.lines));
     check(`${label}: the complaint is recorded as put right`, o1.complaints.some((c) => c.kind === 'bath' && c.remedy === 'finish' && c.resolved));
     check(`${label}: satisfaction, reputation and loyalty updated`, o1.satisfaction > 0 && typeof o1.repDelta === 'number' && (await f()).guestBook.some((g) => g.name === 'Biscuit' && g.sat === o1.satisfaction), `sat ${o1.satisfaction}, rep ${o1.repDelta}`);
     const receipt = page.getByRole('region', { name: 'Receipt' });
-    check(`${label}: an itemized receipt appears`, (await receipt.count()) === 1 && (await receipt.getByText(/^Bath$/).count()) === 1);
+    check(`${label}: an itemized receipt appears`, (await receipt.count()) === 1 && (await receipt.getByText(/^Bath( — deluxe tub \(\+\d+\))?$/).count()) === 1);
     await page.screenshot({ path: path.join(OUT, `service-${label.replace(/\W+/g, '-')}-2-receipt.png`) });
     check(`${label}: coins rose by exactly the bill (plus any friendship bonus)`, (await st()).coins - coins0 >= o1.total, `${(await st()).coins - coins0} vs ${o1.total}`);
 
