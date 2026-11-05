@@ -110,7 +110,7 @@ describe("the Marketing screen", () => {
     expect(within(card).getByText("Families nearby who've never visited")).toBeTruthy();
     expect(within(card).getByText(/3 active days/)).toBeTruthy();
     expect(
-      within(card).getByText(/About 3–9 families may respond — not guaranteed\./),
+      within(card).getByText(/About 4–11 families may respond — not guaranteed\./),
     ).toBeTruthy();
     expect(within(card).getByText(/Rooms/)).toBeTruthy();
     expect(

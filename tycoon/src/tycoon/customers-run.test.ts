@@ -183,6 +183,8 @@ describe("the desk: offer another day, or can't take today", () => {
     const back = tick(withFac(r.state, { ...fac(r.state), day: 4, clockMin: b.min - 1 }), 2, never);
     expect(fac(back).dogs).toHaveLength(1);
     expect(fac(back).campaignRuns![0]!.arrivals).toBe(1);
+    // and the day's footfall counts them as rescheduled, not as a new booking
+    expect(fac(back).footfall!.at(-1)).toMatchObject({ booked: 0, rescheduled: 1 });
   });
   it("only before check-in, and a family can move at most twice", () => {
     const a = ok(createArrival(open(), never, false, booking({ moved: 2 })));

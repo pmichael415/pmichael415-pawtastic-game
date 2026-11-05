@@ -442,6 +442,11 @@ function RunCard({ f, run }: { f: Facility; run: CampaignRun }) {
         </p>
       )}
       <p className="mt-1 text-xs text-muted-foreground">
+        {r.joined
+          ? `${plural(r.joined, "new family", "new families")} joined your guest book from it — visits they make later on their own aren't counted here.`
+          : "No new families in your guest book from it yet."}
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
         Overhead on those days — wages {n(r.overhead.wages)}, upkeep {n(r.overhead.upkeep)} — is
         paid for every family, so it's shown apart, not charged to the campaign.
       </p>
@@ -511,6 +516,7 @@ function ResultsTab({ f }: { f: Facility }) {
         <p className="text-sm text-secondary">
           {plural(sum.came.newWalkIns, "first-time walk-in")} · {sum.came.returning} came back on
           their own · {sum.came.booked} booked
+          {sum.came.rescheduled ? ` · ${sum.came.rescheduled} came on another day you offered` : ""}
         </p>
         <p className="text-sm text-secondary">
           {plural(sum.status.regular, "regular")} · {sum.status.inactive} inactive ·{" "}

@@ -120,16 +120,29 @@ export function readiness(f: Facility, id: CampaignId): Readiness {
   return { ready: !why, why, checks };
 }
 
-/** The estimated response range over the whole campaign: [low, high] families. */
-export function estimate(f: Facility, def: Campaign): [number, number] {
+/** The expected response range over the whole campaign, unrounded: [low, high] families. */
+function expected(f: Facility, def: Campaign): [number, number] {
   if (def.target === "new")
-    return [
-      Math.floor(def.reach * def.rate[0] * def.days),
-      Math.ceil(def.reach * def.rate[1] * def.days),
-    ];
+    return [def.reach * def.rate[0] * def.days, def.reach * def.rate[1] * def.days];
   const who = def.target === "inactive" ? inactiveTargets(f, f.day) : happyRegulars(f);
   const n = who.reduce((a, g) => a + (g.issue && !g.issue.followedUp ? 0.2 : 1), 0);
-  return [Math.floor(n * def.rate[0]), Math.ceil(n * def.rate[1])];
+  return [n * def.rate[0], n * def.rate[1]];
+}
+/** The estimated response range over the whole campaign: [low, high] families. */
+export function estimate(f: Facility, def: Campaign): [number, number] {
+  const [lo, hi] = expected(f, def);
+  return [Math.floor(lo), Math.ceil(hi)];
+}
+
+const KINDS: GroupId[] = ["small-gentle", "small-active", "large-gentle", "large-active"];
+/** The share of new families a campaign brings whose kind of pup has a playroom here (boarding: any pup can board). */
+export function servableShare(f: Facility, def: Campaign): number {
+  if (def.service === "boarding" || def.target === "inactive") return 1;
+  const groups = new Set(caps(f).playrooms.map((p) => p.group));
+  let n = 0;
+  for (const b of BREEDS)
+    for (const t of ["gentle", "active"]) if (groups.has(`${b.size}-${t}` as GroupId)) n++;
+  return n / (BREEDS.length * 2);
 }
 
 const SPACE = /playroom full|lobby full|beds full|lobby was full/;
@@ -180,12 +193,12 @@ export function campaignCard(s: TycoonState, id: CampaignId): CampaignCard {
   const r = readiness(f, id);
   const range = estimate(f, def);
   const groups = new Set(caps(f).playrooms.map((p) => p.group));
-  const missing = (
-    ["small-gentle", "small-active", "large-gentle", "large-active"] as GroupId[]
-  ).filter((g) => !groups.has(g));
+  const missing = KINDS.filter((g) => !groups.has(g));
+  const share = servableShare(f, def);
+  const [lo, hi] = expected(f, def);
   const note =
-    def.service !== "boarding" && def.target !== "inactive" && missing.length && groups.size
-      ? `New families with a kind of pup you have no playroom for (${missing.map((g) => groupName(g)).join(", ")}) will be declined — counted as unmet demand.`
+    share < 1 && groups.size
+      ? `You have playrooms for ${groups.size} of the 4 kinds of pup, so you could take about ${Math.floor(lo * share)}–${Math.ceil(hi * share)} of them; the rest (${missing.map((g) => groupName(g)).join(", ")}) would be declined — counted as unmet demand.`
       : null;
   const run = runningRun(f);
   return {
@@ -389,6 +402,8 @@ export type RunResult = {
   contribution: number;
   /** Wages and upkeep on the campaign's days — for every family, so shown apart, not charged to the campaign. */
   overhead: { wages: number; upkeep: number };
+  /** New families in the guest book that this campaign brought (their later visits on their own aren't credited to it). */
+  joined: number;
   note: string;
 };
 export function runResult(f: Facility, run: CampaignRun): RunResult {
@@ -405,6 +420,11 @@ export function runResult(f: Facility, run: CampaignRun): RunResult {
       wages: days.reduce((a, d) => a + d.expenses.wages, 0),
       upkeep: days.reduce((a, d) => a + d.expenses.upkeep, 0),
     },
+    joined: f.guestBook.filter(
+      (g) =>
+        (g.source?.kind === "campaign" || g.source?.kind === "referral") &&
+        g.source.run === run.uid,
+    ).length,
     note: "Visits are attributed to the campaign that booked them — that's not proof the campaign caused them: some families might have come anyway.",
   };
 }
@@ -434,11 +454,12 @@ export function customerSummary(f: Facility) {
   const status = { new: 0, returning: 0, regular: 0, inactive: 0 };
   for (const g of f.guestBook) status[familyStatus(f, g)]++;
   const turned: Record<string, number> = {};
-  const came = { newWalkIns: 0, returning: 0, booked: 0 };
+  const came = { newWalkIns: 0, returning: 0, booked: 0, rescheduled: 0 };
   for (const d of f.footfall ?? []) {
     came.newWalkIns += d.newWalkIns;
     came.returning += d.returning;
     came.booked += d.booked;
+    came.rescheduled += d.rescheduled ?? 0;
     for (const [k, v] of Object.entries(d.turned)) turned[k] = (turned[k] ?? 0) + v;
   }
   const unmet: Record<Service, number> = { daycare: 0, boarding: 0, bath: 0 };

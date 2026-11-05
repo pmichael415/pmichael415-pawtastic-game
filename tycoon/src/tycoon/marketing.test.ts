@@ -145,6 +145,11 @@ describe("launching a campaign", () => {
     expect(card.checks.every((c) => c.ok)).toBe(true);
     expect(card.checks[1]!.text).toMatch(/tub/i);
   });
+  it("says how many of those families the daycare could actually take (only the kinds it has playrooms for)", () => {
+    const card = campaignCard(open(), "flyers");
+    expect(card.note).toMatch(/^You have playrooms for 1 of the 4 kinds of pup, so you could take about 1–3 of them; the rest \(Small & Active, Large & Gentle, Large & Active\) would be declined — counted as unmet demand\.$/);
+    expect(campaignCard(open(), "boarding_ads").note).toBeNull(); // any pup can board
+  });
   it("a full daycare explains the capacity problem before spending", () => {
     const s = open({
       footfall: [
@@ -299,6 +304,9 @@ describe("whether it worked", () => {
     const s = open({ day: 7, campaignRuns: [run] });
     const r = runResult(fac(s), run);
     expect(r.contribution).toBe(160 - 8 - 150);
+    expect(r.joined).toBe(0);
+    const g = { name: "Pip", breed: 2, size: "small" as const, temper: "gentle" as const, visits: 1, friendship: 8, lastDay: 4, sat: 80, source: { kind: "campaign" as const, run: "c1", name: "Local flyers" } };
+    expect(runResult({ ...fac(s), guestBook: [g, { ...g, name: "Max", source: { kind: "walk-in" as const } }] }, run).joined).toBe(1);
     expect(r.ended).toBe(true);
     expect(r.overhead.wages + r.overhead.upkeep).toBeGreaterThanOrEqual(0);
     expect(r.note).toMatch(/attributed/i);
@@ -350,6 +358,6 @@ describe("whether it worked", () => {
     expect(c.status).toEqual({ new: 1, returning: 1, regular: 1, inactive: 1 });
     expect(c.unmet).toEqual({ daycare: 3, boarding: 1, bath: 1 });
     expect(c.reasons[0]).toEqual({ reason: "no Large & Active playroom", n: 2 });
-    expect(c.came).toEqual({ newWalkIns: 3, returning: 1, booked: 1 });
+    expect(c.came).toEqual({ newWalkIns: 3, returning: 1, booked: 1, rescheduled: 0 });
   });
 });

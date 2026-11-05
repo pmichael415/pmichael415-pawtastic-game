@@ -222,8 +222,8 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
     courtesyKey.current = key;
     if (!c) return;
     const who = c.names.at(-1)!;
-    if (c.why === "intro") toast.info(`${who}'s family was kindly rescheduled — no charge, no hard feelings on your first day. Next time, check families in within 60 game minutes, or tap "Can't take today" if there's no spot.`);
-    else toast.info(`${who}'s family was still waiting at closing — rescheduled for another day, no charge.`);
+    if (c.why === "intro") toast.info(`${who}'s family was kindly rescheduled — they'll come back on your next active day, no charge, no hard feelings on your first day. Next time, check families in within 60 game minutes, or tap "Offer another day" if there's no spot.`);
+    else toast.info(`${who}'s family was still waiting at closing — they'll come back on your next active day, no charge.`);
   }, [state]);
   const [expandOpen, setExpandOpen] = useState(false);
   const spots = placing ? expansionSpots(state, placing.id) : [];

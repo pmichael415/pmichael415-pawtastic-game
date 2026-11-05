@@ -177,7 +177,7 @@ export function createArrival(s: TycoonState, rand: () => number, boarding = fal
   // a family who asked for a bath with no bath room yet: today's demonstrated bath demand (milestone §4)
   const askedNow = f.asked && f.asked.day === f.day ? f.asked : { day: f.day, groups: {} };
   let nf: Facility = dog.visit.bathAsked ? { ...f, asked: { ...askedNow, baths: (askedNow.baths ?? 0) + 1 } } : f;
-  nf = noteArrival(nf, booking ? "booked" : reg ? "returning" : "newWalkIns");
+  nf = noteArrival(nf, booking ? (booking.again ? "rescheduled" : "booked") : reg ? "returning" : "newWalkIns");
   if (booking) nf = { ...nf, bookings: (nf.bookings ?? []).filter((b) => b.uid !== booking.uid) };
   if (booking && !booking.again) nf = creditArrival(nf, booking.source);
   const hello = booking

@@ -335,6 +335,7 @@ const freshDay = (f: Facility): Footfall => ({
   newWalkIns: 0,
   returning: 0,
   booked: 0,
+  rescheduled: 0,
   turned: {},
   campaign: runningCampaign(f),
 });
@@ -350,8 +351,8 @@ export function touchDay(f: Facility, change: (d: Footfall) => Footfall = (d) =>
 export const noteTurned = (f: Facility, reason: string, n = 1): Facility =>
   touchDay(f, (d) => ({ ...d, turned: { ...d.turned, [reason]: (d.turned[reason] ?? 0) + n } }));
 /** A family who came today: a first-time walk-in, a family back on their own, or a booking. */
-export const noteArrival = (f: Facility, kind: "newWalkIns" | "returning" | "booked"): Facility =>
-  touchDay(f, (d) => ({ ...d, [kind]: d[kind] + 1 }));
+export const noteArrival = (f: Facility, kind: "newWalkIns" | "returning" | "booked" | "rescheduled"): Facility =>
+  touchDay(f, (d) => ({ ...d, [kind]: (d[kind] ?? 0) + 1 }));
 
 /** The campaign run a source belongs to, if any (a referral from a referral campaign counts there). */
 export const runOf = (src: Source | undefined): string | null =>

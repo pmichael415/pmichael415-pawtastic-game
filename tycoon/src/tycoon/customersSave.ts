@@ -202,6 +202,7 @@ export function parseFootfall(x: unknown): Footfall[] {
       newWalkIns: nat(m["newWalkIns"]),
       returning: nat(m["returning"]),
       booked: nat(m["booked"]),
+      ...(typeof m["rescheduled"] === "number" ? { rescheduled: nat(m["rescheduled"]) } : {}),
       turned: counts(m["turned"]),
       campaign: typeof m["campaign"] === "string" ? m["campaign"].slice(0, 24) : null,
     }))

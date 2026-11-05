@@ -235,6 +235,8 @@ export type Footfall = {
   newWalkIns: number;
   returning: number;
   booked: number;
+  /** Families who came back on the day the desk offered them (not a new booking). */
+  rescheduled?: number;
   /** Families who wanted to come but couldn't (unmet demand), by reason. */
   turned: Record<string, number>;
   /** The campaign running that day, if any (for the with/without comparison). */
