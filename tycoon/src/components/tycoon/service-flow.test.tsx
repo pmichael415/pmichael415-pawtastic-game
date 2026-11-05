@@ -22,7 +22,7 @@ import { TycoonPlay } from "./TycoonPlay";
 import { KEY, tycoonStore } from "@/tycoon/store";
 import { quickStart } from "@/tycoon/start";
 import { fac, newTycoon, withFac } from "@/tycoon/state";
-import { ok } from "@/tycoon/testkit";
+import { ok, richState } from "@/tycoon/testkit";
 import { defaultVisit } from "@/tycoon/visit";
 import type { TDog, TycoonState } from "@/tycoon/types";
 
@@ -35,6 +35,14 @@ function oneFamily(): TycoonState {
   return { ...withFac(s, { ...f, open: true, clockMin: 10 * 60, introDay: 0, dogs: [{ ...d, visit: { ...defaultVisit(f, d), arrivedDay: f.day, arrived: 9 * 60 + 58, owner: "Taylor", pickup: 16 * 60 } }], stats: { ...f.stats, checkouts: 1 } }), coins: 3000, pendingLevel: null, tour: SKIPPED };
 }
 const now = () => tycoonStore.getState()!;
+/** A daycare with a bath room (the test kit's), Hazel settled in a playroom with a bath booked and nothing else to do. */
+function withBathBooked(): TycoonState {
+  const s = richState();
+  const f = fac(s);
+  const room = f.rooms.find((r) => r.type === "playroom" && r.group === "small-gentle")!.uid;
+  const d: TDog = { id: "h", name: "Hazel", breed: 1, size: "small", temper: "gentle", visits: 1, place: { kind: "room", room }, checkedIn: true, happiness: 90, clean: 80, boarding: false, played: 1, bathed: false };
+  return { ...withFac(s, { ...f, open: true, clockMin: 10 * 60, dogs: [{ ...d, visit: { ...defaultVisit(f, d), requests: ["daycare", "bath"], owner: "Taylor", pickup: 16 * 60 } }] }), pendingLevel: null, tour: SKIPPED };
+}
 
 beforeEach(() => {
   localStorage.clear();
@@ -70,7 +78,7 @@ describe("serving a family, the old game's way", () => {
     expect(screen.queryByTestId("panel-sheet")).toBeNull();
     expect(toasts.some((t) => /Hazel is all set — Taylor picks up at 16:00/.test(t))).toBe(true);
   });
-  it("while it waits, a pup that wants to play again says so on its room — one tap opens it with Playtime ready", () => {
+  it("while it waits, a pup that wants to play again says so on its room — one tap plays with it, no menu to open", () => {
     localStorage.setItem(KEY, JSON.stringify(oneFamily()));
     render(<TycoonPlay />);
     fireEvent.click(within(screen.getByRole("region", { name: "Front desk" })).getByRole("button", { name: "Check in Hazel" }));
@@ -81,7 +89,19 @@ describe("serving a family, the old game's way", () => {
     act(() => tycoonStore.set((x) => withFac(x, { ...fac(x), dogs: fac(x).dogs.map((d) => ({ ...d, happiness: 60 })) })));
     const cue = within(screen.getByRole("region", { name: "Rooms" })).getByRole("button", { name: /Hazel wants to play/ });
     fireEvent.click(cue);
-    expect(within(screen.getByTestId("next-action")).getByRole("button").textContent).toMatch(/Playtime/);
+    // (the legacy comparison: each replay used to take two taps — the cue, then Playtime in the panel it opened)
+    expect(fac(now()).dogs[0]!.played).toBe(2);
+    expect(fac(now()).dogs[0]!.happiness).toBeGreaterThan(60);
+    expect(screen.queryByTestId("panel-sheet")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Hazel wants to play/ })).toBeNull();
+  });
+  it("a booked bath waiting on its room: one tap starts it", () => {
+    localStorage.setItem(KEY, JSON.stringify(withBathBooked()));
+    render(<TycoonPlay />);
+    const cue = within(screen.getByRole("region", { name: "Rooms" })).getByRole("button", { name: /Hazel's bath is booked/ });
+    fireEvent.click(cue);
+    expect(fac(now()).dogs[0]!.bathing).toBeGreaterThan(0);
+    expect(screen.queryByTestId("panel-sheet")).toBeNull();
   });
 });
 

@@ -5,18 +5,21 @@ import { groupName, groupOf } from "@/game/engine";
 import { caps, connectedRooms, roomStatus } from "@/tycoon/connect";
 import { nextAction, safeRooms } from "@/tycoon/nextAction";
 import { roomName } from "@/tycoon/rooms";
-import { assignBed, assignRoom } from "@/tycoon/run";
+import { assignBed, assignRoom, bath, playtime } from "@/tycoon/run";
 import type { ActOpts, ActResult } from "@/tycoon/store";
 import type { Facility, TDog, TResult, TycoonState } from "@/tycoon/types";
 
 type Act = (fn: (s: TycoonState) => TResult, opts?: ActOpts) => ActResult;
 const ICON: Record<string, string> = { playroom: "🎾", bath: "🛁", boarding: "🌙", calm: "🫶", staff: "☕", lobby: "🛎️" };
 
-/** A settled pup whose next step is play or its booked bath: the cue the strip shows (milestone §2). */
-function careCue(f: Facility, d: TDog): string | null {
+/**
+ * A settled pup whose next step is play or its booked bath: the cue the strip shows, and one tap does it (milestone
+ * §2: routine care without opening a menu — the legacy comparison counted two taps per replay before).
+ */
+function careCue(f: Facility, d: TDog): { kind: "play" | "bath"; text: string } | null {
   if (!(d.place.kind === "room" || d.place.kind === "bed") || d.bathing) return null;
   const n = nextAction(f, d);
-  return n.id === "play" ? `🎾 ${d.name} wants to play` : n.id === "bath" ? `🛁 ${d.name}'s bath is booked` : null;
+  return n.id === "play" ? { kind: "play", text: `🎾 ${d.name} wants to play · Play` } : n.id === "bath" ? { kind: "bath", text: `🛁 ${d.name}'s bath is booked · Start it` } : null;
 }
 
 export function RoomsStrip({ f, dog, act, onSelectRoom, onSelectDog }: { f: Facility; dog: TDog | null; act: Act; onSelectRoom: (uid: string) => void; onSelectDog?: (dogId: string) => void }) {
@@ -49,13 +52,13 @@ export function RoomsStrip({ f, dog, act, onSelectRoom, onSelectDog }: { f: Faci
             </button>
           );
         }
-        // pups here who'd like you now (play, or the bath they booked): one tap opens them with that step ready, so
-        // nothing waits for a complaint at pickup — and nothing covers the daycare to say so
-        const cues = onSelectDog && !dog ? f.dogs.filter((d) => "room" in d.place && d.place.room === r.uid).flatMap((d) => (careCue(f, d) ? [{ id: d.id, text: careCue(f, d)! }] : [])) : [];
+        // pups here who'd like you now (play, or the bath they booked): one tap does it, so nothing waits for a
+        // complaint at pickup — and nothing covers the daycare to say so (tap the pup itself for its panel)
+        const cues = onSelectDog && !dog ? f.dogs.filter((d) => "room" in d.place && d.place.room === r.uid).flatMap((d) => { const c = careCue(f, d); return c ? [{ id: d.id, ...c }] : []; }) : [];
         return (
           <span key={r.uid} className="contents">
           {cues.map((cue) => (
-            <button key={cue.id} type="button" className="min-h-11 shrink-0 rounded-xl border-2 border-accent bg-accent/25 px-2 text-xs font-semibold text-secondary" onClick={() => onSelectDog!(cue.id)}>
+            <button key={cue.id} type="button" className="min-h-11 shrink-0 rounded-xl border-2 border-accent bg-accent/25 px-2 text-xs font-semibold text-secondary" onClick={() => act((s) => (cue.kind === "play" ? playtime(s, cue.id) : bath(s, cue.id)))}>
               {cue.text}
             </button>
           ))}

@@ -82,3 +82,8 @@ Decisions made on Phil's behalf during the milestone, with what each costs if it
   behaviour with working storage is unchanged. The legacy `/daycare` store (src/game/store.ts) was not touched (the
   brief keeps it as is) — cost if wrong: Lovable could regenerate previewAuthStorage.ts and drop the guard; the unit
   test and qa/e2e-storage.cjs would catch it.
+- Ruling (§2, found by re-running qa/flow-compare.cjs): one visit took 11 taps against legacy's 6 — the visit itself is
+  3 taps, but while Biscuit waited for his family (a time the legacy game doesn't have) the "wants to play" cue came up
+  three times, and each replay took two taps (the cue opened the panel, then Playtime). The cue now does it in one tap
+  ("🎾 Biscuit wants to play · Play"; "🛁 Pip's bath is booked · Start it"); tapping the pup itself still opens its
+  panel — cost if wrong: a player who wanted to look first taps the pup instead of the cue.
