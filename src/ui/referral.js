@@ -119,9 +119,9 @@ async function share(app, { code, text }) {
   const url = inviteLink(code);
   const data = { title: 'PAWtastic Academy: Graduation Day', text, url };
   if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-    try { await navigator.share(data); return; } catch (err) { if (err?.name === 'AbortError') return; }
+    try { await navigator.share(data); app.services.measure?.track('share', { kind: 'invite', how: 'share-sheet' }); return; } catch (err) { if (err?.name === 'AbortError') return; }
   }
-  try { await navigator.clipboard.writeText(`${text} ${url}`); app.toast('Invite link copied. Paste it in a text or email.'); }
+  try { await navigator.clipboard.writeText(`${text} ${url}`); app.toast('Invite link copied. Paste it in a text or email.'); app.services.measure?.track('share', { kind: 'invite', how: 'copied' }); }
   catch { app.toast(`Send this link to your friends: ${url}`); }
 }
 

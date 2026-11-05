@@ -5,7 +5,7 @@ import { dogSVG } from '../art.js';
 import { topBar } from '../topbar.js';
 import { shareDog } from '../share-card.js';
 import { AREAS } from '../../engine/levels.js';
-import { COSTUMES, SETS, EVENT } from '../../economy/catalog.js';
+import { COSTUMES, SETS, EVENT, STARTER_PACK, formatUsd } from '../../economy/catalog.js';
 import { dayKey } from '../../economy/time.js';
 import { withBusy, showFailure } from '../failure.js';
 import { treatPrice } from '../prices.js';
@@ -98,7 +98,15 @@ export function render(app) {
             : `Collect all ${set.costumes.length} to earn the ${costumeName(set.bonus)}.`));
       }));
 
-    return h('div', { class: 'closet stack' }, h('h1', {}, 'Closet'), preview, wardrobe, toEarn, book);
+    // One quiet suggestion at the customizing moment (never on a loss, never blocking anything):
+    // the one-time Starter Pack, which brings the Bandana. Hidden once bought or when purchases are off.
+    const starter = backend.features.purchases && !state.starterPack.bought
+      ? h('section', { class: 'card nudge-card', 'aria-label': 'Starter Pack' },
+        h('p', {}, h('strong', {}, 'Starter Pack · one-time.'), ` The Bandana costume, ${STARTER_PACK.treats} Treats and 3 boosters for ${formatUsd(STARTER_PACK.usd)}. Yours to keep.`),
+        h('button', { class: 'btn secondary small-btn', type: 'button', onClick: () => app.go('shop') }, 'See it'))
+      : null;
+
+    return h('div', { class: 'closet stack' }, h('h1', {}, 'Closet'), preview, wardrobe, starter, toEarn, book);
   }
 
   refresh();

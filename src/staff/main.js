@@ -168,6 +168,80 @@ function showCode(found, area) {
     form);
 }
 
+// ---------- Owner report (measurement) ----------
+const usd = cents => `$${(Number(cents || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const n = v => Number(v || 0).toLocaleString('en-US');
+const PRODUCT = { pack55: '55 Treats', pack100: '100 Treats', pack220: '220 Treats', pack480: '480 Treats', starter: 'Starter Pack', pass: 'Pup Pass' };
+const EVENT_LABEL = {
+  opened: 'Opened the game', first_play_started: 'Played a first level', first_play_completed: 'Finished a first level', replay: 'Replayed a level',
+  shop_viewed: 'Visited the Shop', product_previewed: 'Looked at a price', checkout_started: 'Went to Stripe Checkout', checkout_failed: 'Checkout could not start',
+  purchase_arrived: 'Purchase arrived in the game', purchase_waiting: 'Paid, purchase still on its way', share: 'Shared a card or invite', challenge_link_visit: 'Came from a shared link',
+};
+const ratio = (a, b) => (Number(b) > 0 ? `${Math.round((Number(a) / Number(b)) * 100)}%` : '—');
+const plural = (v, one, many) => `${n(v)} ${Number(v) === 1 ? one : many}`;
+
+function reportBody(r) {
+  if (!r.available) {
+    return h('div', { class: 'stack' },
+      h('p', {}, h('span', { class: 'tag' }, 'Not available yet')),
+      h('p', { class: 'muted' }, 'The owner report needs database update 0010 (game measurement) applied to the game\'s database. Until then nothing is counted here, and the game keeps working as before. Purchases are still recorded by Stripe and the server as usual.'));
+  }
+  const d = r.devices ?? {}; const ev = r.events ?? {}; const pu = r.purchases ?? {}; const pass = r.pass ?? {}; const pr = r.problems ?? {}; const pz = r.prizes ?? {};
+  const count = name => Number(ev[name]?.devices ?? 0);
+  const stat = (label, value, note) => h('div', { class: 'stat' }, h('p', { class: 'big' }, value), h('p', { class: 'muted' }, label, note ? h('span', { class: 'muted' }, ` · ${note}`) : null));
+  const net = Number(pu.gross_cents || 0) - Number(pu.refund_cents || 0);
+  return h('div', { class: 'stack' },
+    h('p', { class: 'muted' }, `${r.from} to ${r.to} · ${r.mode === 'live' ? 'live payments only' : 'TEST MODE — not real money'} · counts are devices, never people`),
+    h('h3', {}, 'Money (verified Stripe payments)'),
+    h('div', { class: 'stats' },
+      stat('Paid, after refunds', usd(net), plural(pu.paid_count, 'payment', 'payments')),
+      stat('Refunded', usd(pu.refund_cents), plural(pu.refund_count, 'refund', 'refunds')),
+      stat('Buyers', n(pu.buyers), 'distinct accounts'),
+      stat('Pup Pass active', n(pass.active), pass.ending ? `${n(pass.ending)} ending` : 'none ending'),
+      stat('All-time paid', usd(pu.all_time_gross_cents), 'before refunds')),
+    Array.isArray(pu.by_product) && pu.by_product.length
+      ? h('ul', { class: 'list' }, pu.by_product.map(x => h('li', { class: 'row' }, h('div', {}, h('strong', {}, PRODUCT[x.product] ?? x.product), h('p', { class: 'muted' }, `${n(x.count)} × ${x.kind === 'subscription' ? 'monthly' : 'one-off'}`)), h('div', { class: 'row-side' }, usd(x.cents)))))
+      : h('p', { class: 'muted' }, 'No verified payments in this period.'),
+    h('h3', {}, 'Players'),
+    h('div', { class: 'stats' },
+      stat('Devices that played', n(d.active)),
+      stat('New devices', n(d.new)),
+      stat('Came back (2+ days)', n(d.returning), ratio(d.returning, d.active)),
+      stat('Opened → first level', ratio(count('first_play_started'), count('opened')), `${n(count('first_play_started'))} devices`),
+      stat('Shop visitors', n(count('shop_viewed')), `${ratio(count('shop_viewed'), count('opened'))} of openers`),
+      stat('Checkout starts', n(count('checkout_started')), `${ratio(count('checkout_started'), count('shop_viewed'))} of shop visitors`)),
+    h('h3', {}, 'What players did'),
+    Object.keys(ev).length
+      ? h('ul', { class: 'list' }, Object.keys(EVENT_LABEL).filter(k => ev[k]).map(k => h('li', { class: 'row' }, h('div', {}, h('strong', {}, EVENT_LABEL[k])), h('div', { class: 'row-side' }, `${n(ev[k].devices)} devices · ${n(ev[k].count)} times`))))
+      : h('p', { class: 'muted' }, 'No events recorded yet. The game starts sending them once this update is live.'),
+    h('h3', {}, 'Watch list'),
+    h('ul', { class: 'list' },
+      h('li', { class: `row${Number(pu.unclaimed) ? ' earned' : ''}` }, h('div', {}, h('strong', {}, 'Paid but not delivered after 1 hour'), h('p', { class: 'muted' }, 'Stripe took the money, the game has not added it. Email the player.')), h('div', { class: 'row-side' }, n(pu.unclaimed))),
+      h('li', { class: 'row' }, h('div', {}, h('strong', {}, 'Players who reported a purchase on its way')), h('div', { class: 'row-side' }, n(pr.not_delivered))),
+      h('li', { class: 'row' }, h('div', {}, h('strong', {}, 'Problem and refund reports')), h('div', { class: 'row-side' }, n(pr.reports))),
+      h('li', { class: 'row' }, h('div', {}, h('strong', {}, 'Weekly Challenge prizes won · redeemed')), h('div', { class: 'row-side' }, `${n(pz.won)} · ${n(pz.redeemed)}`))),
+    Array.isArray(d.by_day) && d.by_day.length
+      ? h('p', { class: 'muted' }, 'Devices by day: ', d.by_day.map(x => `${x.day.slice(5)} ${x.devices}`).join(' · '))
+      : null);
+}
+
+function ownerReport() {
+  const section = h('section', { class: 'card stack report' });
+  const body = h('div', { class: 'stack' }, h('p', { class: 'muted' }, 'Loading…'));
+  let days = 7;
+  const tabs = h('div', { class: 'row-side' }, ...[7, 30, 90].map(k => h('button', { class: 'link', type: 'button', 'aria-pressed': String(k === days), onClick: () => { days = k; load(); } }, `${k} days`)));
+  async function load() {
+    for (const b of tabs.children) b.setAttribute('aria-pressed', String(b.textContent === `${days} days`));
+    fill(body, h('p', { class: 'muted' }, 'Loading…'));
+    const r = await pay.staffReport(days);
+    if (!r.ok && r.error) { fill(body, h('p', { class: 'muted' }, r.error === 'not-staff' || r.error === 'forbidden' ? 'Owner report is for staff accounts.' : errText(r.error))); return; }
+    fill(body, reportBody(r));
+  }
+  fill(section, h('h2', {}, 'Owner report'), h('p', { class: 'muted' }, 'How the game is doing: verified Stripe payments, players, and where they stop. Nothing here comes from the browser alone.'), tabs, body);
+  load();
+  return section;
+}
+
 async function home() {
   const res = await pay.staffHome();
   if (!res.ok) { if (res.error === 'signed-out') signIn(errText('signed-out')); else screen(h('p', { class: 'card' }, errText(res.error))); return; }
@@ -231,6 +305,7 @@ async function home() {
         h('li', {}, 'Look up the code here and record the first visit. The player who shared now has a free bath waiting.'),
         h('li', {}, 'When that player brings their dog in, look up their code, give the free bath and tap "Bath given".'),
         h('li', {}, 'Weekly Challenge winners show a prize code: look it up, give the free daycare day or bath, and tap "Mark redeemed".'))),
+    ownerReport(),
     prizeSection,
     boardSection,
     h('section', { class: 'card stack' }, h('h2', {}, 'Recent'),

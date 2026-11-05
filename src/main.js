@@ -8,7 +8,8 @@ import { createRng } from './engine/rng.js';
 import { createWallet } from './economy/wallet.js';
 import { createLocalBackend, DEMO_FEATURES, FREE_PLAY_FEATURES, PAID_FEATURES } from './backend/local.js';
 import { openPayments } from './net/pay-api.js';
-import { startPlayerCount, DEVICE_KEY } from './net/player-count.js';
+import { startPlayerCount, deviceId, DEVICE_KEY } from './net/player-count.js';
+import { createMeasure, linkKind, MEASURE_KEY, EVENT_PATH } from './net/measure.js';
 import { apiBase } from './net/embed.js';
 import { afterOpen, readCheckoutReturn } from './ui/payments.js';
 import { initInstall } from './ui/install.js';
@@ -105,10 +106,19 @@ async function bootLocal() {
   });
   const wallet = createWallet({ storage: saved.stores.wallet, now });
   const jar = createJar({ storage: saved.stores.jar, now, rng: createRng(Date.now() >>> 0), odds });
+  // Measurement for the owner's numbers (what players do, never who they are): only with the site's server.
+  const measure = pay ? createMeasure({
+    send: pay.event, device: deviceId(createLocalStorage(DEVICE_KEY)), store: createLocalStorage(MEASURE_KEY), embed: !!base,
+    beacon: body => navigator.sendBeacon?.(base + EVENT_PATH, new Blob([JSON.stringify(body)], { type: 'application/json' })),
+  }) : createMeasure({});
   // Send the latest save before the page goes away (a closed app or a switched tab).
-  addEventListener('pagehide', () => { saved.flush(); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) saved.flush(); });
+  addEventListener('pagehide', () => { saved.flush(); measure.stop(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { saved.flush(); measure.flush(); } });
   startApp({ storagePersistent: saved.stores.wallet.persistent && saved.stores.jar.persistent, jar, pay, flushSave: () => saved.flush() });
+  app.services.measure = measure;
+  measure.track('opened');
+  const link = linkKind(location.search);
+  if (link) measure.track('challenge_link_visit', { kind: link });
   // Debug only: give screenshot runs a dog so they can jump straight to a screen.
   if (debug && !wallet.state.dog) wallet.setDog({ name: 'Biscuit', breed: 'lab', coat: COATS[0].hex });
   const features = !freePlay ? DEMO_FEATURES : pay?.payments ? PAID_FEATURES : FREE_PLAY_FEATURES;

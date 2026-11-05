@@ -10,10 +10,17 @@ import { confirmPurchase } from './purchase.js';
 import { PACKS, STARTER_PACK, PASS, formatUsd } from '../economy/catalog.js';
 import { pendingCheckout, isEmail } from '../net/pay-api.js';
 
+// What each product is, in the words the buyer sees before paying. `kind` says whether it is used up
+// (consumable), kept for good (one-time) or renews (subscription) — see KINDS.
+export const KINDS = {
+  consumable: { label: 'Consumable', note: 'Used up as you spend them on moves, lives, boosters and costumes.' },
+  'one-time': { label: 'One-time purchase', note: 'The Bandana is yours to keep on this account. The Treats and boosters are used up as you spend them.' },
+  subscription: { label: 'Monthly subscription', note: `${formatUsd(PASS.usd)} every month, automatically, until you cancel. Cancel any time from Manage Pup Pass & receipts.` },
+};
 export const PRODUCTS = {
-  ...Object.fromEntries(PACKS.map(p => [p.id, { title: `${p.treats} Treats`, usd: p.usd, lines: [`${p.treats} Treats added to your balance`] }])),
-  starter: { title: 'Starter Pack', usd: STARTER_PACK.usd, lines: [`${STARTER_PACK.treats} Treats`, '1 Shuffle, 1 Bone Bomb, 1 Bubble Blaster', 'Bandana costume'] },
-  pass: { title: 'Pup Pass', usd: PASS.usd, lines: ['Unlimited lives', 'Premium rewards on all 20 tiers', `${formatUsd(PASS.usd)} every month until you cancel`] },
+  ...Object.fromEntries(PACKS.map(p => [p.id, { title: `${p.treats} Treats`, usd: p.usd, kind: 'consumable', quantity: `${p.treats} Treats`, lines: [`${p.treats} Treats added to your balance (about ${(p.usd / p.treats * 100).toFixed(1)}¢ each)`] }])),
+  starter: { title: 'Starter Pack', usd: STARTER_PACK.usd, kind: 'one-time', quantity: '1 pack, once per account', lines: [`${STARTER_PACK.treats} Treats`, '1 Shuffle, 1 Bone Bomb, 1 Bubble Blaster', 'Bandana costume'] },
+  pass: { title: 'Pup Pass', usd: PASS.usd, kind: 'subscription', quantity: '1 month, renews monthly', lines: ['Unlimited lives while active', 'Premium rewards on all 20 tiers', 'The Honor Roll Sash costume at tier 20', `${formatUsd(PASS.usd)} every month until you cancel`] },
 };
 
 export const REFUND_POLICY = 'Unspent purchased Treats can be refunded within 7 days. Purchases made by a child or by accident can be refunded too. Tell us which purchase and we will email you back.';
@@ -142,11 +149,15 @@ export async function startCheckout(app, product, { confirmed = false } = {}) {
   const info = PRODUCTS[product];
   if (!pay || !info) return;
   const limit = backend.spendingLimit;
+  const measure = app.services.measure;
   if (wouldExceed(limit, backend.monthSpendUsd(), info.usd)) {
     app.toast(`That would go over your monthly limit of ${formatUsd(limit)}. You can change it in the Shop.`);
     return;
   }
-  if (!confirmed && !(await confirmPurchase(app, { title: info.title, usd: info.usd, lines: info.lines, real: { mode: pay.mode } }))) return;
+  if (!confirmed) {
+    measure?.track('product_previewed', { product });
+    if (!(await confirmPurchase(app, { title: info.title, usd: info.usd, lines: info.lines, kind: info.kind, real: { mode: pay.mode } }))) return;
+  }
   if (!pay.signedIn) {
     await signInThenReload(app, { product, reason: 'To buy, sign in with your email. Your purchases and progress are saved to your account, so they are never lost.' });
     return;
@@ -155,10 +166,13 @@ export async function startCheckout(app, product, { confirmed = false } = {}) {
   const res = await pay.checkout(product);
   if (!res.ok) {
     if (res.error === 'signed-out') { await signInThenReload(app, { product, reason: 'Please sign in again to finish your purchase.' }); return; }
+    measure?.track('checkout_failed', { product, error: String(res.error ?? 'server') });
     app.toast(payError(res.error));
     return;
   }
-  if (typeof res.url !== 'string' || !safeUrl(res.url)) { app.toast(payError('server')); return; }
+  if (typeof res.url !== 'string' || !safeUrl(res.url)) { measure?.track('checkout_failed', { product, error: 'bad-url' }); app.toast(payError('server')); return; }
+  measure?.track('checkout_started', { product });
+  await measure?.flush?.();
   await leave(app, () => openOutside(res.url));
 }
 
@@ -220,13 +234,45 @@ export async function syncAccount(app) {
   if (res.pass && typeof res.pass.active === 'boolean' && (res.pass.active || !passBought)) backend.syncPass(res.pass);
   await saveNow(app);
   if (claimed.length || refunds.length) await pay.ack({ claimed, refunds });
+  if (added.length) pendingDelivery().clear();
   return { ok: true, added, refunded };
 }
 
 const REFRESHABLE = new Set(['map', 'shop', 'pass', 'closet']);
 
+// A paid checkout whose purchase has not reached the game yet: remembered for a day, so the Shop can say
+// "on its way" and offer "Check again" instead of leaving the buyer guessing.
+export const DELIVERY_KEY = 'pawtastic-gd-delivery-v1';
+export function pendingDelivery(store = globalThis.localStorage, now = () => Date.now()) {
+  const read = () => { try { const v = JSON.parse(store?.getItem(DELIVERY_KEY) ?? 'null'); return v && typeof v.at === 'number' && now() - v.at < 24 * 3600e3 ? v : null; } catch { return null; } };
+  return {
+    get: read,
+    set(sessionId) { try { store?.setItem(DELIVERY_KEY, JSON.stringify({ sessionId: sessionId ?? null, at: now() })); } catch { /* ignore */ } },
+    clear() { try { store?.removeItem(DELIVERY_KEY); } catch { /* ignore */ } },
+  };
+}
+
+/**
+ * "Restore purchases": re-reads the account and adds anything missing, once. Signed-out players sign in
+ * first (the reload after signing in runs the same sync by itself).
+ */
+export async function restorePurchases(app) {
+  const pay = paymentsOf(app);
+  if (!pay) return { ok: false, error: 'server' };
+  if (!pay.signedIn) {
+    await signInThenReload(app, { reason: 'Sign in with the email you used to buy, and everything you bought comes back to this account.' });
+    return { ok: false, error: 'signed-out' };
+  }
+  const result = await syncAccount(app);
+  if (!result.ok) { app.toast(payError(result.error)); return result; }
+  if (result.added.length || result.refunded.length) announce(app, result);
+  else app.toast("Everything you've bought is already here.");
+  return result;
+}
+
 function announce(app, result) {
   if (!result?.ok) return;
+  for (const p of result.added) app.services.measure?.track('purchase_arrived', { product: String(p.product) });
   if (result.added.length) app.toast(`Thanks! ${result.added.map(thanksText).join(' ')}`);
   else if (result.refunded.length) app.toast(`Refund processed: ${result.refunded.reduce((n, p) => n + p.treats, 0)} Treats removed.`);
   if ((result.added.length || result.refunded.length) && REFRESHABLE.has(app.current)) app.go(app.current);
@@ -240,6 +286,7 @@ export async function afterOpen(app, { checkout = null, sessionId = null, wait =
   const pay = paymentsOf(app);
   if (!pay) return;
   if (checkout === 'cancel') app.toast("Checkout cancelled. You weren't charged.");
+  if (checkout === 'success') pendingDelivery().set(sessionId);
   if (!pay.signedIn) return;
   let result = await syncAccount(app);
   announce(app, result);
@@ -250,6 +297,7 @@ export async function afterOpen(app, { checkout = null, sessionId = null, wait =
     }
     if (result.ok && result.added.length) announce(app, result);
     else {
+      app.services.measure?.track('purchase_waiting', { session: String(sessionId ?? '') });
       await pay.report({ kind: 'not-delivered', message: 'Player came back from a paid Stripe checkout, but the purchase had not arrived in the game after 30 seconds.', details: { sessionId, email: pay.email } });
       let s;
       s = app.modal(h('div', { class: 'stack' },

@@ -14,6 +14,16 @@ export const localDay = t => {
 const randomBytes = () => globalThis.crypto.getRandomValues(new Uint8Array(16));
 const newId = bytes => Array.from(bytes, b => ALPHABET[b & 63]).join('') + Array.from(bytes.slice(0, 6), b => ALPHABET[b >> 2]).join('');
 
+/** This browser's random id, created and saved on first use (shared with the measurement in net/measure.js). */
+export function deviceId(store, random = randomBytes) {
+  let saved = null;
+  try { saved = store?.load(); } catch { saved = null; }
+  if (ID.test(saved?.id ?? '')) return saved.id;
+  const id = newId(random());
+  try { store?.save({ id, sent: null }); } catch { /* memory only */ }
+  return id;
+}
+
 // Returns a promise of true when today's hello was sent, false when it wasn't needed or failed.
 export function sayHello({ fetchImpl = globalThis.fetch?.bind(globalThis), store, now = Date.now, random = randomBytes, base = '' } = {}) {
   try {

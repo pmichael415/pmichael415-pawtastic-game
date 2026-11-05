@@ -224,6 +224,10 @@ export async function openPayments({
     report: ({ kind, message, email, details }) => call('POST', '/api/public/game/report', {
       kind, message: String(message ?? '').slice(0, 2000), ...(email ? { email } : {}), ...(details ? { details } : {}),
     }, { signedIn: false }),
+    // Measurement (src/net/measure.js): a batch of what the player did, with the sign-in when there is one.
+    event: body => call('POST', '/api/public/game/event', body, { signedIn: false }),
+    // The owner's numbers on the staff page (staff emails only): players, returns, purchases, problems.
+    staffReport: (days = 7) => call('GET', `/api/public/game/staff/report?days=${encodeURIComponent(days)}`),
 
     // The saved game on the buyer's account, in the shape src/backend/saved-game.js reads
     // (the same one claude.ai provides), so it syncs exactly like the claude.ai demo does.

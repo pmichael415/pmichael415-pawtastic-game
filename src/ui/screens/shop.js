@@ -7,11 +7,12 @@ import { dogSVG, tileSVG } from '../art.js';
 import { treatIcon, heartIcon, shuffleIcon } from '../icons.js';
 import { topBar } from '../topbar.js';
 import { confirmPurchase, confirmTreatSpend } from '../purchase.js';
-import { realPayments, startCheckout, reportSheet, testModeLabel, REFUND_POLICY } from '../payments.js';
+import { realPayments, startCheckout, reportSheet, testModeLabel, REFUND_POLICY, KINDS, restorePurchases, pendingDelivery, openPortal, clientOf } from '../payments.js';
 import {
-  PACKS, ITEMS, COSTUMES, SETS, STARTER_PACK, EVENT, COINS,
+  PACKS, ITEMS, COSTUMES, SETS, STARTER_PACK, EVENT, COINS, PASS,
   formatUsd, treatsToUsd,
 } from '../../economy/catalog.js';
+import { formatLongDate as longDate } from '../../economy/time.js';
 import { dayKey, formatLongDate } from '../../economy/time.js';
 import { failureText } from '../failure.js';
 import { treatPrice } from '../prices.js';
@@ -53,6 +54,7 @@ const eventOn = now => {
 export function render(app) {
   const { backend } = app.services;
   let bar = null;
+  app.services.measure?.track('shop_viewed');
 
   function refresh() {
     const y = window.scrollY;
@@ -71,14 +73,14 @@ export function render(app) {
 
   async function buyPack(pack) {
     if (realPayments(app)) { await startCheckout(app, pack.id); return; }
-    const ok = await confirmPurchase(app, { title: `${pack.treats} Treats`, usd: pack.usd, lines: [`${pack.treats} Treats added to your balance`] });
+    const ok = await confirmPurchase(app, { title: `${pack.treats} Treats`, usd: pack.usd, kind: 'consumable', lines: [`${pack.treats} Treats added to your balance`] });
     if (ok) done(backend.buyPack(pack.id), 'Treats added. Receipt sent (demo).');
   }
 
   async function buyStarter() {
     if (realPayments(app)) { await startCheckout(app, 'starter'); return; }
     const ok = await confirmPurchase(app, {
-      title: 'Starter Pack', usd: STARTER_PACK.usd,
+      title: 'Starter Pack', usd: STARTER_PACK.usd, kind: 'one-time',
       lines: [`${STARTER_PACK.treats} Treats`, '1 Shuffle, 1 Bone Bomb, 1 Bubble Blaster', 'Bandana costume'],
     });
     if (ok) done(backend.buyStarterPack(), 'Starter Pack added. Receipt sent (demo).');
@@ -148,19 +150,34 @@ export function render(app) {
         h('div', {}, h('dt', {}, 'From coins'), h('dd', {}, bal.converted)),
         h('div', {}, h('dt', {}, 'Bought'), h('dd', {}, bal.paid))) : null);
 
-    const packs = section('Treat packs', h('div', { class: 'shop-grid' }, PACKS.map(p =>
-      h('button', { class: 'shop-item', type: 'button', onClick: () => buyPack(p) },
-        h('span', { class: 'shop-art', html: treatIcon() }),
-        h('strong', { class: 'num' }, `${p.treats} Treats`),
-        h('span', { class: 'price num' }, formatUsd(p.usd))))),
-    realPayments(app) ? h('p', { class: 'muted small' }, 'Secure checkout by Stripe.') : h('p', { class: 'muted small' }, 'Demo — no real charge.'),
-    realPayments(app) ? testModeLabel(app) : null);
+    const real = realPayments(app);
+    const kindTag = kind => h('span', { class: 'kind-tag' }, KINDS[kind].label);
+    const packs = section('Treat packs', h('p', { class: 'muted small kind-note' }, kindTag('consumable'), ` ${KINDS.consumable.note}`),
+      h('div', { class: 'shop-grid' }, PACKS.map(p =>
+        h('button', { class: 'shop-item', type: 'button', 'aria-label': `${p.treats} Treats for ${formatUsd(p.usd)}, consumable`, onClick: () => buyPack(p) },
+          h('span', { class: 'shop-art', html: treatIcon() }),
+          h('strong', { class: 'num' }, `${p.treats} Treats`),
+          h('span', { class: 'muted small num' }, `${(p.usd / p.treats * 100).toFixed(1)}¢ each`),
+          h('span', { class: 'price num' }, formatUsd(p.usd))))),
+      real ? h('p', { class: 'muted small' }, 'Secure checkout by Stripe. Treats arrive on your account after Stripe confirms the payment.') : h('p', { class: 'muted small' }, 'Demo — no real charge.'),
+      real ? testModeLabel(app) : null);
 
-    const starter = state.starterPack.bought ? null : section('Starter Pack',
+    const starter = state.starterPack.bought
+      ? section('Starter Pack', h('p', { class: 'muted small' }, kindTag('one-time'), ' You have the Starter Pack. The Bandana is in your Closet.'))
+      : section('Starter Pack',
+        h('p', { class: 'muted small kind-note' }, kindTag('one-time'), ` ${KINDS['one-time'].note}`),
+        h('div', { class: 'shop-row' },
+          h('div', {}, h('strong', {}, 'Starter Pack'),
+            h('p', { class: 'muted small' }, `${STARTER_PACK.treats} Treats (≈ ${formatUsd(treatsToUsd(STARTER_PACK.treats))}), 1 Shuffle, 1 Bone Bomb, 1 Bubble Blaster and the Bandana costume`)),
+          h('button', { class: 'btn', type: 'button', 'aria-label': `Buy the Starter Pack for ${formatUsd(STARTER_PACK.usd)}`, onClick: buyStarter }, formatUsd(STARTER_PACK.usd))));
+
+    const passStatus = backend.passStatus?.() ?? { active: false };
+    const passCard = backend.features.pass ? section('Pup Pass',
+      h('p', { class: 'muted small kind-note' }, kindTag('subscription'), ` ${KINDS.subscription.note}`),
       h('div', { class: 'shop-row' },
-        h('div', {}, h('strong', {}, 'One-time Starter Pack'),
-          h('p', { class: 'muted small' }, `${STARTER_PACK.treats} Treats (≈ ${formatUsd(treatsToUsd(STARTER_PACK.treats))}), 3 boosters and a Bandana`)),
-        h('button', { class: 'btn', type: 'button', onClick: buyStarter }, formatUsd(STARTER_PACK.usd))));
+        h('div', {}, h('strong', {}, passStatus.active ? (passStatus.autoRenew ? `Active · renews ${longDate(passStatus.renewsOn)}` : `Active · ends ${longDate(passStatus.renewsOn)}`) : `Pup Pass · ${formatUsd(PASS.usd)}/month`),
+          h('p', { class: 'muted small' }, 'Unlimited lives while active, premium rewards on all 20 tiers, the Honor Roll Sash at tier 20.')),
+        h('button', { class: 'btn secondary', type: 'button', onClick: () => app.go('pass') }, passStatus.active ? 'Manage' : 'See the pass'))) : null;
 
     const lives = backend.lives();
     const items = section('Lives & boosters', h('div', { class: 'stack tight' },
@@ -191,6 +208,25 @@ export function render(app) {
         h('button', { class: 'btn', type: 'button', disabled: state.demoCoins < COINS.min, onClick: () => convert(input) }, 'Convert to Treats (one-way)')),
       h('p', { class: 'muted small' }, `1 Reward Coin = 1 Treat. Minimum ${COINS.min}. Treats can't be turned back into Reward Coins.`));
 
+    const pay = clientOf(app);
+    const waiting = real ? pendingDelivery().get() : null;
+    const purchases = real ? section('Your purchases',
+      waiting
+        ? h('div', { class: 'card nudge-card delivery-card' },
+          h('p', {}, h('strong', {}, 'A payment is on its way. '), 'Stripe accepted it, but it has not reached the game yet. It is added automatically, usually within a few minutes.'),
+          h('button', { class: 'btn small-btn', type: 'button', onClick: async e => { e.currentTarget.disabled = true; await restorePurchases(app); refresh(); } }, 'Check again'))
+        : null,
+      h('ul', { class: 'plain-list' },
+        h('li', {}, `Starter Pack: ${state.starterPack.bought ? 'owned' : 'not bought'}`),
+        h('li', {}, `Pup Pass: ${passStatus.active ? (passStatus.autoRenew ? `active, renews ${longDate(passStatus.renewsOn)}` : `active until ${longDate(passStatus.renewsOn)}`) : 'not active'}`),
+        h('li', {}, `Bought Treats still on your balance: ${bal.paid}`)),
+      h('p', { class: 'muted small' }, pay?.signedIn
+        ? `Purchases are tied to ${pay.email ?? 'your account'}. Signed in on another phone? They come back there too.`
+        : 'Purchases are tied to the email you buy with. Sign in to get them back on any phone.'),
+      h('div', { class: 'btn-pair' },
+        h('button', { class: 'btn secondary', type: 'button', onClick: async e => { e.currentTarget.disabled = true; await restorePurchases(app); refresh(); } }, 'Restore purchases'),
+        h('button', { class: 'btn secondary', type: 'button', onClick: () => openPortal(app) }, 'Receipts & Pup Pass'))) : null;
+
     const history = [...state.spending].reverse();
     const spending = section('Spending',
       h('p', { class: 'num' }, `${realPayments(app) ? 'Spending' : 'Demo spending'} this month: ${formatUsd(spent)}${limit == null ? ' (no limit)' : ` of ${formatUsd(limit)} limit`}`),
@@ -214,8 +250,8 @@ export function render(app) {
       return h('div', { class: 'shop stack' }, h('h1', {}, 'Shop'), balance, items, costumes, soon);
     }
     // Reward Coins come from real PAWtastic visits, which the public site can't see yet.
-    if (realPayments(app)) return h('div', { class: 'shop stack' }, h('h1', {}, 'Shop'), balance, packs, starter, items, costumes, spending);
-    return h('div', { class: 'shop stack' }, h('h1', {}, 'Shop'), balance, packs, starter, items, costumes, coins, spending);
+    if (real) return h('div', { class: 'shop stack' }, h('h1', {}, 'Shop'), balance, packs, starter, passCard, items, costumes, purchases, spending);
+    return h('div', { class: 'shop stack' }, h('h1', {}, 'Shop'), balance, packs, starter, passCard, items, costumes, coins, spending);
   }
 
   refresh();

@@ -39,6 +39,7 @@ export function render(app) {
     const real = realPayments(app);
     // Real payments: resuming a cancelled pass happens on Stripe's account page.
     if (real && backend.passStatus().active) { openPortal(app); return; }
+    app.services.measure?.track('product_previewed', { product: 'pass', kind: 'subscription' });
     const start = h('button', { class: 'btn', type: 'button', disabled: true }, real ? 'Continue to checkout' : 'Start Pup Pass');
     const agree = h('input', { type: 'checkbox', id: 'pass-agree' });
     agree.addEventListener('change', () => { start.disabled = !agree.checked; });

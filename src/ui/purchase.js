@@ -6,7 +6,13 @@ import { h } from './dom.js';
 import { formatUsd } from '../economy/catalog.js';
 import { treatPrice } from './prices.js';
 
-export function confirmPurchase(app, { title, usd, lines = [], real = null }) {
+const KIND_LINE = {
+  consumable: 'Consumable: used up as you spend it.',
+  'one-time': 'One-time purchase: kept on your account.',
+  subscription: 'Subscription: renews every month until you cancel.',
+};
+
+export function confirmPurchase(app, { title, usd, lines = [], kind = null, real = null }) {
   return new Promise(resolve => {
     let done = false;
     // The register sound marks a purchase made; a real one is only made on Stripe's page.
@@ -16,8 +22,9 @@ export function confirmPurchase(app, { title, usd, lines = [], real = null }) {
         ? (real.mode === 'test' ? h('span', { class: 'demo-label' }, 'Test mode — no real charge. Card 4242 4242 4242 4242.') : null)
         : h('span', { class: 'demo-label' }, 'Demo — no real charge'),
       h('h2', {}, title),
+      kind && KIND_LINE[kind] ? h('p', { class: 'kind-line small' }, KIND_LINE[kind]) : null,
       lines.length ? h('ul', { class: 'plain-list' }, lines.map(l => h('li', {}, l))) : null,
-      h('div', { class: 'total-row' }, h('span', {}, 'Total'), h('strong', { class: 'num' }, formatUsd(usd))),
+      h('div', { class: 'total-row' }, h('span', {}, kind === 'subscription' ? 'Total today, then monthly' : 'Total'), h('strong', { class: 'num' }, formatUsd(usd))),
       h('p', { class: 'muted small' }, real
         ? "You'll pay on Stripe's secure checkout page. PAWtastic never sees your card number."
         : "In the real app you'll confirm with your password or purchase PIN."),

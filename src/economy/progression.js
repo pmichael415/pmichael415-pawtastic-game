@@ -70,8 +70,10 @@ export function applyLevelResult(state, { levelId, won, stars, score, movesMade 
 
   summary.milestones = claimMilestones(state, nowMs);
 
+  // The Starter Pack is suggested once, after the first area's last level is passed — never
+  // after a loss (the owner's rules: a loss is not a sales moment).
   const sp = state.starterPack;
-  if (!sp.bought && !sp.offerShown && (!won || levelId === 5)) {
+  if (!sp.bought && !sp.offerShown && won && levelId === 5) {
     sp.offerShown = true;
     summary.starterPackOffer = true;
   }

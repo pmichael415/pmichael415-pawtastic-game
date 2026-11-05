@@ -160,6 +160,7 @@ async function systemShare(app, blob, caption, dogName, link, code = null) {
   if (file && navigator.canShare?.({ files: [file] })) data.files = [file];
   try {
     await navigator.share(data);
+    app.services.measure?.track('share', { kind: 'card', how: 'share-sheet' });
   } catch (err) {
     if (err?.name !== 'AbortError') app.toast('Sharing isn’t available here. Press and hold the image instead.');
   }
@@ -190,7 +191,7 @@ export async function shareCard(app, blob, caption, dogName) {
   save.addEventListener('click', async () => {
     try {
       const res = await downloads.save({ filename: shareFilename(dogName), data: blob });
-      if (res?.status === 'saved') app.toast('Picture saved.');
+      if (res?.status === 'saved') { app.toast('Picture saved.'); app.services.measure?.track('share', { kind: 'card', how: 'saved' }); }
     } catch (err) {
       if (err?.code === 'declined') return;
       if (err?.code === 'rate_limited') { app.toast('One moment, then try again.'); return; }

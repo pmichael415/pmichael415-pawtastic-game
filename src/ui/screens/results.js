@@ -161,5 +161,6 @@ export function renderLoss(app, { levelId, summary }) {
       h('button', { class: 'btn secondary', type: 'button', onClick: () => app.go('map', levelId > 100 ? { view: 'local' } : {}) }, 'School map')),
   ));
   app.services.audio?.sfx('lose');
-  if (summary.starterPackOffer) showStarterPackOffer(app);
+  // Never a store offer on a loss screen; a level-5 win's offer waits for the map instead.
+  if (summary.starterPackOffer) app.services.pendingStarterOffer = true;
 }

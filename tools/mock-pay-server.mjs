@@ -107,6 +107,7 @@ function record(session) {
 }
 const reportsBy = new Map();
 const devices = []; // player counter hellos
+const events = []; // measurement events (migration 0010's game_events)
 const portalBack = new Map(); // user id → where the portal's "Return" goes
 
 createServer(async (req, res) => {
@@ -171,6 +172,23 @@ createServer(async (req, res) => {
       const day = new Date().toISOString().slice(0, 10);
       if (!devices.some(d => d.day === day && d.device === b.device)) devices.push({ day, device: b.device, auth: req.headers.authorization ?? null, cookie: req.headers.cookie ?? null });
       return send(res, 200, { ok: true });
+    }
+    // Measurement (server migration 0010): batches of named events per device, like record_game_events.
+    if (path === '/api/public/game/event' && req.method === 'POST') {
+      const b = await bodyOf(req);
+      if (!b || !/^[A-Za-z0-9_-]{16,64}$/.test(b.device ?? '') || !Array.isArray(b.events) || !b.events.length || b.events.length > 20) return send(res, 400, { error: 'invalid-request' });
+      if (b.events.some(e => !/^[a-z_]{3,40}$/.test(e?.name ?? ''))) return send(res, 400, { error: 'invalid-request' });
+      const user = authed(req);
+      let stored = 0;
+      for (const e of b.events) {
+        const day = new Date().toISOString().slice(0, 10);
+        const once = /^first_/.test(e.name) ? events.some(x => x.device === b.device && x.name === e.name)
+          : ['opened', 'shop_viewed', 'challenge_link_visit', 'return_visit'].includes(e.name) && events.some(x => x.device === b.device && x.name === e.name && x.day === day);
+        if (once) continue;
+        events.push({ day, device: b.device, user: user?.id ?? null, name: e.name, props: e.props ?? {} });
+        stored += 1;
+      }
+      return send(res, 200, { ok: true, stored });
     }
     if (path === '/api/public/game/report' && req.method === 'POST') {
       const user = authed(req);
@@ -255,6 +273,33 @@ createServer(async (req, res) => {
       }
       if (path === '/api/public/game/prizes' && req.method === 'GET') {
         return send(res, 200, { prizes: prizes.filter(p => p.userId === user.id).reverse().map(prizeOut) });
+      }
+      // Owner report (server: measure.server.ts → game_owner_report). MOCK_REPORT=0 plays a server whose
+      // database update 0010 is not applied yet; otherwise the report is built from this mock's own records.
+      if (path === '/api/public/game/staff/report' && req.method === 'GET') {
+        if (!STAFF.has(user.email)) return send(res, 403, { error: 'not-staff' });
+        const days = [7, 30, 90].includes(Number(url.searchParams.get('days'))) ? Number(url.searchParams.get('days')) : 7;
+        if (process.env.MOCK_REPORT === '0') return send(res, 200, { available: false, reason: 'not-ready', mode: 'test', days });
+        const today = new Date().toISOString().slice(0, 10);
+        const since = new Date(Date.now() - (days - 1) * 86400000).toISOString().slice(0, 10);
+        const byName = {};
+        for (const e of events) { byName[e.name] ??= { count: 0, dev: new Set() }; byName[e.name].count += 1; byName[e.name].dev.add(e.device); }
+        const paid = db.purchases.filter(p => p.status === 'paid' || p.status === 'refunded');
+        const byProduct = {};
+        for (const p of paid) { byProduct[p.product] ??= { product: p.product, kind: p.product === 'pass' ? 'subscription' : 'purchase', count: 0, cents: 0 }; byProduct[p.product].count += 1; byProduct[p.product].cents += p.cents ?? CATALOG[p.product]?.cents ?? 0; }
+        const refunded = paid.filter(p => p.status === 'refunded');
+        const cents = list => list.reduce((n, p) => n + (p.cents ?? CATALOG[p.product]?.cents ?? 0), 0);
+        const devSet = new Set(devices.map(d => d.device));
+        const perDevice = {}; for (const d of devices) (perDevice[d.device] ??= new Set()).add(d.day);
+        return send(res, 200, {
+          available: true, mode: 'test', days, from: since, to: today,
+          devices: { active: devSet.size, returning: Object.values(perDevice).filter(x => x.size >= 2).length, new: devSet.size, by_day: [{ day: today, devices: devSet.size }] },
+          events: Object.fromEntries(Object.entries(byName).map(([k, v]) => [k, { count: v.count, devices: v.dev.size }])),
+          purchases: { paid_count: paid.length, gross_cents: cents(paid), refund_count: refunded.length, refund_cents: cents(refunded), buyers: new Set(paid.map(p => p.userId ?? p.email)).size, unclaimed: 0, by_product: Object.values(byProduct).sort((a, b) => b.cents - a.cents), all_time_gross_cents: cents(paid) },
+          pass: { active: [...db.subs.values()].filter(x => x.status === 'active').length, ending: [...db.subs.values()].filter(x => x.status === 'active' && x.cancelAtPeriodEnd).length },
+          problems: { not_delivered: db.reports.filter(r => r.kind === 'not-delivered').length, reports: db.reports.filter(r => r.kind !== 'not-delivered').length },
+          prizes: { won: prizes.length, redeemed: prizes.filter(p => p.status === 'redeemed').length },
+        });
       }
       if (path === '/api/public/game/staff/prizes') {
         if (!STAFF.has(user.email)) return send(res, 403, { error: 'not-staff' });
@@ -379,7 +424,7 @@ createServer(async (req, res) => {
       return send(res, 200, { week });
     }
     if (path === '/mock/award-week' && req.method === 'POST') { awardWeek(weekKey(Date.now())); return send(res, 200, { prizes }); }
-    if (path === '/mock/state') return send(res, 200, { devices, players: Object.fromEntries(players), weekly, prizes, purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent, codes: Object.fromEntries(db.codes), referrals: db.referrals, appCodes });
+    if (path === '/mock/state') return send(res, 200, { devices, events, players: Object.fromEntries(players), weekly, prizes, purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent, codes: Object.fromEntries(db.codes), referrals: db.referrals, appCodes });
     if (path === '/mock/refund' && req.method === 'POST') {
       const { email, product } = await bodyOf(req);
       const user = userFor(email);

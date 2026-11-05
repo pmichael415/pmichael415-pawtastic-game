@@ -97,9 +97,16 @@ export function render(app, { levelId = 1, resume = false } = {}) {
   let cleanup = null;
   let left = false;
   app.view.append(h('p', { class: 'boot' }, 'Getting your board ready…'));
+  // Measurement: the device's first level ever, and any level played again (never which pup or who).
+  const passedBefore = !!app.services.backend.state?.()?.progress?.levels?.[levelId];
   beginLevel(app.services.backend, levelId, resume).then(begun => {
     if (left) return;
     app.view.replaceChildren();
+    if (begun.ok && !begun.snapshot) {
+      const m = app.services.measure;
+      if (!m?.track('first_play_started', { level: levelId })) { if (passedBefore || app.services.lastPlayed === levelId) m?.track('replay', { level: levelId }); }
+      app.services.lastPlayed = levelId;
+    }
     if (begun.ok) cleanup = play(app, levelId, begun.snapshot);
     else if (begun.error === 'no-lives') cleanup = outOfLives(app, levelId);
     else { showFailure(app, begun.error, () => app.go('level', { levelId })); app.go('map'); }
@@ -129,6 +136,7 @@ function play(app, levelId, snapshot = null) {
     if (ended) return null;
     ended = true;
     const summary = await backend.endLevel({ levelId, won, stars: won ? game.stars : 0, score: game.score, movesMade: game.movesMade });
+    app.services.measure?.track('first_play_completed', { level: levelId, won });
     if (summary.ok === false) { showFailure(app, summary.error); return NO_NEWS; }
     if (summary.queued) app.toast("Saved on this phone. We'll send it when you're back online.");
     return summary;
@@ -232,18 +240,31 @@ function play(app, levelId, snapshot = null) {
     let sheet;
     const price = ITEMS.moves5.treats;
     const body = h('div', { class: 'stack' });
+    // The free way on always comes first: trying the level again never costs money, and no
+    // store sheet stands between the player and that restart (owner's rules).
     const draw = () => {
-      const enough = w.balance().total >= price;
+      const total = w.balance().total;
+      const enough = total >= price;
+      const dollars = showsDollars(app);
       body.replaceChildren(
         h('h2', {}, 'So close!'),
         h('p', { class: 'remaining' }, `${remainingText(game)} to go.`),
-        h('p', { class: 'muted small' }, `You have ${w.balance().total} Treats.`),
-        h('div', { class: 'btn-pair' },
-          enough
-            ? h('button', { class: 'btn', type: 'button', onClick: buyMoves }, `+5 moves for ${treatPrice(app, price)}`)
-            : showsDollars(app) ? h('button', { class: 'btn', type: 'button', onClick: buyTreats }, `Get ${PACKS[0].treats} Treats for ${formatUsd(PACKS[0].usd)}`) : null,
+        h('div', { class: 'btn-pair so-close-actions' },
+          h('button', { class: 'btn', type: 'button', onClick: tryAgain }, 'Try again'),
           h('button', { class: 'btn secondary', type: 'button', onClick: giveUp }, 'No thanks')),
+        h('p', { class: 'muted small' }, 'Trying again is free. Treats are optional:'),
+        h('div', { class: 'btn-pair so-close-treats' },
+          enough
+            ? h('button', { class: 'btn secondary', type: 'button', onClick: buyMoves }, `+5 moves for ${treatPrice(app, price)}`)
+            : dollars ? h('button', { class: 'btn secondary', type: 'button', onClick: buyTreats }, `Get ${PACKS[0].treats} Treats for ${formatUsd(PACKS[0].usd)}`) : null,
+          h('span', { class: 'muted small num' }, `You have ${total} Treats.`)),
       );
+    };
+    const tryAgain = async () => {
+      sheet.close();
+      await end(false);
+      if (!alive) return;
+      app.go('level', { levelId });
     };
     const buyMoves = async e => {
       const res = await withBusy(e.currentTarget, () => w.buyItem('moves5'));
