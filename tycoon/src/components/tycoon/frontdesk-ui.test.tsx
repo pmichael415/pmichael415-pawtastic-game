@@ -188,3 +188,29 @@ describe("building holds the day (§3; audit finding 1)", () => {
   });
 });
 
+
+// Found in the first-session play-through: families were checked in while their kind's playroom was full, waited in
+// the lobby all day and left upset ("never got a playroom") — the desk didn't say the room was full until after
+// check-in. Now it says so before, with the free way out (milestone §2: why a room is unavailable, and what to do).
+describe("a family arriving when their kind's playroom is full", () => {
+  it("the desk and the pup's panel say so before check-in, and Can't take today costs nothing", () => {
+    const s = withPups({}, {}, {}, {});
+    const f = fac(s);
+    const play = f.rooms.find((r) => r.type === "playroom" && r.group === "small-gentle")!.uid;
+    // three Small & Gentle pups already in the playroom (3 spots), a fourth at the desk
+    const full = withFac(s, { ...f, dogs: f.dogs.map((d, i) => (i < 3 ? { ...d, checkedIn: true, place: { kind: "room" as const, room: play }, played: 1 } : d)) });
+    open(full);
+    const arriving = fac(now()).dogs[3]!;
+    expect(desk().getByText(/no free Small & Gentle spot/i)).toBeTruthy();
+    fireEvent.click(desk().getByRole("button", { name: new RegExp(`🐕 ${arriving.name}`) }));
+    expect(panel().getByText(/No free Small & Gentle spot right now — they'd wait in the lobby\. “Can't take today” costs nothing\./)).toBeTruthy();
+    const spent = JSON.stringify(fac(now()).ledger.at(-1)!.expenses);
+    fireEvent.click(panel().getByRole("button", { name: "Can't take today" }));
+    expect(fac(now()).dogs.some((d) => d.id === arriving.id)).toBe(false);
+    expect(JSON.stringify(fac(now()).ledger.at(-1)!.expenses)).toBe(spent); // nothing charged
+  });
+  it("says nothing when there's a free spot", () => {
+    open(withPups({}));
+    expect(desk().queryByText(/no free .* spot/i)).toBeNull();
+  });
+});

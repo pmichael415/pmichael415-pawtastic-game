@@ -16,7 +16,7 @@ import { roomCleanOf, roomName, roomOfDog } from "@/tycoon/rooms";
 import { responsibleFor } from "@/tycoon/team";
 import { STAGE_WORDS, waitStage } from "@/tycoon/waiting";
 import { MOMENT_ACTION, MOMENT_ASK, MOMENT_TIP, activityOf, answerMoment } from "@/tycoon/moments";
-import { nextAction, type NextActionId } from "@/tycoon/nextAction";
+import { arrivalWarning, nextAction, type NextActionId } from "@/tycoon/nextAction";
 
 /** The short caption over the big next-action button. */
 const NEXT_CAPTION: Record<NextActionId, string> = { checkin: "welcome them in", room: "the playroom that matches size and temperament", bed: "settle them into a bed", bath: "the bath they booked", play: "time to play", checkout: "their family is here", none: "" };
@@ -138,6 +138,11 @@ export function DogPanel({ f, dog, act, onAllSet }: { f: Facility; dog: TDog; ac
           {wait.kind === "dropoff" ? " · Next: Check in, or Can't take today" : " · Next: Check out"}
         </p>
       )}
+      {(() => {
+        // before check-in: nowhere free for this kind of pup right now — say so, with the free way out
+        const full = arrivalWarning(f, dog);
+        return full ? <p className="mt-1 rounded-lg bg-destructive/10 px-2 py-1 text-xs font-semibold text-destructive">{full.line}</p> : null;
+      })()}
       {/* compact: where, what they need, when the family is back — and how happy they are */}
       <p className="text-xs text-secondary">
         {placeLabel(f, dog)}

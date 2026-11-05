@@ -335,6 +335,16 @@ let last = null; // { at, day, clock, overlays }
         else if (rest) did = await tap(rest, await textOf(rest));
       }
     }
+    // a family the desk says has nowhere free to go: open them and use the free way out (as the desk/panel advise)
+    if (!did && !(state.tour && !state.tour.done && !state.tour.skipped)) {
+      const panelTurnAway = await usable('[data-testid="panel-sheet"] button:has-text("Can\'t take today")');
+      const panelFull = await page.locator('[data-testid="panel-sheet"]').getByText(/right now — they'd wait in the lobby/).count();
+      if (panelTurnAway && panelFull) did = await tap(panelTurnAway, "Can't take today (the panel says there's no free spot)");
+      else {
+        const fullAtDesk = page.locator('section[aria-label="Front desk"] li').filter({ hasText: '⚠️ no free' }).locator('button').first();
+        if ((await fullAtDesk.count()) && (await fullAtDesk.isVisible().catch(() => false))) did = await tap(fullAtDesk, `open ${await textOf(fullAtDesk)} (the desk says no free spot)`);
+      }
+    }
     // an open pup panel's one next step first (it's what's in front of you), then pickups and drop-offs at the front
     // desk, then the rooms strip's cues
     if (!did) {

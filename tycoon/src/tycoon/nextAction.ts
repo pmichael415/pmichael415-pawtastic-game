@@ -20,6 +20,22 @@ export function safeRooms(f: Facility, d: TDog): Room[] {
     .map((p) => p.room);
 }
 
+/**
+ * Before check-in, when the pup's kind has nowhere free to go right now (they'd wait in the lobby all day and leave
+ * upset): said at the desk and on the pup's panel, with the free way out (found in the first-session play-through).
+ */
+export function arrivalWarning(f: Facility, d: TDog): { short: string; line: string } | null {
+  if (d.checkedIn || d.place.kind !== "lobby") return null;
+  const out = "they'd wait in the lobby. “Can't take today” costs nothing.";
+  if (d.boarding) {
+    const free = caps(f).beds.some((b) => !f.dogs.some((x) => x.place.kind === "bed" && x.place.bed === b.bed));
+    return free ? null : { short: "no free boarding bed", line: `No free boarding bed right now — ${out}` };
+  }
+  if (safeRooms(f, d).length) return null;
+  const g = groupName(groupOf(d));
+  return { short: `no free ${g} spot`, line: `No free ${g} spot right now — ${out}` };
+}
+
 export function nextAction(f: Facility, d: TDog): NextAction {
   const v = visitOf(f, d);
   const settled = d.place.kind === "room" || d.place.kind === "bed";

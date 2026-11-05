@@ -4,6 +4,7 @@
 import { Button } from "@/components/ui/button";
 import { traitLabel } from "@/game/engine";
 import { rememberedVisit } from "@/tycoon/assess";
+import { arrivalWarning } from "@/tycoon/nextAction";
 import { checkIn } from "@/tycoon/run";
 import type { ActOpts, ActResult } from "@/tycoon/store";
 import type { Facility, TResult, TycoonState } from "@/tycoon/types";
@@ -43,6 +44,10 @@ export function FrontDesk({ f, act, onSelect, onCheckout }: { f: Facility; act: 
                     })()}
                     {w && w.stage !== "waiting" ? ` · waited ${w.minutes} min` : ""}
                   </span>
+                  {(() => {
+                    const full = arrivalWarning(f, d);
+                    return full ? <span className="block text-[11px] font-semibold text-destructive">⚠️ {full.short}</span> : null;
+                  })()}
                 </button>
                 <Button
                   className="h-11"

@@ -87,3 +87,15 @@ Decisions made on Phil's behalf during the milestone, with what each costs if it
   three times, and each replay took two taps (the cue opened the panel, then Playtime). The cue now does it in one tap
   ("🎾 Biscuit wants to play · Play"; "🛁 Pip's bath is booked · Start it"); tapping the pup itself still opens its
   panel — cost if wrong: a player who wanted to look first taps the pup instead of the cue.
+- Ruling (§2, found by the first-session play-through): families were checked in while their kind's playroom was full
+  and left upset at the end of the day ("never got a playroom") — the desk said nothing until after check-in. Now the
+  desk line says "⚠️ no free Small & Gentle spot" and the pup's panel, before check-in, "No free Small & Gentle spot
+  right now — they'd wait in the lobby. “Can't take today” costs nothing." Check in stays the lead button (a spot may
+  free up at a pickup) — cost if wrong: a player who ignores the warning still gets the old outcome.
+- Ruling (§6, play-session runs A and B): qa/play-session.cjs (the older 3D-tapping player, at 2× between beats) waited
+  for 650 coins before hiring — a number from the 3,000-coin start — so with 1,900 it never hired (run A), and it
+  ignored the spot bar's below-zero warning (run A ended day 6 at −111, reputation 40). It now hires when the sign-on
+  and a night's costs are covered and heeds that warning (run B: hired on day 4, ended day 6 at +169, but reputation
+  42). Both runs lost most reputation to families waiting 60 game minutes at pickup while the script missed ~30 taps
+  on pups in 3D; the desk-based first-session player at 1× had no such waits. Reported as found, not tuned away —
+  cost if wrong: a real solo player in a busy afternoon may find pickups come faster than they can serve them.

@@ -314,9 +314,14 @@ const note = async (page, what, extra = {}) => {
   await waitBeat('decision');
   await shot('tour-decision', 'Rocket arrives with no room: build or let him rest');
   await note(page, 'Rocket arrives with no room for a Large & Active pup');
-  await coach().getByRole('button', { name: /Build a Large & Active playroom/ }).click();
+  // a new game can't afford Rocket's playroom yet (the button says how much more): then he rests free, as the coach says
+  const buildRocket = coach().getByRole('button', { name: /Build a Large & Active playroom/ });
+  const canBuild = (await buildRocket.count()) && (await buildRocket.isEnabled());
+  await note(page, canBuild ? 'building Rocket a playroom (the guide offers it)' : `Rocket's playroom isn't affordable yet (${(await buildRocket.innerText().catch(() => '')).replace(/\s+/g, ' ')}) — he rests free`);
+  if (canBuild) await buildRocket.click();
+  else await coach().getByRole('button', { name: /Let Rocket rest/ }).click();
   await page.waitForTimeout(400);
-  const rocket = await byName('Rocket');
+  const rocket = canBuild ? await byName('Rocket') : null;
   if (rocket) {
     await tapDog(rocket.id, 'Rocket');
     if (await inSheet(/^Check in/).count()) { await inSheet(/^Check in/).click(); await page.waitForTimeout(150); }
@@ -382,6 +387,8 @@ const note = async (page, what, extra = {}) => {
       if (steps) await once(`spotN-${pick}`, `spot-${steps + 1}-${pick.split(' ')[0].toLowerCase()}`, (await bar.innerText()).split('\n').slice(0, 3).join(' — '));
       const build = bar.getByRole('button', { name: /^Build here/ });
       if (await build.isDisabled()) { await bar.getByRole('button', { name: 'Cancel' }).click(); return false; }
+      // heed the bar's warning that this would leave less than tonight's costs (run A ignored it and went below zero)
+      if (/This leaves/.test(await bar.innerText())) { await bar.getByRole('button', { name: 'Cancel' }).click(); await note(page, `not building ${pick} yet: the spot bar warns it would leave less than tonight's costs`); counts.abandoned = (counts.abandoned ?? 0) + 1; return false; }
       const buildLabel = await build.innerText();
       const coinsBefore = (await st()).coins;
       await build.click();
@@ -465,7 +472,10 @@ const note = async (page, what, extra = {}) => {
     const o = await objective();
     const coins = (await st()).coins;
     if (/asked today/.test(o.next)) await once('demand', 'objective-demand', `Next: ${o.next.split('\n')[0]}`);
-    if (o.button.includes('Open Team') && coins >= 650) return hire();
+    // hire once the sign-on (shown in Next) and about a night's costs are covered — the 650 this used to wait for
+    // dated from the 3,000-coin start, and with 1,900 it never came (run A of the "feel" milestone: no staff at all)
+    const signOn = Number(((o.next.match(/Sign-on ([\d,]+)/) ?? [0, '250'])[1]).replace(/,/g, ''));
+    if (o.button.includes('Open Team') && coins >= signOn + 150) return hire();
     if (o.button.includes('See options')) {
       if (/asked today/.test(o.next)) return expand('Playroom wing', 'families asked for a kind of pup with no room');
       const named = [[/bath station/i, 'Bath station'], [/boarding wing/i, 'Boarding wing'], [/play yard/i, 'Play yard'], [/staff room/i, 'Staff room'], [/second playroom/i, 'Playroom wing']].find(([re]) => re.test(o.next.split('\n')[0]));
