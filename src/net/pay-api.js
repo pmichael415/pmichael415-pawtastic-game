@@ -207,7 +207,7 @@ export async function openPayments({
     // Competing: the Weekly Challenge (the server replays each run), leaderboards, the player's
     // leaderboard profile (dog name, home location, stars) and prizes won.
     challengeWeek: () => call('GET', '/api/public/game/challenge', undefined, { signedIn: false }),
-    submitChallenge: ({ week, moves }) => call('POST', '/api/public/game/challenge', { week, moves }),
+    submitChallenge: ({ week, moves, challenge }) => call('POST', '/api/public/game/challenge', challenge && challenge !== 'high-score' ? { week, moves, challenge } : { week, moves }),
     leaderboard: ({ board = 'weekly', location = 'all' } = {}) => call('GET', `/api/public/game/leaderboard?board=${encodeURIComponent(board)}&location=${encodeURIComponent(location)}`, undefined, { signedIn: false }),
     sendProfile: profile => call('POST', '/api/public/game/profile', profile),
     prizes: () => call('GET', '/api/public/game/prizes'),

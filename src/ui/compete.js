@@ -3,29 +3,47 @@
 // each week the top 3 at each location win that week's prizes, which the server sends (the lineup the
 // owner approved for the week, or the standard 1st a free day of daycare, 2nd and 3rd a free bath).
 
-import { h } from './dom.js';
+import { h, fill } from './dom.js';
 import { clientOf } from './payments.js';
 import { onMap } from './referral.js';
 import { LOCATIONS } from '../engine/levels.js';
 import { totalStars, totalBestScore } from '../economy/progression.js';
-import { weekKey, weekEndsAt } from '../engine/challenge.js';
+import { weekKey, weekEndsAt, CHALLENGES, CHALLENGE_IDS, isChallengeId, TIER_NAMES, rulesFor } from '../engine/challenge.js';
 
 const PRIZE_NAMES = { 'daycare-day': 'Free day of daycare', bath: 'Free bath' };
 const lower = t => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
 
 // This week's prizes as the server sent them: [{ rank, label }] for 1st–3rd. Until it answers, the wording
 // stays general, so a prize is never named that the server didn't confirm.
-let weekly = null; // { week, prizes, next }
+let weekly = null; // { week, prizes, next, rules }
 const goodLineup = v => Array.isArray(v) && v.length === 3 && v.every((p, i) => p && p.rank === i + 1 && typeof p.label === 'string' && p.label.length >= 3 && p.label.length <= 80);
+const goodRules = v => v && (v.version === 1 || v.version === 2) && Array.isArray(v.challenges) && v.challenges.every(isChallengeId);
 export function weekPrizes(week = weekKey(Date.now())) { return weekly?.week === week ? weekly.prizes : null; }
 export function nextPrizes() { return weekly?.next ?? null; }
+/**
+ * The format this week plays, as the server said: version 1 (one High score run) until the owner's scheduled
+ * Monday, then version 2 (three challenges, best in each added up). Before the server answers, version 1.
+ */
+export function weekRules(week = weekKey(Date.now())) {
+  if (weekly?.week === week && goodRules(weekly.rules)) return weekly.rules;
+  return rulesFor(week, weekly?.rules?.from ?? null);
+}
+export const challengeName = id => CHALLENGES[id]?.name ?? 'High score run';
+const fmtMonday = key => { const [y, m, d] = key.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }); };
+/** "From Mon Nov 24: three challenges a week" while version 2 is scheduled but not started. */
+export function formatTeaser(rules = weekRules()) {
+  return rules.version === 1 && rules.from ? `From Monday ${fmtMonday(rules.from)}: three free challenges a week (High score, Combo, Cleanup), your best in each added up.` : '';
+}
 /** Asks the server for this week's prizes (and next week's, once approved). Resolves the lineup or null. */
 export async function loadWeekPrizes(app) {
   const pay = clientOf(app);
   if (!pay?.challengeWeek) return null;
   const r = await pay.challengeWeek().catch(() => null);
   if (!r?.ok || typeof r.week !== 'string' || !goodLineup(r.prizes)) return null;
-  weekly = { week: r.week, prizes: r.prizes, next: r.next && typeof r.next.week === 'string' && goodLineup(r.next.prizes) ? r.next : null };
+  weekly = {
+    week: r.week, prizes: r.prizes, next: r.next && typeof r.next.week === 'string' && goodLineup(r.next.prizes) ? r.next : null,
+    rules: goodRules(r.rules) ? { version: r.rules.version, challenges: r.rules.challenges.slice(), from: typeof r.rules.from === 'string' ? r.rules.from : null } : null,
+  };
   return weekly.prizes;
 }
 /** "Top 3 at each location win: 1st …, 2nd …, 3rd …" (or general wording until the server answers). */
@@ -74,26 +92,65 @@ const fmtLeft = ms => {
 };
 export const endsInText = (week, now = Date.now()) => `ends in ${fmtLeft(weekEndsAt(week) - now)}`;
 
-/** The map's Weekly Challenge card. */
+const TIER_MARK = { bronze: '🥉', silver: '🥈', gold: '🥇' };
+/** A badge mark for a tier (or '') and the player's best this week in a challenge. */
+export const tierMark = tier => TIER_MARK[tier] ?? '';
+export const tierLabel = tier => (tier ? `${TIER_NAMES[tier]} badge` : '');
+export function myBadge(app, week, challenge) {
+  return app.services.backend.state().collection?.badges?.find(b => b.week === week && b.challenge === challenge) ?? null;
+}
+
+/** The map's Weekly Challenge card: one run (version 1) or three challenges with the player's best in each (version 2). */
 export function weeklyCard(app) {
-  const state = app.services.backend.state();
+  const { backend } = app.services;
+  const state = backend.state();
   const week = weekKey(Date.now());
   const best = state.weekly.week === week ? state.weekly.best : 0;
   const headline = h('h2', {}, prizeHeadline());
   const line = h('p', { class: 'small' }, prizeLine());
   const upcoming = h('p', { class: 'small muted' });
+  const formats = h('div', { class: 'stack tight challenge-rows' });
   const showNext = () => { const n = nextPrizes(); upcoming.textContent = n ? `Next week: 1st ${lower(n.prizes[0].label)}.` : ''; upcoming.hidden = !n; };
+  const showFormats = () => {
+    const rules = weekRules(week);
+    const results = backend.weeklyResults?.(week) ?? {};
+    if (rules.version === 2) {
+      const total = CHALLENGE_IDS.reduce((sum, id) => sum + (results[id]?.best ?? 0), 0);
+      fill(formats,
+        h('p', { class: 'small muted' }, 'Three free challenges all week. Your best in each is added up; no boosters, and tries are free.'),
+        ...CHALLENGE_IDS.map(id => {
+          const r = results[id];
+          const badge = myBadge(app, week, id);
+          return h('div', { class: 'challenge-row' },
+            h('div', { class: 'challenge-row-text' },
+              h('strong', {}, `${badge ? `${tierMark(badge.tier)} ` : ''}${CHALLENGES[id].name}`),
+              h('span', { class: 'small muted num' }, r?.best ? `Best ${r.best.toLocaleString('en-US')}` : CHALLENGES[id].goal)),
+            h('button', { class: 'btn small-btn', type: 'button', onClick: () => app.go('challenge', { challenge: id }) }, r?.best ? 'Again' : 'Play'));
+        }),
+        total ? h('p', { class: 'small num' }, h('strong', {}, `Your total this week: ${total.toLocaleString('en-US')}`)) : null);
+      formats.hidden = false;
+    } else {
+      const teaser = formatTeaser(rules);
+      fill(formats, teaser ? h('p', { class: 'small muted' }, teaser) : null);
+      formats.hidden = !teaser;
+    }
+  };
   showNext();
-  loadWeekPrizes(app).then(p => { if (p) { headline.textContent = prizeHeadline(p); line.textContent = prizeLine(p); showNext(); } }).catch(() => {});
+  showFormats();
+  loadWeekPrizes(app).then(p => { if (p) { headline.textContent = prizeHeadline(p); line.textContent = prizeLine(p); showNext(); } showFormats(); }).catch(() => {});
+  const v2 = () => weekRules(week).version === 2;
+  const play = h('button', { class: 'btn gold', type: 'button', onClick: () => app.go('challenge', v2() ? { challenge: 'high-score' } : {}) }, best ? 'Play again' : 'Play the challenge');
   return h('section', { class: 'card weekly-card', 'aria-label': 'Weekly Challenge' },
     h('p', { class: 'eyebrow' }, `Weekly Challenge · ${endsInText(week)}`),
     headline,
     line,
     upcoming,
-    best ? h('p', { class: 'small num' }, h('strong', {}, `Your best this week: ${best.toLocaleString('en-US')}`)) : null,
+    formats,
+    best && !v2() ? h('p', { class: 'small num' }, h('strong', {}, `Your best this week: ${best.toLocaleString('en-US')}`)) : null,
     h('div', { class: 'btn-pair' },
-      h('button', { class: 'btn gold', type: 'button', onClick: () => app.go('challenge') }, best ? 'Play again' : 'Play the challenge'),
-      h('button', { class: 'btn secondary', type: 'button', onClick: () => app.go('leaderboard') }, 'Leaderboard')));
+      play,
+      h('button', { class: 'btn secondary', type: 'button', onClick: () => app.go('leaderboard') }, 'Leaderboard')),
+    h('button', { class: 'linkish small', type: 'button', onClick: () => app.go('collection') }, 'Badges & trophies'));
 }
 
 /** The leaderboard profile: dog name, home and progress (signed-in players with a home only). */
@@ -105,24 +162,53 @@ export async function syncProfile(app) {
   return pay.sendProfile({ dogName: state.dog.name, location: state.home, stars: totalStars(state), levels, bestTotal: totalBestScore(state) });
 }
 
-/** Keeps a finished run to send once the player has signed in. */
-export function keepPendingRun(run) { try { localStorage.setItem(PENDING_RUN_KEY, JSON.stringify(run)); } catch { /* ignore */ } }
+/** Keeps a finished run to send once the player has signed in (one per challenge). */
+export function keepPendingRun(run) {
+  try {
+    const kept = readPending();
+    kept[run.challenge ?? 'high-score'] = { week: run.week, moves: run.moves, challenge: run.challenge ?? 'high-score' };
+    localStorage.setItem(PENDING_RUN_KEY, JSON.stringify(kept));
+  } catch { /* ignore */ }
+}
+function readPending() {
+  try {
+    const v = JSON.parse(localStorage.getItem(PENDING_RUN_KEY) ?? 'null');
+    if (v && Array.isArray(v.moves)) return { 'high-score': { week: v.week, moves: v.moves, challenge: 'high-score' } }; // the old single run
+    return v && typeof v === 'object' ? v : {};
+  } catch { return {}; }
+}
+function dropPending(challenge) {
+  try {
+    const kept = readPending();
+    delete kept[challenge];
+    if (Object.keys(kept).length) localStorage.setItem(PENDING_RUN_KEY, JSON.stringify(kept)); else localStorage.removeItem(PENDING_RUN_KEY);
+  } catch { /* ignore */ }
+}
 
-/** Sends this week's best run when it hasn't reached the leaderboard yet (e.g. played before signing in). */
+/** Sends this week's best runs that haven't reached the leaderboard yet (e.g. played before signing in). */
 export async function sendPendingRun(app) {
   const pay = clientOf(app);
   const { backend } = app.services;
   const state = backend.state();
   if (!pay?.signedIn || !state.home) return null;
-  let run = null;
-  try { run = JSON.parse(localStorage.getItem(PENDING_RUN_KEY) ?? 'null'); } catch { run = null; }
+  const week = weekKey(Date.now());
+  const runs = { ...readPending() };
   const w = state.weekly;
-  if (!run && w.week === weekKey(Date.now()) && w.bestMoves && w.best > w.sentBest) run = { week: w.week, moves: w.bestMoves };
-  if (!run) return null;
-  const res = await pay.submitChallenge(run);
-  if (res.ok || res.error === 'week-over' || res.error === 'bad-run') { try { localStorage.removeItem(PENDING_RUN_KEY); } catch { /* ignore */ } }
-  if (res.ok) backend.markChallengeSent(run.week, res.score);
-  return res;
+  if (w.week === week) {
+    for (const [challenge, r] of Object.entries(w.results ?? {})) {
+      if (!runs[challenge] && r.bestMoves && r.best > r.sentBest) runs[challenge] = { week, moves: r.bestMoves, challenge };
+    }
+    if (!runs['high-score'] && w.bestMoves && w.best > w.sentBest) runs['high-score'] = { week, moves: w.bestMoves, challenge: 'high-score' };
+  }
+  let last = null;
+  for (const run of Object.values(runs)) {
+    if (!run || !isChallengeId(run.challenge) || !Array.isArray(run.moves)) continue;
+    const res = await pay.submitChallenge(run);
+    if (res.ok || res.error === 'week-over' || res.error === 'bad-run' || res.error === 'not-this-week') dropPending(run.challenge);
+    if (res.ok) backend.markChallengeSent(run.week, res.score, run.challenge);
+    last = res;
+  }
+  return last;
 }
 
 const seenPrizes = () => { try { return JSON.parse(localStorage.getItem(PRIZES_SEEN_KEY) ?? '[]'); } catch { return []; } };

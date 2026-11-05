@@ -140,7 +140,7 @@ test('everyone gets the same board, and a replay gives the same score', () => {
   while (a.status === 'playing') { const m = findValidMove(a.grid); moves.push([m.a.r, m.a.c, m.b.r, m.b.c]); trySwap(a, m.a, m.b); }
   assert.equal(moves.length, CHALLENGE_MOVES);
   assert.equal(a.status, 'won');
-  assert.deepEqual(replayChallenge('2026-11-02', moves), { ok: true, score: a.score });
+  assert.deepEqual(replayChallenge('2026-11-02', moves), { ok: true, score: a.score, raw: a.score });
   assert.equal(replayChallenge('2026-11-09', moves).ok, false, 'a run only counts for its own week');
   assert.equal(replayChallenge('2026-11-02', moves.slice(0, 10)).error, 'unfinished');
   assert.equal(replayChallenge('2026-11-02', [[0, 0, 7, 7], ...moves.slice(1)]).error, 'bad-move');

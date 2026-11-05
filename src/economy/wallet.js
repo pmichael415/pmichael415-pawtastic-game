@@ -21,8 +21,11 @@ export function defaultState() {
     progress: { unlocked: 1, levels: {}, badges: [], side: { hawthorne: 101, hillsdale: 201 } },
     // The player's own PAWtastic: picks their home-location adventure and their leaderboard team.
     home: null,
-    // This week's Weekly Challenge on this device: best score and the moves that made it.
-    weekly: { week: null, best: 0, bestMoves: null, sentBest: 0 },
+    // This week's Weekly Challenge on this device: best score and the moves that made it (the High score run,
+    // as version 1 keeps it), plus, per challenge, the best normalized result, its moves and what was sent.
+    weekly: { week: null, best: 0, bestMoves: null, sentBest: 0, results: {}, runs: 0 },
+    // Digital rewards for competing (never prize entries): tier badges per week and challenge, and trophies.
+    collection: { badges: [], trophies: [], runs: 0 },
     pass: {
       active: false, autoRenew: false, startedOn: null, renewsOn: null,
       month: null, points: 0, claimedFree: [], claimedPremium: [], countedDay: null, countedToday: 0,
@@ -58,6 +61,7 @@ function loadState(storage) {
   state.progress.levels = loadLevels(loaded.progress?.levels);
   loadLimit(state, loaded);
   cleanLists(state);
+  state.weekly.results = loadResults(loaded.weekly?.results);
   return state;
 }
 
@@ -81,6 +85,35 @@ export function wouldExceed(limit, spentUsd, usd) {
 const list = (v, ok) => (Array.isArray(v) ? v.filter(ok) : []);
 const isText = v => typeof v === 'string';
 const isTier = v => Number.isInteger(v) && v >= 1;
+const TIERS = ['bronze', 'silver', 'gold'];
+
+/** The trophies (digital only; they never create prize entries) and when each is earned. */
+export const TROPHIES = [
+  { id: 'first-run', name: 'First Bell', how: 'Finish your first Weekly Challenge run.' },
+  { id: 'three-formats', name: 'Triple Threat', how: 'Finish all three challenges in one week.' },
+  { id: 'first-bronze', name: 'Bronze Bone', how: 'Earn your first bronze badge.' },
+  { id: 'first-silver', name: 'Silver Whistle', how: 'Earn your first silver badge.' },
+  { id: 'first-gold', name: 'Gold Star', how: 'Earn your first gold badge.' },
+  { id: 'clean-sweep', name: 'Clean Sweep', how: 'Clean the whole board in a Cleanup puzzle.' },
+  { id: 'chain-5', name: 'Chain Reaction', how: 'Set off a chain of 5 or more in one move.' },
+  { id: 'ten-runs', name: 'Regular', how: 'Finish 10 challenge runs.' },
+  { id: 'all-gold-week', name: 'Valedictorian of the Week', how: 'Gold in all three challenges in one week.' },
+];
+const TROPHY_IDS = new Set(TROPHIES.map(t => t.id));
+
+function awardTrophies(state, { week, challenge, tier, extra }) {
+  const earned = [];
+  const give = id => { if (TROPHY_IDS.has(id) && !state.collection.trophies.includes(id)) { state.collection.trophies.push(id); earned.push(id); } };
+  const results = state.weekly.results;
+  give('first-run');
+  if (['high-score', 'combo', 'cleanup'].every(id => results[id]?.runs > 0)) give('three-formats');
+  if (tier) give(`first-${tier}`);
+  if (challenge === 'cleanup' && extra?.clean) give('clean-sweep');
+  if (challenge === 'combo' && (extra?.bestChain ?? 0) >= 5) give('chain-5');
+  if (state.collection.badges.filter(b => b.week === week && b.tier === 'gold').length === 3) give('all-gold-week');
+  if (state.collection.runs >= 10) give('ten-runs');
+  return earned;
+}
 function cleanLists(state) {
   const costumeIds = new Set(COSTUMES.map(c => c.id));
   state.inventory.costumes = list(state.inventory.costumes, id => costumeIds.has(id));
@@ -97,9 +130,24 @@ function cleanLists(state) {
     state.progress.side[k] = Number.isInteger(v) && v >= first && v <= first + 16 ? v : first;
   }
   if (!Array.isArray(state.weekly.bestMoves)) state.weekly.bestMoves = null;
+  if (!Number.isInteger(state.weekly.runs) || state.weekly.runs < 0) state.weekly.runs = 0;
+  state.collection.badges = list(state.collection.badges, b => isPlainObject(b) && isText(b.week) && isText(b.challenge) && isText(b.tier) && Number.isFinite(b.score));
+  state.collection.trophies = list(state.collection.trophies, isText);
+  if (!Number.isInteger(state.collection.runs) || state.collection.runs < 0) state.collection.runs = 0;
   state.purchases.applied = list(state.purchases.applied, isText);
   state.purchases.refunded = list(state.purchases.refunded, isText);
   state.spending = list(state.spending, s => isPlainObject(s) && Number.isFinite(s.at) && Number.isFinite(s.usd) && isText(s.what));
+}
+
+// weekly.results is keyed by challenge id, so mergeInto never sees it either.
+function loadResults(results) {
+  const out = {};
+  if (!isPlainObject(results)) return out;
+  for (const [id, v] of Object.entries(results)) {
+    if (!/^[a-z-]{3,20}$/.test(id) || !isPlainObject(v) || !Number.isFinite(v.best)) continue;
+    out[id] = { best: v.best, raw: Number.isFinite(v.raw) ? v.raw : v.best, bestMoves: Array.isArray(v.bestMoves) ? v.bestMoves : null, sentBest: Number.isFinite(v.sentBest) ? v.sentBest : 0, runs: Number.isInteger(v.runs) ? v.runs : 0 };
+  }
+  return out;
 }
 
 // progress.levels is keyed by level id, so mergeInto (which walks the default keys) never sees it.
@@ -198,17 +246,42 @@ export function createWallet({ storage, now }) {
     },
 
     // The Weekly Challenge best on this device (tries are free: no lives, no boosters).
-    recordChallenge(week, score, moves) {
+    /**
+     * A finished Weekly Challenge run on this device. `challenge` is 'high-score' (version 1's run, which also
+     * fills the old best/bestMoves fields) or 'combo' / 'cleanup'. `score` is the normalized result; `tier` a
+     * bronze/silver/gold badge or null. Returns { best, bestScore, runs, newBadge, newTrophies }.
+     */
+    recordChallenge(week, score, moves, { challenge = 'high-score', raw = score, tier = null, extra = {} } = {}) {
       const w = state.weekly;
-      if (w.week !== week) Object.assign(w, { week, best: 0, bestMoves: null, sentBest: 0 });
-      const best = score > w.best;
-      if (best) { w.best = score; w.bestMoves = moves; }
+      if (w.week !== week) Object.assign(w, { week, best: 0, bestMoves: null, sentBest: 0, results: {}, runs: 0 });
+      const r = w.results[challenge] ?? (w.results[challenge] = { best: 0, raw: 0, bestMoves: null, sentBest: 0, runs: 0 });
+      r.runs += 1; w.runs += 1; state.collection.runs += 1;
+      const best = score > r.best;
+      if (best) { r.best = score; r.raw = raw; r.bestMoves = moves; }
+      if (challenge === 'high-score' && best) { w.best = score; w.bestMoves = moves; }
+      let newBadge = null;
+      if (tier) {
+        const have = state.collection.badges.find(b => b.week === week && b.challenge === challenge);
+        const better = !have || TIERS.indexOf(tier) > TIERS.indexOf(have.tier);
+        if (better) {
+          state.collection.badges = state.collection.badges.filter(b => !(b.week === week && b.challenge === challenge));
+          state.collection.badges.push({ week, challenge, tier, score });
+          newBadge = tier;
+        }
+      }
+      const newTrophies = awardTrophies(state, { week, challenge, score, tier, extra });
       save();
-      return { best, bestScore: w.best };
+      return { best, bestScore: r.best, runs: r.runs, newBadge, newTrophies };
     },
-    markChallengeSent(week, score) {
-      if (state.weekly.week === week) { state.weekly.sentBest = Math.max(state.weekly.sentBest, score); save(); }
+    markChallengeSent(week, score, challenge = 'high-score') {
+      if (state.weekly.week !== week) return;
+      if (challenge === 'high-score') state.weekly.sentBest = Math.max(state.weekly.sentBest, score);
+      const r = state.weekly.results[challenge];
+      if (r) r.sentBest = Math.max(r.sentBest, score);
+      save();
     },
+    /** This week's results per challenge (empty when the week has turned). */
+    weeklyResults(week) { return state.weekly.week === week ? state.weekly.results : {}; },
 
     balance() {
       const { free, converted, paid } = state.treats;

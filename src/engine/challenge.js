@@ -197,6 +197,35 @@ export function tierOf(challenge, score) {
   return score >= tiers[2] ? 'gold' : score >= tiers[1] ? 'silver' : score >= tiers[0] ? 'bronze' : null;
 }
 export const TIER_NAMES = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold' };
+export const TIER_ORDER = { bronze: 1, silver: 2, gold: 3 };
+/** The moves a challenge allows (version 1's High score run keeps CHALLENGE_MOVES). */
+export const movesFor = challenge => CHALLENGES[challenge]?.moves ?? CHALLENGE_MOVES;
+
+/** One useful tip after each run, in turn (Professor Paws' school tone; no pressure, no selling). */
+export const CHALLENGE_TIPS = {
+  'high-score': [
+    'Matches near the bottom of the board set off more cascades: new pieces fall through the gaps above.',
+    'Line up 4 for a Zoomie or 5 for a Bubble Blaster: one special piece is worth many plain matches.',
+    'Look for a swap that makes two matches at once. The second match is free points.',
+    'Crates break when you match next to them, and the pieces that fall in can start a chain.',
+  ],
+  combo: [
+    'Only the chain reactions count here: plan a match that leaves matching pieces lined up above it.',
+    'Clearing low on the board drops more pieces, and falling pieces are what make cascades.',
+    'A Zoomie across a full row empties a lot of space at once; what falls in often chains.',
+    'Watch which colours sit above your match: three of a kind stacked up will fall into a line.',
+  ],
+  cleanup: [
+    'Muddy paw prints wipe when you match on them; a dark print needs two matches.',
+    'Tangled pieces can\'t move. Match two others next to a knot to untie it.',
+    'Every move left when the board is clean adds a bonus, so clean fast rather than chasing points.',
+    'Corner prints are the slow ones: start there while the middle still has plenty of swaps.',
+  ],
+};
+export const tipFor = (challenge, runNumber = 1) => {
+  const tips = CHALLENGE_TIPS[challenge] ?? CHALLENGE_TIPS['high-score'];
+  return tips[(Math.max(1, runNumber) - 1) % tips.length];
+};
 
 /** A run made of the first legal swap each turn (for tests and examples; it plays badly on purpose). */
 export function sampleRun(week, challenge = 'high-score') {
