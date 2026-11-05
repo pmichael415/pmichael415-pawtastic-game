@@ -8,14 +8,19 @@
 //   MOCK_HUB_ORIGINS=http://127.0.0.1:5173 acts like the server with docs/graduation-hub/ applied: that address
 //   (the PAWtastic Games hub) may call the game API from the browser, and its buyers return to its /graduation.
 //   Test helpers: GET /mock/state, POST /mock/refund { email, product }.
+//   The server's clock: MOCK_NOW=<ISO time> starts it there (it then runs on), POST /mock/clock { now: <ISO> | null } moves it
+//   (null: the real time). Seasons (Season 1: Top Dog) follow the engine's SEASONS, as the real server does.
 
-import { weekKey, weekEndsAt, replayChallenge, rulesFor, isWeekKey, isChallengeId, combinedTotal, tierOf, CHALLENGES, CHALLENGE_IDS, nextWeek } from '../src/engine/challenge.js';
+import { weekKey, weekEndsAt, replayChallenge, rulesFor, isWeekKey, isChallengeId, combinedTotal, tierOf, CHALLENGES, CHALLENGE_IDS, nextWeek, SEASONS, seasonFor, chapterOf, seasonEndsAt, playEndsAt } from '../src/engine/challenge.js';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { join, normalize, extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 const [dir = 'dist', port = '8790'] = process.argv.slice(2);
+// The mock server's clock (tokens, weeks, seasons and scores all use it).
+let clockOffset = process.env.MOCK_NOW ? Date.parse(process.env.MOCK_NOW) - Date.now() : 0;
+const now = () => Date.now() + clockOffset;
 const PAYMENTS = process.env.MOCK_PAYMENTS !== '0';
 const LOSE = process.env.MOCK_LOSE_PAYMENTS === '1';
 const CODE = '123456';
@@ -41,7 +46,7 @@ const players = new Map(); // userId → { dogName, location, stars, levels, bes
 const weekly = []; // { week, userId, location, score, moves, at, bests? }
 // The three-challenge format (game_challenge_rules): the Monday it starts, or null. MOCK_FORMAT_FROM=<Monday> presets it;
 // MOCK_FORMAT_FROM=now starts it this week (for screenshots of a version-2 week).
-let formatFrom = process.env.MOCK_FORMAT_FROM === 'now' ? weekKey(Date.now()) : (isWeekKey(process.env.MOCK_FORMAT_FROM ?? '') ? process.env.MOCK_FORMAT_FROM : null);
+let formatFrom = process.env.MOCK_FORMAT_FROM === 'now' ? weekKey(now()) : (isWeekKey(process.env.MOCK_FORMAT_FROM ?? '') ? process.env.MOCK_FORMAT_FROM : null);
 const rulesOut = week => { const r = rulesFor(week, formatFrom); return { version: r.version, challenges: r.challenges, from: r.from, formats: CHALLENGE_IDS.map(id => ({ id, name: CHALLENGES[id].name, short: CHALLENGES[id].short, goal: CHALLENGES[id].goal, scoring: CHALLENGES[id].scoring, moves: CHALLENGES[id].moves, tiers: CHALLENGES[id].tiers })) }; };
 const results = []; // game_weekly_results: { week, userId, challenge, location, score, raw, moves, at }
 const prizes = []; // { id, week, location, rank, userId, dogName, email, score, reward, code, status, expiresAt }
@@ -59,11 +64,51 @@ function awardWeek(week) {
       if (prizes.some(p => p.week === week && p.location === location && p.rank === i + 1)) return;
       const user = [...db.users.values()].find(u => u.id === w.userId);
       prizes.push({ id: randomUUID(), week, location, rank: i + 1, userId: w.userId, dogName: players.get(w.userId)?.dogName ?? 'PAWtastic Pup', email: user?.email ?? '',
-        score: w.score, reward: lineup[i].reward, label: lineup[i].reward === 'custom' ? lineup[i].label : null, code: Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * 32)]).join(''), status: 'won', expiresAt: new Date(Date.now() + 30 * 86400000).toISOString() });
+        score: w.score, reward: lineup[i].reward, label: lineup[i].reward === 'custom' ? lineup[i].label : null, code: Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * 32)]).join(''), status: 'won', expiresAt: new Date(now() + 30 * 86400000).toISOString() });
     });
   }
 }
-const prizeOut = p => ({ id: p.id, week: p.week, location: p.location, rank: p.rank, reward: p.reward, label: p.label ?? null, code: p.code, status: p.status, expiresAt: p.expiresAt, score: p.score });
+const prizeSeason = week => SEASONS.find(s => s.weeks[0] === week) ?? null;
+const prizeOut = p => ({ id: p.id, week: p.week, location: p.location, rank: p.rank, reward: p.reward, label: p.label ?? null, code: p.code, status: p.status, expiresAt: p.expiresAt, score: p.score, season: prizeSeason(p.week)?.name ?? null });
+// Seasons, as the real server does them: chapter scores added up (hidden players out), the location of the first run in
+// the season, ties to whoever reached their latest counted score first, the team bar (average of each location's top 10),
+// and one close at the season end (+5 minutes): the top 3 per location win the lineup of the season's first week.
+const GRACE_MS = 5 * 60000;
+const seasonInfo = (season, week) => ({ id: season.id, name: season.name, chapter: chapterOf(week) ?? season.weeks.length, chapters: season.weeks.length, endsAt: new Date(seasonEndsAt(season)).toISOString(), ended: now() > seasonEndsAt(season) });
+function seasonStandings(season, { withHidden = false } = {}) {
+  const by = new Map();
+  for (const w of weekly.filter(x => season.weeks.includes(x.week)).sort((a, b) => a.week.localeCompare(b.week))) {
+    const p = by.get(w.userId);
+    if (!p) by.set(w.userId, { userId: w.userId, location: w.location, score: w.score, at: w.at, chapters: 1 });
+    else { p.score += w.score; p.chapters += 1; p.at = Math.max(p.at, w.at); }
+  }
+  const all = [...by.values()].sort((a, b) => b.score - a.score || a.at - b.at);
+  const rows = withHidden ? all : all.filter(r => !players.get(r.userId)?.hidden);
+  const shownRows = all.filter(r => !players.get(r.userId)?.hidden);
+  const teams = Object.fromEntries(['hawthorne', 'hillsdale'].map(l => {
+    const team = shownRows.filter(r => r.location === l); const top = team.slice(0, 10);
+    return [l, { average: top.length ? Math.round(top.reduce((t, r) => t + r.score, 0) / top.length) : 0, players: team.length, counted: top.length }];
+  }));
+  return { rows, teams };
+}
+const closedSeasons = new Set();
+function closeSeasons() {
+  for (const season of SEASONS) {
+    if (now() < seasonEndsAt(season) + GRACE_MS || closedSeasons.has(season.id)) continue;
+    closedSeasons.add(season.id);
+    const key = season.weeks[0];
+    const lineup = prizesFor(key);
+    const { rows } = seasonStandings(season);
+    for (const location of ['hawthorne', 'hillsdale']) {
+      rows.filter(r => r.location === location).slice(0, 3).forEach((r, i) => {
+        if (prizes.some(p => p.week === key && p.location === location && p.rank === i + 1)) return;
+        const user = [...db.users.values()].find(u => u.id === r.userId);
+        prizes.push({ id: randomUUID(), week: key, location, rank: i + 1, userId: r.userId, dogName: players.get(r.userId)?.dogName ?? 'PAWtastic Pup', email: user?.email ?? '',
+          score: r.score, reward: lineup[i].reward, label: lineup[i].reward === 'custom' ? lineup[i].label : null, code: Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * 32)]).join(''), status: 'won', expiresAt: new Date(seasonEndsAt(season) + 30 * 86400000).toISOString() });
+      });
+    }
+  }
+}
 
 // Home Screen app sign-in codes (src/lib/game/signin.server.ts in the Lovable project).
 const appCodes = [];
@@ -80,7 +125,7 @@ function userFor(email) {
   return db.users.get(key);
 }
 function issue(user) {
-  const exp = Math.floor(Date.now() / 1000) + 3600;
+  const exp = Math.floor(now() / 1000) + 3600;
   const access = `${b64({ alg: 'none' })}.${b64({ sub: user.id, email: user.email, exp })}.mock`;
   const refresh = randomUUID();
   db.tokens.set(access, user); db.refresh.set(refresh, user);
@@ -106,7 +151,7 @@ const passOf = user => {
   return { active, renewsOn: s ? s.periodEnd : null, autoRenew: !!s && !s.cancelAtPeriodEnd };
 };
 function record(session) {
-  const p = { id: randomUUID(), userId: session.userId, product: session.product, cents: CATALOG[session.product].cents, status: 'paid', claimed: false, refundAcked: false, at: Date.now() };
+  const p = { id: randomUUID(), userId: session.userId, product: session.product, cents: CATALOG[session.product].cents, status: 'paid', claimed: false, refundAcked: false, at: now() };
   db.purchases.push(p);
   if (session.product === 'pass') db.subs.set(session.userId, { status: 'active', periodEnd: addDays(today(), 30), cancelAtPeriodEnd: false });
 }
@@ -198,12 +243,12 @@ createServer(async (req, res) => {
     if (path === '/api/public/game/report' && req.method === 'POST') {
       const user = authed(req);
       const key = user?.id ?? req.socket.remoteAddress;
-      const recent = (reportsBy.get(key) ?? []).filter(t => Date.now() - t < 3600000);
+      const recent = (reportsBy.get(key) ?? []).filter(t => now() - t < 3600000);
       if (recent.length >= 5) return send(res, 429, { error: 'rate-limited' });
-      reportsBy.set(key, [...recent, Date.now()]);
+      reportsBy.set(key, [...recent, now()]);
       const b = await bodyOf(req);
       if (!['problem', 'refund', 'not-delivered'].includes(b.kind) || typeof b.message !== 'string' || !b.message) return send(res, 400, { error: 'invalid' });
-      db.reports.push({ ...b, user: user?.email ?? null, at: Date.now() });
+      db.reports.push({ ...b, user: user?.email ?? null, at: now() });
       return send(res, 200, { ok: true });
     }
 
@@ -215,24 +260,41 @@ createServer(async (req, res) => {
     }
 
     if (path === '/api/public/game/challenge' && req.method === 'GET') {
-      const week = weekKey(Date.now());
+      const week = weekKey(now());
+      const season = seasonFor(week);
+      if (season) {
+        const lineup = shown(prizesFor(season.weeks[0]));
+        return send(res, 200, { week, endsAt: new Date(playEndsAt(week)).toISOString(), moves: 25, prizes: lineup, next: null, rules: { ...rulesOut(week), version: 1, challenges: ['high-score'], from: null }, season: { ...seasonInfo(season, week), prizes: lineup } });
+      }
       const next = weekKey(weekEndsAt(week) + 3600000);
       const upcoming = approvedLineup(next);
-      return send(res, 200, { week, endsAt: new Date(weekEndsAt(week)).toISOString(), moves: 25, prizes: shown(prizesFor(week)), next: upcoming ? { week: next, prizes: shown(upcoming) } : null, rules: rulesOut(week) });
+      return send(res, 200, { week, endsAt: new Date(weekEndsAt(week)).toISOString(), moves: 25, prizes: shown(prizesFor(week)), next: upcoming ? { week: next, prizes: shown(upcoming) } : null, rules: rulesOut(week), season: null });
     }
     if (path === '/api/public/game/leaderboard') {
       const user = authed(req);
-      const board = url.searchParams.get('board') === 'alltime' ? 'alltime' : 'weekly';
+      const board = url.searchParams.get('board') === 'alltime' ? 'alltime' : url.searchParams.get('board') === 'season' ? 'season' : 'weekly';
       const loc = url.searchParams.get('location');
       const location = ['hawthorne', 'hillsdale'].includes(loc) ? loc : 'all';
+      closeSeasons();
+      if (board === 'season') {
+        const week = weekKey(now());
+        const season = seasonFor(week) ?? [...SEASONS].reverse().find(s => s.weeks[0] <= week) ?? null;
+        if (!season) return send(res, 200, { board, location, week, season: null, entries: [], me: null, teams: { hawthorne: { average: 0, players: 0, counted: 0 }, hillsdale: { average: 0, players: 0, counted: 0 } } });
+        const { rows, teams } = seasonStandings(season);
+        const shownRows = location === 'all' ? rows : rows.filter(r => r.location === location);
+        const entries = shownRows.map((r, i) => ({ rank: i + 1, dogName: players.get(r.userId)?.dogName ?? 'PAWtastic Pup', location: r.location, score: r.score, chapters: r.chapters, me: !!user && r.userId === user.id }));
+        const me = entries.find(e => e.me);
+        return send(res, 200, { board, location, week, season: seasonInfo(season, week), entries: entries.slice(0, 50), me: me ? { rank: me.rank, score: me.score, chapters: me.chapters } : null, teams });
+      }
       if (board === 'weekly') {
-        const rows = rankWeek(weekKey(Date.now()));
+        const rows = rankWeek(weekKey(now()));
         const shown = location === 'all' ? rows : rows.filter(r => r.location === location);
         const entries = shown.map((r, i) => ({ rank: i + 1, dogName: players.get(r.userId)?.dogName ?? 'PAWtastic Pup', location: r.location, score: r.score, me: !!user && r.userId === user.id }));
         const me = entries.find(e => e.me);
         const teams = Object.fromEntries(['hawthorne', 'hillsdale'].map(l => [l, { total: rows.filter(r => r.location === l).reduce((t, r) => t + r.score, 0), players: rows.filter(r => r.location === l).length }]));
-        const mine = me && weekly.find(w => w.week === weekKey(Date.now()) && w.userId === user.id);
-        return send(res, 200, { board, location, entries: entries.slice(0, 50), me: me ? { rank: me.rank, score: me.score, ...(mine?.bests ? { bests: mine.bests } : {}) } : null, teams, rules: rulesOut(weekKey(Date.now())) });
+        const mine = me && weekly.find(w => w.week === weekKey(now()) && w.userId === user.id);
+        const wk = weekKey(now());
+        return send(res, 200, { board, location, week: wk, endsAt: new Date(playEndsAt(wk)).toISOString(), entries: entries.slice(0, 50), me: me ? { rank: me.rank, score: me.score, ...(mine?.bests ? { bests: mine.bests } : {}) } : null, teams, rules: seasonFor(wk) ? { version: 1, challenges: ['high-score'], from: null } : rulesOut(wk) });
       }
       const all = [...players.entries()].filter(([, p]) => !p.hidden).sort((a, b) => b[1].stars - a[1].stars || b[1].bestTotal - a[1].bestTotal);
       const shown = location === 'all' ? all : all.filter(([, p]) => p.location === location);
@@ -245,7 +307,7 @@ createServer(async (req, res) => {
     if (path === '/api/public/game/signin-code/claim' && req.method === 'POST') {
       const b = await bodyOf(req);
       const email = String(b.email ?? '').trim().toLowerCase();
-      const active = appCodes.filter(c => c.email === email && !c.used && c.expires > Date.now());
+      const active = appCodes.filter(c => c.email === email && !c.used && c.expires > now());
       if (!active.length || !/^\d{6}$/.test(String(b.code ?? ''))) return send(res, 400, { error: 'wrong-code' });
       if (active.some(c => c.failed >= 5)) return send(res, 429, { error: 'rate-limited' });
       const hit = active.find(c => c.code === b.code);
@@ -266,38 +328,49 @@ createServer(async (req, res) => {
       }
       if (path === '/api/public/game/challenge' && req.method === 'POST') {
         const b = await bodyOf(req);
-        if (b.week !== weekKey(Date.now())) return send(res, 400, { error: 'week-over' });
+        if (b.week !== weekKey(now())) return send(res, 400, { error: 'week-over' });
+        const season = seasonFor(b.week);
+        if (season && now() >= seasonEndsAt(season) + GRACE_MS) return send(res, 400, { error: 'week-over' }); // the last chapter ends Saturday
         const challenge = b.challenge ?? 'high-score';
         if (!isChallengeId(challenge)) return send(res, 400, { error: 'bad-run' });
-        const rules = rulesFor(b.week, formatFrom);
+        const rules = season ? rulesFor(b.week, null) : rulesFor(b.week, formatFrom); // every chapter plays the High score run
         if (!rules.challenges.includes(challenge)) return send(res, 400, { error: 'not-this-week' });
         const replay = replayChallenge(b.week, b.moves, challenge);
         if (!replay.ok) return send(res, 400, { error: 'bad-run' });
         const p = players.get(user.id);
         if (!p?.location) return send(res, 400, { error: 'no-home' });
         let row = weekly.find(w => w.week === b.week && w.userId === user.id);
-        const location = row?.location ?? p.location;
+        // In a season the team is fixed by the player's first run in the season.
+        const first = season ? weekly.filter(w => w.userId === user.id && season.weeks.includes(w.week)).sort((a, c) => a.week.localeCompare(c.week))[0] : null;
+        const location = first?.location ?? row?.location ?? p.location;
         let best = replay.score, total = replay.score, bests = { [challenge]: replay.score };
         if (rules.version === 1) {
-          if (!row) { row = { week: b.week, userId: user.id, location, score: replay.score, moves: b.moves, at: Date.now() }; weekly.push(row); }
-          else if (replay.score > row.score) Object.assign(row, { score: replay.score, moves: b.moves, at: Date.now() });
+          if (!row) { row = { week: b.week, userId: user.id, location, score: replay.score, moves: b.moves, at: now() }; weekly.push(row); }
+          else if (replay.score > row.score) Object.assign(row, { score: replay.score, moves: b.moves, at: now() });
           best = row.score; total = row.score;
         } else {
           let mine = results.find(r => r.week === b.week && r.userId === user.id && r.challenge === challenge);
-          if (!mine) { mine = { week: b.week, userId: user.id, challenge, location, score: replay.score, raw: replay.raw, moves: b.moves, at: Date.now() }; results.push(mine); }
-          else if (replay.score > mine.score) Object.assign(mine, { score: replay.score, raw: replay.raw, moves: b.moves, at: Date.now() });
+          if (!mine) { mine = { week: b.week, userId: user.id, challenge, location, score: replay.score, raw: replay.raw, moves: b.moves, at: now() }; results.push(mine); }
+          else if (replay.score > mine.score) Object.assign(mine, { score: replay.score, raw: replay.raw, moves: b.moves, at: now() });
           best = mine.score;
           bests = Object.fromEntries(results.filter(r => r.week === b.week && r.userId === user.id).map(r => [r.challenge, r.score]));
           total = combinedTotal(bests);
-          if (!row) { row = { week: b.week, userId: user.id, location, score: total, moves: { version: 2, bests }, at: Date.now(), bests }; weekly.push(row); }
-          else if (total > row.score) Object.assign(row, { score: total, moves: { version: 2, bests }, at: Date.now(), bests });
+          if (!row) { row = { week: b.week, userId: user.id, location, score: total, moves: { version: 2, bests }, at: now(), bests }; weekly.push(row); }
+          else if (total > row.score) Object.assign(row, { score: total, moves: { version: 2, bests }, at: now(), bests });
           else row.bests = bests;
           total = row.score;
         }
         const team = rankWeek(b.week).filter(w => w.location === row.location);
-        return send(res, 200, { score: replay.score, raw: replay.raw ?? replay.score, tier: tierOf(challenge, replay.score), challenge, version: rules.version, best, total, bests, rank: team.findIndex(w => w.userId === user.id) + 1, players: team.length, location: row.location, week: b.week });
+        let standing = null;
+        if (season) {
+          const home = seasonStandings(season).rows.filter(r => r.location === row.location);
+          const at = home.findIndex(r => r.userId === user.id);
+          standing = { id: season.id, name: season.name, chapter: chapterOf(b.week), chapters: season.weeks.length, score: home[at]?.score ?? 0, rank: at + 1, players: home.length };
+        }
+        return send(res, 200, { score: replay.score, raw: replay.raw ?? replay.score, tier: tierOf(challenge, replay.score), challenge, version: rules.version, best, total, bests, rank: team.findIndex(w => w.userId === user.id) + 1, players: team.length, location: row.location, week: b.week, ...(standing ? { season: standing } : {}) });
       }
       if (path === '/api/public/game/prizes' && req.method === 'GET') {
+        closeSeasons();
         return send(res, 200, { prizes: prizes.filter(p => p.userId === user.id).reverse().map(prizeOut) });
       }
       // Owner report (server: measure.server.ts → game_owner_report). MOCK_REPORT=0 plays a server whose
@@ -307,7 +380,7 @@ createServer(async (req, res) => {
         const days = [7, 30, 90].includes(Number(url.searchParams.get('days'))) ? Number(url.searchParams.get('days')) : 7;
         if (process.env.MOCK_REPORT === '0') return send(res, 200, { available: false, reason: 'not-ready', mode: 'test', days });
         const today = new Date().toISOString().slice(0, 10);
-        const since = new Date(Date.now() - (days - 1) * 86400000).toISOString().slice(0, 10);
+        const since = new Date(now() - (days - 1) * 86400000).toISOString().slice(0, 10);
         const byName = {};
         for (const e of events) { byName[e.name] ??= { count: 0, dev: new Set() }; byName[e.name].count += 1; byName[e.name].dev.add(e.device); }
         const paid = db.purchases.filter(p => p.status === 'paid' || p.status === 'refunded');
@@ -331,20 +404,23 @@ createServer(async (req, res) => {
         if (!STAFF.has(user.email)) return send(res, 403, { error: 'not-staff' });
         const staffOut = p => ({ ...prizeOut(p), dogName: p.dogName, email: p.email, redeemedAt: p.redeemedAt ?? null, redeemedBy: p.redeemedBy ?? null });
         if (req.method === 'GET') {
-          const week = weekKey(Date.now());
-          const rows = weekly.filter(w => w.week === week).sort((a, b) => b.score - a.score);
-          return send(res, 200, { prizes: [...prizes].reverse().map(staffOut), board: rows.map(r => ({ userId: r.userId, dogName: players.get(r.userId)?.dogName ?? '', location: r.location, score: r.score, hidden: !!players.get(r.userId)?.hidden })),
-            format: { from: formatFrom, thisWeek: week, earliest: nextWeek(week), version: rulesFor(week, formatFrom).version } });
+          closeSeasons();
+          const week = weekKey(now());
+          const season = seasonFor(week);
+          // During a season staff see the season standings (with hidden players), which decide the prizes.
+          const rows = season ? seasonStandings(season, { withHidden: true }).rows : weekly.filter(w => w.week === week).sort((a, b) => b.score - a.score);
+          return send(res, 200, { prizes: [...prizes].reverse().map(staffOut), week, season: season ? seasonInfo(season, week) : null, board: rows.map(r => ({ userId: r.userId, dogName: players.get(r.userId)?.dogName ?? '', location: r.location, score: r.score, hidden: !!players.get(r.userId)?.hidden })),
+            format: { from: formatFrom, thisWeek: week, earliest: nextWeek(week), version: season ? 1 : rulesFor(week, formatFrom).version } });
         }
         const b = await bodyOf(req);
         if (b.action === 'schedule-format') {
           if (!isWeekKey(b.fromWeek)) return send(res, 400, { error: 'invalid-request' });
-          if (b.fromWeek <= weekKey(Date.now())) return send(res, 400, { error: 'week-started' });
+          if (b.fromWeek <= weekKey(now())) return send(res, 400, { error: 'week-started' });
           formatFrom = b.fromWeek;
           return send(res, 200, { ok: true, from: formatFrom });
         }
         if (b.action === 'cancel-format') {
-          if (formatFrom && formatFrom <= weekKey(Date.now())) return send(res, 409, { error: 'week-started' });
+          if (formatFrom && formatFrom <= weekKey(now())) return send(res, 409, { error: 'week-started' });
           formatFrom = null;
           return send(res, 200, { ok: true, from: null });
         }
@@ -360,7 +436,7 @@ createServer(async (req, res) => {
       }
       if (path === '/api/public/game/signin-code' && req.method === 'POST') {
         const code = String(Math.floor(Math.random() * 1e6)).padStart(6, '0');
-        appCodes.push({ code, email: user.email, expires: Date.now() + 600000, used: false, failed: 0 });
+        appCodes.push({ code, email: user.email, expires: now() + 600000, used: false, failed: 0 });
         return send(res, 200, { code, minutes: 10 });
       }
       if (path === '/api/public/game/referral' && req.method === 'GET') {
@@ -458,15 +534,21 @@ createServer(async (req, res) => {
     // Sets a week's prize lineup (this week unless { next: true }), approved or still a draft.
     if (path === '/mock/week-prizes' && req.method === 'POST') {
       const b = await bodyOf(req);
-      const week = b.next ? weekKey(weekEndsAt(weekKey(Date.now())) + 3600000) : weekKey(Date.now());
+      const week = isWeekKey(b.week) ? b.week : b.next ? weekKey(weekEndsAt(weekKey(now())) + 3600000) : weekKey(now()); // or { week: '<Monday>' }
       weekLineups.set(week, { labels: b.labels, approved: !!b.approved });
       return send(res, 200, { week });
     }
-    if (path === '/mock/award-week' && req.method === 'POST') { awardWeek(weekKey(Date.now())); return send(res, 200, { prizes }); }
+    // Moves the server's clock: { now: '<ISO time>' } or { now: null } for the real time.
+    if (path === '/mock/clock' && req.method === 'POST') {
+      const b = await bodyOf(req);
+      clockOffset = b.now && !Number.isNaN(Date.parse(b.now)) ? Date.parse(b.now) - Date.now() : 0;
+      return send(res, 200, { now: new Date(now()).toISOString(), week: weekKey(now()) });
+    }
+    if (path === '/mock/award-week' && req.method === 'POST') { awardWeek(weekKey(now())); return send(res, 200, { prizes }); }
     // Switches the three-challenge format on from a week ({ from: 'now' | '<Monday>' | null }) for tests.
     if (path === '/mock/format' && req.method === 'POST') {
       const b = await bodyOf(req);
-      formatFrom = b.from === 'now' ? weekKey(Date.now()) : isWeekKey(b.from ?? '') ? b.from : null;
+      formatFrom = b.from === 'now' ? weekKey(now()) : isWeekKey(b.from ?? '') ? b.from : null;
       return send(res, 200, { from: formatFrom });
     }
     if (path === '/mock/state') return send(res, 200, { devices, events, players: Object.fromEntries(players), weekly, results, formatFrom, prizes, purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent, codes: Object.fromEntries(db.codes), referrals: db.referrals, appCodes });
