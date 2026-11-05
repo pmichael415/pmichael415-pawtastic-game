@@ -74,3 +74,11 @@ Decisions made on Phil's behalf during the milestone, with what each costs if it
   ways-to-grow card for those seconds. It already waits for a pup panel, the pickup sheet and the spot bar; making it
   wait for the ways-to-grow card too would hide payment feedback for the whole saving stretch (the card shows inline
   while Next is "grow"), so it stays — cost if wrong: a few seconds where a button is visible only under the card.
+- Ruling (gap B, found in a real browser by qa/e2e-storage.cjs): with `window.localStorage` itself throwing, the game's
+  own store already played from memory, but the app around it never rendered ("This page didn't load"): the auth
+  client's storage choice (`brokeredPreviewStorage`, src/integrations/supabase) and the cloud-save links read
+  (`getLinks`, src/game/cloud.ts) touched storage unguarded at the first render. Both now guard the access (the auth
+  client then keeps a login in memory; no cloud links on that device). No payment, purchase or delivery code changed;
+  behaviour with working storage is unchanged. The legacy `/daycare` store (src/game/store.ts) was not touched (the
+  brief keeps it as is) — cost if wrong: Lovable could regenerate previewAuthStorage.ts and drop the guard; the unit
+  test and qa/e2e-storage.cjs would catch it.

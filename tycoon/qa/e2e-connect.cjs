@@ -154,9 +154,18 @@ async function run(browser, device) {
     const g2 = await f();
     const room = g2.rooms.at(-1);
     check(`${device}: Build here builds one connected room for exactly the price shown`, g2.rooms.length === rooms0 + 1 && c1 - (await st()).coins === price && room.doors.length >= 1, `${price} charged ${c1 - (await st()).coins}`);
-    const ready = (await page.locator('ol[aria-label="Room readiness"]').first().innerText().catch(() => '')).replace(/\n+/g, ' · ');
-    check(`${device}: the new room's panel tells connected, furnished, staffed and operating apart`, /Connected/i.test(ready) && /urnish/i.test(ready) && /taff/i.test(ready) && /perat/i.test(ready), ready);
+    // right after building, Build leads to furnishing that very room
+    const furnish = mode().getByRole('button', { name: /^Choose furniture for the / });
+    check(`${device}: after building, Build leads straight to furnishing the new room`, (await furnish.count()) > 0, await furnish.first().innerText().catch(() => ''));
     await page.screenshot({ path: path.join(OUT, `${tag}-4-built.png`) });
+    // done building: the room's own panel (from the rooms strip) tells connected, furnished, staffed and operating apart
+    await btn('Done building').tap().catch(() => {});
+    await page.waitForTimeout(300);
+    await page.getByRole('region', { name: 'Rooms' }).getByRole('button').filter({ hasText: /Small & Active/ }).first().tap();
+    await page.waitForTimeout(300);
+    const ready = (await page.locator('ol[aria-label="Room readiness"]').first().innerText().catch(() => '')).replace(/\n+/g, ' · ');
+    check(`${device}: the new room's panel tells connected, furnished, staffed and operating apart`, /Connected/i.test(ready) && /urnish|Needs/i.test(ready) && /taff|Run by you/i.test(ready) && /perat|Not operating|serving/i.test(ready), ready);
+    await page.screenshot({ path: path.join(OUT, `${tag}-5-readiness.png`) });
     check(`${device}: no page errors`, errors.length === 0, errors.join(' | '));
   } catch (e) {
     check(`${device}: run finished`, false, String(e).split('\n')[0]);

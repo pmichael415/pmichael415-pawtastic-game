@@ -54,7 +54,15 @@ export function brokeredPreviewStorage(): PreviewAuthStorage | undefined {
   // detached frame has no parent and not every browser implements ancestorOrigins.
   const parentWindow = window.parent as Window | null;
   const framed = parentWindow !== null && parentWindow !== window;
-  if (!projectId || !framed) return localStorage;
+  if (!projectId || !framed) {
+    // Some private modes and blocked-site-data settings throw on merely getting localStorage. Then choose nothing:
+    // the auth client keeps the login in memory instead of failing the whole app's first render (audit gap B).
+    try {
+      return localStorage;
+    } catch {
+      return undefined;
+    }
+  }
 
   // Post only to the real editor ancestor, validated as a Lovable origin, so the
   // session token can never reach an untrusted embedder.

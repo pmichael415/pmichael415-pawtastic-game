@@ -51,7 +51,12 @@ let cachedRaw: string | null | undefined;
 let cachedLinks: Links | null = null;
 export function getLinks(): Links | null {
   if (typeof window === "undefined") return null;
-  const raw = localStorage.getItem(LINK_KEY);
+  let raw: string | null;
+  try {
+    raw = localStorage.getItem(LINK_KEY);
+  } catch {
+    raw = null; // storage blocked (even getting it can throw): no links on this device, never a failed page
+  }
   if (raw === cachedRaw) return cachedLinks;
   cachedRaw = raw;
   try {
