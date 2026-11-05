@@ -146,7 +146,16 @@ function cutsOff(before: Facility, after: Facility): string | null {
   return room ? `That would cut off the ${roomLabel(room)} with pups inside — move them out first, or add another way in.` : null;
 }
 const sameDoor = (a: Door, b: Door) => a.side === b.side && a.i === b.i;
-const refund = (spent: number) => Math.floor(SELL_RATE * spent);
+/**
+ * What selling gives back (milestone §4, "a free recovery path"): until the daycare first opens, changing your mind is
+ * free — everything sells back for what it cost, so a new daycare can always reach what it needs to open. After that,
+ * SELL_RATE of what was spent.
+ */
+export const saleRate = (f: Facility): number => (f.introDay == null && (f.stats.checkouts ?? 0) === 0 ? 1 : SELL_RATE);
+export const saleValue = (f: Facility, spent: number): number => Math.floor(saleRate(f) * spent);
+/** Said next to a sale before the first opening, so a full refund isn't a surprise (and its end isn't either). */
+export const saleNote = (f: Facility): string | null => (saleRate(f) === 1 ? `Everything back until you first open — after that, selling gives back ${Math.round(SELL_RATE * 100)}%.` : null);
+const refund = (f: Facility, spent: number) => saleValue(f, spent);
 
 export function drawRoom(s: TycoonState, c: number, r: number, w: number, d: number): TResult {
   const f = fac(s);
@@ -183,7 +192,7 @@ export function removeDoor(s: TycoonState, roomUid: string, door: Door): TResult
   const f = fac(s);
   const room = findRoom(f, roomUid);
   if (!room || !room.doors.some((d) => sameDoor(d, door))) return { ok: false, error: "There's no door there." };
-  const back = refund(DOOR_PRICE);
+  const back = refund(f, DOOR_PRICE);
   const next = { ...room, doors: room.doors.filter((d) => !sameDoor(d, door)), spent: Math.max(0, room.spent - DOOR_PRICE) };
   const after = updateRoom(s, next);
   const trapped = cutsOff(f, fac(after));
@@ -239,7 +248,7 @@ export function sellRoom(s: TycoonState, roomUid: string): TResult {
   if (!room) return { ok: false, error: "That room is gone." };
   if (dogsIn(f, roomUid)) return { ok: false, error: "Move the dogs out first." };
   const contents = f.items.filter((i) => i.room === roomUid);
-  const back = refund(room.spent + contents.reduce((a, i) => a + i.spent, 0));
+  const back = refund(f, room.spent + contents.reduce((a, i) => a + i.spent, 0));
   const next = {
     ...f,
     rooms: f.rooms.filter((x) => x.uid !== roomUid),
@@ -314,7 +323,7 @@ export function sellThing(s: TycoonState, uid: string): TResult {
   const thing = findThing(f, uid);
   if (!thing) return { ok: false, error: "That's gone." };
   if (inUse(f, thing)) return { ok: false, error: "Move the dogs out first." };
-  const back = refund(thing.spent);
+  const back = refund(f, thing.spent);
   const nf = { ...f, items: f.items.filter((i) => i.uid !== uid) };
   const trapped = thing.kind === "path" ? cutsOff(f, nf) : null;
   if (trapped) return { ok: false, error: trapped };

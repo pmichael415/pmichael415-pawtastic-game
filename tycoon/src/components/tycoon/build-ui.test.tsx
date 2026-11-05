@@ -20,7 +20,8 @@ vi.mock("@/components/tycoon/TycoonStage", async () => {
 
 import { TycoonPlay } from "./TycoonPlay";
 import { KEY, tycoonStore } from "@/tycoon/store";
-import { fac, newTycoon } from "@/tycoon/state";
+import { START_COINS } from "@/tycoon/catalog";
+import { fac, newTycoon, withFac } from "@/tycoon/state";
 import type { TycoonState } from "@/tycoon/types";
 
 const tap = (p: TPick) => act(() => emit(p));
@@ -67,7 +68,7 @@ describe("build mode", () => {
     expect(ghost().door).toBeTruthy();
     fireEvent.click(button(/^Build room/));
     expect(fac(now()).rooms).toHaveLength(1);
-    expect(now().coins).toBe(3000 - total);
+    expect(now().coins).toBe(START_COINS - total);
     expect(fac(now()).rooms[0]!.doors).toHaveLength(1);
     fireEvent.click(button("Lobby"));
     expect(fac(now()).rooms[0]!.type).toBe("lobby");
@@ -174,14 +175,31 @@ describe("build mode", () => {
     unmount();
   });
 
-  it("selling a room asks first and shows the refund", () => {
+  it("before the daycare first opens, selling gives everything back — and says so", () => {
     const { unmount } = start();
+    drawLobby();
+    fireEvent.click(button("Done building"));
+    tap({ kind: "room", uid: fac(now()).rooms[0]!.uid });
+    fireEvent.click(button("Sell"));
+    // all of what the room cost: its walls and floor (400) and its door (30); its path stays
+    expect(screen.getByText("Sell the Lobby and everything in it for 430 coins?")).toBeTruthy();
+    expect(screen.getByText(/Everything back until you first open — after that, selling gives back 75%/)).toBeTruthy();
+    const coins = now().coins;
+    fireEvent.click(button("Yes, sell"));
+    expect(now().coins).toBe(coins + 430);
+    unmount();
+  });
+
+  it("selling a room asks first and shows the refund (a daycare that has opened)", () => {
+    const s = newTycoon(Date.now());
+    const { unmount } = start(withFac(s, { ...fac(s), introDay: 0 }));
     drawLobby();
     fireEvent.click(button("Done building"));
     tap({ kind: "room", uid: fac(now()).rooms[0]!.uid });
     fireEvent.click(button("Sell"));
     // 75% back of what the room cost: its walls and floor (400) and its door (30); its path stays
     expect(screen.getByText("Sell the Lobby and everything in it for 322 coins?")).toBeTruthy();
+    expect(screen.queryByText(/Everything back until you first open/)).toBeNull();
     expect(fac(now()).rooms).toHaveLength(1);
     const coins = now().coins;
     fireEvent.click(button("Yes, sell"));

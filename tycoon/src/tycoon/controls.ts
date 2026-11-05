@@ -12,6 +12,8 @@ export type BeatCtx = {
   /** The decision pup's group (default Large & Active) and whether a playroom for it is ready now. */
   thirdGroup?: string;
   roomReady?: boolean;
+  /** Coins still needed for the decision pup's playroom, when it costs more than the player has. */
+  short?: number;
 };
 
 const tapDog = (c: Controls, name: string) =>
@@ -43,6 +45,11 @@ export function beatText(beat: TourBeat, c: Controls, x: BeatCtx): { title: stri
     case "decision": {
       const g = x.thirdGroup ?? "Large & Active";
       if (x.roomReady) return { title: `${x.third}'s room is ready`, action: `${tapDog(c, x.third)}, check him in, then “To ${g}”.` };
+      if (x.short && x.short > 0)
+        return {
+          title: "A real decision",
+          action: `${x.third} is ${g} — he can't share with your ${x.group} pups. A ${g} playroom needs ${x.short} more coins than you have, so let him rest in the calm room today (he goes home free) — what families pay you will get you there.`,
+        };
       return {
         title: "A real decision",
         action: `${x.third} is ${g} — he can't share with your ${x.group} pups. Build him a ${g} playroom, or let him rest in the calm room today (he goes home free).`,

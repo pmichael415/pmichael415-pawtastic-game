@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { weekKey } from "@/game/engine";
 import { closeDay, earn } from "./business";
+import { START_COINS } from "./catalog";
 import { fac, newTycoon, parseTycoon, withFac } from "./state";
 import { WEEKLY_GOALS, claimWeekly, goalFor, rollWeekly, weeklyStatus } from "./weekly";
 import type { Facility, TycoonState } from "./types";
@@ -67,7 +68,7 @@ describe("weekly challenge", () => {
     // a missed week costs nothing
     const missed = rollWeekly(withGoal(newTycoon(0), "serve"), W2);
     expect(missed.paid).toBe(0);
-    expect(missed.state.coins).toBe(3000);
+    expect(missed.state.coins).toBe(START_COINS);
   });
   it("a profit day counts closed days this week, building not counted against it", () => {
     let s = withGoal(setF(newTycoon(0), { open: true }), "profit_day");

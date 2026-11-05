@@ -62,7 +62,8 @@ const hubSave = () => parseSave(JSON.parse(localStorage.getItem("pawtastic-tycoo
 beforeEach(() => {
   localStorage.clear();
   tycoon.tycoonStore._reset(null);
-  localStorage.setItem(tycoon.KEY, JSON.stringify(newTycoon(Date.now())));
+  // a daycare with 3,000 coins (pinned: a new game's starting coins changed in the "feel like a tycoon" milestone)
+  localStorage.setItem(tycoon.KEY, JSON.stringify({ ...newTycoon(Date.now()), coins: 3000 }));
 });
 afterEach(() => vi.restoreAllMocks());
 

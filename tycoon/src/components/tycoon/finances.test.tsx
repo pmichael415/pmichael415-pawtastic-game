@@ -8,6 +8,7 @@ import { DayReport } from "./DayReport";
 import { MoneyBanner } from "./MoneyBanner";
 import { SignCard } from "./SignCard";
 import { KEY, tycoonStore, useTycoon } from "@/tycoon/store";
+import { START_COINS } from "@/tycoon/catalog";
 import { fac, newTycoon, withFac } from "@/tycoon/state";
 import { guidedBuild } from "@/tycoon/testkit";
 import { CUSTOMER_APP_URL, LOCATIONS, bookingUrl, directionsUrl } from "@/lib/locations";
@@ -90,7 +91,7 @@ describe("finances", () => {
     tab("Marketing");
     expect(screen.getByText("Unlocks at level 5")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /^Start Flyers/ }));
-    expect(now().coins).toBe(3000 - 150);
+    expect(now().coins).toBe(START_COINS - 150);
     expect(fac(now()).campaign?.id).toBe("flyers");
     expect(screen.getByText(/Flyers running/)).toBeTruthy();
     unmount();

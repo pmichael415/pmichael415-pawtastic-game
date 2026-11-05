@@ -42,6 +42,9 @@ export function ExpansionCard({ state, act, onSave, onBought, onChooseSpot }: { 
                     <div><dt className="inline font-semibold text-secondary">Upkeep: </dt><dd className="inline tabular-nums">{o.upkeep ? `+${coins(o.upkeep)} a day` : "—"}</dd></div>
                     <div><dt className="inline font-semibold text-secondary">Staffing: </dt><dd className="inline">{o.staffing}</dd></div>
                     <div><dt className="inline font-semibold text-secondary">Makes possible: </dt><dd className="inline">{o.unlocks}</dd></div>
+                    {o.estimate && (
+                      <div><dt className="inline font-semibold text-secondary">Estimate: </dt><dd className="inline">{o.estimate.text.replace(/^Estimate(, if today's demand holds)?: /, (m) => (m.includes("demand") ? "if today's demand holds — " : ""))}</dd></div>
+                    )}
                   </dl>
                   <div className="mt-auto pt-2">
                     {o.mode === "new" ? (

@@ -2,12 +2,14 @@
 // books. A brand-new save; the player taps Quick start and follows the guide; then plays by hand with each pup's
 // next-action button (the same rules staff use). The player's rules, stated so the result can be judged:
 //   • the guide: care for each pup, buy the Toy Bin it suggests, and let Rocket rest at home (free) at the decision;
-//   • keep the coins the guide left as a reserve, and expand only once **service operating profit** earned since then
-//     (revenue from families − wages, upkeep, supplies, refunds — including tonight's, not yet charged) covers it, while
-//     families are asking for a kind of pup the daycare can't take;
-//   • compare the playroom wing with the bath room by estimated payback and buy the better one;
-//   • staff it with the room's own one-tap plan only if its estimated takings cover the wage; then back to caring by hand.
-// Game rewards (level-ups, the guide, loyalty, trophies) are counted apart from serving families throughout.
+//   • no reserve policy: once the playroom wing and the bath station are offered, compare them on the game's own
+//     labelled estimates (what each would add a day from today's demand, after upkeep and supplies) and buy the one
+//     that pays back sooner as soon as the coins on hand cover it and still leave tonight's costs (the game warns
+//     otherwise);
+//   • staff it with the room's own one-tap plan only if its estimate covers the wage; then back to caring by hand.
+// Game rewards (level-ups, the guide, loyalty, trophies) are counted apart from serving families throughout. Since
+// the milestone "make PAWtastic feel like a daycare tycoon" (§4), the coins the guide leaves are less than a first
+// expansion costs, so the service profit earned after the guide visibly pays for part of it.
 import { describe, expect, it } from "vitest";
 import { groupOf, mulberry, seedFrom } from "@/game/engine";
 import type { GroupId } from "@/game/engine";
@@ -25,7 +27,6 @@ import { isFreshSave } from "./start";
 import { fac, newTycoon } from "./state";
 import { TOUR_DOGS, chooseUpgrade, startTour, syncTour } from "./tour";
 import { restAtHome } from "./tourActions";
-import { BATH_REQUEST_CHANCE } from "./visit";
 import type { DayLedger, TReport, TResult, TycoonState } from "./types";
 
 const T0 = Date.UTC(2026, 10, 4, 15);
@@ -50,9 +51,10 @@ const minus = (a: Books, b: Books): Books => ({ revenue: a.revenue - b.revenue, 
 
 type Paid = { day: number; min: number; dog: string; group: GroupId | null; room: string | null; total: number; lines: number; serviceDelta: number; reward: number; by: "you" | "staff" };
 type Night = TReport & { coinsBefore: number; coinsAfter: number };
-type Choice = { id: "playroom" | "bath"; cost: number; upkeep: number; perDay: number; payback: number; option: ExpansionOption };
+type Choice = { id: "playroom" | "bath"; cost: number; upkeep: number; perDay: number; payback: number; text: string; option: ExpansionOption };
 
-function play() {
+/** One player, ten days. With `expand: false`, the same player on the same seed never buys the expansion (a control). */
+function play(expand = true) {
   const rand = mulberry(seedFrom("real-new-game"));
   const fresh = newTycoon(T0);
   expect(isFreshSave(fresh)).toBe(true);
@@ -122,9 +124,9 @@ function play() {
   const saving: { day: number; saving: ReturnType<typeof savingFor>; coins: number }[] = [];
 
   // ---- free play ----
-  let bought: { day: number; min: number; uid: string; group: GroupId | null; choice: Choice; other: Choice; shownCost: number; investedDelta: number; at: Books & { coins: number; dueTonight: number; opProfit: number }; savingBefore: ReturnType<typeof savingFor>; hired: boolean; signOn: number; estimate: number } | null = null;
-  const asked: Record<string, number> = {};
-  let checkInsBefore = 0;
+  let bought: { day: number; min: number; uid: string; group: GroupId | null; askedToday: number; choice: Choice; other: Choice | null; shownCost: number; investedDelta: number; at: Books & { coins: number; dueTonight: number; serviceProfit: number }; savingBefore: ReturnType<typeof savingFor>; hired: { day: number; min: number; signOn: number } | null; estimate: number } | null = null;
+  /** The first moment both options were offered, and what they said. */
+  let firstOffer: { day: number; min: number; coins: number; choices: Choice[] } | null = null;
   // day 1 began with the fresh save (Quick start and the guide happened on it), so its books start from there
   let coinsAtDayStart = fresh.coins;
   const staffCheckouts0 = () => fac(s).outcomes.length;
@@ -138,34 +140,35 @@ function play() {
       const r = fac(s).report!;
       nights.push({ ...r, coinsBefore: coinsAtDayStart, coinsAfter: s.coins });
       if (bought) saving.push({ day: r.day, saving: savingFor(s), coins: s.coins });
-      for (const a of fac(s).ledger.filter((l) => l.day === day)) if (!bought) checkInsBefore += a.checkIns;
       coinsAtDayStart = s.coins;
       continue;
     }
-    for (const a of askedToday(fac(s))) asked[`${day}:${a.group}`] = a.n;
     care(!!bought);
 
+    // ---- staff the new room once the sign-on is affordable (still leaving tonight's costs) and its estimate covers the wage ----
+    if (bought && !bought.hired) {
+      const g = fac(s);
+      const plan = staffPlanFor(g, g.rooms.find((r) => r.uid === bought!.uid)!);
+      if (plan.kind === "hire" && bought.estimate > plan.wage && s.coins - plan.cost >= todayMoney(s).dueTonight) {
+        const w0 = books(s).operating;
+        if (tap((x) => applyStaffPlan(x, plan))) bought.hired = { day: fac(s).day, min: fac(s).clockMin, signOn: books(s).operating - w0 };
+      }
+    }
+
     // ---- reinvest ----
-    if (!bought && level(s) >= EXPANSION_LEVEL) {
-      const want = askedToday(fac(s))[0];
+    if (expand && !bought && level(s) >= EXPANSION_LEVEL) {
       const since = minus(books(s), reserve.books);
       const due = todayMoney(s).dueTonight;
-      const opProfit = since.revenue - since.operating - due;
       const opts = expansionOptions(s);
-      const wing = opts.find((o) => o.id === "playroom" && o.mode === "new");
-      const tubs = opts.find((o) => o.id === "bath" && o.mode === "new");
-      if (want && want.n >= 2 && wing && tubs) {
-        const f = fac(s);
-        const closed = nights.length;
-        // the families turned away per day for the most-asked kind of pup, and check-ins per day so far
-        const turned = Object.entries(asked).filter(([k]) => k.endsWith(`:${want.group}`)).reduce((a, [, n]) => a + n, 0) / Math.max(1, closed + 1);
-        const checkInsPerDay = checkInsBefore / Math.max(1, closed);
-        const estimate = (o: ExpansionOption, perDay: number): Choice => ({ id: o.id as "playroom" | "bath", cost: o.cost, upkeep: o.upkeep, perDay, payback: o.cost / Math.max(1, perDay - o.upkeep), option: o });
-        const room = estimate(wing, Math.min(3, turned) * f.prices.daycare);
-        const baths = estimate(tubs, checkInsPerDay * BATH_REQUEST_CHANCE * f.prices.bath);
-        const [choice, other] = room.payback <= baths.payback ? [room, baths] : [baths, room];
-        if (opProfit >= choice.cost) {
+      const offered = (["playroom", "bath"] as const).map((id) => opts.find((o) => o.id === id && o.mode === "new" && o.estimate)).filter((o): o is ExpansionOption => !!o);
+      // the game's own estimates (after upkeep and supplies); only an option that would add something is worth buying
+      const choices = offered.map((o): Choice => ({ id: o.id as "playroom" | "bath", cost: o.cost, upkeep: o.upkeep, perDay: o.estimate!.perDay, payback: o.estimate!.perDay > 0 ? o.cost / o.estimate!.perDay : Infinity, text: o.estimate!.text, option: o }));
+      if (!firstOffer && offered.length === 2) firstOffer = { day: fac(s).day, min: fac(s).clockMin, coins: s.coins, choices };
+      const [choice, other = null] = [...choices].filter((c) => c.perDay > 0).sort((a, b) => a.payback - b.payback);
+      if (choice) {
+        if (s.coins - choice.cost >= due) {
           const savingBefore = savingFor(s);
+          const askedBefore = askedToday(fac(s));
           const spent0 = books(s).invested;
           const coins0 = s.coins;
           const r = buyExpansion(s, choice.id);
@@ -173,27 +176,19 @@ function play() {
             s = sync(r.state);
             const g = fac(s);
             const newRoom = g.rooms.at(-1)!;
-            // staff it if what it should take in covers the wage; otherwise you look after it yourself
-            const plan = staffPlanFor(g, newRoom);
-            const wage = WAGES[g.wage];
-            let hired = false;
-            let signOn = 0;
-            if (plan.kind === "hire" && choice.perDay - choice.upkeep > wage) {
-              const w0 = books(s).operating;
-              hired = tap((x) => applyStaffPlan(x, plan));
-              signOn = books(s).operating - w0;
-            }
-            bought = { day: g.day, min: g.clockMin, uid: newRoom.uid, group: newRoom.group, choice, other, shownCost: choice.cost, investedDelta: books(s).invested - spent0, at: { ...since, coins: coins0, dueTonight: due, opProfit }, savingBefore, hired, signOn, estimate: choice.perDay };
+            const askedNow = askedBefore.find((a) => a.group === newRoom.group)?.n ?? 0;
+            bought = { day: g.day, min: g.clockMin, uid: newRoom.uid, group: newRoom.group, askedToday: askedNow, choice, other, shownCost: choice.cost, investedDelta: books(s).invested - spent0, at: { ...since, coins: coins0, dueTonight: due, serviceProfit: since.revenue - since.operating }, savingBefore, hired: null, estimate: choice.perDay };
           }
         }
       }
     }
   }
-  return { s, afterQuick, reserve, paid, nights, bought, mine, saving };
+  return { s, afterQuick, reserve, paid, nights, bought, mine, saving, firstOffer };
 }
 
 describe("from a real new game: earn → cover costs → reinvest → serve more → save for the next (audit finding 7)", () => {
   const run = play();
+  const control = play(false);
   const b = run.bought!;
 
   it("prints the story", () => {
@@ -203,6 +198,7 @@ describe("from a real new game: earn → cover costs → reinvest → serve more
     console.log("expansion:", JSON.stringify({ ...b, choice: { ...b.choice, option: undefined }, other: { ...b.other, option: undefined } }));
     console.log("hands-on:", JSON.stringify(run.mine), "payments", run.paid.length, "by you", run.paid.filter((p) => p.by === "you").length);
     console.log("saving toward:", JSON.stringify(run.saving));
+    console.log("first offer:", JSON.stringify(run.firstOffer && { ...run.firstOffer, choices: run.firstOffer.choices.map((c) => ({ ...c, option: undefined })) }));
     expect(run.nights.length).toBe(DAYS);
   });
 
@@ -234,26 +230,39 @@ describe("from a real new game: earn → cover costs → reinvest → serve more
 
   it("4. a real limit: families asked for a kind of pup with no room here, and nobody of that kind could stay; no baths without a bath room", () => {
     const before = run.paid.filter((p) => p.day < b.day || (p.day === b.day && p.min < b.min));
-    expect(before.length).toBeGreaterThan(10);
+    expect(before.length).toBeGreaterThanOrEqual(5);
     expect(before.filter((p) => p.group === b.group)).toHaveLength(0);
+    expect(b.askedToday).toBeGreaterThanOrEqual(2); // turned away today for want of a room
     expect(fac(run.s).ledger.reduce((a, d) => a + d.income.baths, 0)).toBe(0); // the daycare never had a bath room
   });
 
-  it("5. playroom wing vs bath room, compared on the game's own numbers; the shorter payback was bought", () => {
+  it("5. playroom wing vs bath station, compared on the game's own labelled estimates; the one that pays back sooner was bought", () => {
+    expect(run.firstOffer).not.toBeNull();
     expect(b.choice.id).toBe("playroom");
-    expect(b.other.id).toBe("bath");
-    expect(b.choice.payback).toBeLessThan(b.other.payback);
-    expect(b.choice.option.capacity).toBeTruthy();
-    expect(b.other.option.capacity).toBeTruthy();
-    expect(b.choice.option.staffing).toBeTruthy();
+    expect(b.other?.id).toBe("bath");
+    expect(b.choice.payback).toBeLessThan(b.other!.payback);
+    for (const c of [b.choice, b.other!]) {
+      expect(c.text).toMatch(/^Estimate/);
+      expect(c.text).toMatch(/upkeep/);
+      expect(c.option.capacity).toBeTruthy();
+      expect(c.option.staffing).toBeTruthy();
+    }
+    // neither is always the obvious choice: when the options first appeared, the bath station estimated nothing
+    // (no bath asks yet) and the wing little (one family turned away) — it took the day's demand to decide
+    expect(run.firstOffer!.choices.find((c) => c.id === "playroom")!.perDay).toBeLessThan(b.choice.perDay);
   });
 
-  it("6. reinvested from earnings: service operating profit since the reserve (after tonight's costs) covered it; bonuses shown apart", () => {
-    expect(b.at.opProfit).toBe(b.at.revenue - b.at.operating - b.at.dueTonight);
-    expect(b.at.opProfit).toBeGreaterThanOrEqual(b.choice.cost);
+  it("6. paid for from earnings: the guide's coins couldn't cover it, and the service profit earned since made up the difference", () => {
+    expect(run.reserve.coins).toBeLessThan(b.choice.cost);
+    expect(b.at.serviceProfit).toBe(b.at.revenue - b.at.operating);
+    expect(b.at.serviceProfit).toBeGreaterThan(0);
+    // without what families paid (after running costs) since the guide, it was out of reach
+    expect(b.at.coins - b.at.serviceProfit).toBeLessThan(b.choice.cost);
     // every coin at that moment is accounted for: reserve + revenue − operating costs + bonuses + sales − invested
     expect(b.at.coins).toBe(run.reserve.coins + b.at.revenue - b.at.operating + b.at.bonuses + b.at.sales - b.at.invested);
-    expect(b.at.bonuses).toBeGreaterThan(0); // they exist, and the decision didn't lean on them
+    // bought only with tonight's costs still covered (the game's own warning)
+    expect(b.at.coins - b.choice.cost).toBeGreaterThanOrEqual(b.at.dueTonight);
+    console.log(`the first expansion: ${b.choice.cost} coins on day ${b.day} at ${Math.floor(b.min / 60)}:${String(b.min % 60).padStart(2, "0")} — the guide left ${run.reserve.coins}; since then families paid ${b.at.revenue} and running costs charged ${b.at.operating} (service profit ${b.at.serviceProfit}), game rewards ${b.at.bonuses}; ${b.at.coins} on hand, ${b.at.dueTonight} due tonight`);
   });
 
   it("7. bought, connected, furnished and staffed: the wing works, for exactly the price shown", () => {
@@ -265,8 +274,8 @@ describe("from a real new game: earn → cover costs → reinvest → serve more
     expect(roomStatus(f, room).working).toBe(true);
     expect(f.items.filter((i) => i.room === b.uid && i.kind === "dog_bed").length).toBeGreaterThanOrEqual(3);
     expect(b.investedDelta).toBe(b.shownCost);
-    expect(b.hired).toBe(true);
-    expect(b.signOn).toBeGreaterThan(0);
+    expect(b.hired).not.toBeNull();
+    expect(b.hired!.signOn).toBeGreaterThan(0);
     expect(f.staff.some((x) => x.role === "attendant")).toBe(true);
   });
 
@@ -277,24 +286,27 @@ describe("from a real new game: earn → cover costs → reinvest → serve more
     expect(served.length).toBeGreaterThanOrEqual(5);
     expect(served.every((p) => p.group === b.group && p.total > 0)).toBe(true);
     const nightsSince = run.nights.filter((n) => n.day >= b.day).length;
+    const nightsStaffed = run.nights.filter((n) => n.day >= b.hired!.day).length;
     const upkeep = (upkeepOf(room) + f.items.filter((i) => i.room === b.uid).reduce((a, i) => a + upkeepOf(i), 0)) * nightsSince;
     const supplies = SUPPLY_COST[f.supplies] * served.length;
-    const wages = WAGES[f.wage] * nightsSince + b.signOn;
+    const wages = WAGES[f.wage] * nightsStaffed + b.hired!.signOn;
     const takings = served.reduce((a, p) => a + p.total, 0);
     const net = takings - upkeep - supplies - wages;
-    console.log(`the wing: ${served.length} families paid ${takings} over ${nightsSince} nights (estimate was ${b.estimate}/day); upkeep ${upkeep}, supplies ${supplies}, wages + sign-on ${wages} → net ${net}; the build cost ${b.choice.cost}, so it ${net >= b.choice.cost ? "has paid for itself" : `has ${b.choice.cost - net} still to earn back`}`);
+    console.log(`the wing: ${served.length} families paid ${takings} over ${nightsSince} nights (estimate was ${b.estimate}/day after upkeep and supplies); upkeep ${upkeep}, supplies ${supplies}, wages + sign-on ${wages} → net ${net}; the build cost ${b.choice.cost}, so it ${net >= b.choice.cost ? "has paid for itself" : `has ${b.choice.cost - net} still to earn back`}`);
     expect(net).toBeGreaterThan(0);
   });
 
-  it("9. the business makes more operating profit a day after the expansion than before it — with the new wage and upkeep included", () => {
-    const before = run.nights.filter((n) => n.day < b.day);
-    const after = run.nights.filter((n) => n.day > b.day);
+  it("9. the same player on the same seed without the wing makes less: operating profit a day and coins at the end, with the wing's price, wage, sign-on and upkeep paid", () => {
+    const after = (r: typeof run) => r.nights.filter((n) => n.day > b.day);
     const avg = (xs: Night[]) => xs.reduce((a, n) => a + n.running, 0) / xs.length;
-    console.log(`operating profit a day: ${avg(before).toFixed(0)} before (days ${before.map((n) => n.day).join(",")}), ${avg(after).toFixed(0)} after (days ${after.map((n) => n.day).join(",")}); the purchase day ${run.nights.find((n) => n.day === b.day)!.running} (it carried the sign-on)`);
-    expect(before.length).toBeGreaterThanOrEqual(1);
-    expect(after.length).toBeGreaterThanOrEqual(5);
-    expect(avg(after)).toBeGreaterThan(avg(before));
-    for (const n of after) expect(n.running).toBeGreaterThan(0);
+    console.table(after(run).map((n, i) => ({ day: n.day, withWing: n.running, without: after(control)[i]?.running, hiredDay: b.hired?.day })));
+    console.log(`operating profit a day after day ${b.day}: ${avg(after(run)).toFixed(0)} with the wing, ${avg(after(control)).toFixed(0)} without; coins after day ${DAYS}: ${run.s.coins} with, ${control.s.coins} without`);
+    expect(control.bought).toBeNull();
+    expect(after(run).length).toBeGreaterThanOrEqual(5);
+    expect(avg(after(run))).toBeGreaterThan(avg(after(control)));
+    // every day makes an operating profit, except the one that carried the attendant's one-off sign-on
+    for (const n of after(run)) if (n.day !== b.hired?.day) expect(n.running).toBeGreaterThan(0);
+    expect(run.s.coins).toBeGreaterThan(control.s.coins);
   });
 
   it("10. back to hands-on care after building and hiring: you still check families in, play and check out yourself", () => {
@@ -312,11 +324,11 @@ describe("from a real new game: earn → cover costs → reinvest → serve more
     expect(run.saving.at(-1)!.coins).toBeGreaterThan(run.saving[0]!.coins);
   });
 
-  it("an honest note on balance: the reserve the guide leaves could already pay for a first expansion", () => {
-    // Recorded so the report can say it plainly: after Quick start and the guide, the player holds more coins than a
-    // playroom wing costs, so the *first* expansion doesn't have to be earned. This proof chose not to spend the reserve.
-    const wing = run.reserve.options.find((o) => o.id === "playroom");
-    expect(wing).toBeTruthy();
-    expect(run.reserve.coins).toBeGreaterThanOrEqual(wing!.cost);
+  it("balance note: the guide leaves less than a first expansion costs, so serving families pays for part of it", () => {
+    // (milestone "make PAWtastic feel like a daycare tycoon" §4; until then the guide left about 1,500 coins against a
+    // ~540 wing, so the first expansion didn't need any earnings)
+    const wing = run.reserve.options.find((o) => o.id === "playroom")!;
+    expect(run.reserve.coins).toBeLessThan(wing.cost);
+    expect(wing.why).toMatch(/more coins needed/);
   });
 });

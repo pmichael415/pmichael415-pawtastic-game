@@ -156,8 +156,11 @@ export function createArrival(s: TycoonState, rand: () => number, boarding = fal
     bathed: false,
   };
   dog.visit = newVisit(f, dog, rand, !!c.bath);
+  // a family who asked for a bath with no bath room yet: today's demonstrated bath demand (milestone §4)
+  const askedNow = f.asked && f.asked.day === f.day ? f.asked : { day: f.day, groups: {} };
+  const fAsked = dog.visit.bathAsked ? { ...f, asked: { ...askedNow, baths: (askedNow.baths ?? 0) + 1 } } : f;
   const hello = reg ? `${dog.name} is back for visit #${dog.visits} (${friendshipLevel(reg.friendship).label})! Check them in at the desk.` : `${dog.name} was dropped off — check them in at the front desk.`;
-  const next = withFac({ ...s, seq: s.seq + 1 }, { ...f, dogs: [...f.dogs, dog] });
+  const next = withFac({ ...s, seq: s.seq + 1 }, { ...fAsked, dogs: [...f.dogs, dog] });
   return { ok: true, state: trackRush(next).state, msg: hello };
 }
 
@@ -695,8 +698,9 @@ function tickStep(s: TycoonState, seconds: number, rand: () => number): TycoonSt
         const h = fac(out);
         // (a playroom of that kind that's closed still counts: they come and wait, and the blockers say to reopen it)
         if (!pup.boarding && !h.rooms.some((x) => x.type === "playroom" && x.group === g)) {
-          const asked = h.asked && h.asked.day === h.day ? h.asked.groups : {};
-          out = withFac(out, { ...h, asked: { day: h.day, groups: { ...asked, [g]: (asked[g] ?? 0) + 1 } } });
+          const today = h.asked && h.asked.day === h.day ? h.asked : null;
+          const asked = today?.groups ?? {};
+          out = withFac(out, { ...h, asked: { day: h.day, groups: { ...asked, [g]: (asked[g] ?? 0) + 1 }, ...(today?.baths ? { baths: today.baths } : {}) } });
         } else out = r.state;
       } // lobby full → the customer politely rebooks, no penalty
     }

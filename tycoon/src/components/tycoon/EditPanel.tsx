@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GROUPS, groupName } from "@/game/engine";
-import { ROOM_TYPE_NAMES, SELL_RATE, furnitureDef, outdoorDef, upgradePrice } from "@/tycoon/catalog";
-import { connectRoom, connectionPlan, moveThing, sellRoom, sellThing, setClosed, setRoomType, upgradeThing } from "@/tycoon/build";
+import { ROOM_TYPE_NAMES, furnitureDef, outdoorDef, upgradePrice } from "@/tycoon/catalog";
+import { connectRoom, connectionPlan, moveThing, saleNote, saleValue, sellRoom, sellThing, setClosed, setRoomType, upgradeThing } from "@/tycoon/build";
 import { upkeepOf } from "@/tycoon/business";
 import { roomCleanOf, wayIn } from "@/tycoon/rooms";
 import { applyStaffPlan, roomReadiness, roomServes, staffPlanFor } from "@/tycoon/roomCare";
@@ -80,7 +80,7 @@ export function EditPanel({
   if (room) {
     const status = roomStatus(f, room);
     const contents = f.items.filter((i) => i.room === room.uid);
-    const refund = Math.floor(SELL_RATE * (room.spent + contents.reduce((a, i) => a + i.spent, 0)));
+    const refund = saleValue(f, room.spent + contents.reduce((a, i) => a + i.spent, 0));
     const dogs = f.dogs.filter((d) => d.place.kind !== "lobby" && (d.place as { room: string }).room === room.uid).length + (room.type === "lobby" ? f.dogs.filter((d) => d.place.kind === "lobby").length : 0);
     const title = room.type === "playroom" && room.group ? `Playroom · ${groupName(room.group)}` : room.type ? ROOM_TYPE_NAMES[room.type] : "New room";
     const sell = () => {
@@ -136,6 +136,7 @@ export function EditPanel({
         {confirm ? (
           <div className="mt-2 space-y-2">
             <p className="font-semibold text-secondary">Sell the {roomTitle(room)} and everything in it for {refund} coins?</p>
+            {saleNote(f) && <p className="text-xs text-muted-foreground">{saleNote(f)}</p>}
             <div className="flex gap-2">
               <Button variant="destructive" className="h-11 flex-1" onClick={sell}>
                 Yes, sell
@@ -225,7 +226,7 @@ export function EditPanel({
   const od = outdoorDef(t.kind);
   const name = (furnitureDef(t.kind) ?? od)?.name ?? t.kind;
   const eff = thingEffect(t);
-  const refund = Math.floor(SELL_RATE * t.spent);
+  const refund = saleValue(f, t.spent);
   const nextPrice = od && od.levels === 3 && t.level < 3 ? upgradePrice(od.price, (t.level + 1) as 2 | 3) : null;
   const entrance = t.uid === "entrance";
   return (
@@ -247,6 +248,7 @@ export function EditPanel({
       {entrance ? null : confirm ? (
         <div className="mt-2 space-y-2">
           <p className="font-semibold text-secondary">Sell the {name} for {refund} coins?</p>
+          {saleNote(f) && <p className="text-xs text-muted-foreground">{saleNote(f)}</p>}
           <div className="flex gap-2">
             <Button
               variant="destructive"

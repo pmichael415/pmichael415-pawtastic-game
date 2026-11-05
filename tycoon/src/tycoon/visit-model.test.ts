@@ -1,6 +1,6 @@
 // Every pup's visit has a customer, booked services, an arrival and a pickup time (service design, "The visit").
 import { describe, expect, it } from "vitest";
-import { mulberry } from "@/game/engine";
+import { mulberry, personalityOf } from "@/game/engine";
 import { checkIn, createArrival, setOpen } from "./run";
 import { fac, newTycoon, parseTycoon, withFac } from "./state";
 import { guidedBuild, ok, richState } from "./testkit";
@@ -41,12 +41,17 @@ describe("a visit", () => {
       expect(v.ownerHere).toBeNull();
     }
   });
-  it("with a working bath room, about 3 in 10 book a bath and some of those prepay it", () => {
+  it("with a working bath room, every pup who loves bath time books one, about 3 in 10 others do, and some prepay", () => {
     const s = open(richState(), 8 * 60);
     const ds = arrivals(s, 300, 11);
     const bath = ds.filter((d) => d.visit!.requests.includes("bath")).length;
-    expect(bath / 300).toBeGreaterThan(0.2);
-    expect(bath / 300).toBeLessThan(0.4);
+    const fans = ds.filter((d) => personalityOf(d).favorite === "splash");
+    const others = ds.filter((d) => personalityOf(d).favorite !== "splash");
+    expect(fans.length).toBeGreaterThan(0);
+    expect(fans.every((d) => d.visit!.requests.includes("bath"))).toBe(true);
+    const otherRate = others.filter((d) => d.visit!.requests.includes("bath")).length / others.length;
+    expect(otherRate).toBeGreaterThan(0.2);
+    expect(otherRate).toBeLessThan(0.4);
     const prepaid = ds.filter((d) => d.visit!.prepaid.includes("bath")).length;
     expect(prepaid).toBeGreaterThan(0);
     expect(prepaid).toBeLessThan(bath);

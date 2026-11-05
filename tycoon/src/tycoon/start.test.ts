@@ -1,12 +1,13 @@
 // Quick start (Stage A): a small working daycare built with the real build rules, so every coin is really spent.
 import { describe, expect, it } from "vitest";
-import { START_COINS } from "./catalog";
+import { START_COINS, furnitureDef } from "./catalog";
 import { canOpen } from "./connect";
 import { guideProgress } from "./guide";
 import { level, levelReward } from "./progress";
 import { isFreshSave, quickStart } from "./start";
 import { fac, newTycoon } from "./state";
 import { ok, richState } from "./testkit";
+import { playroomQuote } from "./tourActions";
 
 describe("quick start", () => {
   const s = ok(quickStart(newTycoon(0)));
@@ -29,7 +30,10 @@ describe("quick start", () => {
     let rewards = 0;
     for (let n = 2; n <= level(s); n++) rewards += levelReward(n);
     expect(s.coins).toBe(START_COINS - spent + rewards);
-    expect(s.coins).toBeGreaterThanOrEqual(900); // enough left for the first upgrade and choices
+    // enough left for the guide's first upgrade, but not for a second playroom: that's paid for by serving families
+    // (milestone "feel like a daycare tycoon" §4 — earnings visibly contribute to the first expansion)
+    expect(s.coins).toBeGreaterThanOrEqual(furnitureDef("toy_bin")!.price);
+    expect(s.coins).toBeLessThan(playroomQuote(s, "large-active")!.cost);
   });
   it("counts as the guide's building steps done (the painting step is next)", () => {
     expect(guideProgress(s).step).toBe(4);

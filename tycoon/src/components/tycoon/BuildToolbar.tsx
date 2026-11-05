@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { GROUPS } from "@/game/engine";
 import type { GroupId } from "@/game/engine";
 import { spendWarning } from "@/tycoon/business";
-import { DOOR_PRICE, ONE_PER_FACILITY, ROOM_MAX, ROOM_MIN, ROOM_TYPE_NAMES, SELL_RATE, furnitureDef, outdoorDef, thingName } from "@/tycoon/catalog";
-import { DEFAULT_ROOM_SIZE, addDoor, buildConnectedRoom, costLine, moveRoom, moveThing, paintPaths, placeThing, planRoom, planRoomOptions, removeDoor, roomContaining, setRoomType, spotInRoom, validRoomAt, validThingAt, type RoomPlan } from "@/tycoon/build";
+import { DOOR_PRICE, ONE_PER_FACILITY, ROOM_MAX, ROOM_MIN, ROOM_TYPE_NAMES, furnitureDef, outdoorDef, thingName } from "@/tycoon/catalog";
+import { DEFAULT_ROOM_SIZE, addDoor, buildConnectedRoom, costLine, saleValue, moveRoom, moveThing, paintPaths, placeThing, planRoom, planRoomOptions, removeDoor, roomContaining, setRoomType, spotInRoom, validRoomAt, validThingAt, type RoomPlan } from "@/tycoon/build";
 import { OPPOSITE, containsTile, roomPrice, stepFrom, thingTiles, type Tile } from "@/tycoon/grid";
 import { roomStatus } from "@/tycoon/connect";
 import { level } from "@/tycoon/progress";
@@ -501,7 +501,7 @@ export function BuildToolbar({ b, state, act, onBuyPack, hidePaid = false }: { b
           {(b.reason ?? ui.doorError) && <p className="text-sm font-semibold text-destructive">{b.reason ?? ui.doorError}</p>}
           {ui.door && (
             <Button className="h-11 w-full" disabled={!doorExists && !!b.reason} onClick={b.toggleDoor}>
-              {doorExists ? `Remove door · +${Math.floor(SELL_RATE * DOOR_PRICE)}` : `Add door · ${DOOR_PRICE}`}
+              {doorExists ? `Remove door · +${saleValue(f, DOOR_PRICE)}` : `Add door · ${DOOR_PRICE}`}
             </Button>
           )}
         </div>

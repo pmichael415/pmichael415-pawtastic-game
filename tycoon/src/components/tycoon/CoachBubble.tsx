@@ -40,13 +40,16 @@ export function CoachBubble({ state, controls, act, set, compact = false }: { st
   const rocket = f.dogs.find((d) => d.name === TOUR_DOGS.third) ?? null;
   // Once a playroom for the decision pup exists, the coach says to take him there instead of offering to build one.
   const roomReady = !!rocket && caps(f).playrooms.some((p) => p.group === groupOf(rocket) && p.spots > 0);
+  // the decision pup's playroom, priced as the button will build it — and how far short the coins are (milestone §4)
+  const quote = t.beat === "decision" && rocket && !roomReady ? playroomQuote(state, groupOf(rocket)) : null;
+  const short = quote ? Math.max(0, quote.cost - state.coins) : 0;
   const ctx = {
     first: TOUR_DOGS.first,
     second: TOUR_DOGS.second,
     third: TOUR_DOGS.third,
     group: groupName(firstDogGroup(f)),
     upgrade: chosen?.name ?? "upgrade",
-    ...(rocket ? { thirdGroup: groupName(groupOf(rocket)), roomReady } : {}),
+    ...(rocket ? { thirdGroup: groupName(groupOf(rocket)), roomReady, short } : {}),
   };
   const text = beatText(t.beat, controls, ctx);
   const step = guideProgress(state).step;
@@ -100,21 +103,24 @@ export function CoachBubble({ state, controls, act, set, compact = false }: { st
       {t.beat === "decision" && rocket && (() => {
         const g = groupOf(rocket);
         // the button's quote (room, door, bed, total) is what the tap confirms — once (audit gap E)
-        const q = playroomQuote(state, g);
+        const q = quote;
         return (
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
             {q && !roomReady && (
               <button
                 type="button"
+                aria-label={`Build a ${groupName(g)} playroom · ${q.cost} coins`}
+                disabled={short > 0}
                 onClick={() => {
-                  if (usedQuote.current === q) return;
+                  if (short > 0 || usedQuote.current === q) return;
                   usedQuote.current = q;
                   const r = act((s) => buildPlayroomFor(s, g, q));
                   if (!r.ok) usedQuote.current = null;
                 }}
-                className="min-h-11 rounded-xl bg-primary p-2 text-left text-sm font-bold text-primary-foreground"
+                className="min-h-11 rounded-xl bg-primary p-2 text-left text-sm font-bold text-primary-foreground disabled:bg-muted disabled:text-secondary"
               >
-                {`Build a ${groupName(g)} playroom · ${q.cost} coins`}
+                <span className="block">{`Build a ${groupName(g)} playroom · ${q.cost} coins`}</span>
+                {short > 0 && <span className="block text-xs font-semibold">{`You have ${state.coins} — ${short} more to earn`}</span>}
               </button>
             )}
             <button type="button" onClick={() => act((s) => restAtHome(s, rocket.id))} className="min-h-11 rounded-xl border border-border bg-background p-2 text-left text-sm font-bold text-secondary">

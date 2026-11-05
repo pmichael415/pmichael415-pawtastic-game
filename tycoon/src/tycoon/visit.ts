@@ -1,6 +1,6 @@
 // PAWtastic Daycare Tycoon — visits: who the customer is, what they booked, when they come back (service design).
 // Pure; the run loop (run.ts) moves visits along and assessVisit (below, Task 3) judges how they went.
-import { DAY_OPEN, seedFrom } from "@/game/engine";
+import { DAY_OPEN, personalityOf, seedFrom } from "@/game/engine";
 import type { Facility, Service, TDog, Visit } from "./types";
 
 /** Fictional first names for the pups' families (none shared with staff). */
@@ -51,6 +51,11 @@ export function newVisit(f: Facility, d: Pick<TDog, "name" | "breed" | "boarding
     requests.push("bath");
     if (rand() < PREPAID_CHANCE) prepaid.push("bath");
   }
+  // a pup who loves bath time: the family asks for a bath — booked if there's a bath room, otherwise it's interest the
+  // daycare can see (milestone §4: demonstrated bath demand). No dice are rolled for it, so nothing else shifts.
+  const fan = personalityOf(d).favorite === "splash";
+  if (hasBath && fan && !requests.includes("bath")) requests.push("bath");
+  const bathAsked = !hasBath && fan;
   const stay = 240 + Math.floor(rand() * 180);
   const pickup = d.boarding ? BOARDING_PICKUP : Math.min(LAST_PICKUP, f.clockMin + Math.max(120, stay));
   return {
@@ -71,6 +76,7 @@ export function newVisit(f: Facility, d: Pick<TDog, "name" | "breed" | "boarding
     remedies: {},
     paid: 0,
     waitBefore: 0,
+    ...(bathAsked ? { bathAsked: true } : {}),
   };
 }
 

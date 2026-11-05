@@ -32,7 +32,8 @@ import type { TycoonState } from "@/tycoon/types";
 const now = () => tycoonStore.getState()!;
 const SKIPPED = { mode: "quick", beat: "meet", startedAt: 0, upgrade: null, done: false, skipped: true } as const;
 function grown(lvl = 6): TycoonState {
-  const s = ok(hire(ok(quickStart(newTycoon(0))), "reception"));
+  // (a grown daycare: the coins are set below; the receptionist is hired with some of them)
+  const s = ok(hire({ ...ok(quickStart(newTycoon(0))), coins: 20000 }, "reception"));
   const f = fac(s);
   return { ...withFac(s, { ...f, open: true, dogs: [], stats: { ...f.stats, checkouts: 1 } }), coins: 20000, xp: xpForLevel(lvl), tour: SKIPPED };
 }

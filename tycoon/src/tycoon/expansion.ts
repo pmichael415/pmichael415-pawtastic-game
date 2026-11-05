@@ -4,7 +4,7 @@
 // with a door into it, or outside for the yard), and improved (not duplicated) the second time. Game coins only. Pure.
 import { GROUPS, groupName, groupOf, type GroupId } from "@/game/engine";
 import { addDoor, drawRoom, placeThing, setRoomType, upgradeThing } from "./build";
-import { WAGES, facilityUpkeep, today } from "./business";
+import { SUPPLY_COST, WAGES, facilityUpkeep, today } from "./business";
 import { thingName } from "./catalog";
 import { caps, connectedRooms, roomStatus } from "./connect";
 import { funAppeal } from "./effects";
@@ -42,6 +42,11 @@ export type ExpansionOption = {
   goodIf: string;
   available: boolean;
   why: string | null;
+  /**
+   * The playroom wing and bath station only (milestone §4): what it would add a day after upkeep and supplies if
+   * today's demand holds — an estimate, with its assumptions in the text. Null for the others or when not new.
+   */
+  estimate: { perDay: number; text: string } | null;
 };
 /** A place a new room (or the yard) can go: its rectangle, where that is in words, and its price there. */
 export type ExpansionSpot = { c: number; r: number; w: number; d: number; near: string; cost: number };
@@ -382,7 +387,10 @@ function describe(f: Facility, id: ExpansionId, mode: "new" | "improve", q: Quot
     case "bath": {
       const staffing = `Each bath takes someone 40 minutes: tap Bath yourself, or a bath attendant (${wage} coins a day). Two baths at once need two bath attendants.`;
       return mode === "new"
-        ? { title: "Bath station", capacity: "1 bath station (one 40-minute bath at a time)", unlocks: `Families can book baths (about 3 in 10 do, ${f.prices.bath} coins each), and exit baths at pickup.`, staffing, goodIf: "Good if you want more from each family that already comes." }
+        ? (() => {
+            const asked = f.asked && f.asked.day === f.day ? (f.asked.baths ?? 0) : 0;
+            return { title: "Bath station", capacity: "1 bath station (one 40-minute bath at a time)", unlocks: `Families can book baths (every pup who loves bath time, and about 3 in 10 others — ${f.prices.bath} coins each), and exit baths at pickup. A bath makes a bath-time fan much happier.`, staffing, goodIf: asked ? `${asked} ${asked === 1 ? "family" : "families"} asked for a bath today — you have no bath room yet.` : "Good if you want more from each family that already comes." };
+          })()
         : { title: "Second bath station", capacity: "+1 bath station — two baths at once", unlocks: "The bath queue moves twice as fast, so fewer families wait at pickup.", staffing, goodIf: "Good if families wait at pickup for a bath to finish." };
     }
     case "boarding": {
@@ -420,8 +428,46 @@ export function expansionOptions(s: TycoonState): ExpansionOption[] {
     // a room of this kind you already have, closed or not working: open it again (free) rather than build another
     const idle = id !== "playroom" && id !== "yard" && mode === "new" ? idleRooms(f).find((r) => r.type === id) : undefined;
     const why = !lvl ? `Unlocks at level ${EXPANSION_LEVELS[id]}.` : idle ? `Your ${roomName(f, idle.uid)} is closed or not working — open it again from its panel first (free).` : typeof q === "string" ? q : s.coins < cost ? `${(cost - s.coins).toLocaleString("en-US")} more coins needed.` : null;
-    return { id, group: GROUP_OF[id], mode, ...describe(f, id, mode, q && typeof q !== "string" ? q : null), cost, upkeep, available: why === null, why };
+    return { id, group: GROUP_OF[id], mode, ...describe(f, id, mode, q && typeof q !== "string" ? q : null), cost, upkeep, available: why === null, why, estimate: mode === "new" && cost > 0 ? estimateFor(f, id, upkeep) : null };
   });
+}
+
+/**
+ * An honest estimate from today's demonstrated demand (milestone §4), never a promise: a playroom wing earns from the
+ * families of the kind you had to turn away (up to its 3 spots, at about 90% of the daycare price — pay follows how
+ * happy they are), minus upkeep and a day's supplies; a bath station earns from the families who asked for a bath,
+ * minus upkeep, plus whatever exit baths you choose to offer. Staffing is optional for both.
+ */
+function estimateFor(f: Facility, id: ExpansionId, upkeep: number): { perDay: number; text: string } | null {
+  const wage = WAGES[f.wage];
+  if (id === "playroom") {
+    const g = neededGroup(f);
+    const n = askedToday(f).find((a) => a.group === g)?.n ?? 0;
+    const stay = Math.min(3, n);
+    const pay = Math.round(f.prices.daycare * 0.9);
+    const takings = stay * pay;
+    const supplies = SUPPLY_COST[f.supplies] * stay;
+    const net = takings - upkeep - supplies;
+    const name = groupName(g);
+    return {
+      perDay: net,
+      text: n
+        ? `Estimate, if today's demand holds: ${n} ${name} ${n === 1 ? "family" : "families"} asked today, so about ${stay} could stay each day × about ${pay} = ${takings}, minus ${upkeep} upkeep and ${supplies} supplies ≈ ${net >= 0 ? "+" : ""}${net} a day. Playing with them yourself is free; an attendant would cost ${wage} a day more.`
+        : `Estimate: no ${name} families asked today, so for now it would mostly add ${upkeep} upkeep a day.`,
+    };
+  }
+  if (id === "bath") {
+    const n = f.asked && f.asked.day === f.day ? (f.asked.baths ?? 0) : 0;
+    const takings = n * f.prices.bath;
+    const net = takings - upkeep;
+    return {
+      perDay: net,
+      text: n
+        ? `Estimate, if today's demand holds: ${n} ${n === 1 ? "family" : "families"} asked for a bath today × ${f.prices.bath} = ${takings}, minus ${upkeep} upkeep ≈ ${net >= 0 ? "+" : ""}${net} a day — plus ${f.prices.exitBath} for each exit bath you offer at pickup. You can run baths yourself; a bath attendant would cost ${wage} a day more.`
+        : `Estimate: no families asked for a bath today, so for now it would mostly add ${upkeep} upkeep a day — plus ${f.prices.exitBath} for each exit bath you offer at pickup.`,
+    };
+  }
+  return null;
 }
 
 /**

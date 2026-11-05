@@ -195,6 +195,7 @@ function withVisit(x: Record<string, unknown>, f: Facility, d: { name: string; b
       finishing: v["finishing"] === "bath" ? "bath" : null,
       remedies: parseRemedies(v["remedies"]),
       waitBefore: Math.max(0, Math.min(600, Math.round(num(v["waitBefore"], 0)))),
+      ...(v["bathAsked"] === true ? { bathAsked: true } : {}),
       paid: Math.max(0, Math.min(1000, Math.round(num(v["paid"], 0)))),
       ...(parseMoment(v["moment"]) ? { moment: parseMoment(v["moment"]) } : {}),
     },
@@ -400,7 +401,8 @@ function parseFacility(x: unknown): Facility | null {
       const n = (ak["groups"] as Record<string, unknown>)[g];
       if (typeof n === "number" && Number.isFinite(n) && n > 0) groups[g] = Math.min(999, Math.floor(n));
     }
-    f.asked = { day: int(ak["day"], f.day), groups };
+    const baths = typeof ak["baths"] === "number" && Number.isFinite(ak["baths"]) && ak["baths"] > 0 ? Math.min(999, Math.floor(ak["baths"])) : 0;
+    f.asked = { day: int(ak["day"], f.day), groups, ...(baths ? { baths } : {}) };
   }
   f.open = bool(x["open"], false);
   const pr = isObj(x["prices"]) ? x["prices"] : {};

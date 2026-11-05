@@ -6,8 +6,8 @@ export const TILE = 2;
 export const COLS = 36;
 export const ROWS = 28;
 export const ENTRANCE = { c: 18, r: 27 } as const;
-export const START_COINS = 3000;
-export const GUIDE_REWARD = 200;
+export const START_COINS = 1900;
+export const GUIDE_REWARD = 100;
 
 export const WALL_PRICE = 20;
 export const FLOOR_PRICE = 10;

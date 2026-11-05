@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { START_COINS } from "./catalog";
 import { fac, newTycoon, parseTycoon } from "./state";
 
 const room = (uid: string, c: number, r: number, w: number, d: number, extra: Record<string, unknown> = {}) => ({
@@ -9,10 +10,10 @@ const thing = (uid: string, kind: string, c: number, r: number, extra: Record<st
 });
 
 describe("a new game", () => {
-  it("starts on an empty lot with an entrance, 3,000 coins and one staff member, closed", () => {
+  it("starts on an empty lot with an entrance, the starting coins and one staff member, closed", () => {
     const s = newTycoon(0);
     const f = fac(s);
-    expect(s.coins).toBe(3000);
+    expect(s.coins).toBe(START_COINS);
     expect(s.xp).toBe(0);
     expect(f.rooms).toEqual([]);
     expect(f.items).toEqual([expect.objectContaining({ uid: "entrance", kind: "path", c: 18, r: 27 })]);

@@ -5,6 +5,7 @@ import { WeeklyCard } from "./WeeklyCard";
 import { KEY, tycoonStore, useTycoon } from "@/tycoon/store";
 import { fac, newTycoon, withFac } from "@/tycoon/state";
 import { weekKey } from "@/game/engine";
+import { START_COINS } from "@/tycoon/catalog";
 
 type Ev = { name: string; props: Record<string, unknown> };
 const events = () => ((window as unknown as { __pawtasticEvents?: Ev[] }).__pawtasticEvents ?? []);
@@ -36,7 +37,7 @@ describe("weekly card", () => {
     save(25);
     const { unmount } = render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Claim +300 coins" }));
-    expect(tycoonStore.getState()!.coins).toBe(3300);
+    expect(tycoonStore.getState()!.coins).toBe(START_COINS + 300);
     expect(screen.getByText("Claimed — a new challenge starts Monday.")).toBeTruthy();
     expect(events().some((e) => e.name === "tycoon_weekly" && e.props["goal"] === "serve")).toBe(true);
     unmount();

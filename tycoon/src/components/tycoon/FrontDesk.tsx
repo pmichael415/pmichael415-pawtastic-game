@@ -35,6 +35,7 @@ export function FrontDesk({ f, act, onSelect, onCheckout }: { f: Facility; act: 
                   <span className="block text-sm font-semibold text-secondary">🐕 {d.name}{d.boarding ? " · overnight" : ""}</span>
                   <span className="block text-[11px] text-muted-foreground">
                     {traitLabel(d)} · {v.requests.join(" + ")}
+                    {v.bathAsked ? " · asked for a bath (no bath room yet)" : ""}
                     {w && w.stage !== "waiting" ? ` · waited ${w.minutes} min` : ""}
                   </span>
                 </button>

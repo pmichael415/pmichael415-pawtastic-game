@@ -30,7 +30,7 @@ import type { TycoonState } from "@/tycoon/types";
 
 const SKIPPED = { mode: "quick", beat: "meet", startedAt: 0, upgrade: null, done: false, skipped: true } as const;
 function grown(): TycoonState {
-  const s = ok(hire(ok(quickStart(newTycoon(0))), "reception"));
+  const s = ok(hire({ ...ok(quickStart(newTycoon(0))), coins: 3000 }, "reception")); // (fixture coins: hiring needs them)
   const f = fac(s);
   return { ...withFac(s, { ...f, open: true, dogs: [], stats: { ...f.stats, checkouts: 1 } }), coins: 30000, xp: xpForLevel(9) + 10, tour: SKIPPED, bestProfit: 100 };
 }

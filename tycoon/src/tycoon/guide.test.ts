@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { GUIDE_REWARD, START_COINS } from "./catalog";
 import { GUIDE_STEPS, claimGuide, guideProgress, guideVisible, markPainted, skipGuide } from "./guide";
 import { assignRoom, checkIn, checkout, createArrival, setOpen } from "./run";
 import { fac, newTycoon, withFac } from "./state";
@@ -23,7 +24,7 @@ describe("guided start", () => {
   it("a new game starts at step 1", () => {
     expect(guideProgress(newTycoon(0))).toEqual({ step: 1, checks: [false, false, false, false, false] });
   });
-  it("the guided build finishes steps 1–3; painting and the first checkout finish it; +200 once", () => {
+  it("the guided build finishes steps 1–3; painting and the first checkout finish it; the reward is paid once", () => {
     const g = guidedBuild(newTycoon(0));
     expect(guideProgress(g)).toEqual({ step: 4, checks: [true, true, true, false, false] });
     const p = markPainted(g);
@@ -32,7 +33,7 @@ describe("guided start", () => {
     const done = firstCheckout(p);
     expect(guideProgress(done)).toEqual({ step: 6, checks: [true, true, true, true, true] });
     const c = ok(claimGuide(done));
-    expect(c.coins).toBe(done.coins + 200);
+    expect(c.coins).toBe(done.coins + GUIDE_REWARD);
     expect(guideVisible(c)).toBe(false);
     expect(claimGuide(c)).toEqual({ ok: false, error: "Already claimed." });
   });
@@ -40,7 +41,7 @@ describe("guided start", () => {
     const s = skipGuide(newTycoon(0));
     expect(guideVisible(newTycoon(0))).toBe(true);
     expect(guideVisible(s)).toBe(false);
-    expect(s.coins).toBe(3000);
+    expect(s.coins).toBe(START_COINS);
     expect(claimGuide(s)).toEqual({ ok: false, error: "The guide was skipped." });
   });
 });

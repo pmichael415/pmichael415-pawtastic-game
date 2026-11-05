@@ -102,8 +102,8 @@ describe("the tour's choices", () => {
     localStorage.clear();
     tycoonStore._reset(null);
   });
-  function toUpgrade() {
-    open(newTycoon(Date.now()));
+  function toUpgrade(start: TycoonState = newTycoon(Date.now())) {
+    open(start);
     fireEvent.click(screen.getByRole("button", { name: /Quick start/ }));
     act(() => emit({ kind: "dog", id: dogId("Biscuit") }));
     fireEvent.click(inSheet(/Check in/));
@@ -121,8 +121,31 @@ describe("the tour's choices", () => {
     expect(fac(now()).items.some((i) => i.kind === "toy_bin")).toBe(true);
     expect(now().tour?.beat).toBe("benefit");
   });
-  it("the decision: after building Rocket's room, the coach says to take him there", () => {
+  it("the decision in a new game: Rocket's playroom costs more than you have — the button says how much more, and resting him free is the way on", () => {
     toUpgrade();
+    fireEvent.click(within(coach()).getByRole("button", { name: /Toy Bin · 80 coins/ }));
+    act(() => emit({ kind: "dog", id: dogId("Daisy") }));
+    fireEvent.click(inSheet(/Check in/));
+    fireEvent.click(inSheet(/^To Small & Gentle/));
+    fireEvent.click(inSheet(/^Playtime/));
+    fireEvent.click(inSheet(/^Check out/));
+    expect(now().tour?.beat).toBe("decision");
+    const build = within(coach()).getByRole("button", { name: /^Build a Large & Active playroom · \d+ coins/ }) as HTMLButtonElement;
+    const cost = Number(/· (\d+) coins/.exec(build.getAttribute("aria-label") ?? "")![1]);
+    const have = now().coins;
+    expect(have).toBeLessThan(cost);
+    expect(build.disabled).toBe(true);
+    expect(build.textContent).toContain(`You have ${have} — ${cost - have} more to earn`);
+    expect(within(coach()).getByText(new RegExp(`${cost - have} more coins`))).toBeTruthy();
+    const rooms = fac(now()).rooms.length;
+    fireEvent.click(build);
+    expect(fac(now()).rooms).toHaveLength(rooms); // nothing built, nothing charged
+    expect(now().coins).toBe(have);
+    fireEvent.click(within(coach()).getByRole("button", { name: /Let Rocket rest/ }));
+    expect(now().tour?.done).toBe(true);
+  });
+  it("the decision: after building Rocket's room, the coach says to take him there (an older save that started with 3,000 coins)", () => {
+    toUpgrade({ ...newTycoon(Date.now()), coins: 3000 });
     fireEvent.click(within(coach()).getByRole("button", { name: /Toy Bin · 80 coins/ }));
     act(() => emit({ kind: "dog", id: dogId("Daisy") }));
     fireEvent.click(inSheet(/Check in/));

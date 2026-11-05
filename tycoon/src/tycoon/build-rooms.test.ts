@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addDoor, drawRoom, moveRoom, paintRoom, removeDoor, sellRoom, setRoomType } from "./build";
+import { START_COINS } from "./catalog";
 import { fac, newTycoon, withFac } from "./state";
 import type { TDog, TResult, TycoonState } from "./types";
 
@@ -7,6 +8,8 @@ const ok = (r: TResult): TycoonState => {
   if (!r.ok) throw new Error(r.error);
   return r.state;
 };
+/** A daycare that has opened its doors at least once (before that, building can be undone for a full refund). */
+const opened = (s: TycoonState): TycoonState => withFac(s, { ...fac(s), introDay: 0 });
 const lastRoom = (s: TycoonState) => fac(s).rooms[fac(s).rooms.length - 1]!;
 const dogIn = (s: TycoonState, room: string): TycoonState =>
   withFac(s, {
@@ -18,7 +21,7 @@ describe("drawing rooms", () => {
   const s0 = newTycoon(0);
   it("costs walls plus floor and starts without a type or doors", () => {
     const s = ok(drawRoom(s0, 10, 16, 4, 3));
-    expect(s.coins).toBe(2600);
+    expect(s.coins).toBe(START_COINS - 400);
     expect(lastRoom(s)).toMatchObject({ c: 10, r: 16, w: 4, d: 3, type: null, doors: [], spent: 400 });
   });
   it("must be 2–10 squares a side, on owned land", () => {
@@ -40,7 +43,7 @@ describe("drawing rooms", () => {
 });
 
 describe("doors", () => {
-  const s = ok(drawRoom(newTycoon(0), 10, 16, 4, 3));
+  const s = ok(drawRoom(opened(newTycoon(0)), 10, 16, 4, 3));
   const uid = lastRoom(s).uid;
   it("cost 30 and add to what the room is worth", () => {
     const t = ok(addDoor(s, uid, { side: "S", i: 1 }));
@@ -87,7 +90,7 @@ describe("room types and paint", () => {
 });
 
 describe("moving and selling rooms", () => {
-  const base = ok(setRoomType(ok(drawRoom(newTycoon(0), 10, 16, 4, 3)), "r1", "lobby"));
+  const base = ok(setRoomType(ok(drawRoom(opened(newTycoon(0)), 10, 16, 4, 3)), "r1", "lobby"));
   it("moving is free and takes the furniture along", () => {
     const withCounter = withFac(base, { ...fac(base), items: [...fac(base).items, { uid: "k1", kind: "front_counter", c: 11, r: 17, rot: 0, level: 1, spent: 300, room: "r1", closed: false }] });
     const t = ok(moveRoom(withCounter, "r1", 12, 18));
@@ -108,6 +111,13 @@ describe("moving and selling rooms", () => {
     expect(t.coins).toBe(withCounter.coins + Math.floor(0.75 * 700));
     expect(fac(t).rooms).toHaveLength(0);
     expect(fac(t).items.some((i) => i.uid === "k1")).toBe(false);
+  });
+  it("before the daycare first opens, changing your mind is free: selling refunds everything", () => {
+    const fresh = ok(setRoomType(ok(drawRoom(newTycoon(0), 10, 16, 4, 3)), "r1", "lobby"));
+    const withCounter = withFac(fresh, { ...fac(fresh), items: [...fac(fresh).items, { uid: "k1", kind: "front_counter", c: 11, r: 17, rot: 0, level: 1, spent: 300, room: "r1", closed: false }] });
+    expect(ok(sellRoom(withCounter, "r1")).coins).toBe(withCounter.coins + 700);
+    const one = ok(addDoor(fresh, "r1", { side: "S", i: 1 }));
+    expect(ok(removeDoor(one, "r1", { side: "S", i: 1 })).coins).toBe(fresh.coins);
   });
   it("rooms with dogs inside can't be moved or sold", () => {
     const t = dogIn(base, "r1");

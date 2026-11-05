@@ -41,6 +41,13 @@ describe("instructions for each kind of control", () => {
     expect(ready.title).toBe("Rocket's room is ready");
     expect(ready.action).toMatch(/Tap Rocket on the map, check him in, then “To Large & Active”/);
   });
+  it("the decision says honestly when his playroom costs more than you have: rest him free today and save for it", () => {
+    const short = beatText("decision", "3d", { ...ctx, short: 320 });
+    expect(short.action).toMatch(/320 more coins/);
+    expect(short.action).toMatch(/rest in the calm room today \(he goes home free\)/);
+    expect(short.action).toMatch(/families pay/);
+    expect(beatText("decision", "3d", ctx).action).not.toMatch(/more coins/);
+  });
   it("the last step says what ticks it: once you're open, it says so and what's left", () => {
     expect(guideText(5, "3d", false)).toMatch(/^Switch Open on/);
     expect(guideText(5, "3d", true)).toMatch(/^✓ You're open\. Now check the first pup in/);

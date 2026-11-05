@@ -35,7 +35,7 @@ import type { TDog, TycoonState } from "@/tycoon/types";
 const now = () => tycoonStore.getState()!;
 const SKIPPED = { mode: "quick", beat: "meet", startedAt: 0, upgrade: null, done: false, skipped: true } as const;
 function day(): TycoonState {
-  const s = ok(hire(ok(quickStart(newTycoon(0))), "reception"));
+  const s = ok(hire({ ...ok(quickStart(newTycoon(0))), coins: 3000 }, "reception")); // (fixture coins: hiring needs them)
   const f = fac(s);
   const room = f.rooms.find((r) => r.type === "playroom")!.uid;
   const mk = (id: string, name: string): TDog => {

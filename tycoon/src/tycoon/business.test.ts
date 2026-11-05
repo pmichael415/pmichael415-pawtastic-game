@@ -169,7 +169,7 @@ describe("marketing", () => {
   it("unlocks by level and costs its price", () => {
     expect(startCampaign(at(4), "online")).toEqual({ ok: false, error: "Unlocks at level 5." });
     const s = ok(startCampaign(at(5), "online"));
-    expect(s.coins).toBe(3000 - 400);
+    expect(s.coins).toBe(newTycoon(0).coins - 400);
     expect(fac(s).campaign).toEqual({ id: "online", untilDay: 4 });
     expect(campaignBoost(fac(s))).toBe(1.4);
   });

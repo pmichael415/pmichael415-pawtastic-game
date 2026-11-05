@@ -84,8 +84,9 @@ describe("check-in", () => {
 
 describe("placing pups", () => {
   /** The guided build plus a small-active playroom north of the lobby. */
+  /** The guided layout plus a second playroom (placement rules, not the budget: the coins cover the extra room). */
   function twoPlayrooms() {
-    let s = ok(drawRoom(guidedBuild(newTycoon(0)), 16, 19, 3, 3));
+    let s = ok(drawRoom(guidedBuild({ ...newTycoon(0), coins: 3000 }), 16, 19, 3, 3));
     const uid = fac(s).rooms.at(-1)!.uid;
     s = ok(setRoomType(s, uid, "playroom", "small-active"));
     s = ok(addDoor(s, uid, { side: "S", i: 1 }));

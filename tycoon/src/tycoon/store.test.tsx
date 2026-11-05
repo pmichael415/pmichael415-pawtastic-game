@@ -4,6 +4,7 @@ vi.mock("sonner", () => ({
   toast: Object.assign(() => {}, { success: () => {}, error: () => {}, warning: () => {}, info: () => {} }),
 }));
 import { drawRoom } from "./build";
+import { START_COINS } from "./catalog";
 import { KEY, useTycoon, tycoonStore } from "./store";
 import { fac, newTycoon, parseTycoon, withFac } from "./state";
 import { setOpen } from "./run";
@@ -25,14 +26,14 @@ describe("the tycoon store", () => {
 
   it("starts a fresh game and round-trips it through localStorage", () => {
     const { result, unmount } = renderHook(() => useTycoon());
-    expect(result.current.state!.coins).toBe(3000);
+    expect(result.current.state!.coins).toBe(START_COINS);
     act(() => {
       result.current.act((s) => drawRoom(s, 10, 16, 4, 3), { event: { name: "tycoon_build", props: { kind: "room", action: "place" } } });
     });
     unmount();
     const saved = parseTycoon(JSON.parse(localStorage.getItem(KEY)!))!;
     expect(fac(saved).rooms).toHaveLength(1);
-    expect(saved.coins).toBe(2600);
+    expect(saved.coins).toBe(START_COINS - 400); // a 4 × 3 room
     expect(named("tycoon_build").at(-1)?.props).toEqual({ kind: "room", action: "place" });
     const again = renderHook(() => useTycoon());
     expect(fac(again.result.current.state!).rooms).toHaveLength(1);
@@ -49,14 +50,14 @@ describe("the tycoon store", () => {
     localStorage.setItem(KEY, JSON.stringify(withFac(lastWeek, { ...fac(lastWeek), stats: { ...fac(lastWeek).stats, checkouts: 30 } })));
     const again = renderHook(() => useTycoon());
     expect(again.result.current.state!.weekly?.week).toBe(weekKey());
-    expect(again.result.current.state!.coins).toBe(3000 + 300);
+    expect(again.result.current.state!.coins).toBe(START_COINS + 300);
     again.unmount();
   });
 
   it("sets an unreadable save aside and starts fresh", () => {
     localStorage.setItem(KEY, "{not json");
     const { result, unmount } = renderHook(() => useTycoon());
-    expect(result.current.state!.coins).toBe(3000);
+    expect(result.current.state!.coins).toBe(START_COINS);
     const aside = Object.keys(localStorage).filter((k) => k.startsWith(`${KEY}-unreadable-`));
     expect(aside).toHaveLength(1);
     expect(localStorage.getItem(aside[0]!)).toBe("{not json");

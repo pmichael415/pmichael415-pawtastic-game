@@ -3,8 +3,8 @@ import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { GROUPS, groupName, hireCost, MAX_STAFF } from "@/game/engine";
 import type { GroupId } from "@/game/engine";
-import { FURNITURE, OUTDOOR, PARCELS, ROOM_TYPE_NAMES, DOOR_PRICE, SELL_RATE, furnitureDef, outdoorDef, thingName, upgradePrice } from "@/tycoon/catalog";
-import { DEFAULT_ROOM_SIZE, buildConnectedRoom, buyLand, costLine, firstFreeRoomPlan, placeFirstFree, placeThing, rankedRoomsFor, spotInRoom, sellRoom, sellThing, setClosed, setRoomType, upgradeThing, type FirstFree } from "@/tycoon/build";
+import { FURNITURE, OUTDOOR, PARCELS, ROOM_TYPE_NAMES, DOOR_PRICE, furnitureDef, outdoorDef, thingName, upgradePrice } from "@/tycoon/catalog";
+import { DEFAULT_ROOM_SIZE, buildConnectedRoom, buyLand, costLine, saleValue, firstFreeRoomPlan, placeFirstFree, placeThing, rankedRoomsFor, spotInRoom, sellRoom, sellThing, setClosed, setRoomType, upgradeThing, type FirstFree } from "@/tycoon/build";
 import { isActive, ownedPaid } from "@/tycoon/paid";
 import { connectedRooms, roomStatus } from "@/tycoon/connect";
 import { roomPrice } from "@/tycoon/grid";
@@ -62,12 +62,12 @@ function buildEntries(): BuildEntry[] {
 const ENTRIES = buildEntries();
 
 /** One built thing: its level and effect, with Upgrade (play/comfort items), Close/Open and Sell. */
-function ItemRow({ item, act }: { item: Placed; act: Act }) {
+function ItemRow({ f, item, act }: { f: Facility; item: Placed; act: Act }) {
   const [selling, setSelling] = useState(false);
   const od = outdoorDef(item.kind);
   const name = thingName(item.kind);
   const next = od && od.levels === 3 && item.level < 3 ? upgradePrice(od.price, (item.level + 1) as 2 | 3) : null;
-  const refund = Math.floor(SELL_RATE * item.spent);
+  const refund = saleValue(f, item.spent);
   const ev = (action: string) => ({ event: { name: "tycoon_build" as const, props: { kind: item.kind, action } } });
   return (
     <li className="flex flex-wrap items-center gap-2 py-1.5">
@@ -147,7 +147,7 @@ function RoomCard({ f, room, act }: { f: Facility; room: Room; act: Act }) {
           {f.items
             .filter((i) => i.room === room.uid)
             .map((i) => (
-              <ItemRow key={i.uid} item={i} act={act} />
+              <ItemRow key={i.uid} f={f} item={i} act={act} />
             ))}
         </ul>
       )}
@@ -335,7 +335,7 @@ export function ListView({ state, act, compact = false }: { state: TycoonState; 
             {f.items
               .filter((i) => i.room === null && i.kind !== "path" && i.uid !== "entrance")
               .map((i) => (
-                <ItemRow key={i.uid} item={i} act={act} />
+                <ItemRow key={i.uid} f={f} item={i} act={act} />
               ))}
           </ul>
         </section>

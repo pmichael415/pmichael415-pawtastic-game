@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 vi.mock("sonner", () => ({ toast: Object.assign(() => {}, { success: () => {}, error: () => {} }) }));
 import { CatalogSheet } from "./CatalogSheet";
-import { moveThing, placeThing, sellThing } from "@/tycoon/build";
+import { moveThing, placeThing, saleValue, sellThing } from "@/tycoon/build";
 import { caps } from "@/tycoon/connect";
 import { funAppeal } from "@/tycoon/effects";
 import { ownedPaid, setOwnedPaid } from "@/tycoon/paid";
@@ -44,7 +44,7 @@ describe("paid packs in the new game", () => {
     expect(caps(fac(t), NONE).playrooms[0]!.spots).toBe(2);
     expect(moveThing(t, bed.uid, 20, 23, 0, NONE)).toEqual({ ok: false, error: "Pack no longer active." });
     const sold = ok(sellThing(t, bed.uid));
-    expect(sold.coins).toBe(t.coins + 45);
+    expect(sold.coins).toBe(t.coins + saleValue(fac(t), bed.spent)); // the usual sale price, like anything else
   });
   it("saves never record ownership", () => {
     const { s } = play();

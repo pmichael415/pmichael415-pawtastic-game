@@ -5,10 +5,10 @@ vi.mock("sonner", () => ({
 }));
 import { ListView } from "./ListView";
 import { RunHud } from "./RunHud";
-import { tycoonStore, useTycoon } from "@/tycoon/store";
+import { KEY, tycoonStore, useTycoon } from "@/tycoon/store";
 import { createArrival } from "@/tycoon/run";
 import { connectedRooms } from "@/tycoon/connect";
-import { fac } from "@/tycoon/state";
+import { fac, newTycoon } from "@/tycoon/state";
 import { firstFreeRoomPlan, sellThing } from "@/tycoon/build";
 import { groupName, groupOf } from "@/game/engine";
 
@@ -139,6 +139,8 @@ describe("list view", () => {
   });
 
   it("runs the whole guided start without the 3D view", () => {
+    // four playrooms are more than a new game's coins cover; this checks the list view builds and connects them all
+    localStorage.setItem(KEY, JSON.stringify({ ...newTycoon(Date.now()), coins: 3000 }));
     const { unmount } = render(<Harness />);
     expect(screen.getByRole("switch", { name: "Open for business" })).toHaveProperty("disabled", true);
     expect(screen.getByText(/To open you need/)).toBeTruthy();

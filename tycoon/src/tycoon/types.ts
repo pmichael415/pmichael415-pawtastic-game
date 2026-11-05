@@ -110,6 +110,8 @@ export type Visit = {
   paid: number;
   /** Minutes the owner had waited when they agreed to wait for a service (still counted, still owed any remedy). */
   waitBefore: number;
+  /** The family asked for a bath at drop-off, but there was no bath room (demonstrated demand; nothing booked). */
+  bathAsked?: boolean;
   /** A personal moment: the pup asked for you (its favourite game); open, answered (done) or faded (missed). */
   moment?: { kind: Favorite; at: number; day: number; state: "open" | "done" | "missed" } | null;
 };
@@ -248,7 +250,8 @@ export type Facility = {
   /** Families kindly rescheduled (the introductory day's grace, or still at the desk at closing), for a short notice. */
   courtesy?: { day: number; min: number; why: "intro" | "closing"; names: string[] } | null;
   /** Families who asked today for a kind of pup with no playroom here (they booked elsewhere — no charge, no tap). */
-  asked?: { day: number; groups: Partial<Record<GroupId, number>> } | null;
+  /** Today's demonstrated demand: families turned away by pup kind, and families who asked for a bath with no bath room. */
+  asked?: { day: number; groups: Partial<Record<GroupId, number>>; baths?: number } | null;
 };
 
 export type WeeklyStat = "checkouts" | "plays" | "admitted" | "baths" | "boarders";

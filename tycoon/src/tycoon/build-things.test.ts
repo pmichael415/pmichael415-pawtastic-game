@@ -9,6 +9,8 @@ const ok = (r: TResult): TycoonState => {
 };
 const lastRoom = (s: TycoonState) => fac(s).rooms[fac(s).rooms.length - 1]!;
 const lastThing = (s: TycoonState) => fac(s).items[fac(s).items.length - 1]!;
+/** A daycare that has opened its doors at least once (before that, building can be undone for a full refund). */
+const opened = (s: TycoonState): TycoonState => withFac(s, { ...fac(s), introDay: 0 });
 const atLevel = (s: TycoonState, n: number): TycoonState => ({ ...s, xp: 50 * n * (n - 1) });
 const dog = (place: TDog["place"]): TDog =>
   ({ id: "d1", name: "Biscuit", breed: 0, size: "small", temper: "gentle", visits: 1, place, checkedIn: true, happiness: 70, clean: 70, boarding: false, played: 0, bathed: false }) as TDog;
@@ -78,7 +80,7 @@ describe("outdoor items", () => {
   const s0 = newTycoon(0);
   it("a play yard costs 200 and sits on the grounds", () => {
     const t = ok(placeThing(s0, "play_yard", 12, 22, 0));
-    expect(t.coins).toBe(2800);
+    expect(t.coins).toBe(s0.coins - 200);
     expect(lastThing(t)).toMatchObject({ kind: "play_yard", level: 1, spent: 200, room: null });
   });
   it("can't overlap rooms, paths or the entrance", () => {
@@ -90,7 +92,7 @@ describe("outdoor items", () => {
   });
   it("upgrades to level 2 for 360 and level 3 for 640, then stops", () => {
     // Start at player level 2 so the building XP doesn't cross a level (which would add a coin reward).
-    const t = ok(placeThing(atLevel(s0, 2), "play_yard", 12, 22, 0));
+    const t = ok(placeThing(opened(atLevel(s0, 2)), "play_yard", 12, 22, 0));
     const uid = lastThing(t).uid;
     const two = ok(upgradeThing(t, uid));
     expect(two.coins).toBe(t.coins - 360);
@@ -143,7 +145,7 @@ describe("land", () => {
     expect(buyLand(s, "west")).toEqual({ ok: false, error: "Unlocks at level 3." });
     expect(buyLand({ ...atLevel(s, 3), coins: 1499 }, "west")).toEqual({ ok: false, error: "Need 1 more coins." });
     const t = ok(buyLand(atLevel(s, 3), "west"));
-    expect(t.coins).toBe(1500);
+    expect(t.coins).toBe(s.coins - 1500);
     expect(fac(t).land).toEqual(["starter", "west"]);
     expect(buyLand(t, "west")).toEqual({ ok: false, error: "You already own this land." });
     expect(drawRoom(t, 2, 20, 3, 3).ok).toBe(true);
