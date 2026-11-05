@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { BREEDS, groupName, groupOf, personalityOf, traitLabel } from "@/game/engine";
 import { bathPay, checkoutPay } from "@/tycoon/business";
 import { caps } from "@/tycoon/connect";
-import { assignBed, assignRoom, bath, checkIn, checkout, clean, inActiveScuffle, playtime, roomDogs, toCalm, turnAway } from "@/tycoon/run";
+import { assignBed, assignRoom, bath, checkIn, checkout, clean, inActiveScuffle, offerAnotherDay, playtime, roomDogs, toCalm, turnAway } from "@/tycoon/run";
 import { fmtTime, visitOf } from "@/tycoon/visit";
 import { ROOM_TYPE_NAMES } from "@/tycoon/catalog";
 import type { ActOpts, ActResult } from "@/tycoon/store";
@@ -185,6 +185,8 @@ export function DogPanel({ f, dog, act, onAllSet }: { f: Facility; dog: TDog; ac
         const cls = (primary: boolean) => (primary ? "h-12 w-full font-display text-base" : btn);
         if (!dog.checkedIn)
           items.push({ key: "checkin", node: (p) => <Button className={cls(p)} onClick={() => act((s) => checkIn(s, dog.id))}>Check in {dog.name}</Button> });
+        if (!dog.checkedIn && (v.moved ?? 0) < 2)
+          items.push({ key: "anotherday", node: () => <Button variant="outline" className={btn} onClick={() => act((s) => offerAnotherDay(s, dog.id))}>Offer another day</Button> });
         if (!dog.checkedIn)
           items.push({ key: "turnaway", node: () => <Button variant="ghost" className={btn} onClick={() => act((s) => turnAway(s, dog.id))}>Can't take today</Button> });
         if (dog.checkedIn && !dog.boarding && dog.place.kind !== "room")

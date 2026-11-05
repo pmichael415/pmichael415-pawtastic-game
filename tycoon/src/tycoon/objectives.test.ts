@@ -1,5 +1,6 @@
 // One clear next objective and one longer-term goal, always (staff design §7).
 import { describe, expect, it } from "vitest";
+import { contact } from "./customers";
 import { EXPANSION_LEVEL, buyExpansion } from "./expansion";
 import { longGoal, nextObjective, objectives, savingFor } from "./objectives";
 import { xpForLevel } from "./progress";
@@ -29,6 +30,16 @@ describe("the next objective", () => {
     expect(o.title).toMatch(/receptionist/i);
     expect(o.detail).toMatch(/coins a day/);
     expect(o.action).toBe("team");
+  });
+  it("after serving a first family well: a free thank-you call — the first retention decision — then the staffing one", () => {
+    const s0 = served(started());
+    const f = fac(s0);
+    const s = withFac(s0, { ...f, guestBook: [{ name: "Biscuit", breed: 1, size: "small", temper: "gentle", visits: 1, friendship: 9, lastDay: f.day, sat: 88, firstDay: f.day }] });
+    const o = nextObjective(s);
+    expect(o).toMatchObject({ id: "thank", action: "marketing" });
+    expect(o.title).toMatch(/^Thank .+ — it's free$/);
+    expect(o.detail).toMatch(/not guaranteed/);
+    expect(nextObjective(ok(contact(s, { name: "Biscuit", breed: 1 }, "thank"))).id).toBe("hire");
   });
   it("then the first expansion (after level 2)", () => {
     let s = ok(hire({ ...served(started()), coins: 3000 }, "reception"));

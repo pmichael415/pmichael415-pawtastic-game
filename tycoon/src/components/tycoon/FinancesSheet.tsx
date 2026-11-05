@@ -1,14 +1,14 @@
-// The business screen (spec §3): Summary with a 14-day profit chart, Prices, Staff, Upkeep, Marketing, and the
-// trophy shelf. All amounts are game coins.
+// The business screen (spec §3): Summary with a 14-day profit chart, Prices, Staff, Upkeep, and the trophy shelf.
+// Marketing has its own screen (MarketingSheet). All amounts are game coins.
 import { Fragment, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { MAX_STAFF, hireCost } from "@/game/engine";
 import { track } from "@/lib/analytics";
-import { CAMPAIGNS, PRICE_RANGES, furnitureDef, outdoorDef, ROOM_TYPE_NAMES } from "@/tycoon/catalog";
+import { PRICE_RANGES, furnitureDef, outdoorDef, ROOM_TYPE_NAMES } from "@/tycoon/catalog";
 import { setClosed } from "@/tycoon/build";
-import { SUPPLY_COST, WAGES, campaignBoost, dayExpenses, dayMoney, demand, facilityUpkeep, fairPrice, setPrice, setSupplies, setWage, startCampaign, upkeepOf } from "@/tycoon/business";
+import { SUPPLY_COST, WAGES, dayExpenses, dayMoney, demand, facilityUpkeep, fairPrice, setPrice, setSupplies, setWage, upkeepOf } from "@/tycoon/business";
 import { funAppeal } from "@/tycoon/effects";
 import { level } from "@/tycoon/progress";
 import { hireStaff } from "@/tycoon/run";
@@ -18,7 +18,7 @@ import { TrophyShelf } from "./TrophyShelf";
 import type { DayLedger, ExpenseKey, Facility, IncomeKey, Prices, Supplies, TResult, TycoonState, Wage } from "@/tycoon/types";
 
 type Act = (fn: (s: TycoonState) => TResult, opts?: ActOpts) => ActResult;
-const TABS = ["Summary", "Prices", "Staff", "Upkeep", "Marketing"] as const;
+const TABS = ["Summary", "Prices", "Staff", "Upkeep"] as const;
 type Tab = (typeof TABS)[number];
 
 const INCOME: [IncomeKey, string][] = [["daycare", "Daycare"], ["boarding", "Boarding"], ["baths", "Baths"], ["exitBaths", "Exit baths"], ["tips", "Tips"]];
@@ -306,40 +306,6 @@ function UpkeepTab({ f, act }: { f: Facility; act: Act }) {
   );
 }
 
-function MarketingTab({ state, f, act }: { state: TycoonState; f: Facility; act: Act }) {
-  const lv = level(state);
-  const running = f.campaign && f.day < f.campaign.untilDay ? f.campaign : null;
-  return (
-    <div className="space-y-2">
-      {running && (
-        <p className="rounded-xl bg-primary/10 p-2 text-sm font-semibold text-secondary">
-          {CAMPAIGNS.find((c) => c.id === running.id)?.name} running: arrivals ×{campaignBoost(f).toFixed(1)} until day {running.untilDay}.
-        </p>
-      )}
-      <ul className="divide-y divide-border">
-        {CAMPAIGNS.map((c) => (
-          <li key={c.id} className="flex items-center gap-2 py-2">
-            <div className="min-w-0 flex-1">
-              <p className="font-semibold text-secondary">{c.name}</p>
-              <p className="text-xs text-muted-foreground">
-                Arrivals +{Math.round(c.boost * 100)}% for {c.days} game days{c.reputation ? `, reputation +${c.reputation}` : ""}
-              </p>
-            </div>
-            {c.level > lv ? (
-              <span className="text-xs font-semibold text-muted-foreground">Unlocks at level {c.level}</span>
-            ) : (
-              <Button size="sm" className="h-11" disabled={!!running} onClick={() => act((s) => startCampaign(s, c.id), { event: { name: "tycoon_marketing", props: { campaign: c.id } } })}>
-                Start {c.name} · {c.price}
-              </Button>
-            )}
-          </li>
-        ))}
-      </ul>
-      <p className="text-xs text-muted-foreground">One campaign at a time. Game coins only.</p>
-    </div>
-  );
-}
-
 export function FinancesSheet({ open, state, act, onClose }: { open: boolean; state: TycoonState; act: Act; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("Summary");
   const f = fac(state);
@@ -369,7 +335,6 @@ export function FinancesSheet({ open, state, act, onClose }: { open: boolean; st
           {tab === "Prices" && <PricesTab f={f} act={act} />}
           {tab === "Staff" && <StaffTab f={f} act={act} />}
           {tab === "Upkeep" && <UpkeepTab f={f} act={act} />}
-          {tab === "Marketing" && <MarketingTab state={state} f={f} act={act} />}
         </div>
       </SheetContent>
     </Sheet>

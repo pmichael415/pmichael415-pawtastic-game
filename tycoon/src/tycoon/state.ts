@@ -435,6 +435,7 @@ function parseFacility(x: unknown): Facility | null {
   f.campaignRuns = parseRuns(x["campaignRuns"]);
   const outreach = parseOutreach(x["outreach"]);
   if (outreach) f.outreach = outreach;
+  if (typeof x["outreachBy"] === "string") f.outreachBy = x["outreachBy"].slice(0, 24);
   f.footfall = parseFootfall(x["footfall"]);
   f.ledger = parseLedger(x["ledger"]);
   f.scuffles = (Array.isArray(x["scuffles"]) ? x["scuffles"] : []).filter((s): s is { room: string } => isObj(s) && f.rooms.some((r) => r.uid === s["room"]));

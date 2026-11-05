@@ -136,10 +136,40 @@ export function upgradePrice(base: number, toLevel: 2 | 3): number {
 export const PRICE_DEFAULTS: Prices = { daycare: 40, boarding: 90, bath: 25, exitBath: 30 };
 export const PRICE_RANGES: Record<keyof Prices, [number, number]> = { daycare: [20, 80], boarding: [50, 160], bath: [10, 50], exitBath: [10, 60] };
 
-export type Campaign = { id: CampaignId; name: string; price: number; boost: number; days: number; level: number; reputation: number };
-/** Marketing campaigns (spec §4.7). One at a time. */
+/** Who a campaign reaches: households who've never visited, your inactive families, or your happy regulars. */
+export type CampaignTarget = "new" | "inactive" | "regulars";
+/**
+ * A marketing campaign (customer-growth requirement §2): a defined activity bought for game coins up front, run for a
+ * number of active days. Each day, `reach` households (or the targeted families) are reached and some respond — the
+ * response rate is drawn from `rate` (per household per day for new families; per family over the whole campaign for
+ * families you know). Responses become bookings for `service`; ones the daycare can't serve are declined.
+ */
+export type Campaign = {
+  id: CampaignId;
+  name: string;
+  price: number;
+  days: number;
+  level: number;
+  target: CampaignTarget;
+  service: "daycare" | "boarding" | "bath";
+  /** Who it targets, in plain words. */
+  who: string;
+  /** What the coins buy. */
+  activity: string;
+  /** Households reached per active day (new families only). */
+  reach: number;
+  rate: [number, number];
+  /** Reputation it adds when it starts (an open house: families see the place). */
+  reputation: number;
+};
+/** Marketing campaigns. One at a time; game coins only; no discounts, prizes or real messages. */
 export const CAMPAIGNS: Campaign[] = [
-  { id: "flyers", name: "Flyers", price: 150, boost: 0.2, days: 3, level: 2, reputation: 0 },
-  { id: "online", name: "Online ads", price: 400, boost: 0.4, days: 3, level: 5, reputation: 0 },
-  { id: "openhouse", name: "Open house", price: 800, boost: 0.6, days: 2, level: 8, reputation: 5 },
+  { id: "flyers", name: "Local flyers", price: 150, days: 3, level: 2, target: "new", service: "daycare", who: "Families nearby who've never visited", activity: "200 flyers through letterboxes near the daycare each day", reach: 200, rate: [0.005, 0.015], reputation: 0 },
+  { id: "welcome", name: "Welcome-back letters", price: 60, days: 2, level: 3, target: "inactive", service: "daycare", who: "Your inactive families (no visit for 4+ active days)", activity: "A friendly letter to each inactive family on the first day — it doesn't put right a problem nobody followed up", reach: 0, rate: [0.25, 0.45], reputation: 0 },
+  { id: "boarding_ads", name: "Boarding awareness", price: 250, days: 3, level: 4, target: "new", service: "boarding", who: "Families nearby who need an overnight stay for their pup", activity: "Posters at the vet and the pet shop about overnight stays", reach: 120, rate: [0.006, 0.015], reputation: 0 },
+  { id: "bath_promo", name: "Bath promotion", price: 120, days: 3, level: 4, target: "new", service: "bath", who: "Families nearby who'd like a bath with their pup's daycare day", activity: "A board outside and a note on your page that baths are available — regular price, no discount", reach: 150, rate: [0.005, 0.012], reputation: 0 },
+  { id: "online", name: "Online ads", price: 400, days: 3, level: 5, target: "new", service: "daycare", who: "Families across town who've never visited", activity: "Local online ads shown to 600 households a day", reach: 600, rate: [0.003, 0.008], reputation: 0 },
+  { id: "referral", name: "Referral outreach", price: 100, days: 3, level: 6, target: "regulars", service: "daycare", who: "Your happy regulars — they recommend you to friends", activity: "A card for each happy regular to pass on to a friend (no reward for them or you)", reach: 0, rate: [0.25, 0.4], reputation: 0 },
+  { id: "openhouse", name: "Open house", price: 800, days: 2, level: 8, target: "new", service: "daycare", who: "Families nearby who've never visited", activity: "An open afternoon each day: 150 local families tour the daycare (+5 reputation)", reach: 150, rate: [0.03, 0.06], reputation: 5 },
 ];
+export const campaignDef = (id: CampaignId) => CAMPAIGNS.find((c) => c.id === id)!;

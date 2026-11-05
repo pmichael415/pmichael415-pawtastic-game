@@ -26,7 +26,7 @@ export function safeRooms(f: Facility, d: TDog): Room[] {
  */
 export function arrivalWarning(f: Facility, d: TDog): { short: string; line: string } | null {
   if (d.checkedIn || d.place.kind !== "lobby") return null;
-  const out = "they'd wait in the lobby. “Can't take today” costs nothing.";
+  const out = "they'd wait in the lobby. “Offer another day” books them for the next active day; “Can't take today” costs nothing.";
   if (d.boarding) {
     const free = caps(f).beds.some((b) => !f.dogs.some((x) => x.place.kind === "bed" && x.place.bed === b.bed));
     return free ? null : { short: "no free boarding bed", line: `No free boarding bed right now — ${out}` };

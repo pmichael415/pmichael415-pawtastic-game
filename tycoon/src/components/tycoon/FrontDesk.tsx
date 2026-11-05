@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { traitLabel } from "@/game/engine";
 import { rememberedVisit } from "@/tycoon/assess";
 import { arrivalWarning } from "@/tycoon/nextAction";
-import { checkIn } from "@/tycoon/run";
+import { sourceShort } from "@/tycoon/customers";
+import { checkIn, offerAnotherDay } from "@/tycoon/run";
 import type { ActOpts, ActResult } from "@/tycoon/store";
 import type { Facility, TResult, TycoonState } from "@/tycoon/types";
 import { visitOf } from "@/tycoon/visit";
@@ -31,6 +32,7 @@ export function FrontDesk({ f, act, onSelect, onCheckout }: { f: Facility; act: 
           {arriving.map((d) => {
             const v = visitOf(f, d);
             const w = waitStage(f, d);
+            const full = arrivalWarning(f, d);
             return (
               <li key={d.id} className={`flex shrink-0 items-center gap-2 rounded-xl border bg-card px-2 py-1 ${w?.stage === "upset" ? "border-destructive" : w?.stage === "impatient" ? "border-amber-500" : "border-border"}`}>
                 <button type="button" className="min-h-11 text-left" onClick={() => onSelect(d.id)}>
@@ -44,11 +46,14 @@ export function FrontDesk({ f, act, onSelect, onCheckout }: { f: Facility; act: 
                     })()}
                     {w && w.stage !== "waiting" ? ` · waited ${w.minutes} min` : ""}
                   </span>
-                  {(() => {
-                    const full = arrivalWarning(f, d);
-                    return full ? <span className="block text-[11px] font-semibold text-destructive">⚠️ {full.short}</span> : null;
-                  })()}
+                  {v.booking && <span className="block text-[11px] font-semibold text-primary">📅 booked · {sourceShort(v.source)}</span>}
+                  {full && <span className="block text-[11px] font-semibold text-destructive">⚠️ {full.short}</span>}
                 </button>
+                {full && (v.moved ?? 0) < 2 && (
+                  <Button className="h-11" variant="outline" aria-label={`Another day for ${d.name}`} onClick={() => act((s) => offerAnotherDay(s, d.id), { event: { name: "tycoon_marketing", props: { desk: "another_day" } } })}>
+                    Another day
+                  </Button>
+                )}
                 <Button
                   className="h-11"
                   onClick={() => {

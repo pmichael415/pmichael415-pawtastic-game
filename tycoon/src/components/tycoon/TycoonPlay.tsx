@@ -49,6 +49,7 @@ import type { TResult, TycoonState } from "@/tycoon/types";
 import { BuildToolbar, useBuild, type FxFn } from "./BuildToolbar";
 import { DayReport } from "./DayReport";
 import { FinancesSheet } from "./FinancesSheet";
+import { MarketingSheet } from "./MarketingSheet";
 import { MoneyBanner } from "./MoneyBanner";
 import { SignCard } from "./SignCard";
 import { CheckoutContext, DogPanel } from "./DogPanel";
@@ -122,6 +123,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
   const [askSell, setAskSell] = useState(false);
   const [painting, setPainting] = useState<string | null>(null);
   const [finances, setFinances] = useState(false);
+  const [marketing, setMarketing] = useState(false);
   const [shop, setShop] = useState(false);
   const [buyDecor, setBuyDecor] = useState(false);
   // Purchase prompts wait until the guided tour reaches free play (spec §6); the hub Shop tab is always there.
@@ -492,7 +494,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
           <Button className="h-11 shrink-0" onClick={() => setPaused(false)}>Resume</Button>
         </section>
       )}
-      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} {...(blocking ? { holdWhy } : {})} onFinances={() => setFinances(true)} onReputation={() => setRepOpen(true)} onTeam={() => setTeamOpen(true)} {...(quiet ? {} : { onShop: () => setShop(true) })} />
+      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} {...(blocking ? { holdWhy } : {})} onFinances={() => setFinances(true)} onReputation={() => setRepOpen(true)} onTeam={() => setTeamOpen(true)} onMarketing={() => setMarketing(true)} {...(quiet ? {} : { onShop: () => setShop(true) })} />
       {!quiet && <TodayStrip state={state} onOpen={() => setFinances(true)} />}
       {isFreshSave(state) && <StartCard onPick={(mode) => set((s) => startTour(s, mode, Date.now()))} />}
       {/* Build is always there once you've started (empire milestone §2: step into building whenever you like). */}
@@ -651,6 +653,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
             if (a === "team") setTeamOpen(true);
             else if (a === "expand") setExpandOpen(true);
             else if (a === "finances") setFinances(true);
+            else if (a === "marketing") setMarketing(true);
             else setBuilding(true);
           }}
         />
@@ -730,6 +733,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
       />
       {diagUi && <DiagOverlay debug={() => (stage.current?.debug() as Parameters<typeof DiagOverlay>[0] extends { debug: () => infer D } ? D : never) ?? null} quality={qualityLabel(settings.lowPower)} />}
       <FinancesSheet open={finances} state={state} act={act} onClose={() => setFinances(false)} />
+      {marketing && <MarketingSheet open state={state} act={act} onClose={() => setMarketing(false)} />}
       <DaycareShop open={shop} onClose={() => setShop(false)} owned={entForShop?.owned ?? new Set()} />
       {buyDecor && <BuySheet product={productById("deluxe-daycare-decor")!} returnTo="/daycare-next" open onClose={() => setBuyDecor(false)} />}
       <DayReport state={state} set={set} onFinances={() => setFinances(true)} />

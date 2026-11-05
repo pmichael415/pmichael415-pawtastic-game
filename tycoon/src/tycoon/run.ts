@@ -3,6 +3,7 @@
 import { openMoments } from "./moments";
 import {
   ARRIVAL_CHANCE_PER_MIN,
+  BREAK_START,
   BREEDS,
   DAY_CLOSE,
   DAY_OPEN,
@@ -34,7 +35,8 @@ import { fac, withFac } from "./state";
 import { tourHolds } from "./tour";
 import { LAST_DROPOFF, fmtTime, logVisit, newVisit, visitOf } from "./visit";
 import { assessVisit } from "./assess";
-import { cantServe, creditArrival, creditVisit, findFamily, fmtHM, noteArrival, noteTurned, pickReturning, slotFor, sourceWords, touchDay } from "./customers";
+import { campaignDay } from "./marketing";
+import { cantServe, creditArrival, creditVisit, findFamily, fmtHM, noteArrival, noteTurned, pickReturning, slotFor, sourceWords, staffOutreach, touchDay } from "./customers";
 import { runStaff, supervised } from "./team";
 import { DESK_GIVES_UP } from "./waiting";
 import { BATH_MIN, bathQueue, freeTub, roomCleanOf, roomOfDog, setRoomClean } from "./rooms";
@@ -782,6 +784,7 @@ function tickStep(s: TycoonState, seconds: number, rand: () => number): TycoonSt
   f = fac(out);
   if (!f.open) return runStaff(out, seconds * GAME_MIN_PER_SEC);
   if (f.footfall?.at(-1)?.day !== f.day) out = withFac(out, touchDay(f)); // today's footfall starts (even if nobody comes)
+  out = campaignDay(out); // the running campaign's responses for today, drawn once (marketing.ts)
 
   // The clock and drop-offs. Fractional seconds accumulate; arrivals roll once per whole game minute crossed.
   const baseChance = () => {
@@ -815,6 +818,7 @@ function tickStep(s: TycoonState, seconds: number, rand: () => number): TycoonSt
     // staff work through this stretch of time before the minute's deadlines are checked (same result at any step size)
     out = runStaff(out, step);
     if (whole) out = openMoments(pickups(out));
+    if (whole && clock >= BREAK_START) out = staffOutreach(out); // the outreach workload, once per active day
     if (!whole || !lobbyStatus(clock).open) continue;
     out = bookedArrivals(out);
     if (rand() < chance) {

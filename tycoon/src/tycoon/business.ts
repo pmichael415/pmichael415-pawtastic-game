@@ -1,6 +1,6 @@
 // PAWtastic Daycare Tycoon — the business: prices, pay, demand, expenses, marketing and the daily ledger (spec §4.7).
 // All amounts are game coins, never real money or real PAWtastic prices.
-import { CAMPAIGNS, PRICE_DEFAULTS, PRICE_RANGES, outdoorDef, furnitureDef } from "./catalog";
+import { PRICE_DEFAULTS, PRICE_RANGES, outdoorDef, furnitureDef } from "./catalog";
 import { caps } from "./connect";
 import { funAppeal, tip } from "./effects";
 import { level } from "./progress";
@@ -206,27 +206,7 @@ export function setSupplies(s: TycoonState, supplies: Supplies): TResult {
   return { ok: true, state: withFac(s, { ...fac(s), supplies }), msg: label };
 }
 
-// ---------- marketing ----------
-
-const running = (f: Facility) => !!f.campaign && f.day < f.campaign.untilDay;
-
-export function startCampaign(s: TycoonState, id: CampaignId): TResult {
-  const c = CAMPAIGNS.find((x) => x.id === id);
-  if (!c) return { ok: false, error: "Unknown campaign." };
-  if (c.level > level(s)) return { ok: false, error: `Unlocks at level ${c.level}.` };
-  if (running(fac(s))) return { ok: false, error: "One campaign at a time." };
-  const paid = spend(s, c.price, "marketing");
-  if (!paid.ok) return paid;
-  const f = fac(paid.state);
-  const next = adjustRep({ ...f, campaign: { id, untilDay: f.day + c.days } }, c.reputation, `${c.name} — new families heard about you`);
-  return { ok: true, state: withFac(paid.state, next), msg: `${c.name} running for ${c.days} days!` };
-}
-
-/** Arrival multiplier from the running campaign. */
-export function campaignBoost(f: Facility): number {
-  if (!running(f)) return 1;
-  return 1 + (CAMPAIGNS.find((c) => c.id === f.campaign!.id)?.boost ?? 0);
-}
+// Marketing (campaigns, results) lives in marketing.ts; its spending is recorded here as the "marketing" expense.
 
 // ---------- the end of the day ----------
 

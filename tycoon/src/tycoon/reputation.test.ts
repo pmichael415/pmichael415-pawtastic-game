@@ -2,7 +2,7 @@
 // (service design, "Reputation, reviews, loyalty").
 import { describe, expect, it } from "vitest";
 import { REP_MIN, mulberry } from "@/game/engine";
-import { startCampaign } from "./business";
+import { startCampaign } from "./marketing";
 import { checkout, createArrival, setOpen, tick } from "./run";
 import { REVIEW_FACTOR_MAX, REVIEW_FACTOR_MIN, repDeltaFor, reviewFactor, reviewFor } from "./reputation";
 import { fac, withFac } from "./state";

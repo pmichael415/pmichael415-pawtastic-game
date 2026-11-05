@@ -9,7 +9,7 @@ import { facilityStage } from "@/tycoon/stages";
 import { fac } from "@/tycoon/state";
 import type { TycoonState } from "@/tycoon/types";
 
-const ACTION_LABEL: Record<ObjectiveAction, string> = { team: "Open Team", expand: "See options", finances: "Finances", build: "Start building" };
+const ACTION_LABEL: Record<ObjectiveAction, string> = { team: "Open Team", expand: "See options", finances: "Finances", build: "Start building", marketing: "Open Marketing" };
 const pct = (o: Objective) => (o.progress ? Math.round((100 * o.progress[0]) / Math.max(1, o.progress[1])) : null);
 
 export function ObjectiveBar({ state, onAction }: { state: TycoonState; onAction: (a: ObjectiveAction) => void }) {

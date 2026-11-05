@@ -3,7 +3,6 @@ import { placeThing, setClosed } from "./build";
 import {
   spendWarning,
   bathPay,
-  campaignBoost,
   checkoutPay,
   closeDay,
   countToday,
@@ -17,7 +16,6 @@ import {
   setSupplies,
   setWage,
   spend,
-  startCampaign,
   upkeepOf,
   wageRecovery,
 } from "./business";
@@ -161,33 +159,6 @@ describe("below zero (Review Focus 3)", () => {
   it("earning and spending record today's ledger", () => {
     const s = ok(spend(earn(bare([]), { daycare: 32, tips: 3 }), 120, "marketing"));
     expect(fac(s).ledger.at(-1)).toMatchObject({ day: 1, income: { daycare: 32, tips: 3 }, expenses: { marketing: 120 } });
-  });
-});
-
-describe("marketing", () => {
-  const at = (n: number) => ({ ...newTycoon(0), xp: 50 * n * (n - 1) });
-  it("unlocks by level and costs its price", () => {
-    expect(startCampaign(at(4), "online")).toEqual({ ok: false, error: "Unlocks at level 5." });
-    const s = ok(startCampaign(at(5), "online"));
-    expect(s.coins).toBe(newTycoon(0).coins - 400);
-    expect(fac(s).campaign).toEqual({ id: "online", untilDay: 4 });
-    expect(campaignBoost(fac(s))).toBe(1.4);
-  });
-  it("lasts its days, one at a time", () => {
-    let s = ok(startCampaign(at(5), "online"));
-    expect(startCampaign(s, "flyers")).toEqual({ ok: false, error: "One campaign at a time." });
-    s = closeDay(closeDay(s));
-    expect(campaignBoost(fac(s))).toBe(1.4); // day 3
-    s = closeDay(s);
-    expect(fac(s).day).toBe(4);
-    expect(campaignBoost(fac(s))).toBe(1);
-    expect(fac(s).campaign).toBeNull();
-    expect(startCampaign(s, "flyers").ok).toBe(true);
-  });
-  it("an open house adds reputation +5", () => {
-    const s = ok(startCampaign(at(8), "openhouse"));
-    expect(fac(s).reputation).toBe(85);
-    expect(campaignBoost(fac(s))).toBe(1.6);
   });
 });
 

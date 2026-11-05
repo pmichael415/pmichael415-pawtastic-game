@@ -260,12 +260,16 @@ export type CampaignRun = {
   costs: number;
   /** Active days whose responses were drawn. */
   drawn: number[];
+  /** Families (pup|breed) who already answered this campaign — each answers once. */
+  answered?: string[];
 };
 /** Outreach: today's free calls and what all outreach has brought, by who did it. */
 export type OutreachLog = {
   day: number;
   used: number;
   stats: { calls: number; booked: number; arrivals: number; visits: number; revenue: number; costs: number };
+  /** The assigned team member's calls on their last active day. */
+  staff?: { day: number; calls: number; booked: number };
 };
 
 export type Prices = { daycare: number; boarding: number; bath: number; exitBath: number };
@@ -332,6 +336,8 @@ export type Facility = {
   campaignRuns?: CampaignRun[];
   /** Today's free outreach calls and what outreach has brought. */
   outreach?: OutreachLog;
+  /** The team member who makes outreach calls in the midday break (staff-managed outreach), if any. */
+  outreachBy?: string | null;
   /** Who came and who couldn't, for the last 14 active days (newest last). */
   footfall?: Footfall[];
   ledger: DayLedger[];

@@ -203,11 +203,13 @@ describe("a family arriving when their kind's playroom is full", () => {
     const arriving = fac(now()).dogs[3]!;
     expect(desk().getByText(/no free Small & Gentle spot/i)).toBeTruthy();
     fireEvent.click(desk().getByRole("button", { name: new RegExp(`🐕 ${arriving.name}`) }));
-    expect(panel().getByText(/No free Small & Gentle spot right now — they'd wait in the lobby\. “Can't take today” costs nothing\./)).toBeTruthy();
+    expect(panel().getByText(/No free Small & Gentle spot right now — they'd wait in the lobby\. “Offer another day” books them for the next active day; “Can't take today” costs nothing\./)).toBeTruthy();
+    expect(panel().getByRole("button", { name: "Offer another day" })).toBeTruthy();
     const spent = JSON.stringify(fac(now()).ledger.at(-1)!.expenses);
     fireEvent.click(panel().getByRole("button", { name: "Can't take today" }));
     expect(fac(now()).dogs.some((d) => d.id === arriving.id)).toBe(false);
     expect(JSON.stringify(fac(now()).ledger.at(-1)!.expenses)).toBe(spent); // nothing charged
+    expect(fac(now()).footfall!.at(-1)!.turned).toMatchObject({ "Small & Gentle playroom full": 1 }); // counted as unmet demand
   });
   it("says nothing when there's a free spot", () => {
     open(withPups({}));

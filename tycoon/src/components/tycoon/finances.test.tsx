@@ -85,18 +85,6 @@ describe("finances", () => {
     unmount();
   });
 
-  it("marketing: Flyers costs 150; Online ads is locked at level 4", () => {
-    load({ ...newTycoon(Date.now()), xp: 600 });
-    const { unmount } = render(<Harness show="finances" />);
-    tab("Marketing");
-    expect(screen.getByText("Unlocks at level 5")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /^Start Flyers/ }));
-    expect(now().coins).toBe(START_COINS - 150);
-    expect(fac(now()).campaign?.id).toBe("flyers");
-    expect(screen.getByText(/Flyers running/)).toBeTruthy();
-    unmount();
-  });
-
   it("the trophy shelf lists every trophy", () => {
     load({ ...newTycoon(Date.now()), trophies: ["first_dog"] });
     const { unmount } = render(<Harness show="finances" />);

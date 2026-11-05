@@ -20,6 +20,7 @@ export function RunHud({
   onFinances,
   onReputation,
   onTeam,
+  onMarketing,
   onShop,
   holdWhy,
 }: {
@@ -31,6 +32,8 @@ export function RunHud({
   /** Opens why reputation moved, the reviews and recent pickups. */
   onReputation?: () => void;
   onTeam?: () => void;
+  /** Opens the Marketing screen (customers, campaigns, results). */
+  onMarketing?: () => void;
   onShop?: () => void;
   /** Set while a screen holds time ("you build"…): the Pause/Resume button can't restart it. */
   holdWhy?: string;
@@ -44,6 +47,7 @@ export function RunHud({
   const lobby = lobbyStatus(f.clockMin);
   const recent = (f.reviews ?? []).slice(-10);
   const stars = recent.length ? (recent.reduce((n, r) => n + r.stars, 0) / recent.length).toFixed(1) : "";
+  const running = f.campaign && f.day < f.campaign.untilDay ? (f.campaignRuns ?? []).find((r) => r.uid === f.campaign!.run)?.name ?? "a campaign" : null;
   const toggle = (v: boolean) =>
     act((s) => setOpen(s, v), v ? { event: { name: "tycoon_open", props: { day: f.day } } } : {});
 
@@ -95,6 +99,11 @@ export function RunHud({
         {onTeam && (
           <button type="button" onClick={onTeam} aria-label={`Team, ${f.staff.length} ${f.staff.length === 1 ? "person" : "people"}`} className="-my-2 min-h-11 rounded-xl px-2 text-xs font-bold text-secondary hover:bg-muted">
             Team {f.staff.length}
+          </button>
+        )}
+        {onMarketing && (
+          <button type="button" onClick={onMarketing} aria-label={`Marketing${running ? ` · ${running} running` : ""}`} className="-my-2 min-h-11 rounded-xl px-2 text-xs font-bold text-secondary hover:bg-muted">
+            Marketing{running ? " ·📣" : ""}
           </button>
         )}
         <label className="ml-auto flex items-center gap-2 font-semibold text-secondary">

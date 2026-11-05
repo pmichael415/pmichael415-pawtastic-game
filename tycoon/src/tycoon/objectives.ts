@@ -2,6 +2,7 @@
 // from the save. Recovery comes first: when income is blocked, the next objective is the free fix.
 import { WAGES } from "./business";
 import { canOpen, caps } from "./connect";
+import { freeCallsLeft, outreachOffers } from "./customers";
 import { EXPANSION_LEVEL, EXPANSION_LEVELS, askedToday, demandGroup, expansionOptions, idleRooms, type ExpansionId } from "./expansion";
 import { roomName } from "./rooms";
 import { groupName } from "@/game/engine";
@@ -11,13 +12,14 @@ import { incomeBlockers } from "./blockers";
 import { ROLE_NAME } from "./roles";
 import { fac } from "./state";
 import { hireCostFor, recommendRole } from "./team";
+import { ownerFor } from "./visit";
 import { waitStage } from "./waiting";
 import { facilityStage, type GrowthWay } from "./stages";
 import type { TycoonState } from "./types";
 
 /** Which way to grow builds each part of a facility stage. */
 const WAY_EXPANSION: Record<GrowthWay, ExpansionId> = { playrooms: "playroom", bath: "bath", boarding: "boarding", yard: "yard", staff: "staff" };
-export type ObjectiveAction = "team" | "expand" | "finances" | "build";
+export type ObjectiveAction = "team" | "expand" | "finances" | "build" | "marketing";
 export type Objective = { id: string; title: string; detail: string; progress?: [number, number]; action?: ObjectiveAction };
 const coins = (n: number) => n.toLocaleString("en-US");
 
@@ -39,6 +41,9 @@ export function nextObjective(s: TycoonState): Objective {
   // a room you built that's closed or not working: opening it again is free and comes before building anything
   const idle = idleRooms(f)[0];
   if (idle && (f.stats.checkouts ?? 0) > 0) return { id: "reopen", title: `Reopen your ${roomName(f, idle.uid)}`, detail: "It's closed or not working, so it doesn't count right now. Tap it in the daycare to open it again (free) or see what it needs." };
+  // the first retention decision (customer-growth §6): thank a family after a good visit — free; a booking may follow
+  const thank = (f.outreach?.stats.calls ?? 0) === 0 && freeCallsLeft(f) > 0 ? f.guestBook.find((g) => outreachOffers(f, g).some((o) => o.kind === "thank")) : undefined;
+  if (thank) return { id: "thank", title: `Thank ${ownerFor(thank)} — it's free`, detail: `${thank.name} had a good day. A thank-you call costs nothing and may lead to a booking (not guaranteed) — Marketing → Customers.`, action: "marketing" };
   // families asking for a kind of pup you can't take: growth comes before more wages
   const want = demandGroup(f);
   const asked = want ? (askedToday(f).find((a) => a.group === want)?.n ?? 0) : 0;
