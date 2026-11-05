@@ -93,6 +93,8 @@ describe("pups, money and objectives", () => {
     expect(panel.getByText(/Taylor: getting impatient at the desk — 25 game min/)).toBeTruthy();
     expect(panel.getByText(/Next: Check in, or Can't take today/)).toBeTruthy();
     expect(panel.getByText(/Needs: check-in/)).toBeTruthy();
+    // (the panel is compact since the legacy comparison: who looks after the pup is one tap away)
+    fireEvent.click(panel.getByRole("button", { name: /^More about Luna/ }));
     expect(panel.getByText(/Looked after by You/)).toBeTruthy();
   });
   it("the Today strip shows revenue, operating costs (with what's due tonight) and the profit by closing, in game coins", () => {

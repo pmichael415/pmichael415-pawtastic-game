@@ -535,7 +535,7 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
       {show3d && !building && !placing && !isFreshSave(state) && (
         <div className="space-y-1.5">
           <FrontDesk f={f} act={act} onSelect={(id) => setSel({ kind: "dog", id })} onCheckout={onCheckout} />
-          <RoomsStrip f={f} dog={pickedDog} act={act} onSelectRoom={(uid) => setSel({ kind: "room", id: uid })} />
+          <RoomsStrip f={f} dog={pickedDog} act={act} onSelectRoom={(uid) => setSel({ kind: "room", id: uid })} onSelectDog={(id) => setSel({ kind: "dog", id })} />
         </div>
       )}
       <div className="relative" ref={stageWrap}>
@@ -587,7 +587,22 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
           ×
         </button>
       )}
-      {pickedDog && <DogPanel f={f} dog={pickedDog} act={act} />}
+      {pickedDog && (
+        <DogPanel
+          f={f}
+          dog={pickedDog}
+          act={act}
+          {...(tourHolds(state)
+            ? {} // in the guide the coach leads the next step (Check out) from this panel, so it stays
+            : {
+                onAllSet: (message: string) => {
+                  // the pup needs nothing more for now: give the daycare back, and say when the family comes
+                  setSel(null);
+                  toast(message);
+                },
+              })}
+        />
+      )}
       {pickedStaff && (
         <StaffPanel
           f={f}

@@ -44,8 +44,32 @@ function Meter({ label, value }: { label: string; value: number }) {
   );
 }
 
-export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) {
+/** The pup needs nothing more until its family comes back (settled, cared for, no bath running, nothing asked). */
+function allSet(f: Facility, d: TDog): boolean {
+  const v = visitOf(f, d);
+  return d.checkedIn && (d.place.kind === "room" || d.place.kind === "bed") && !d.bathing && v.ownerHere == null && v.moment?.state !== "open" && nextAction(f, d).id === "none";
+}
+
+/**
+ * One pup, compact (milestone §2, from the legacy comparison): who, where, what they need and the one next step; the
+ * details a tap away. When an action leaves the pup all set, `onAllSet` closes the panel so the daycare is clear.
+ */
+export function DogPanel({ f, dog, act, onAllSet }: { f: Facility; dog: TDog; act: Act; onAllSet?: (message: string) => void }) {
   const [confirmRoom, setConfirmRoom] = useState<string | null>(null);
+  const [more, setMore] = useState(false);
+  /** A care action (move, play, bath): if it leaves the pup all set, the panel gives the daycare back. */
+  const care: Act = (fn, opts) => {
+    const r = act(fn, opts);
+    if (r.ok && onAllSet) {
+      const g = r.state.facilities[r.state.active];
+      const nd = g?.dogs.find((x) => x.id === dog.id);
+      if (g && nd && !allSet(f, dog) && allSet(g, nd)) {
+        const v = visitOf(g, nd);
+        onAllSet(`${nd.name} is all set — ${v.owner} picks up ${v.pickupDay > g.day ? "tomorrow " : ""}at ${fmtTime(v.pickup)}.`);
+      }
+    }
+    return r;
+  };
   const onCheckout = useContext(CheckoutContext);
   const leave = (exitBath: boolean) => (onCheckout ? onCheckout(dog.id, exitBath) : act((s) => checkout(s, dog.id, exitBath)));
   const v = visitOf(f, dog);
@@ -69,7 +93,7 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
 
   const next = nextAction(f, dog);
   const assign = (roomUid: string, confirm = false) => {
-    const r = act((s) => assignRoom(s, dog.id, roomUid, confirm));
+    const r = care((s) => assignRoom(s, dog.id, roomUid, confirm));
     setConfirmRoom(!r.ok && r.error.includes("Confirm to place anyway") ? roomUid : null);
   };
 
@@ -83,9 +107,6 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
           {dog.visits > 1 ? ` · visit #${dog.visits}` : ""}
         </span>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Loves {FAVORITE_LABEL[personality.favorite]} · {personality.trait}
-      </p>
       {moment?.state === "open" && (
         <section aria-label={`${dog.name} is asking for you`} className="mt-1 rounded-lg border-2 border-primary/60 bg-primary/10 px-2 py-1.5">
           <p className="text-sm font-semibold text-secondary">
@@ -102,10 +123,6 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
           ✨ You shared {activityOf(moment.kind)} with {dog.name} — the family will hear about it at pickup (+{MOMENT_TIP} tip)
         </p>
       )}
-      <p className="text-xs text-secondary">
-        Booked {v.requests.join(" + ")}
-        {v.prepaid.length ? ` (${v.prepaid.join(", ")} prepaid)` : ""} · {v.owner} · pickup {v.pickupDay > f.day ? "tomorrow " : ""}{fmtTime(v.pickup)}
-      </p>
       {v.ownerHere !== null && (
         <p className="mt-1 rounded-lg bg-accent/40 px-2 py-1 text-xs font-semibold text-secondary">
           {v.owner} is here for pickup{waited ? ` — waiting ${waited} min` : ""}
@@ -120,15 +137,33 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
           {wait.kind === "dropoff" ? " · Next: Check in, or Can't take today" : " · Next: Check out"}
         </p>
       )}
-      <p className="text-xs text-muted-foreground">{placeLabel(f, dog)}{scuffle ? " · ⚠️ scuffle" : ""}</p>
+      {/* compact: where, what they need, when the family is back — and how happy they are */}
       <p className="text-xs text-secondary">
-        {room ? `${roomName(f, room)} · ${Math.round(roomCleanOf(f, room))}% clean · ` : ""}Needs: {needs.length ? needs.join(", ") : "nothing right now"}
+        {placeLabel(f, dog)}
+        {scuffle ? " · ⚠️ scuffle" : ""} · Needs: {needs.length ? needs.join(", ") : "nothing right now"} · {v.owner} {v.pickupDay > f.day ? "tomorrow " : ""}
+        {fmtTime(v.pickup)}
       </p>
-      <p className="text-xs text-secondary">Looked after by {responsibleFor(f, dog)}</p>
-      <div className="mt-1 space-y-0.5">
+      <div className="mt-1">
         <Meter label="Happy" value={dog.happiness} />
-        <Meter label="Clean" value={dog.clean} />
       </div>
+      <button type="button" aria-expanded={more} aria-label={`More about ${dog.name}`} className="min-h-11 text-xs font-semibold text-primary" onClick={() => setMore((m) => !m)}>
+        {more ? "▾ Less" : "▸ More"} about {dog.name}
+      </button>
+      {more && (
+        <div className="space-y-0.5 rounded-lg bg-muted/50 px-2 py-1">
+          <p className="text-xs text-muted-foreground">
+            Loves {FAVORITE_LABEL[personality.favorite]} · {personality.trait}
+          </p>
+          <p className="text-xs text-secondary">
+            Booked {v.requests.join(" + ")}
+            {v.prepaid.length ? ` (${v.prepaid.join(", ")} prepaid)` : ""} · {v.owner} · pickup {v.pickupDay > f.day ? "tomorrow " : ""}
+            {fmtTime(v.pickup)}
+          </p>
+          {room && <p className="text-xs text-secondary">{roomName(f, room)} · {Math.round(roomCleanOf(f, room))}% clean</p>}
+          <p className="text-xs text-secondary">Looked after by {responsibleFor(f, dog)}</p>
+          <Meter label="Clean" value={dog.clean} />
+        </div>
+      )}
       {(() => {
         // every action this pup has right now, keyed, so the one next step can lead (big, with a caption) and not repeat
         const items: { key: string; node: (primary: boolean) => React.ReactNode }[] = [];
@@ -144,11 +179,11 @@ export function DogPanel({ f, dog, act }: { f: Facility; dog: TDog; act: Act }) 
           items.push({ key: "confirm", node: () => <Button variant="destructive" className={btn} onClick={() => assign(confirmRoom, true)}>Place anyway (scuffle risk)</Button> });
         if (dog.checkedIn && dog.boarding && dog.place.kind !== "bed") {
           const free = c.beds.find((b) => !f.dogs.some((x) => x.place.kind === "bed" && x.place.bed === b.bed));
-          items.push({ key: free ? "bed" : "nobed", node: (p) => (free ? <Button className={cls(p)} onClick={() => act((s) => assignBed(s, dog.id, free.bed))}>To a boarding bed</Button> : <span className="self-center text-xs text-muted-foreground">No free boarding bed</span>) });
+          items.push({ key: free ? "bed" : "nobed", node: (p) => (free ? <Button className={cls(p)} onClick={() => care((s) => assignBed(s, dog.id, free.bed))}>To a boarding bed</Button> : <span className="self-center text-xs text-muted-foreground">No free boarding bed</span>) });
         }
-        if (placed) items.push({ key: "play", node: (p) => <Button variant={p ? "default" : "secondary"} className={cls(p)} onClick={() => act((s) => playtime(s, dog.id))}>Playtime</Button> });
+        if (placed) items.push({ key: "play", node: (p) => <Button variant={p ? "default" : "secondary"} className={cls(p)} onClick={() => care((s) => playtime(s, dog.id))}>Playtime</Button> });
         if (dog.checkedIn && placed && !dog.bathed && c.bath)
-          items.push({ key: "bath", node: (p) => <Button variant={p ? "default" : "secondary"} className={cls(p)} aria-label="Bath" onClick={() => act((s) => bath(s, dog.id))}>Bath <span className="ml-1 text-xs opacity-80">+{bathPay(f)}</span></Button> });
+          items.push({ key: "bath", node: (p) => <Button variant={p ? "default" : "secondary"} className={cls(p)} aria-label="Bath" onClick={() => care((s) => bath(s, dog.id))}>Bath <span className="ml-1 text-xs opacity-80">+{bathPay(f)}</span></Button> });
         if (room && roomCleanOf(f, room) < 60) items.push({ key: "mop", node: () => <Button variant="secondary" className={btn} onClick={() => act(clean)}>Mop floors</Button> });
         if (dog.checkedIn && dog.place.kind !== "calm" && (placed || scuffle))
           items.push({ key: "calm", node: () => <Button variant="outline" className={btn} onClick={() => act((s) => toCalm(s, dog.id))}>Calm down</Button> });

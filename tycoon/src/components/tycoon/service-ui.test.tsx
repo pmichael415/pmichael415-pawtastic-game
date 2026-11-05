@@ -49,6 +49,8 @@ describe("pickup on screen", () => {
     open(withPickup({}, { requests: ["daycare", "bath"] }));
     act(() => emit({ kind: "dog", id: "a" }));
     expect(panel().getByText(/Taylor is here for pickup/)).toBeTruthy();
+    // (the panel is compact since the legacy comparison: the booking is one tap away)
+    fireEvent.click(panel().getByRole("button", { name: /^More about Biscuit/ }));
     expect(panel().getByText(/Booked daycare \+ bath/)).toBeTruthy();
   });
   it("a complaint opens the pickup sheet: the bill, the complaint, real choices — and one checkout", () => {

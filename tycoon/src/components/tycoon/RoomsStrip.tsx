@@ -3,7 +3,7 @@
 // assignBed rules — the same ones staff use).
 import { groupName, groupOf } from "@/game/engine";
 import { caps, connectedRooms, roomStatus } from "@/tycoon/connect";
-import { safeRooms } from "@/tycoon/nextAction";
+import { nextAction, safeRooms } from "@/tycoon/nextAction";
 import { roomName } from "@/tycoon/rooms";
 import { assignBed, assignRoom } from "@/tycoon/run";
 import type { ActOpts, ActResult } from "@/tycoon/store";
@@ -12,7 +12,14 @@ import type { Facility, TDog, TResult, TycoonState } from "@/tycoon/types";
 type Act = (fn: (s: TycoonState) => TResult, opts?: ActOpts) => ActResult;
 const ICON: Record<string, string> = { playroom: "🎾", bath: "🛁", boarding: "🌙", calm: "🫶", staff: "☕", lobby: "🛎️" };
 
-export function RoomsStrip({ f, dog, act, onSelectRoom }: { f: Facility; dog: TDog | null; act: Act; onSelectRoom: (uid: string) => void }) {
+/** A settled pup whose next step is play or its booked bath: the cue the strip shows (milestone §2). */
+function careCue(f: Facility, d: TDog): string | null {
+  if (!(d.place.kind === "room" || d.place.kind === "bed") || d.bathing) return null;
+  const n = nextAction(f, d);
+  return n.id === "play" ? `🎾 ${d.name} wants to play` : n.id === "bath" ? `🛁 ${d.name}'s bath is booked` : null;
+}
+
+export function RoomsStrip({ f, dog, act, onSelectRoom, onSelectDog }: { f: Facility; dog: TDog | null; act: Act; onSelectRoom: (uid: string) => void; onSelectDog?: (dogId: string) => void }) {
   const c = caps(f);
   const connected = connectedRooms(f); // one search for every chip
   const waiting = !!dog && dog.checkedIn && (dog.place.kind === "lobby" || dog.place.kind === "calm");
@@ -42,9 +49,17 @@ export function RoomsStrip({ f, dog, act, onSelectRoom }: { f: Facility; dog: TD
             </button>
           );
         }
+        // pups here who'd like you now (play, or the bath they booked): one tap opens them with that step ready, so
+        // nothing waits for a complaint at pickup — and nothing covers the daycare to say so
+        const cues = onSelectDog && !dog ? f.dogs.filter((d) => "room" in d.place && d.place.room === r.uid).flatMap((d) => (careCue(f, d) ? [{ id: d.id, text: careCue(f, d)! }] : [])) : [];
         return (
+          <span key={r.uid} className="contents">
+          {cues.map((cue) => (
+            <button key={cue.id} type="button" className="min-h-11 shrink-0 rounded-xl border-2 border-accent bg-accent/25 px-2 text-xs font-semibold text-secondary" onClick={() => onSelectDog!(cue.id)}>
+              {cue.text}
+            </button>
+          ))}
           <button
-            key={r.uid}
             type="button"
             aria-label={label}
             className={`min-h-11 shrink-0 rounded-xl border bg-card px-2 text-left text-xs ${status.working ? "border-border text-secondary" : "border-dashed border-muted-foreground/50 text-muted-foreground"}`}
@@ -53,6 +68,7 @@ export function RoomsStrip({ f, dog, act, onSelectRoom }: { f: Facility; dog: TD
             <span aria-hidden>{ICON[r.type ?? ""] ?? "▫️"} </span>
             {label}
           </button>
+          </span>
         );
       })}
     </section>
