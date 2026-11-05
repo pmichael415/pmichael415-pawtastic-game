@@ -8,7 +8,7 @@ import { clientOf } from './payments.js';
 import { onMap } from './referral.js';
 import { LOCATIONS } from '../engine/levels.js';
 import { totalStars, totalBestScore } from '../economy/progression.js';
-import { weekKey, weekEndsAt, CHALLENGES, CHALLENGE_IDS, isChallengeId, TIER_NAMES, rulesFor } from '../engine/challenge.js';
+import { weekKey, weekEndsAt, CHALLENGES, CHALLENGE_IDS, isChallengeId, isWeekKey, TIER_NAMES, rulesFor } from '../engine/challenge.js';
 
 const PRIZE_NAMES = { 'daycare-day': 'Free day of daycare', bath: 'Free bath' };
 const lower = t => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
@@ -250,3 +250,38 @@ export async function competeOnOpen(app) {
   await prizeNews(app).catch(() => null);
 }
 
+
+// Beat My Pup links: ?beat=<challenge>&week=<Monday> opens that challenge. Only the challenge id and the week are
+// read from the link; a score in a link or in storage is never shown or trusted (the card carries the checked result).
+let beatLinkSeen = null;
+export function captureBeatLink(loc = globalThis.location, hist = globalThis.history) {
+  try {
+    const params = new URLSearchParams(loc.search);
+    if (!params.has('beat') && !params.has('challenge')) return null;
+    const raw = params.get('beat') ?? params.get('challenge');
+    const challenge = isChallengeId(raw) ? raw : 'high-score';
+    const week = isWeekKey(params.get('week')) ? params.get('week') : null;
+    for (const k of ['beat', 'challenge', 'week', 'score', 'pts']) params.delete(k);
+    const rest = params.toString();
+    hist?.replaceState(null, '', loc.pathname + (rest ? `?${rest}` : '') + loc.hash);
+    beatLinkSeen = { challenge, week };
+    return beatLinkSeen;
+  } catch { return null; }
+}
+export const pendingBeatLink = () => beatLinkSeen;
+
+/** Once the map is up with nothing else open, a Beat My Pup link opens its challenge (this week's, if the link's week is over). */
+export async function openBeatLink(app) {
+  const link = beatLinkSeen;
+  if (!link) return false;
+  beatLinkSeen = null;
+  if (!(await onMap(app))) return false;
+  await loadWeekPrizes(app).catch(() => null);
+  const week = weekKey(Date.now());
+  const rules = weekRules(week);
+  const challenge = rules.challenges.includes(link.challenge) ? link.challenge : 'high-score';
+  if (link.week && link.week !== week) app.toast(`That challenge week is over. Here's this week's ${challengeName(challenge)}.`);
+  else if (challenge !== link.challenge) app.toast(`${challengeName(link.challenge)}s aren't in this week's competition. Here's the ${challengeName(challenge)}.`);
+  app.go('challenge', { challenge, beat: true });
+  return true;
+}

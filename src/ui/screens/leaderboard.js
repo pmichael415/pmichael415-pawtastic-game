@@ -6,8 +6,8 @@ import { h, fill } from '../dom.js';
 import { topBar } from '../topbar.js';
 import { clientOf, signInThenReload } from '../payments.js';
 import { LOCATIONS } from '../../engine/levels.js';
-import { weekKey } from '../../engine/challenge.js';
-import { prizeLine, prizeForRank, endsInText, homeName, pickHome, prizeCard, syncProfile, sendPendingRun } from '../compete.js';
+import { weekKey, CHALLENGES, CHALLENGE_IDS } from '../../engine/challenge.js';
+import { prizeLine, prizeForRank, endsInText, homeName, pickHome, prizeCard, syncProfile, sendPendingRun, loadWeekPrizes, weekRules, formatTeaser } from '../compete.js';
 
 const MEDALS = { 1: '🥇', 2: '🥈', 3: '🥉' };
 const num = n => Number(n || 0).toLocaleString('en-US');
@@ -27,18 +27,34 @@ export function render(app, { board = 'weekly', location = 'all' } = {}) {
     }, label)));
   const body = h('div', { class: 'stack' }, h('p', { class: 'muted' }, 'Loading the leaderboard…'));
   const week = weekKey(Date.now());
+  const formatLine = h('p', { class: 'small muted' });
+  const playRow = h('div', { class: 'btn-pair' });
+  const showFormat = () => {
+    const rules = weekRules(week);
+    if (rules.version === 2) {
+      formatLine.textContent = 'Three challenges this week: High score, Combo and Cleanup. Your best in each is added up; the total is what ranks. No boosters, and every try is free.';
+      fill(playRow, ...CHALLENGE_IDS.map((id, i) => h('button', { class: `btn ${i === 0 ? 'gold' : 'secondary'} small-btn`, type: 'button', onClick: () => app.go('challenge', { challenge: id }) }, CHALLENGES[id].short)));
+    } else {
+      formatLine.textContent = formatTeaser(rules);
+      formatLine.hidden = !formatLine.textContent;
+      fill(playRow, h('button', { class: 'btn gold', type: 'button', onClick: () => app.go('challenge') }, 'Play the challenge'));
+    }
+  };
+  showFormat();
   const intro = board === 'weekly'
     ? h('div', { class: 'card stack weekly-card' },
       h('p', { class: 'eyebrow' }, `Weekly Challenge · ${endsInText(week)}`),
       h('p', { class: 'small' }, prizeLine()),
-      h('button', { class: 'btn gold', type: 'button', onClick: () => app.go('challenge') }, 'Play the challenge'))
+      formatLine,
+      playRow)
     : h('p', { class: 'small muted' }, 'All-time: most stars, then the highest best scores added up. Just for bragging rights.');
   app.view.append(bar, h('section', { class: 'leaderboard stack' }, h('h1', {}, 'Leaderboard'), tabs, chips, intro, body));
 
   (async () => {
     if (!pay?.accounts) { fill(body, h('p', { class: 'card' }, 'The leaderboard needs the internet. Open the game at play.pawtasticacademy.com.')); return; }
     if (pay.signedIn) { await syncProfile(app).catch(() => null); await sendPendingRun(app).catch(() => null); }
-    const [res, prizes] = await Promise.all([pay.leaderboard({ board, location }), pay.signedIn ? pay.prizes() : Promise.resolve(null)]);
+    const [res, prizes] = await Promise.all([pay.leaderboard({ board, location }), pay.signedIn ? pay.prizes() : Promise.resolve(null), loadWeekPrizes(app).catch(() => null)]);
+    showFormat();
     if (!res.ok) { fill(body, h('p', { class: 'card' }, "Couldn't load the leaderboard. Try again in a moment.")); return; }
     const state = backend.state();
     const teams = res.teams && h('div', { class: 'card teams' },
@@ -53,10 +69,12 @@ export function render(app, { board = 'weekly', location = 'all' } = {}) {
       h('span', { class: 'lb-rank num' }, MEDALS[e.rank] && location !== 'all' && board === 'weekly' ? MEDALS[e.rank] : `#${e.rank}`),
       h('span', { class: 'lb-name' }, h('strong', {}, e.dogName), h('span', { class: 'small muted' }, ` · ${LOCATIONS[e.location] ?? ''}`), e.me ? h('span', { class: 'you-tag' }, 'You') : null),
       h('span', { class: 'lb-score num' }, board === 'weekly' ? `${num(e.score)} ${unit}` : `${num(e.stars)} ${unit}`)));
+    const bests = board === 'weekly' && res.me?.bests && typeof res.me.bests === 'object' ? res.me.bests : null;
     const me = res.me
       ? h('p', { class: 'card small num me-line' }, h('strong', {}, `You: #${res.me.rank}`), location === 'all' ? '' : ` at ${LOCATIONS[location]}`,
         ` · ${board === 'weekly' ? `${num(res.me.score)} pts` : `${num(res.me.stars)} ★`}`,
-        board === 'weekly' && location !== 'all' && res.me.rank <= 3 ? ` · in the prizes: ${prizeForRank(res.me.rank)}` : '')
+        board === 'weekly' && location !== 'all' && res.me.rank <= 3 ? ` · in the prizes: ${prizeForRank(res.me.rank)}` : '',
+        bests ? h('span', { class: 'small muted' }, ` (${CHALLENGE_IDS.map(id => `${CHALLENGES[id].short} ${num(bests[id] ?? 0)}`).join(' · ')})`) : '')
       : null;
     const join = !pay.signedIn
       ? h('div', { class: 'card stack' }, h('p', {}, 'Sign in to put your pup on the leaderboard and play for prizes.'),

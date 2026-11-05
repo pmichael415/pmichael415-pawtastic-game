@@ -20,6 +20,7 @@ const ERR = {
   'not-redeemable': 'This prize was already used, voided or has expired.',
   'already-void': 'This prize was already voided.',
   'wrong-code': "That code didn't work. Check the email and try again.",
+  'week-started': 'That week has already started. Pick a later Monday.',
 };
 const errText = e => ERR[e] ?? 'Something went wrong. Please try again.';
 const when = iso => { try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return ''; } };
@@ -176,7 +177,9 @@ const EVENT_LABEL = {
   opened: 'Opened the game', first_play_started: 'Played a first level', first_play_completed: 'Finished a first level', replay: 'Replayed a level',
   shop_viewed: 'Visited the Shop', product_previewed: 'Looked at a price', checkout_started: 'Went to Stripe Checkout', checkout_failed: 'Checkout could not start',
   purchase_arrived: 'Purchase arrived in the game', purchase_waiting: 'Paid, purchase still on its way', share: 'Shared a card or invite', challenge_link_visit: 'Came from a shared link',
+  challenge_run: 'Finished a Weekly Challenge run',
 };
+const nextMonday = key => { const [y, m, d] = key.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + 7, 12)).toISOString().slice(0, 10); };
 const ratio = (a, b) => (Number(b) > 0 ? `${Math.round((Number(a) / Number(b)) * 100)}%` : '—');
 const plural = (v, one, many) => `${n(v)} ${Number(v) === 1 ? one : many}`;
 
@@ -284,6 +287,34 @@ async function home() {
         h('div', {}, h('strong', {}, `${rewardOf(p)} · ${p.dogName}`), h('p', { class: 'muted' }, `#${p.rank} ${LOC[p.location] ?? ''} · week of ${p.week} · code ${p.code} · ${p.email || ''}`)),
         h('div', { class: 'row-side' }, h('span', { class: `tag ${p.status === 'won' ? 'earned' : p.status === 'redeemed' ? 'bath-given' : ''}` }, PRIZE_STATUS[p.status] ?? p.status)))))
       : h('p', { class: 'muted' }, 'No prizes yet. Winners appear here after each week ends (Monday).'));
+  // The three-challenge format: scheduled for a future Monday by the owner; the week in progress never changes.
+  const fmt = prizes.ok && prizes.format && typeof prizes.format === 'object' ? prizes.format : null;
+  const mondays = [];
+  if (fmt?.earliest) { let w = fmt.earliest; for (let i = 0; i < 8; i++) { mondays.push(w); w = nextMonday(w); } }
+  const pickWeek = h('select', { 'aria-label': 'Starting Monday' }, mondays.map(w => h('option', { value: w }, `Monday ${w}`)));
+  const fmtNote = h('p', { class: 'muted' });
+  const formatSection = fmt ? h('section', { class: 'card stack' }, h('h2', {}, 'Weekly Challenge format'),
+    h('p', { class: 'muted' }, `This week (${fmt.thisWeek}) plays ${fmt.version === 2 ? 'the three-challenge format: High score, Combo and Cleanup, best in each added up' : 'the single High score run (25 moves)'}. The week in progress never changes; a new format starts on a Monday you pick.`),
+    fmt.from
+      ? h('div', { class: 'row' },
+        h('div', {}, h('strong', {}, fmt.from <= fmt.thisWeek ? `Three challenges a week since Monday ${fmt.from}` : `Three challenges a week from Monday ${fmt.from}`),
+          h('p', { class: 'muted' }, fmt.from <= fmt.thisWeek ? 'Running. It cannot be cancelled once a week has started on it.' : 'Scheduled. Players see a teaser on the Weekly Challenge card until then.')),
+        fmt.from > fmt.thisWeek ? h('div', { class: 'row-side' }, h('button', { class: 'link', type: 'button', onClick: async () => {
+          if (!confirm(`Cancel the three-challenge format scheduled for ${fmt.from}?`)) return;
+          const r = await pay.staffPrizeAction({ action: 'cancel-format' });
+          if (!r.ok) { alert(errText(r.error)); return; }
+          home();
+        } }, 'Cancel')) : null)
+      : h('div', { class: 'stack' },
+        h('p', {}, 'Start the three-challenge format (High score, Combo and Cleanup, all free, best in each added up) from a future Monday:'),
+        h('div', { class: 'row' }, pickWeek, h('button', { class: 'btn', type: 'button', onClick: async () => {
+          const fromWeek = pickWeek.value;
+          if (!confirm(`Start the three-challenge format on Monday ${fromWeek}? Weeks before it stay as they are.`)) return;
+          const r = await pay.staffPrizeAction({ action: 'schedule-format', fromWeek });
+          if (!r.ok) { fmtNote.textContent = errText(r.error); return; }
+          home();
+        } }, 'Schedule')),
+        fmtNote)) : null;
   const boardSection = h('section', { class: 'card stack' }, h('h2', {}, "This week's leaderboard"),
     h('p', { class: 'muted' }, 'Hide a player whose dog name is rude, or who is cheating. Hidden players are off the leaderboard and win no prizes.'),
     boardRows.length
@@ -307,6 +338,7 @@ async function home() {
         h('li', {}, 'Weekly Challenge winners show a prize code: look it up, give the free daycare day or bath, and tap "Mark redeemed".'))),
     ownerReport(),
     prizeSection,
+    formatSection,
     boardSection,
     h('section', { class: 'card stack' }, h('h2', {}, 'Recent'),
       recent.length ? h('ul', { class: 'list' }, recent.map(r => referralRow(r, (a, row) => change(a, row, () => home())))) : h('p', { class: 'muted' }, 'No referrals recorded yet.')));

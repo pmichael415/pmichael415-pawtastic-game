@@ -4,6 +4,7 @@
 // itself is paid for sharing (spec §5): the rewards are real-world, given by PAWtastic's staff.
 
 import { h, fill } from './dom.js';
+import { gameLink } from '../net/embed.js';
 import { clientOf, signInSheet, payError, leave } from './payments.js';
 import { FRIEND_CODE as CODE, normalizeCode } from '../net/friend-code.js';
 
@@ -43,9 +44,7 @@ export function friendOffer() {
 }
 
 function inviteLink(code) {
-  let origin = 'https://pawtastic-graduation.lovable.app';
-  try { if (/^https?:$/.test(location.protocol)) origin = location.origin; } catch { /* default */ }
-  return `${origin}/play/index.html${code ? `?ref=${code}` : ''}`;
+  return gameLink(code ? `ref=${code}` : '');
 }
 
 /** For share cards: the invite link, with the player's friend code once they have one. */

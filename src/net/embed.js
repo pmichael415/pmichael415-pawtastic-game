@@ -10,6 +10,18 @@ export function apiBase(doc = globalThis.document) {
   return API_BASES.includes(value) ? value : '';
 }
 
+/**
+ * The address of the game itself, for links that must open Graduation Day: its own server when the page names one
+ * (inside the hub, whose address doesn't serve the game's page), else this page's site, else the public site.
+ */
+export function gameSite(doc = globalThis.document, loc = globalThis.location) {
+  const base = apiBase(doc);
+  if (base) return base;
+  try { if (/^https?:$/.test(loc?.protocol ?? '')) return loc.origin; } catch { /* default */ }
+  return API_BASES[0];
+}
+export const gameLink = (params = '', doc = globalThis.document, loc = globalThis.location) => `${gameSite(doc, loc)}/play/index.html${params ? `?${params}` : ''}`;
+
 /** True when this page runs inside another page's frame (or can't tell). */
 export function embedded(win = globalThis) {
   try {

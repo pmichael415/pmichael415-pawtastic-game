@@ -1,48 +1,113 @@
-// The Weekly Challenge: this week's board (the same for everyone), 25 moves, the highest score wins.
-// Tries are free (no lives) and boosters can't be used, so buying never helps. Each finished run is
+// The Weekly Challenge: this week's board (the same for everyone), a fixed number of moves, the best result
+// wins. Tries are free (no lives) and boosters can't be used, so buying never helps. Each finished run is
 // sent to the server, which replays the moves to check the score before it goes on the leaderboard.
+//
+// Weeks on the three-challenge format (version 2) offer three runs all week: the High score run, the
+// Combo run (chain reactions only, scaled so it counts like a high score run) and the Cleanup puzzle
+// (clear every muddy paw print and leash). The best result in each is added up for the leaderboard.
 
-import { h } from '../dom.js';
+import { h, fill } from '../dom.js';
 import { closeIcon, starIcon } from '../icons.js';
 import { createBoardView } from '../board-view.js';
 import { createHint } from '../hint.js';
-import { trySwap } from '../../engine/game.js';
+import { trySwap, goalProgress } from '../../engine/game.js';
 import { findValidMove } from '../../engine/shuffle.js';
-import { newChallengeGame, weekKey, CHALLENGE_MOVES } from '../../engine/challenge.js';
+import {
+  newChallengeGame, weekKey, CHALLENGES, CHALLENGE_IDS, isChallengeId, COMBO_SCALE, comboOf, cleanupScore,
+  replayChallenge, tierOf, tipFor, movesFor, TIER_NAMES, TIER_ORDER,
+} from '../../engine/challenge.js';
 import { clientOf, signInSheet } from '../payments.js';
 import { isPublicSite } from '../../backend/local.js';
-import { prizeLine, endsInText, homeName, keepPendingRun, pickHome, syncProfile } from '../compete.js';
+import { TROPHIES } from '../../economy/wallet.js';
+import {
+  prizeLine, endsInText, homeName, keepPendingRun, pickHome, syncProfile, loadWeekPrizes, weekRules, formatTeaser, tierMark, challengeName,
+} from '../compete.js';
+import { shareResult } from '../share-card.js';
 import { LOCATIONS } from '../../engine/levels.js';
 
 const ERRORS = {
   'week-over': 'This week\'s challenge just ended, so this run can\'t count. A new challenge is ready!',
   'bad-run': "This run couldn't be checked, so it wasn't counted.",
+  'not-this-week': "This challenge isn't part of this week's competition, so the run wasn't counted.",
   'no-home': 'Pick your PAWtastic first.',
   offline: "Couldn't reach the leaderboard. Your best score is kept on this phone and sent next time.",
 };
+const num = n => Number(n || 0).toLocaleString('en-US');
+const trophyName = id => TROPHIES.find(t => t.id === id)?.name ?? id;
 
-export function render(app) {
-  const { backend, audio } = app.services;
+/** The badge line after a run: the badge just earned, or the next one and how far it is. */
+export function badgeLine(challenge, score, { newBadge = null, had = null } = {}) {
+  if (newBadge) return `${tierMark(newBadge)} ${TIER_NAMES[newBadge]} badge earned!`;
+  const tiers = CHALLENGES[challenge].tiers;
+  const names = ['bronze', 'silver', 'gold'];
+  const held = had ? TIER_ORDER[had] : 0;
+  const target = names.find(n => TIER_ORDER[n] > held);
+  if (!target) return `${tierMark('gold')} Gold badge held this week: the top!`;
+  const goal = tiers[names.indexOf(target)];
+  const need = Math.max(1, goal - score);
+  if (had) return `${tierMark(had)} ${TIER_NAMES[had]} badge held · ${num(need)} more for ${TIER_NAMES[target]}`;
+  return `${TIER_NAMES[target]} badge at ${num(goal)} · ${num(need)} to go`;
+}
+
+/** The personal-best line: a first run, a new best (by how much), or how far off the best this run was. */
+export function bestLine(score, previousBest, runs) {
+  if (!previousBest || runs <= 1) return 'Your first run this week sets the mark.';
+  if (score > previousBest) return `New personal best: +${num(score - previousBest)} over your ${num(previousBest)}.`;
+  if (score === previousBest) return `Tied your best this week (${num(previousBest)}).`;
+  return `${num(previousBest - score)} short of your best this week (${num(previousBest)}).`;
+}
+
+export function render(app, params = {}) {
+  const { backend, audio, measure } = app.services;
   const pay = clientOf(app);
   let week = weekKey(Date.now());
-  // The server decides which week it is (a phone clock can be wrong); this fills in when it answers.
-  pay?.challengeWeek?.().then(r => { if (r.ok && r.week && r.week !== week) { week = r.week; app.go('challenge'); } }).catch(() => {});
+  let rules = weekRules(week);
+  const wanted = isChallengeId(params.challenge) ? params.challenge : 'high-score';
+  // A challenge that isn't in this week's competition (a Beat My Pup link from a version-2 week, say) falls
+  // back to the one that is; the player is told.
+  const challenge = rules.challenges.includes(wanted) ? wanted : 'high-score';
+  const def = CHALLENGES[challenge];
+  const beat = params.beat === true || isChallengeId(params.beat);
+  const v2 = rules.version === 2;
+  // The server decides which week it is (a phone clock can be wrong) and which format it plays; this
+  // reloads the screen when the answer differs from what the phone assumed.
+  loadWeekPrizes(app).then(() => {
+    const now = weekKey(Date.now());
+    const fresh = weekRules(now);
+    if (now !== week || fresh.version !== rules.version) { week = now; app.go('challenge', params); }
+  }).catch(() => {});
 
-  const game = newChallengeGame(week);
+  const game = newChallengeGame(week, challenge);
   const moves = [];
+  let combo = 0;
+  let bestChain = 0;
   let alive = true;
   let view;
 
+  const results = () => backend.weeklyResults?.(week) ?? {};
+  const bestOf = () => results()[challenge]?.best ?? (challenge === 'high-score' && backend.state().weekly.week === week ? backend.state().weekly.best : 0);
+  const liveScore = () => {
+    if (challenge === 'combo') return Math.round(combo * COMBO_SCALE);
+    if (challenge === 'cleanup') return cleanupScore(game);
+    return game.score;
+  };
+
   const movesEl = h('div', { class: 'moves num' });
   const scoreText = h('span', { class: 'num score-text' });
-  const bestOf = () => (backend.state().weekly.week === week ? backend.state().weekly.best : 0);
   const bestText = h('span', { class: 'small muted num' });
+  const subText = h('span', { class: 'goal-text' });
   const updateHud = () => {
     movesEl.replaceChildren(h('strong', {}, String(game.movesLeft)), h('span', {}, game.movesLeft === 1 ? 'move' : 'moves'));
     movesEl.classList.toggle('low', game.movesLeft <= 5);
-    scoreText.textContent = `${game.score.toLocaleString('en-US')} pts`;
+    scoreText.textContent = `${num(liveScore())} pts`;
+    if (challenge === 'cleanup') {
+      const p = goalProgress(game);
+      subText.textContent = `Cleaned ${p.current} of ${p.target}`;
+    } else if (challenge === 'combo') {
+      subText.textContent = `Chain points ${num(combo)} · best chain ${bestChain}`;
+    }
     const best = bestOf();
-    bestText.textContent = best ? `Your best: ${best.toLocaleString('en-US')}` : 'No score yet this week';
+    bestText.textContent = best ? `Your best: ${num(best)}` : 'No result yet this week';
   };
 
   const leave = () => {
@@ -59,65 +124,119 @@ export function render(app) {
   const header = h('div', { class: 'level-head' },
     h('button', { class: 'btn secondary icon-btn', type: 'button', 'aria-label': 'Leave the challenge', onClick: leave, html: closeIcon() }),
     h('div', { class: 'level-title' },
-      h('p', { class: 'eyebrow' }, `Weekly Challenge · ${endsInText(week)}`),
-      h('h2', {}, 'High score run')),
+      h('p', { class: 'eyebrow' }, `${beat ? 'Beat My Pup' : 'Weekly Challenge'} · ${endsInText(week)}`),
+      h('h2', {}, def.name)),
     movesEl);
   const goalBar = h('div', { class: 'goal-bar card' },
     h('span', { class: 'goal-icon', html: starIcon(true, 'Points') }),
-    h('span', { class: 'goal-text' }, `Score as much as you can in ${CHALLENGE_MOVES} moves`),
+    challenge === 'high-score' ? h('span', { class: 'goal-text' }, `Score as much as you can in ${movesFor(challenge)} moves`) : subText,
     h('span', { class: 'spacer' }), scoreText);
-  const info = h('p', { class: 'small muted challenge-info' }, 'Same board for everyone this week. No boosters, and tries are free. ', bestText);
+  const infoText = beat
+    ? `A friend challenged you to this week's ${def.name}. Beat the result on their card! `
+    : challenge === 'high-score' ? 'Same board for everyone this week. No boosters, and tries are free. ' : `${def.goal} ${def.scoring} Same board for everyone; no boosters, and tries are free. `;
+  const info = h('p', { class: 'small muted challenge-info' }, infoText, bestText);
+  const fallbackNote = wanted !== challenge
+    ? h('p', { class: 'small card' }, `${challengeName(wanted)}s start with the three-challenge format${formatTeaser(rules) ? ` (${formatTeaser(rules).replace(/^From/, 'from').replace(/:.*$/, '')})` : ''}. Here is this week's ${def.name}.`)
+    : null;
+
+  // Picks another challenge of this week (version 2 only).
+  const otherChallenges = () => {
+    let sheet;
+    const res = results();
+    sheet = app.modal(h('div', { class: 'stack' },
+      h('p', { class: 'eyebrow' }, 'This week'),
+      h('h2', {}, 'Three challenges, one total'),
+      h('p', { class: 'small muted' }, 'Your best in each is added up. All three are free to try as often as you like.'),
+      ...CHALLENGE_IDS.map(id => h('button', { class: `btn ${id === challenge ? '' : 'secondary'} block challenge-pick`, type: 'button', onClick: () => { sheet.close(); app.go('challenge', { challenge: id }); } },
+        h('span', {}, CHALLENGES[id].name), h('span', { class: 'small num' }, res[id]?.best ? `Best ${num(res[id].best)}` : CHALLENGES[id].short))),
+      h('button', { class: 'btn secondary', type: 'button', onClick: () => sheet.close() }, 'Back')), { label: 'Pick a challenge' });
+  };
 
   async function finish() {
-    const score = game.score;
-    const { best } = backend.recordChallenge(week, score, moves.slice());
-    audio?.jingle?.(best ? 'graduation-jingle' : 'happy-bark');
-    const result = h('div', { class: 'stack' });
+    // The run is scored by replaying its moves, exactly as the server will (the HUD's live number should agree).
+    const replay = replayChallenge(week, moves.slice(), challenge);
+    const score = replay.ok ? replay.score : liveScore();
+    const raw = replay.ok ? replay.raw : (challenge === 'combo' ? combo : game.score);
+    const extra = replay.ok ? { clean: !!replay.clean, bestChain: replay.bestChain ?? bestChain } : { clean: game.status === 'won' && challenge === 'cleanup', bestChain };
+    const tier = tierOf(challenge, score);
+    const previousBest = bestOf();
+    const had = backend.state().collection?.badges?.find(b => b.week === week && b.challenge === challenge)?.tier ?? null;
+    const { best, bestScore, runs, newBadge, newTrophies } = backend.recordChallenge(week, score, moves.slice(), { challenge, raw, tier, extra });
+    measure?.track('challenge_run', { challenge, version: rules.version, best, badge: newBadge ?? '' });
+    audio?.jingle?.(newBadge ? 'graduation-jingle' : best ? 'graduation-jingle' : 'happy-bark');
+    const result = h('div', { class: 'stack run-result' });
     const status = h('p', { class: 'small', role: 'status' });
     let sheet;
-    const again = h('button', { class: 'btn', type: 'button', onClick: () => { sheet.close(); app.go('challenge'); } }, 'Play again');
+    const again = h('button', { class: 'btn', type: 'button', onClick: () => { sheet.close(); app.go('challenge', { challenge }); } }, 'Play again');
+    const others = v2 ? h('button', { class: 'btn secondary', type: 'button', onClick: () => { sheet.close(); otherChallenges(); } }, 'Other challenges') : null;
     const board = h('button', { class: 'btn secondary', type: 'button', onClick: () => { sheet.close(); app.go('leaderboard'); } }, 'Leaderboard');
+    const share = h('button', { class: 'btn gold', type: 'button', hidden: true }, 'Beat my pup');
+    const detail = challenge === 'combo'
+      ? `From ${num(raw)} chain-reaction points × ${COMBO_SCALE}${extra.bestChain ? ` · best chain ${extra.bestChain}` : ''}`
+      : challenge === 'cleanup'
+        ? (replay.ok ? `Cleaned ${replay.cleaned} of ${replay.total}${replay.clean ? ` · board clean with ${replay.movesLeft} ${replay.movesLeft === 1 ? 'move' : 'moves'} left!` : ''}` : '')
+        : '';
+    const totals = v2 ? (() => {
+      const r = results();
+      const total = CHALLENGE_IDS.reduce((s, id) => s + (r[id]?.best ?? 0), 0);
+      return h('p', { class: 'small num' }, h('strong', {}, `Your total this week: ${num(total)}`), ' · ', CHALLENGE_IDS.map(id => `${CHALLENGES[id].short} ${num(r[id]?.best ?? 0)}`).join(' · '));
+    })() : null;
     result.append(
-      h('p', { class: 'eyebrow' }, 'Weekly Challenge'),
-      h('h2', {}, best ? 'New best score!' : 'Run complete'),
-      h('p', { class: 'big-score num' }, score.toLocaleString('en-US')),
-      h('p', { class: 'small num' }, `Your best this week: ${bestOf().toLocaleString('en-US')}`),
+      h('p', { class: 'eyebrow' }, `Weekly Challenge · ${def.name}`),
+      h('h2', {}, newBadge ? `${TIER_NAMES[newBadge]} badge!` : best && runs > 1 ? 'New personal best!' : 'Run complete'),
+      h('p', { class: 'big-score num' }, num(score)),
+      detail ? h('p', { class: 'small muted' }, detail) : null,
+      h('p', { class: 'small num' }, bestLine(score, previousBest, runs), ` Best this week: ${num(bestScore)}.`),
+      h('p', { class: 'small badge-line' }, badgeLine(challenge, score, { newBadge, had })),
+      newTrophies.length ? h('p', { class: 'small trophy-line' }, `🏆 Trophy${newTrophies.length > 1 ? 's' : ''}: ${newTrophies.map(trophyName).join(', ')}`) : null,
+      totals,
+      h('p', { class: 'small tip-line' }, h('strong', {}, "Professor Paws' tip: "), tipFor(challenge, runs)),
       status,
-      h('div', { class: 'btn-pair' }, again, board));
+      h('div', { class: 'btn-pair' }, again, others ?? board),
+      h('div', { class: 'btn-pair' }, share, others ? board : null));
     sheet = app.modal(result, { label: 'Run complete', dismissible: false });
     if (!best) { status.textContent = 'Only your best run counts. Keep trying!'; return; }
-    await sendRun(score, status, () => sheet.close());
+    const confirmed = await sendRun(score, status, () => sheet.close());
+    if (!confirmed || !alive) return;
+    // Beat My Pup: the card carries the server-checked result, never a number from this phone alone.
+    share.hidden = false;
+    share.addEventListener('click', () => shareResult(app, {
+      challenge, week: confirmed.week, score: confirmed.best, tier: tierOf(challenge, confirmed.best), rank: confirmed.rank, players: confirmed.players, location: confirmed.location,
+    }));
   }
 
   async function sendRun(score, status, closeResult) {
-    const run = { week, moves: moves.slice() };
-    if (!pay?.accounts) { status.textContent = 'The leaderboard needs the internet.'; return; }
+    const run = { week, moves: moves.slice(), challenge };
+    if (!pay?.accounts) { status.textContent = 'The leaderboard needs the internet.'; return null; }
     if (!backend.state().home) await pickHome(app, { reason: 'Pick your PAWtastic to join its leaderboard and play for its prizes.' });
-    if (!backend.state().home) { status.textContent = ERRORS['no-home']; return; }
+    if (!backend.state().home) { status.textContent = ERRORS['no-home']; return null; }
     if (!pay.signedIn) {
       keepPendingRun(run);
       status.replaceChildren(
-        h('span', {}, 'Save your progress (sign in with your email) to put this score on the leaderboard and play for prizes. '),
+        h('span', {}, 'Save your progress (sign in with your email) to put this result on the leaderboard and play for prizes. '),
         h('button', { class: 'linkish', type: 'button', onClick: async () => {
           closeResult();
-          const ok = await signInSheet(app, { title: 'Join the leaderboard', reason: 'Sign in with your email. Your score goes on the leaderboard and your progress is saved to the cloud.' });
-          if (ok) location.reload(); else app.go('challenge');
+          const ok = await signInSheet(app, { title: 'Join the leaderboard', reason: 'Sign in with your email. Your result goes on the leaderboard and your progress is saved to the cloud.' });
+          if (ok) location.reload(); else app.go('challenge', { challenge });
         } }, 'Sign in'));
-      return;
+      return null;
     }
     status.textContent = 'Checking your run…';
     await syncProfile(app).catch(() => null);
     const res = await pay.submitChallenge(run);
-    if (!alive) return;
+    if (!alive) return null;
     if (!res.ok) {
       if (res.error === 'offline' || res.error === 'server') keepPendingRun(run);
       status.textContent = ERRORS[res.error] ?? ERRORS.offline;
-      return;
+      return null;
     }
-    backend.markChallengeSent(week, res.score);
+    backend.markChallengeSent(week, res.score, challenge);
     const where = LOCATIONS[res.location] ?? homeName(backend.state());
-    status.replaceChildren(h('strong', {}, `#${res.rank} at ${where}`), ` this week (${res.players} ${res.players === 1 ? 'player' : 'players'}). `,
+    const rankLine = h('strong', {}, `#${res.rank} at ${where}`);
+    fill(status, rankLine, ` this week (${res.players} ${res.players === 1 ? 'player' : 'players'}). `,
+      res.version === 2 && Number.isFinite(res.total) ? `Team total ${num(res.total)}. ` : '',
       res.rank <= 3 ? 'You are in the prizes right now! Hold on until Monday.' : prizeLine());
+    return res;
   }
 
   const onSwap = async (a, b) => {
@@ -125,6 +244,8 @@ export function render(app) {
     const res = trySwap(game, a, b);
     if (!res.ok) { await view.wiggle(a, b); return; }
     moves.push([a.r, a.c, b.r, b.c]);
+    combo += comboOf(res.steps);
+    bestChain = Math.max(bestChain, res.steps.length);
     view.setBusy(true);
     await view.animateSwap(a, b);
     if (!alive) return;
@@ -134,10 +255,10 @@ export function render(app) {
     updateHud();
     view.setBusy(false);
     hint.reset();
-    if (game.status === 'won') finish();
+    if (game.status !== 'playing') finish();
   };
 
-  const screen = h('section', { class: 'level challenge' }, header, goalBar, info);
+  const screen = h('section', { class: `level challenge challenge-${challenge}` }, header, goalBar, fallbackNote, info);
   app.view.append(screen);
   view = createBoardView(screen, game, { onSwap, fx: { audio, effects: () => app.effects() } });
   const hint = createHint({
@@ -148,8 +269,9 @@ export function render(app) {
   });
   view.wrap.addEventListener('pointerdown', () => hint.reset());
   hint.reset();
-  screen.append(h('p', { class: 'small muted center' }, isPublicSite(backend) ? prizeLine() : 'Weekly Challenge'));
+  const foot = h('p', { class: 'small muted center' }, isPublicSite(backend) ? prizeLine() : 'Weekly Challenge');
+  screen.append(v2 ? h('div', { class: 'btn-pair center' }, h('button', { class: 'linkish small', type: 'button', onClick: otherChallenges }, 'Other challenges this week'), h('button', { class: 'linkish small', type: 'button', onClick: () => app.go('collection') }, 'Badges & trophies')) : null, foot);
   updateHud();
-  if (app.services.debug) window.__pawtasticChallenge = { game, moves, validMove: () => findValidMove(game.grid), swap: (a, b) => onSwap(a, b) };
+  if (app.services.debug) window.__pawtasticChallenge = { game, moves, challenge, week, validMove: () => findValidMove(game.grid), swap: (a, b) => onSwap(a, b) };
   return () => { alive = false; hint.stop(); view.destroy(); if (app.services.debug) delete window.__pawtasticChallenge; };
 }

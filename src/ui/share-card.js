@@ -6,6 +6,8 @@ import { h } from './dom.js';
 import { dogSVG, LOGO_SRC } from './art.js';
 import { shareLink } from './referral.js';
 import { isPublicSite } from '../backend/local.js';
+import { gameLink } from '../net/embed.js';
+import { CHALLENGES, isChallengeId, isWeekKey, TIER_NAMES } from '../engine/challenge.js';
 
 const CAMP_AREAS = new Set(['Cabin Check-in', 'Lake Day', 'Trail Hike', 'Campfire Night', 'Talent Show']);
 const W = 1080, H = 1350;
@@ -19,6 +21,22 @@ export function shareCaption(kind, { dogName, areaName } = {}) {
   if (kind === 'area' && areaName && CAMP_AREAS.has(areaName)) return `${dog} aced ${areaName} at PAWtastic Summer Camp!`;
   if (kind === 'area') return `${dog} aced ${areaName} at PAWtastic Academy!`;
   return `${dog} is styling at PAWtastic Academy!`;
+}
+
+/** Beat My Pup: the caption for a server-checked Weekly Challenge result. */
+export function resultCaption({ dogName, challenge, score, tier = null }) {
+  const dog = dogName || 'My pup';
+  const name = CHALLENGES[challenge]?.name ?? 'Weekly Challenge';
+  const badge = tier ? ` (${TIER_NAMES[tier]} badge)` : '';
+  return `${dog} scored ${Number(score).toLocaleString('en-US')} in this week's ${name} at PAWtastic Academy${badge}. Can your pup beat it?`;
+}
+
+/** The link on a Beat My Pup card: opens the same challenge of the same week. It carries no score (scores are never trusted from a link). */
+export function beatLink({ challenge, week }, deps) {
+  const params = new URLSearchParams();
+  params.set('beat', isChallengeId(challenge) ? challenge : 'high-score');
+  if (isWeekKey(week)) params.set('week', week);
+  return gameLink(params.toString(), deps?.doc, deps?.loc);
 }
 
 export function shareFilename(name) {
@@ -59,16 +77,16 @@ const PAGE = { fontsReady: fontsReadyInPage, createCanvas: () => document.create
 
 // The real photo when it loads and can be saved; otherwise the cartoon. A photo from another
 // site can load but still block saving the picture ("tainted" canvas), so that redraws too.
-export async function renderShareCard({ dogSvg, caption, photoUrl = null }, deps = PAGE) {
+export async function renderShareCard({ dogSvg, caption, photoUrl = null, stamp = null }, deps = PAGE) {
   if (photoUrl) {
     try {
-      return await drawCard({ dogSvg, caption, photoUrl }, deps);
+      return await drawCard({ dogSvg, caption, photoUrl, stamp }, deps);
     } catch { /* fall back to the cartoon */ }
   }
-  return drawCard({ dogSvg, caption, photoUrl: null }, deps);
+  return drawCard({ dogSvg, caption, photoUrl: null, stamp }, deps);
 }
 
-async function drawCard({ dogSvg, caption, photoUrl }, { fontsReady, createCanvas, loadImage, loadSvg }) {
+async function drawCard({ dogSvg, caption, photoUrl, stamp }, { fontsReady, createCanvas, loadImage, loadSvg }) {
   await fontsReady();
   const photo = photoUrl ? await loadImage(photoUrl, { crossOrigin: 'anonymous' }) : null;
   const canvas = createCanvas();
@@ -108,13 +126,28 @@ async function drawCard({ dogSvg, caption, photoUrl }, { fontsReady, createCanva
   ctx.strokeStyle = GOLD;
   ctx.stroke();
 
-  // Caption, centred, up to three lines.
+  // A result stamp (Beat My Pup): the checked score in a gold pill under the medallion.
+  if (stamp) {
+    ctx.textAlign = 'center';
+    ctx.font = '700 54px "DM Sans", system-ui, sans-serif';
+    const pw = Math.min(980, ctx.measureText(stamp).width + 120);
+    const px = (W - pw) / 2, py = 1012, ph = 84;
+    ctx.fillStyle = GOLD;
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(px, py, pw, ph, 42) : ctx.rect(px, py, pw, ph);
+    ctx.fill();
+    ctx.fillStyle = NAVY;
+    ctx.fillText(stamp, W / 2, py + 60);
+  }
+
+  // Caption, centred, up to three lines (two under a stamp).
   ctx.fillStyle = NAVY;
   ctx.textAlign = 'center';
-  ctx.font = '700 58px "DM Sans", system-ui, sans-serif';
+  ctx.font = stamp ? '700 46px "DM Sans", system-ui, sans-serif' : '700 58px "DM Sans", system-ui, sans-serif';
   const lines = wrapLines(ctx, caption, 940).slice(0, 3);
-  const top = 1110 - (lines.length - 1) * 34;
-  lines.forEach((l, i) => ctx.fillText(l, W / 2, top + i * 68));
+  const step = stamp ? 54 : 68;
+  const top = stamp ? 1150 : 1110 - (lines.length - 1) * 34;
+  lines.forEach((l, i) => ctx.fillText(l, W / 2, top + i * step));
 
   // Footer band.
   ctx.fillStyle = BRAND;
@@ -153,17 +186,32 @@ function getDownloads() {
 
 // The phone's share sheet, with the picture when the phone can attach files. The link is the
 // family's own PAWtastic referral link (the real app only; the demo has none).
-async function systemShare(app, blob, caption, dogName, link, code = null) {
+async function systemShare(app, blob, caption, dogName, link, code = null, kind = 'card') {
   const text = code ? `${caption} New PAWtastic clients get $10 off their first visit with my code ${code}.` : caption;
   const data = { text, url: link };
   const file = typeof File === 'function' ? new File([blob], shareFilename(dogName), { type: 'image/png' }) : null;
   if (file && navigator.canShare?.({ files: [file] })) data.files = [file];
   try {
     await navigator.share(data);
-    app.services.measure?.track('share', { kind: 'card', how: 'share-sheet' });
+    app.services.measure?.track('share', { kind, how: 'share-sheet' });
   } catch (err) {
     if (err?.name !== 'AbortError') app.toast('Sharing isn’t available here. Press and hold the image instead.');
   }
+}
+
+/** Copies text to the clipboard: the fallback when the phone has no share sheet. */
+export async function copyText(text) {
+  try {
+    if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return true; }
+  } catch { /* fall through */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.append(ta); ta.select();
+    const ok = document.execCommand?.('copy') ?? false;
+    ta.remove();
+    return !!ok;
+  } catch { return false; }
 }
 
 export async function shareCard(app, blob, caption, dogName) {
@@ -213,4 +261,43 @@ export async function shareDog(app, { kind, areaName, costume }) {
   } catch {
     app.toast('Couldn’t make the picture on this device.');
   }
+}
+
+/**
+ * Beat My Pup: a branded card with the pup's name and a server-checked Weekly Challenge result, and a link that
+ * opens the same challenge. `score` must be the number the server returned, never one from this phone or a URL.
+ * Native share when the phone has it (with the picture when it can attach files); otherwise copy the link.
+ */
+export async function shareResult(app, { challenge, week, score, tier = null, rank = null, players = null }) {
+  const { backend, measure } = app.services;
+  backend.logEvent?.('share_tap', { kind: 'beat-my-pup' });
+  const dog = backend.state().dog;
+  const dogName = dog?.name || 'My pup';
+  const def = CHALLENGES[challenge] ?? CHALLENGES['high-score'];
+  const caption = resultCaption({ dogName, challenge, score, tier });
+  const link = beatLink({ challenge, week });
+  const stamp = `${Number(score).toLocaleString('en-US')} pts · ${def.short}${tier ? ` · ${TIER_NAMES[tier]}` : ''}`;
+  let blob = null;
+  try {
+    blob = await renderShareCard({ dogSvg: dogSVG({ ...dog, costume: backend.state().inventory?.equipped ?? null, label: dogName }), caption, photoUrl: dog?.photoUrl ?? null, stamp });
+  } catch { /* the link still shares without the picture */ }
+  const src = blob ? await blobToDataUrl(blob) : null;
+  const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  let sheet;
+  const copy = h('button', { class: canShare ? 'btn secondary' : 'btn gold', type: 'button', onClick: async () => {
+    const ok = await copyText(`${caption} ${link}`);
+    app.toast(ok ? 'Challenge link copied.' : 'Couldn’t copy. Press and hold the link to copy it.');
+    if (ok) measure?.track('share', { kind: 'beat-my-pup', how: 'copied' });
+  } }, 'Copy link');
+  const shareBtn = canShare && blob ? h('button', { class: 'btn gold', type: 'button', onClick: () => systemShare(app, blob, caption, dogName, link, null, 'beat-my-pup') }, 'Share') : null;
+  sheet = app.modal(h('div', { class: 'stack share' },
+    h('p', { class: 'eyebrow' }, 'Beat My Pup'),
+    src ? h('img', { class: 'share-img', src, alt: caption }) : h('p', { class: 'card' }, caption),
+    h('p', { class: 'small muted num' }, rank && players ? `Checked by PAWtastic: #${rank} of ${players} this week. ` : 'Checked by PAWtastic. ', 'Friends who open the link play the same challenge, this week only.'),
+    h('p', { class: 'small link-line num' }, h('a', { href: link, target: '_blank', rel: 'noopener' }, link)),
+    h('div', { class: 'btn-pair' },
+      shareBtn,
+      copy,
+      h('button', { class: 'btn secondary', type: 'button', onClick: () => sheet.close() }, 'Done')),
+  ), { label: 'Beat My Pup' });
 }

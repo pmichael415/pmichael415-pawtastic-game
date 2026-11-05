@@ -7,7 +7,7 @@ export const MEASURE_KEY = 'pawtastic-gd-measure-v1';
 export const EVENT_PATH = '/api/public/game/event';
 export const EVENT_NAMES = [
   'opened', 'first_play_started', 'first_play_completed', 'replay', 'shop_viewed', 'product_previewed',
-  'checkout_started', 'checkout_failed', 'purchase_arrived', 'purchase_waiting', 'share', 'challenge_link_visit',
+  'checkout_started', 'checkout_failed', 'purchase_arrived', 'purchase_waiting', 'share', 'challenge_link_visit', 'challenge_run',
 ];
 // Sent once per device, ever / once per device per New York day. The server drops repeats too.
 const ONCE_EVER = new Set(['first_play_started', 'first_play_completed']);

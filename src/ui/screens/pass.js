@@ -11,6 +11,7 @@ import { dayKey, addDays, formatLongDate } from '../../economy/time.js';
 import { showFailure } from '../failure.js';
 import { render as comingSoon } from './coming-soon.js';
 import { realPayments, startCheckout, openPortal, testModeLabel } from '../payments.js';
+import { dogSVG } from '../art.js';
 
 const PRICE = formatUsd(PASS.usd);
 const ERRORS = {
@@ -145,6 +146,35 @@ export function render(app) {
             : h('button', { class: 'btn secondary block', type: 'button', onClick: () => signUp(status.renewsOn) }, 'Keep my Pup Pass'))
         : h('button', { class: 'btn gold block', type: 'button', onClick: () => signUp(renewsOn) }, `Get the Pup Pass · ${PRICE}/month`));
 
+    // What the pass is, plainly: what's included, what it never does, what this player has earned, what's next.
+    const nextTier = status.tier < PASS.tiers ? status.tier + 1 : null;
+    const nextPremium = nextTier ? rewardFor('premium', nextTier) : null;
+    const nextFree = nextTier ? rewardFor('free', nextTier) : null;
+    const toNext = nextTier ? PASS.pointsPerTier - intoTier : 0;
+    const claimedPremium = state.pass.claimedPremium.length;
+    const claimedFree = state.pass.claimedFree.length;
+    const unclaimedPremium = Array.from({ length: status.tier }, (_, i) => i + 1).filter(t => rewardFor('premium', t) && !state.pass.claimedPremium.includes(t)).length;
+    const summary = h('section', { class: 'card stack pass-summary', 'aria-label': 'About the Pup Pass' },
+      h('div', { class: 'pass-summary-row' },
+        h('span', { class: 'pass-preview', 'aria-hidden': 'true', html: dogSVG({ ...state.dog, costume: 'honor-roll-sash', label: state.dog?.name ?? 'Your dog' }) }),
+        h('div', { class: 'stack tight' },
+          h('h2', {}, "What's in the Pup Pass"),
+          h('ul', { class: 'plain-list small' },
+            h('li', {}, 'Unlimited lives in Academy and Summer Camp levels'),
+            h('li', {}, `Premium rewards on all ${PASS.tiers} tiers (Treats and boosters)`),
+            h('li', {}, 'The Honor Roll Sash costume at tier 20 — pictured on your pup')),
+          h('p', { class: 'small muted' }, 'The Pup Pass never helps in the Weekly Challenge: competition runs use no lives or boosters, so everyone plays the same game. Nothing in the pass is a real-world prize.'))),
+      h('div', { class: 'pass-facts' },
+        h('div', {}, h('strong', { class: 'num' }, `${status.tier}/${PASS.tiers}`), h('span', { class: 'small muted' }, 'tiers reached')),
+        h('div', {}, h('strong', { class: 'num' }, String(claimedFree + claimedPremium)), h('span', { class: 'small muted' }, 'rewards claimed')),
+        h('div', {}, h('strong', { class: 'num' }, nextTier ? `${toNext} pts` : '—'), h('span', { class: 'small muted' }, nextTier ? `to tier ${nextTier}` : 'all tiers reached'))),
+      nextTier
+        ? h('p', { class: 'small' }, `Next tier: ${nextFree ? `${rewardText(nextFree)} free` : 'no free reward'}${nextPremium ? ` · ${rewardText(nextPremium)} with the pass` : ''}.`)
+        : h('p', { class: 'small' }, 'You have reached every tier this month.'),
+      status.active && unclaimedPremium ? h('p', { class: 'small' }, `${unclaimedPremium} premium ${unclaimedPremium === 1 ? 'reward is' : 'rewards are'} ready to claim below.`) : null,
+      !status.active && status.tier > 0 ? h('p', { class: 'small muted' }, `With the pass, the ${status.tier} premium ${status.tier === 1 ? 'reward' : 'rewards'} on the tiers you have already reached ${status.tier === 1 ? 'is' : 'are'} yours to claim right away.`) : null,
+      h('p', { class: 'small muted' }, `${PRICE} a month, renews until you cancel; cancel anytime from this screen. Tiers and points reset each month.`));
+
     const tiers = h('section', { class: 'card stack', 'aria-label': 'Reward tiers' },
       h('h2', {}, 'Rewards'),
       h('div', { class: 'tier-grid' },
@@ -154,7 +184,7 @@ export function render(app) {
           cell('free', tier, status, state),
           cell('premium', tier, status, state)))));
 
-    return h('div', { class: 'pass stack' }, h('h1', {}, 'Pup Pass'), head, tiers);
+    return h('div', { class: 'pass stack' }, h('h1', {}, 'Pup Pass'), head, summary, tiers);
   }
 
   refresh();

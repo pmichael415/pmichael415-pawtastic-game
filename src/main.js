@@ -35,7 +35,8 @@ import { render as shop } from './ui/screens/shop.js';
 import { render as closet } from './ui/screens/closet.js';
 import { render as challenge } from './ui/screens/challenge.js';
 import { render as leaderboard } from './ui/screens/leaderboard.js';
-import { competeOnOpen } from './ui/compete.js';
+import { render as collection } from './ui/screens/collection.js';
+import { competeOnOpen, captureBeatLink, openBeatLink } from './ui/compete.js';
 import { render as pass } from './ui/screens/pass.js';
 import { render as jarScreen } from './ui/screens/jar.js';
 import { COATS } from './ui/art.js';
@@ -46,6 +47,7 @@ import { createAudio } from './audio/engine.js';
 initInstall();
 // An invite link (?ref=CODE): keep the friend code for the $10 off offer.
 captureReferral();
+captureBeatLink();
 
 const params = new URLSearchParams(location.search);
 const debug = params.has('debug');
@@ -73,7 +75,7 @@ document.addEventListener('visibilitychange', () => (document.hidden ? audio.sus
 document.addEventListener('click', e => { if (e.target.closest?.('button.btn, button.chip, button.icon-btn, button.switch')) audio.sfx('tap'); });
 
 const screens = {
-  loading, setup, map, level, report, shop, closet, pass, jar: jarScreen, challenge, leaderboard, signin, gate, 'pick-dog': pickDog, stats, rules,
+  loading, setup, map, level, report, shop, closet, pass, jar: jarScreen, challenge, leaderboard, collection, signin, gate, 'pick-dog': pickDog, stats, rules,
 };
 
 let app = null;
@@ -132,6 +134,8 @@ async function bootLocal() {
   if (pay) afterOpen(app, checkoutReturn).catch(() => {});
   // Invite a friend: confirm an invite link's code, and tell the player about free baths they earned.
   if (pay?.accounts) { confirmFriendCode(app).catch(() => {}); referralNews(app).catch(() => {}); offerAppCode(app).catch(() => {}); competeOnOpen(app).catch(() => {}); }
+  // A Beat My Pup link opens its challenge once the map is up.
+  if (pay) openBeatLink(app).catch(() => {});
   // Player counter for PAWtastic's weekly numbers: a random id, once a day, in the background.
   if (pay) startPlayerCount({ store: createLocalStorage(DEVICE_KEY), base });
 }

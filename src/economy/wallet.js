@@ -86,6 +86,8 @@ const list = (v, ok) => (Array.isArray(v) ? v.filter(ok) : []);
 const isText = v => typeof v === 'string';
 const isTier = v => Number.isInteger(v) && v >= 1;
 const TIERS = ['bronze', 'silver', 'gold'];
+// The Weekly Challenge's formats (src/engine/challenge.js keeps the rules; the wallet only stores results by id).
+const CHALLENGE_KEYS = ['high-score', 'combo', 'cleanup'];
 
 /** The trophies (digital only; they never create prize entries) and when each is earned. */
 export const TROPHIES = [
@@ -106,7 +108,7 @@ function awardTrophies(state, { week, challenge, tier, extra }) {
   const give = id => { if (TROPHY_IDS.has(id) && !state.collection.trophies.includes(id)) { state.collection.trophies.push(id); earned.push(id); } };
   const results = state.weekly.results;
   give('first-run');
-  if (['high-score', 'combo', 'cleanup'].every(id => results[id]?.runs > 0)) give('three-formats');
+  if (CHALLENGE_KEYS.every(id => results[id]?.runs > 0)) give('three-formats');
   if (tier) give(`first-${tier}`);
   if (challenge === 'cleanup' && extra?.clean) give('clean-sweep');
   if (challenge === 'combo' && (extra?.bestChain ?? 0) >= 5) give('chain-5');
@@ -131,8 +133,8 @@ function cleanLists(state) {
   }
   if (!Array.isArray(state.weekly.bestMoves)) state.weekly.bestMoves = null;
   if (!Number.isInteger(state.weekly.runs) || state.weekly.runs < 0) state.weekly.runs = 0;
-  state.collection.badges = list(state.collection.badges, b => isPlainObject(b) && isText(b.week) && isText(b.challenge) && isText(b.tier) && Number.isFinite(b.score));
-  state.collection.trophies = list(state.collection.trophies, isText);
+  state.collection.badges = list(state.collection.badges, b => isPlainObject(b) && isText(b.week) && CHALLENGE_KEYS.includes(b.challenge) && TIERS.includes(b.tier) && Number.isFinite(b.score));
+  state.collection.trophies = list(state.collection.trophies, id => TROPHY_IDS.has(id));
   if (!Number.isInteger(state.collection.runs) || state.collection.runs < 0) state.collection.runs = 0;
   state.purchases.applied = list(state.purchases.applied, isText);
   state.purchases.refunded = list(state.purchases.refunded, isText);
@@ -144,8 +146,8 @@ function loadResults(results) {
   const out = {};
   if (!isPlainObject(results)) return out;
   for (const [id, v] of Object.entries(results)) {
-    if (!/^[a-z-]{3,20}$/.test(id) || !isPlainObject(v) || !Number.isFinite(v.best)) continue;
-    out[id] = { best: v.best, raw: Number.isFinite(v.raw) ? v.raw : v.best, bestMoves: Array.isArray(v.bestMoves) ? v.bestMoves : null, sentBest: Number.isFinite(v.sentBest) ? v.sentBest : 0, runs: Number.isInteger(v.runs) ? v.runs : 0 };
+    if (!CHALLENGE_KEYS.includes(id) || !isPlainObject(v)) continue;
+    out[id] = { best: Number.isFinite(v.best) && v.best >= 0 ? v.best : 0, raw: Number.isFinite(v.raw) ? v.raw : 0, bestMoves: Array.isArray(v.bestMoves) ? v.bestMoves : null, sentBest: Number.isFinite(v.sentBest) ? v.sentBest : 0, runs: Number.isInteger(v.runs) ? v.runs : 0 };
   }
   return out;
 }

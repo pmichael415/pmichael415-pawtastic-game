@@ -619,3 +619,41 @@ html.fx-off .jar-art.lid-pop [data-part="lid"] { animation: none; transform: tra
 .so-close-treats { grid-template-columns: 1fr; gap: 6px; justify-items: start; }
 .so-close-treats .btn { width: 100%; }
 @media (max-width: 380px) { .so-close-actions { grid-template-columns: 1fr; } }
+
+/* Increment 2: three weekly challenges, badges & trophies, Beat My Pup, the Pup Pass summary. */
+.challenge-rows { margin-top: 4px; }
+.challenge-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; background: #FFFFFF; border-radius: 12px; padding: 8px 10px; box-shadow: 0 1px 2px rgba(49, 39, 31, 0.1); }
+.challenge-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.challenge-row .small-btn { min-width: 72px; }
+.challenge-pick { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.challenge-pick .small { opacity: 0.85; }
+.btn-pair.center { justify-items: center; }
+.run-result .badge-line { font-weight: 700; color: var(--brand-ink); margin: 0; }
+.run-result .trophy-line { font-weight: 700; color: #2F6B3A; margin: 0; }
+.run-result .tip-line { margin: 0; background: #FFF6E2; border-radius: 10px; padding: 8px 10px; text-align: left; }
+.run-result .btn-pair:empty { display: none; }
+.collection-summary { border: 2px solid #F6A823; background: linear-gradient(160deg, #FFF6E2, #FFFFFF); }
+.collection-stats, .pass-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.collection-stats > div, .pass-facts > div { display: flex; flex-direction: column; align-items: center; padding: 8px 4px; border-radius: 12px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(49, 39, 31, 0.1); }
+.collection-stats strong, .pass-facts strong { font-size: 1.3rem; }
+.collection-row { display: grid; grid-template-columns: 2em 1fr auto; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.collection-row:last-of-type { border-bottom: 0; }
+.collection-mark { font-size: 1.4rem; text-align: center; }
+.collection-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.badge-week p { margin: 0 0 4px; }
+.badge-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.badge-chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 4px 10px; background: #F4F1EC; border: 1px solid var(--line); }
+.badge-chip.gold { background: #FFF0CC; border-color: #F6A823; }
+.badge-chip.silver { background: #EEF0F4; border-color: #B7BEC9; }
+.badge-chip.bronze { background: #F6E7DA; border-color: #C98A5B; }
+.trophy-list { padding-left: 0; list-style: none; gap: 8px; }
+.trophy { display: grid; grid-template-columns: 1.8em 1fr auto; align-items: center; gap: 8px; }
+.trophy.locked { opacity: 0.6; }
+.trophy-mark { font-size: 1.2rem; text-align: center; }
+.trophy-text { min-width: 0; }
+.link-line { word-break: break-all; margin: 0; }
+.pass-summary-row { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: start; }
+.pass-preview svg { width: 96px; height: 96px; }
+.pass-summary h2 { margin: 0; font-size: 1.1rem; }
+.pass-summary p { margin: 0; }
+@media (max-width: 380px) { .pass-summary-row { grid-template-columns: 1fr; } .pass-preview { justify-self: center; } }

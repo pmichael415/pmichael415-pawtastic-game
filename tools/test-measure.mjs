@@ -95,6 +95,7 @@ test('link kinds and the shared device id', () => {
   assert.match(id, /^[A-Za-z0-9_-]{16,64}$/);
   assert.equal(deviceId(store), id, 'the saved id is reused');
   assert.equal(store.value.sent, null);
-  assert.equal(EVENT_NAMES.length, 12);
+  assert.equal(EVENT_NAMES.length, 13);
+  assert.equal(EVENT_NAMES.includes('challenge_run'), true);
   assert.match(nyDay(day1), /^\d{4}-\d{2}-\d{2}$/);
 });

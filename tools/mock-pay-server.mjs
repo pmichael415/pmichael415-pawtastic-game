@@ -9,7 +9,7 @@
 //   (the PAWtastic Games hub) may call the game API from the browser, and its buyers return to its /graduation.
 //   Test helpers: GET /mock/state, POST /mock/refund { email, product }.
 
-import { weekKey, weekEndsAt, replayChallenge } from '../src/engine/challenge.js';
+import { weekKey, weekEndsAt, replayChallenge, rulesFor, isWeekKey, isChallengeId, combinedTotal, tierOf, CHALLENGES, CHALLENGE_IDS, nextWeek } from '../src/engine/challenge.js';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { join, normalize, extname } from 'node:path';
@@ -38,7 +38,12 @@ const codeOf = user => {
 };
 // Competing (src/lib/game/compete.server.ts in the Lovable project): profiles, weekly scores, prizes.
 const players = new Map(); // userId → { dogName, location, stars, levels, bestTotal, hidden }
-const weekly = []; // { week, userId, location, score, moves, at }
+const weekly = []; // { week, userId, location, score, moves, at, bests? }
+// The three-challenge format (game_challenge_rules): the Monday it starts, or null. MOCK_FORMAT_FROM=<Monday> presets it;
+// MOCK_FORMAT_FROM=now starts it this week (for screenshots of a version-2 week).
+let formatFrom = process.env.MOCK_FORMAT_FROM === 'now' ? weekKey(Date.now()) : (isWeekKey(process.env.MOCK_FORMAT_FROM ?? '') ? process.env.MOCK_FORMAT_FROM : null);
+const rulesOut = week => { const r = rulesFor(week, formatFrom); return { version: r.version, challenges: r.challenges, from: r.from, formats: CHALLENGE_IDS.map(id => ({ id, name: CHALLENGES[id].name, short: CHALLENGES[id].short, goal: CHALLENGES[id].goal, scoring: CHALLENGES[id].scoring, moves: CHALLENGES[id].moves, tiers: CHALLENGES[id].tiers })) }; };
+const results = []; // game_weekly_results: { week, userId, challenge, location, score, raw, moves, at }
 const prizes = []; // { id, week, location, rank, userId, dogName, email, score, reward, code, status, expiresAt }
 const rankWeek = week => weekly.filter(w => w.week === week && !players.get(w.userId)?.hidden).sort((a, b) => b.score - a.score || a.at - b.at);
 // Weekly prize lineups, as game_week_prizes: used only once approved; otherwise the standard prizes.
@@ -213,7 +218,7 @@ createServer(async (req, res) => {
       const week = weekKey(Date.now());
       const next = weekKey(weekEndsAt(week) + 3600000);
       const upcoming = approvedLineup(next);
-      return send(res, 200, { week, endsAt: new Date(weekEndsAt(week)).toISOString(), moves: 25, prizes: shown(prizesFor(week)), next: upcoming ? { week: next, prizes: shown(upcoming) } : null });
+      return send(res, 200, { week, endsAt: new Date(weekEndsAt(week)).toISOString(), moves: 25, prizes: shown(prizesFor(week)), next: upcoming ? { week: next, prizes: shown(upcoming) } : null, rules: rulesOut(week) });
     }
     if (path === '/api/public/game/leaderboard') {
       const user = authed(req);
@@ -226,7 +231,8 @@ createServer(async (req, res) => {
         const entries = shown.map((r, i) => ({ rank: i + 1, dogName: players.get(r.userId)?.dogName ?? 'PAWtastic Pup', location: r.location, score: r.score, me: !!user && r.userId === user.id }));
         const me = entries.find(e => e.me);
         const teams = Object.fromEntries(['hawthorne', 'hillsdale'].map(l => [l, { total: rows.filter(r => r.location === l).reduce((t, r) => t + r.score, 0), players: rows.filter(r => r.location === l).length }]));
-        return send(res, 200, { board, location, entries: entries.slice(0, 50), me: me ? { rank: me.rank, score: me.score } : null, teams });
+        const mine = me && weekly.find(w => w.week === weekKey(Date.now()) && w.userId === user.id);
+        return send(res, 200, { board, location, entries: entries.slice(0, 50), me: me ? { rank: me.rank, score: me.score, ...(mine?.bests ? { bests: mine.bests } : {}) } : null, teams, rules: rulesOut(weekKey(Date.now())) });
       }
       const all = [...players.entries()].filter(([, p]) => !p.hidden).sort((a, b) => b[1].stars - a[1].stars || b[1].bestTotal - a[1].bestTotal);
       const shown = location === 'all' ? all : all.filter(([, p]) => p.location === location);
@@ -261,15 +267,35 @@ createServer(async (req, res) => {
       if (path === '/api/public/game/challenge' && req.method === 'POST') {
         const b = await bodyOf(req);
         if (b.week !== weekKey(Date.now())) return send(res, 400, { error: 'week-over' });
-        const replay = replayChallenge(b.week, b.moves);
+        const challenge = b.challenge ?? 'high-score';
+        if (!isChallengeId(challenge)) return send(res, 400, { error: 'bad-run' });
+        const rules = rulesFor(b.week, formatFrom);
+        if (!rules.challenges.includes(challenge)) return send(res, 400, { error: 'not-this-week' });
+        const replay = replayChallenge(b.week, b.moves, challenge);
         if (!replay.ok) return send(res, 400, { error: 'bad-run' });
         const p = players.get(user.id);
         if (!p?.location) return send(res, 400, { error: 'no-home' });
         let row = weekly.find(w => w.week === b.week && w.userId === user.id);
-        if (!row) { row = { week: b.week, userId: user.id, location: p.location, score: replay.score, moves: b.moves, at: Date.now() }; weekly.push(row); }
-        else if (replay.score > row.score) Object.assign(row, { score: replay.score, moves: b.moves, at: Date.now() });
+        const location = row?.location ?? p.location;
+        let best = replay.score, total = replay.score, bests = { [challenge]: replay.score };
+        if (rules.version === 1) {
+          if (!row) { row = { week: b.week, userId: user.id, location, score: replay.score, moves: b.moves, at: Date.now() }; weekly.push(row); }
+          else if (replay.score > row.score) Object.assign(row, { score: replay.score, moves: b.moves, at: Date.now() });
+          best = row.score; total = row.score;
+        } else {
+          let mine = results.find(r => r.week === b.week && r.userId === user.id && r.challenge === challenge);
+          if (!mine) { mine = { week: b.week, userId: user.id, challenge, location, score: replay.score, raw: replay.raw, moves: b.moves, at: Date.now() }; results.push(mine); }
+          else if (replay.score > mine.score) Object.assign(mine, { score: replay.score, raw: replay.raw, moves: b.moves, at: Date.now() });
+          best = mine.score;
+          bests = Object.fromEntries(results.filter(r => r.week === b.week && r.userId === user.id).map(r => [r.challenge, r.score]));
+          total = combinedTotal(bests);
+          if (!row) { row = { week: b.week, userId: user.id, location, score: total, moves: { version: 2, bests }, at: Date.now(), bests }; weekly.push(row); }
+          else if (total > row.score) Object.assign(row, { score: total, moves: { version: 2, bests }, at: Date.now(), bests });
+          else row.bests = bests;
+          total = row.score;
+        }
         const team = rankWeek(b.week).filter(w => w.location === row.location);
-        return send(res, 200, { score: replay.score, best: row.score, rank: team.findIndex(w => w.userId === user.id) + 1, players: team.length, location: row.location, week: b.week });
+        return send(res, 200, { score: replay.score, raw: replay.raw ?? replay.score, tier: tierOf(challenge, replay.score), challenge, version: rules.version, best, total, bests, rank: team.findIndex(w => w.userId === user.id) + 1, players: team.length, location: row.location, week: b.week });
       }
       if (path === '/api/public/game/prizes' && req.method === 'GET') {
         return send(res, 200, { prizes: prizes.filter(p => p.userId === user.id).reverse().map(prizeOut) });
@@ -305,10 +331,23 @@ createServer(async (req, res) => {
         if (!STAFF.has(user.email)) return send(res, 403, { error: 'not-staff' });
         const staffOut = p => ({ ...prizeOut(p), dogName: p.dogName, email: p.email, redeemedAt: p.redeemedAt ?? null, redeemedBy: p.redeemedBy ?? null });
         if (req.method === 'GET') {
-          const rows = weekly.filter(w => w.week === weekKey(Date.now())).sort((a, b) => b.score - a.score);
-          return send(res, 200, { prizes: [...prizes].reverse().map(staffOut), board: rows.map(r => ({ userId: r.userId, dogName: players.get(r.userId)?.dogName ?? '', location: r.location, score: r.score, hidden: !!players.get(r.userId)?.hidden })) });
+          const week = weekKey(Date.now());
+          const rows = weekly.filter(w => w.week === week).sort((a, b) => b.score - a.score);
+          return send(res, 200, { prizes: [...prizes].reverse().map(staffOut), board: rows.map(r => ({ userId: r.userId, dogName: players.get(r.userId)?.dogName ?? '', location: r.location, score: r.score, hidden: !!players.get(r.userId)?.hidden })),
+            format: { from: formatFrom, thisWeek: week, earliest: nextWeek(week), version: rulesFor(week, formatFrom).version } });
         }
         const b = await bodyOf(req);
+        if (b.action === 'schedule-format') {
+          if (!isWeekKey(b.fromWeek)) return send(res, 400, { error: 'invalid-request' });
+          if (b.fromWeek <= weekKey(Date.now())) return send(res, 400, { error: 'week-started' });
+          formatFrom = b.fromWeek;
+          return send(res, 200, { ok: true, from: formatFrom });
+        }
+        if (b.action === 'cancel-format') {
+          if (formatFrom && formatFrom <= weekKey(Date.now())) return send(res, 409, { error: 'week-started' });
+          formatFrom = null;
+          return send(res, 200, { ok: true, from: null });
+        }
         if (b.action === 'lookup') {
           const p = prizes.find(x => x.code === String(b.code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, ''));
           return p ? send(res, 200, { prize: staffOut(p) }) : send(res, 404, { error: 'unknown-code' });
@@ -424,7 +463,13 @@ createServer(async (req, res) => {
       return send(res, 200, { week });
     }
     if (path === '/mock/award-week' && req.method === 'POST') { awardWeek(weekKey(Date.now())); return send(res, 200, { prizes }); }
-    if (path === '/mock/state') return send(res, 200, { devices, events, players: Object.fromEntries(players), weekly, prizes, purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent, codes: Object.fromEntries(db.codes), referrals: db.referrals, appCodes });
+    // Switches the three-challenge format on from a week ({ from: 'now' | '<Monday>' | null }) for tests.
+    if (path === '/mock/format' && req.method === 'POST') {
+      const b = await bodyOf(req);
+      formatFrom = b.from === 'now' ? weekKey(Date.now()) : isWeekKey(b.from ?? '') ? b.from : null;
+      return send(res, 200, { from: formatFrom });
+    }
+    if (path === '/mock/state') return send(res, 200, { devices, events, players: Object.fromEntries(players), weekly, results, formatFrom, prizes, purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent, codes: Object.fromEntries(db.codes), referrals: db.referrals, appCodes });
     if (path === '/mock/refund' && req.method === 'POST') {
       const { email, product } = await bodyOf(req);
       const user = userFor(email);

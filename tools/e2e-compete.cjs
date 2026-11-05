@@ -78,7 +78,7 @@ async function playChallenge(page, { greedy = false } = {}) {
   await playChallenge(a);
   const sheet = await a.innerText('.sheet');
   const score = Number((await a.$eval('.sheet .big-score', el => el.textContent)).replace(/\D/g, ''));
-  check(score > 0 && /New best score!/.test(sheet), 'challenge: 25 moves give a score and a new best', String(score));
+  check(score > 0 && /Run complete/.test(sheet) && /first run this week sets the mark/.test(sheet) && /Professor Paws' tip/.test(sheet), 'challenge: 25 moves give a score, the first run sets the mark, a tip follows', String(score));
   check(/Save your progress/.test(sheet), 'challenge: signed out, asks to sign in for the leaderboard');
   check((await a.evaluate(() => JSON.parse(localStorage.getItem('pawtastic-gd-wallet-v1')).weekly.best)) === score, 'challenge: best kept on this phone');
   await a.click('.sheet button:text-is("Sign in")');
