@@ -98,6 +98,40 @@ export function weekEndsAt(key) {
 
 export const isWeekKey = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && weekKey(Date.parse(`${v}T12:00:00Z`)) === v;
 
+// ---------- seasons ----------
+
+/**
+ * Seasons (owner decision, 5 Nov 2026). A season's weeks are its chapters: ordinary weeks, each with its own
+ * board and its own best score, played under version 1 (the High score run). A player's season score is their
+ * chapter scores added up. Prizes are given once, when the season ends (the lineup of the season's first week),
+ * never on the Sundays inside it. The last chapter stops at the season's end, which may be before its Monday.
+ * A constant here, so the server (which bundles this file) and the game always agree.
+ */
+export const SEASONS = Object.freeze([
+  Object.freeze({ id: 's1', name: 'Season 1: Top Dog', weeks: Object.freeze(['2026-11-09', '2026-11-16', '2026-11-23', '2026-11-30']), endsAt: '2026-12-06T04:59:59.999Z' }), // Sat 5 Dec, 11:59:59 pm New York
+]);
+
+/** The season a week (Monday key) belongs to, or null. */
+export const seasonFor = week => SEASONS.find(s => s.weeks.includes(week)) ?? null;
+
+/** The chapter (1-based) a week is in its season, or null outside a season. */
+export function chapterOf(week) {
+  const s = seasonFor(week);
+  return s ? s.weeks.indexOf(week) + 1 : null;
+}
+
+/** The last moment of a season (a season or its id), as epoch ms. */
+export function seasonEndsAt(season) {
+  const s = typeof season === 'string' ? SEASONS.find(x => x.id === season) : season;
+  return s ? Date.parse(s.endsAt) : NaN;
+}
+
+/** When play in a week stops counting: the week's end, or the season's end when that comes first (the last chapter). */
+export function playEndsAt(week) {
+  const s = seasonFor(week);
+  return s ? Math.min(weekEndsAt(week), seasonEndsAt(s)) : weekEndsAt(week);
+}
+
 function hash(text) {
   let h = 2166136261;
   for (const ch of text) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
