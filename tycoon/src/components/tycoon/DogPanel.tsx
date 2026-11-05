@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { BREEDS, FAVORITE_LABEL, groupName, groupOf, personalityOf, traitLabel } from "@/game/engine";
+import { BREEDS, groupName, groupOf, personalityOf, traitLabel } from "@/game/engine";
 import { bathPay, checkoutPay } from "@/tycoon/business";
 import { caps } from "@/tycoon/connect";
 import { assignBed, assignRoom, bath, checkIn, checkout, clean, inActiveScuffle, playtime, roomDogs, toCalm, turnAway } from "@/tycoon/run";
@@ -10,7 +10,8 @@ import { fmtTime, visitOf } from "@/tycoon/visit";
 import { ROOM_TYPE_NAMES } from "@/tycoon/catalog";
 import type { ActOpts, ActResult } from "@/tycoon/store";
 import type { Facility, TDog, TResult, TycoonState } from "@/tycoon/types";
-import { assessVisit } from "@/tycoon/assess";
+import { assessVisit, rememberedVisit } from "@/tycoon/assess";
+import { careTip } from "@/tycoon/effects";
 import { roomCleanOf, roomName, roomOfDog } from "@/tycoon/rooms";
 import { responsibleFor } from "@/tycoon/team";
 import { STAGE_WORDS, waitStage } from "@/tycoon/waiting";
@@ -143,6 +144,16 @@ export function DogPanel({ f, dog, act, onAllSet }: { f: Facility; dog: TDog; ac
         {scuffle ? " · ⚠️ scuffle" : ""} · Needs: {needs.length ? needs.join(", ") : "nothing right now"} · {v.owner} {v.pickupDay > f.day ? "tomorrow " : ""}
         {fmtTime(v.pickup)}
       </p>
+      {(() => {
+        // a returning family remembers; the pup's favourite changes its care (milestone §5)
+        const memory = rememberedVisit(f, dog);
+        return (
+          <>
+            {memory && <p className="text-xs text-secondary">{memory.line}</p>}
+            <p className="text-[11px] text-muted-foreground">💡 {careTip(f, dog)}</p>
+          </>
+        );
+      })()}
       <div className="mt-1">
         <Meter label="Happy" value={dog.happiness} />
       </div>
@@ -151,9 +162,8 @@ export function DogPanel({ f, dog, act, onAllSet }: { f: Facility; dog: TDog; ac
       </button>
       {more && (
         <div className="space-y-0.5 rounded-lg bg-muted/50 px-2 py-1">
-          <p className="text-xs text-muted-foreground">
-            Loves {FAVORITE_LABEL[personality.favorite]} · {personality.trait}
-          </p>
+          {/* (the favourite is in the care tip above, where it changes what you do) */}
+          <p className="text-xs text-muted-foreground">{personality.trait}</p>
           <p className="text-xs text-secondary">
             Booked {v.requests.join(" + ")}
             {v.prepaid.length ? ` (${v.prepaid.join(", ")} prepaid)` : ""} · {v.owner} · pickup {v.pickupDay > f.day ? "tomorrow " : ""}

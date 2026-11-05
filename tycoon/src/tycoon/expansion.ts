@@ -561,5 +561,13 @@ export function buyExpansion(s: TycoonState, id: ExpansionId, spot?: { c: number
   // exactly what was quoted, for exactly its price — or nothing
   const spent = today(fac(after)).expenses.building - today(fac(s)).expenses.building;
   if (spent !== now.cost || !sameQuote({ id, ...changeOf(s, after), cost: spent }, now)) return { ok: false, error: "The price changed — check the new price and try again." };
-  return { ok: true, state: after, msg: `${o.title} — done! It's open and working.` };
+  return { ok: true, state: after, msg: `${o.title} — done! ${o.capacity[0]!.toUpperCase()}${o.capacity.slice(1)}, open and working.${canStayNow(fac(after), id)}` };
+}
+
+/** Right away, the benefit in person (milestone §5): a family of the wing's kind already waiting can now stay. */
+function canStayNow(f: Facility, id: ExpansionId): string {
+  if (id !== "playroom") return "";
+  const room = f.rooms.at(-1);
+  const pup = room?.group ? f.dogs.find((d) => d.place.kind === "lobby" && !d.boarding && groupOf(d) === room.group) : undefined;
+  return pup ? ` ${pup.name} can stay — ${pup.checkedIn ? "move them in" : "check them in"}.` : "";
 }

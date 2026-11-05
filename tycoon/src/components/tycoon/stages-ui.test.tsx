@@ -19,6 +19,7 @@ vi.mock("@/components/tycoon/TycoonStage", async () => {
 
 import { TycoonPlay } from "./TycoonPlay";
 import { KEY, tycoonStore } from "@/tycoon/store";
+import { savingFor } from "@/tycoon/objectives";
 import { buyExpansion, expansionOptions } from "@/tycoon/expansion";
 import { xpForLevel } from "@/tycoon/progress";
 import { quickStart } from "@/tycoon/start";
@@ -128,6 +129,8 @@ describe("saving toward the next expansion", () => {
     const coins = tycoonStore.getState()!.coins.toLocaleString("en-US");
     expect(bar.getByTestId("saving-for").textContent).toMatch(new RegExp(`Saving for .+ · ${coins} of [\\d,]+ coins`));
     expect(bar.getByRole("progressbar", { name: /^Saving for/ })).toBeTruthy();
+    // and why it's worth it (milestone §5)
+    expect(bar.getByTestId("saving-why").textContent).toBe(savingFor(tycoonStore.getState()!)!.purpose);
   });
 });
 

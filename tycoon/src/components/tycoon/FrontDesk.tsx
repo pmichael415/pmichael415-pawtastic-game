@@ -3,6 +3,7 @@
 // checkout through the pickup sheet when there's a concern), so billing stays exactly once.
 import { Button } from "@/components/ui/button";
 import { traitLabel } from "@/game/engine";
+import { rememberedVisit } from "@/tycoon/assess";
 import { checkIn } from "@/tycoon/run";
 import type { ActOpts, ActResult } from "@/tycoon/store";
 import type { Facility, TResult, TycoonState } from "@/tycoon/types";
@@ -36,6 +37,10 @@ export function FrontDesk({ f, act, onSelect, onCheckout }: { f: Facility; act: 
                   <span className="block text-[11px] text-muted-foreground">
                     {traitLabel(d)} · {v.requests.join(" + ")}
                     {v.bathAsked ? " · asked for a bath (no bath room yet)" : ""}
+                    {(() => {
+                      const m = rememberedVisit(f, d);
+                      return m ? ` · ${m.short}` : "";
+                    })()}
                     {w && w.stage !== "waiting" ? ` · waited ${w.minutes} min` : ""}
                   </span>
                 </button>

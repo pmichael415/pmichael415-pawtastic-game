@@ -5,7 +5,8 @@ import { DESK_GIVES_UP, DESK_IMPATIENT } from "./waiting";
 import { roomCleanOf, roomName, roomOfDog } from "./rooms";
 import { bathPay } from "./business";
 import { funAppeal, tip } from "./effects";
-import { visitOf } from "./visit";
+import { friendshipLevel } from "@/game/engine";
+import { ownerFor, visitOf } from "./visit";
 import type { ComplaintKind, Facility, IncomeKey, Mood, RemedyKind, TDog } from "./types";
 
 export type { ComplaintKind, Mood, RemedyKind };
@@ -28,6 +29,23 @@ export const DIRTY_BELOW = 40;
 export const SAFE_FLOOR = 50;
 
 export const moodOf = (sat: number): Mood => (sat >= 80 ? "delighted" : sat >= 60 ? "content" : sat >= 40 ? "disappointed" : "upset");
+
+const WENT_HOME: Record<Mood, string> = { delighted: "delighted", content: "happy", disappointed: "a bit disappointed", upset: "upset" };
+/**
+ * A returning family remembers (milestone §5): which visit this is, how close they are, and how the last one went —
+ * from the guest book the checkout writes. Null on a first visit. `short` fits the front desk.
+ */
+export function rememberedVisit(f: Facility, d: Pick<TDog, "name" | "breed" | "visits">): { line: string; short: string } | null {
+  const g = d.visits > 1 ? f.guestBook.find((x) => x.name === d.name && x.breed === d.breed) : undefined;
+  if (!g) return null;
+  const head = `${ownerFor(d)} is back with ${d.name} for visit #${d.visits} (${friendshipLevel(g.friendship).label})`;
+  if (g.sat == null) return { line: `${head}.`, short: `visit #${d.visits}` };
+  const mood = moodOf(g.sat);
+  const ago = f.day - g.lastDay;
+  const when = ago <= 0 ? "earlier today" : ago === 1 ? "yesterday" : `${ago} days ago`;
+  const winBack = mood === "disappointed" || mood === "upset" ? " A good day today wins them back." : "";
+  return { line: `${head} — last time ${d.name} went home ${WENT_HOME[mood]}, ${when}.${winBack}`, short: `visit #${d.visits} · went home ${WENT_HOME[mood]} ${when}` };
+}
 
 /** `exitBath`: an exit bath chosen at pickup. */
 export function assessVisit(f: Facility, dog: TDog, opts: { exitBath?: boolean }): Assessment {

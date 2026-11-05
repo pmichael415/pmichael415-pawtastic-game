@@ -44,6 +44,7 @@ export function ObjectiveBar({ state, onAction }: { state: TycoonState; onAction
               💰 {save.have >= save.cost ? "You can afford" : "Saving for"} <b>{save.title}</b> · {n(Math.min(save.have, save.cost))} of {n(save.cost)} coins
             </p>
             <Progress value={pctSaved} className="mt-1 h-1.5" aria-label={`Saving for ${save.title}: ${pctSaved}%`} />
+            <p data-testid="saving-why" className="mt-0.5 text-[11px] text-muted-foreground">{save.purpose}</p>
           </div>
         );
       })()}

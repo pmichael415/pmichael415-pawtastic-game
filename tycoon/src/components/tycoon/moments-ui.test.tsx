@@ -60,9 +60,9 @@ describe("a pup's panel shows who it is", () => {
     open(midday());
     act(() => emit({ kind: "dog", id: "b1" }));
     const p = personalityOf({ name: "Biscuit", breed: 1 });
-    // (the panel is compact since the legacy comparison: the pup's details are one tap away)
-    fireEvent.click(within(panel()).getByRole("button", { name: /^More about Biscuit/ }));
+    // the favourite is in the compact panel's care tip (it changes what you do — milestone §5); the trait is one tap away
     expect(within(panel()).getByText(new RegExp(`Loves ${FAVORITE_LABEL[p.favorite]}`))).toBeTruthy();
+    fireEvent.click(within(panel()).getByRole("button", { name: /^More about Biscuit/ }));
     expect(within(panel()).getByText(new RegExp(p.trait))).toBeTruthy();
   });
 });

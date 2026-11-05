@@ -29,7 +29,7 @@ import {
 import type { Regular, Stats } from "@/game/engine";
 import { bathPay, campaignBoost, checkoutPay, closeDay, countToday, demand, earn, fairPrice, recordRefund, refuses, spend, wageRecovery } from "./business";
 import { canOpen, caps, roomStatus } from "./connect";
-import { arrivalMultiplier, decayMultiplier, funAppeal, playGain } from "./effects";
+import { BATH_HAPPY, arrivalMultiplier, decayMultiplier, funAppeal, playGain } from "./effects";
 import { XP, gainXp } from "./progress";
 import { fac, withFac } from "./state";
 import { tourHolds } from "./tour";
@@ -358,7 +358,7 @@ function runBaths(s: TycoonState, f: Facility, gameMin: number): Facility {
     baths++;
     const splashFan = personalityOf(d).favorite === "splash";
     const extra = f.supplies === "premium" ? PREMIUM_HAPPY : 0;
-    return { ...d, bathing: null, bathTub: null, bathed: true, clean: 100, happiness: clamp(d.happiness + (splashFan ? 15 : 5) + extra), visit: logVisit(visitOf(f, d), `Bath finished ${fmtTime(f.clockMin)}`) };
+    return { ...d, bathing: null, bathTub: null, bathed: true, clean: 100, happiness: clamp(d.happiness + (splashFan ? BATH_HAPPY.fan : BATH_HAPPY.other) + extra), visit: logVisit(visitOf(f, d), `Bath finished ${fmtTime(f.clockMin)}`) };
   });
   return baths ? { ...f, dogs, stats: { ...f.stats, baths: f.stats.baths + baths } } : { ...f, dogs };
 }

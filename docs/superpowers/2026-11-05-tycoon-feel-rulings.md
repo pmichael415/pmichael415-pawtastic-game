@@ -47,3 +47,17 @@ Decisions made on Phil's behalf during the milestone, with what each costs if it
 - Ruling: tests whose fixtures built more than a new game can afford (a second playroom for placement rules, four
   playrooms in the list view, a grown daycare's hire) now set their coins explicitly, each with a comment; tests of the
   75% sale rate open the daycare first, and new tests cover the full refund before opening — cost if wrong: none.
+- Ruling (§5): personality stays the existing mechanic — a pup's favourite already set playtime (+35 fetch, tug and
+  zoomies fans; +30 cuddles; +25 bath-time fans) and a bath (+15 for a bath-time fan, +5 for others). Nothing new was
+  added; the compact pup panel now says it with those numbers (one 💡 line), because the decision it changes (a bath
+  for a bath-time fan, and whether to build a bath station) was invisible behind "More" — cost if wrong: one more line
+  in the compact panel.
+- Ruling (§5): returning families "remember" from the guest book the checkout already writes (visits, friendship, last
+  satisfaction, last day): the desk shows "visit #N · went home delighted yesterday", the pup's panel the full line,
+  and a family that left disappointed adds "a good day today wins them back" — no new state — cost if wrong: an
+  older guest-book entry without a score shows only "back for visit #N".
+- Ruling (§5): the savings line adds one line of why (the option's "Good if …", e.g. "3 Large & Active families asked
+  today — you have no room for them yet"); the labelled estimate with its numbers stays on the expansion card — cost
+  if wrong: the reason, not the arithmetic, is what's in view.
+- Ruling (§5): a finished expansion's message names what it adds ("+3 spots for Large & Active pups, open and working")
+  and, for a wing, the family already waiting who can now stay ("Rex can stay — check them in.") — cost if wrong: none.

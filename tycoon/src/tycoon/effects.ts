@@ -1,7 +1,7 @@
 // PAWtastic Daycare Tycoon — Fun and Appeal (spec §4.4).
-import { personalityOf } from "@/game/engine";
+import { FAVORITE_LABEL, personalityOf } from "@/game/engine";
 import { furnitureDef, outdoorDef } from "./catalog";
-import { connectedRooms, roomStatus } from "./connect";
+import { caps, connectedRooms, roomStatus } from "./connect";
 import type { Facility, TDog } from "./types";
 import type { PaidItemId } from "@/lib/paidVisuals";
 import { isActive, ownedPaid } from "./paid";
@@ -47,6 +47,25 @@ export const ROOM_FUN_MAX = 12;
 /** Outdoor play areas (Play Yard, Ball Pit, Splash Pool, Agility) add their Fun to every playtime, up to +8. */
 export const YARD_FUN_MAX = 8;
 
+/** Happiness one playtime gives before toys and fun, by favourite: fetch, tug and zoomies fans love it most. */
+export const PLAY_BASE = { loves: 35, cuddles: 30, bathFan: 25 } as const;
+/** Happiness a finished bath gives (before premium supplies): a bath-time fan's treat. */
+export const BATH_HAPPY = { fan: 15, other: 5 } as const;
+
+/**
+ * What a pup's favourite means for its care, with the rules' own numbers (milestone §5): a bath-time fan gets more from
+ * a bath and less from playtime — the one care decision a personality changes.
+ */
+export function careTip(f: Facility, dog: Pick<TDog, "name" | "breed">): string {
+  const fav = personalityOf(dog).favorite;
+  const label = FAVORITE_LABEL[fav];
+  if (fav === "splash")
+    return caps(f).bath
+      ? `Loves ${label} — a bath cheers them up +${BATH_HAPPY.fan} (other pups +${BATH_HAPPY.other}); playtime only +${PLAY_BASE.bathFan} before toys.`
+      : `Loves ${label} — their family asked for a bath, but you have no bath room yet; playtime only +${PLAY_BASE.bathFan} before toys.`;
+  return `Loves ${label} — playtime cheers them up +${fav === "cuddles" ? PLAY_BASE.cuddles : PLAY_BASE.loves} before toys.`;
+}
+
 export type PlayGain = {
   base: number;
   fromFun: number;
@@ -61,8 +80,7 @@ export type PlayGain = {
 /** Happiness one playtime gives this pup, and what helped most. Same base as before (favourite, cuddles). */
 export function playGain(f: Facility, dog: TDog, owned: ReadonlySet<PaidItemId> = ownedPaid()): PlayGain {
   const fav = personalityOf(dog).favorite;
-  const loves = fav === "fetch" || fav === "tug" || fav === "zoomies" || fav === "cuddles";
-  const base = fav === "cuddles" ? 30 : loves ? 35 : 25;
+  const base = fav === "cuddles" ? PLAY_BASE.cuddles : fav === "splash" ? PLAY_BASE.bathFan : PLAY_BASE.loves;
   const fromFun = playBonus(funAppeal(f, owned).fun);
   const roomUid = dog.place.kind === "room" || dog.place.kind === "bed" ? dog.place.room : null;
   const room = roomUid ? f.rooms.find((r) => r.uid === roomUid) ?? null : null;
