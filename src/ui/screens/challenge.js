@@ -181,7 +181,7 @@ export function render(app, params = {}) {
       const total = CHALLENGE_IDS.reduce((s, id) => s + (r[id]?.best ?? 0), 0);
       return h('p', { class: 'small num' }, h('strong', {}, `Your total this week: ${num(total)}`), ' · ', CHALLENGE_IDS.map(id => `${CHALLENGES[id].short} ${num(r[id]?.best ?? 0)}`).join(' · '));
     })() : null;
-    result.append(
+    result.append(...[
       h('p', { class: 'eyebrow' }, `Weekly Challenge · ${def.name}`),
       h('h2', {}, newBadge ? `${TIER_NAMES[newBadge]} badge!` : best && runs > 1 ? 'New personal best!' : 'Run complete'),
       h('p', { class: 'big-score num' }, num(score)),
@@ -193,7 +193,7 @@ export function render(app, params = {}) {
       h('p', { class: 'small tip-line' }, h('strong', {}, "Professor Paws' tip: "), tipFor(challenge, runs)),
       status,
       h('div', { class: 'btn-pair' }, again, others ?? board),
-      h('div', { class: 'btn-pair' }, share, others ? board : null));
+      h('div', { class: 'btn-pair' }, share, others ? board : null)].filter(Boolean));
     sheet = app.modal(result, { label: 'Run complete', dismissible: false });
     if (!best) { status.textContent = 'Only your best run counts. Keep trying!'; return; }
     const confirmed = await sendRun(score, status, () => sheet.close());
@@ -270,7 +270,7 @@ export function render(app, params = {}) {
   view.wrap.addEventListener('pointerdown', () => hint.reset());
   hint.reset();
   const foot = h('p', { class: 'small muted center' }, isPublicSite(backend) ? prizeLine() : 'Weekly Challenge');
-  screen.append(v2 ? h('div', { class: 'btn-pair center' }, h('button', { class: 'linkish small', type: 'button', onClick: otherChallenges }, 'Other challenges this week'), h('button', { class: 'linkish small', type: 'button', onClick: () => app.go('collection') }, 'Badges & trophies')) : null, foot);
+  screen.append(...[v2 ? h('div', { class: 'btn-pair center' }, h('button', { class: 'linkish small', type: 'button', onClick: otherChallenges }, 'Other challenges this week'), h('button', { class: 'linkish small', type: 'button', onClick: () => app.go('collection') }, 'Badges & trophies')) : null, foot].filter(Boolean));
   updateHud();
   if (app.services.debug) window.__pawtasticChallenge = { game, moves, challenge, week, validMove: () => findValidMove(game.grid), swap: (a, b) => onSwap(a, b) };
   return () => { alive = false; hint.stop(); view.destroy(); if (app.services.debug) delete window.__pawtasticChallenge; };
