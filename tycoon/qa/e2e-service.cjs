@@ -197,7 +197,10 @@ async function oldSave(browser) {
     const d = await page.evaluate(() => window.__tycoonState().facilities.f1.dogs[0]);
     check('old save: a pup from before visits loads with a plain daycare booking', !!d && d.visit.requests.join() === 'daycare' && d.visit.pickup === 1050);
     const card = (name) => cardOf(page, name);
-    check('old save: its panel shows the booking', (await (await card('Pepper')).getByText(/Booked daycare/).count()) > 0);
+    // the booking is one tap away in the compact panel (since the legacy comparison): "More about Pepper"
+    const pepper = await card('Pepper');
+    await pepper.getByRole('button', { name: /^More about Pepper/ }).first().click().catch(() => {});
+    check('old save: its panel shows the booking', (await pepper.getByText(/Booked daycare/).count()) > 0);
     check('old save: no page errors', errors.length === 0, errors.slice(0, 2).join(' | '));
   } catch (e) {
     check('old save checks ran', false, String(e).split('\n')[0]);

@@ -187,6 +187,13 @@ async function quickRun(browser, dev, { decision, map = false, reload = false, t
       await s.page.waitForFunction(() => window.__tycoonState().tour?.done === true).catch(() => {});
       check(`${L}: letting Rocket rest sends him home and costs nothing`, !(await s.dogs()).some((d) => d.name === 'Rocket') && (await s.st()).coins >= coins2);
     } else {
+      // a new game (1,900 coins) can't afford it yet (milestone "feel like a daycare tycoon" §4): the button says how
+      // much more, and waits. An older save started with 3,000 coins (1,100 more) and can build it here — topped up
+      // with the DEV hook to stand for that save, then built.
+      const shortTxt = (await buildBtn.innerText()).replace(/\s+/g, ' ');
+      check(`${L}: in a new game the playroom costs more than the guide has left — the button says how much more, and waits`, (await buildBtn.isDisabled()) && /more to earn/.test(shortTxt), shortTxt);
+      await s.page.evaluate(() => window.__tycoonSet((st) => ({ ...st, coins: st.coins + 1100 })));
+      await s.page.waitForTimeout(200);
       await buildBtn.click();
       await s.page.waitForTimeout(200);
       const hasRoom = (await s.st()).facilities.f1.rooms.some((r) => r.type === 'playroom' && r.group === 'large-active');

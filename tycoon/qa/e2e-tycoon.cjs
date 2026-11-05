@@ -235,8 +235,10 @@ async function guidedStart(s, label) {
     await page.getByRole('button', { name: 'Build', exact: true }).click();
     await tool('Paths'); await tile(18, 26); await btn(/^Done · 1 square/).click(); await clearOverlays();
 
-    // upgrade, move, sell
+    // upgrade, move, sell — a play yard (200) and its upgrade (360) cost more than a new game holds at this point
+    // since the milestone "feel like a daycare tycoon" (§4: 1,900 to start), so coins are added with the DEV hook
     log('play yard');
+    await page.evaluate(() => window.__tycoonSet((st) => ({ ...st, coins: st.coins + 1000 })));
     await s.item('Outdoor', 'Play Yard', [[11, 25]]);
     await page.getByRole('button', { name: 'Done building' }).click();
     await tile(11, 25);

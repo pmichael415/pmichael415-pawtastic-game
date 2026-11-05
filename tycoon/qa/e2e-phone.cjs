@@ -102,7 +102,11 @@ async function layouts(browser) {
       if (p) await page.mouse.click(p.x, p.y);
       await page.waitForTimeout(300);
       const panel = page.getByTestId('panel-sheet');
-      check(`${label}: tapping a pup opens its panel (needs, room, who's looking after it)`, (await panel.count()) === 1 && /Looked after by/.test(await panel.innerText()));
+      // the compact panel (since the legacy comparison): needs and where at once; who looks after it one tap away
+      const compact = (await panel.count()) === 1 ? await panel.innerText() : '';
+      await panel.getByRole('button', { name: /^More about / }).first().click().catch(() => {});
+      await page.waitForTimeout(200);
+      check(`${label}: tapping a pup opens its panel (needs, room, who's looking after it)`, /Needs:/.test(compact) && /Looked after by/.test(await panel.innerText().catch(() => '')), compact.slice(0, 100).replace(/\n/g, ' / '));
       if (await panel.count()) {
         const scrolls = await panel.evaluate((el) => el.scrollHeight >= el.clientHeight);
         check(`${label}: the panel is a scrolling sheet within the screen`, scrolls && (await panel.boundingBox()).height <= dev.viewport.height);
