@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { diagOn, recordUi, setDiag as setDiagnostics } from "@/tycoon/diag";
 import { DiagOverlay, TestBanner, TestTools, qualityLabel } from "./TestTools";
 import { toast } from "sonner";
-import { Hammer, Loader2 } from "lucide-react";
+import { Hammer, Loader2, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { setSettings, useSettings } from "@/lib/settings";
 import { useEntitlementsMaybe } from "@/lib/entitlements";
@@ -211,6 +211,8 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
     tycoonStore.hold("screen", blocking);
   }, [blocking]);
   useEffect(() => () => tycoonStore.leaveHeld(), []);
+  const fNow = fac(state);
+  const campaignName = fNow.campaign && fNow.day < fNow.campaign.untilDay ? ((fNow.campaignRuns ?? []).find((r) => r.uid === fNow.campaign!.run)?.name ?? "a campaign") : null;
   const holdWhy = building ? "you build" : placing !== null ? "you choose a spot" : fac(state).report ? "you read the day's report" : "this is open";
   // A family kindly rescheduled: say so once, and what to do next time.
   const courtesyKeyOf = (c: ReturnType<typeof fac>["courtesy"]) => (c ? `${c.day}:${c.why}:${c.names.join(",")}` : "none");
@@ -495,23 +497,34 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
           <Button className="h-11 shrink-0" onClick={() => setPaused(false)}>Resume</Button>
         </section>
       )}
-      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} {...(blocking ? { holdWhy } : {})} onFinances={() => setFinances(true)} onReputation={() => setRepOpen(true)} onTeam={() => setTeamOpen(true)} onMarketing={() => setMarketing(true)} {...(quiet ? {} : { onShop: () => setShop(true) })} />
+      <RunHud state={state} act={act} paused={paused} setPaused={setPaused} {...(blocking ? { holdWhy } : {})} onFinances={() => setFinances(true)} onReputation={() => setRepOpen(true)} onTeam={() => setTeamOpen(true)} {...(quiet ? {} : { onShop: () => setShop(true) })} />
       {!quiet && <TodayStrip state={state} onOpen={() => setFinances(true)} />}
       {isFreshSave(state) && <StartCard onPick={(mode) => set((s) => startTour(s, mode, Date.now()))} />}
-      {/* Build is always there once you've started (empire milestone §2: step into building whenever you like). */}
-      {show3d && !preTour && (
-        <Button
-          variant={building ? "default" : "outline"}
-          className="h-11 w-full"
-          onClick={() => {
-            setBuilding(!building);
-            b.setTool(null);
-            setSel(null);
-          }}
-        >
-          <Hammer className="mr-2 h-4 w-4" />
-          {building ? "Done building" : "Build"}
-        </Button>
+      {/* Build is always there once you've started (empire milestone §2: step into building whenever you like), and
+          Marketing beside it (customer-growth §2) — below the status bar, so the bar stays one line on a small phone. */}
+      {!preTour && (show3d || !building) && (
+        <div className="flex gap-2">
+          {show3d && (
+            <Button
+              variant={building ? "default" : "outline"}
+              className="h-11 flex-1"
+              onClick={() => {
+                setBuilding(!building);
+                b.setTool(null);
+                setSel(null);
+              }}
+            >
+              <Hammer className="mr-2 h-4 w-4" />
+              {building ? "Done building" : "Build"}
+            </Button>
+          )}
+          {!building && (
+            <Button variant="outline" className="h-11 flex-1" aria-label={campaignName ? `Marketing · ${campaignName} running` : "Marketing"} onClick={() => setMarketing(true)}>
+              <Megaphone className="mr-2 h-4 w-4" />
+              Marketing{campaignName ? " ·📣" : ""}
+            </Button>
+          )}
+        </div>
       )}
       {/* Building from scratch: the current building step stays on screen while you build. */}
       {show3d && building && holding && state.tour?.beat === "meet" && <CoachBubble state={state} controls={controls} act={act} set={set} compact />}

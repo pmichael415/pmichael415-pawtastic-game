@@ -191,7 +191,7 @@ let speed = 1;
     const coins = (await st()).coins;
     await tap(thank, await textOf(thank));
     await page.waitForTimeout(500);
-    const msg = m.toasts.at(-1)?.text ?? '';
+    const msg = [...m.toasts].reverse().find((t) => /^You thanked/.test(t.text))?.text ?? m.toasts.at(-1)?.text ?? '';
     const after = await st();
     thanked = { family: story.slice(0, 80), msg, coinsBefore: coins, coinsAfter: after.coins, bookings: after.facilities.f1.bookings };
     mark('4 thank-you made (free)', msg, { coinsChanged: after.coins - coins, bookings: after.facilities.f1.bookings.map((b) => `${b.name} day ${b.day} ${hm(b.min)} (${b.source.kind})`) });
@@ -240,7 +240,7 @@ let speed = 1;
       const what = await textOf(btn);
       await tap(btn, what);
       await page.waitForTimeout(400);
-      calls.push({ day: f.day, what, answer: m.toasts.at(-1)?.text ?? '' });
+      calls.push({ day: f.day, what, answer: [...m.toasts].reverse().find((t) => /^You (thanked|invited|followed|made)/.test(t.text))?.text ?? '' });
       if (!seen.has('call-shot')) { seen.add('call-shot'); await shot('daily-call', `a free call: ${what}`); }
     }
     await closeSheet();
