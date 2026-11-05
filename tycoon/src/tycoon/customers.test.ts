@@ -8,6 +8,7 @@ import {
   INACTIVE_AFTER,
   STAFF_CALLS,
   contact,
+  contactBlock,
   familyStatus,
   familyStory,
   outreachOffers,
@@ -199,6 +200,17 @@ describe("outreach: free, simple, fair — and it leads to a booking, never coin
     expect(g.lostUntil ?? 0).toBeLessThanOrEqual(4);
     expect(g.issue!.followedUp).toBe(true);
     expect(familyStory(fac(r), g)).toMatch(/You followed up/);
+  });
+  it("no call is offered while a family can't be contacted: within a few days of the last contact, or while their pup is here or booked in", () => {
+    const g = fam({ lastDay: 3, sat: 90, visits: 2, contactDay: 2, thankedFor: 2 });
+    expect(outreachOffers(f0(3, [g]), g)).toEqual([]);
+    expect(contactBlock(f0(3, [g]), g)).toBe("You got in touch on day 2 — you can again from day 5.");
+    expect(outreachOffers(f0(5, [g]), g).map((o) => o.kind)).not.toContain("thank"); // that visit's thank-you window has passed
+    const fresh = fam({ lastDay: 3, sat: 90 });
+    const booked = { ...f0(3, [fresh]), bookings: [{ uid: "b1", name: "Biscuit", breed: 1, size: "small" as const, temper: "gentle" as const, day: 4, min: 600, boarding: false, source: { kind: "walk-in" as const } }] };
+    expect(outreachOffers(booked, fresh)).toEqual([]);
+    expect(contactBlock(booked, fresh)).toMatch(/booked in for day 4 at 10:00/);
+    expect(outreachOffers(f0(3, [fresh]), fresh).map((o) => o.kind)).toContain("thank");
   });
   it("the offers on a family's record fit them: thank after a good visit, invite when inactive, follow up after a problem", () => {
     const f = f0(2, []);

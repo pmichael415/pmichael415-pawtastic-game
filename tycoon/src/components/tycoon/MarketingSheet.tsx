@@ -16,6 +16,7 @@ import {
   FREE_CALLS_PER_DAY,
   STAFF_CALLS,
   contact,
+  contactBlock,
   familyStatus,
   familyStory,
   fmtHM,
@@ -266,6 +267,9 @@ function FamilyRow({
           📅 Booked for day {booking.day} at {fmtHM(booking.min)}
         </p>
       )}
+      {!booking && contactBlock(f, g) && (
+        <p className="mt-0.5 text-xs text-muted-foreground">{contactBlock(f, g)}</p>
+      )}
       {offers.length > 0 && (
         <div className="mt-1.5 space-y-1">
           {offers.map((o) => (
@@ -497,7 +501,7 @@ function ResultsTab({ f }: { f: Facility }) {
         <p className="text-sm text-secondary">
           With a campaign running:{" "}
           {base.with.days
-            ? `${base.with.perDay} (over ${plural(base.with.days, "day")}, plus ${base.with.bookedPerDay} booked)`
+            ? `${base.with.perDay} (over ${plural(base.with.days, "day")}, plus ${base.with.bookedPerDay} arrivals from bookings)`
             : "no days yet"}{" "}
           · without:{" "}
           {base.without.days

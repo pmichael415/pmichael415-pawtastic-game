@@ -115,3 +115,19 @@ Decisions I made on Phil's behalf while building the customer loop (spec:
   constraint), so new names would need a migration applied at release. Outreach and "another day" reuse the existing
   `tycoon_marketing` event with a property instead.
 - **The Finances screen lost its Marketing tab** — marketing has one place now (the status bar's Marketing button).
+
+## Found by the independent review (fixed, each with a test that failed first)
+
+- A family you can't contact right now (booked in, pup here today, or contacted in the last 3 active days) shows **why**
+  ("You got in touch on day 2 — you can again from day 5.") instead of call buttons that always failed. The first-session
+  thank-you objective follows the same rule. *Ruling:* a thank-you for a visit that falls inside the 3-day cooldown is
+  simply not offered (the anti-farming limit wins over the thank-you).
+- A family saved before this feature (no record of how they found you) keeps no source; a campaign it comes back
+  through gets the visit, but doesn't count it as a family that "joined" from it.
+- Welcome-back letters can't be bought when every inactive family is still staying away after a problem nobody
+  followed up (a follow-up call is free and comes first); the estimate counts an unhappy inactive family at the same
+  lower chance the draw uses.
+- A family that has already been offered another day twice and is still at the desk at closing goes home, and the
+  notice says so (it no longer promises a return).
+- The day a campaign starts is recorded as a campaign day; the space warning looks at today and the 2 active days
+  before ("the last 3 active days"); the with/without comparison says "arrivals from bookings".

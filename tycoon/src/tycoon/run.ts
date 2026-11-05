@@ -550,7 +550,8 @@ export function settle(s: TycoonState, dogId: string, how: Outcome["how"], exitB
       ...(a.mood === "upset" && unresolved.length ? { lostUntil: f.day + 3 } : {}),
       ...(firstDay !== undefined ? { firstDay } : {}),
       services,
-      source: prev?.source ?? source,
+      // how they first found you: a family from before this was recorded keeps none (not the source of this visit)
+      ...(prev ? (prev.source ? { source: prev.source } : {}) : { source }),
       ...(hurt ? { issue: { text: unresolved[0]!.text, day: f.day, followedUp: false } } : {}),
       ...(prev?.contactDay !== undefined ? { contactDay: prev.contactDay } : {}),
       ...(prev?.thankedFor !== undefined ? { thankedFor: prev.thankedFor } : {}),
@@ -671,7 +672,7 @@ function courtesy(s: TycoonState, dogId: string, why: "intro" | "closing"): Tyco
   if (!r.ok || !name) return s;
   const f = fac(r.state);
   const prev = f.courtesy && f.courtesy.day === f.day && f.courtesy.why === why ? f.courtesy.names : [];
-  return withFac(r.state, { ...f, courtesy: { day: f.day, min: Math.floor(f.clockMin), why, names: [...prev, name].slice(-10) } });
+  return withFac(r.state, { ...f, courtesy: { day: f.day, min: Math.floor(f.clockMin), why, names: [...prev, name].slice(-10), rebooked: another.ok } });
 }
 
 /**

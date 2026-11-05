@@ -283,10 +283,14 @@ async function guidedStart(s, label) {
     const t1 = Number(await page.getByTestId('upkeep-total').innerText());
     await page.getByRole('switch', { name: 'Front Desk Counter open' }).click();
     check('closing an item lowers the daily upkeep', t1 === t0 - 6, `${t0} → ${t1}`);
-    await page.getByRole('tab', { name: 'Marketing' }).click();
+    // marketing has its own screen now (customer-growth requirement §2), opened from the status bar
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    await page.getByRole('button', { name: /^Marketing/ }).click();
+    await page.getByRole('tab', { name: 'Campaigns' }).click();
     const c0 = (await st()).coins;
-    await page.getByRole('button', { name: /^Start Flyers/ }).click();
-    check('starting Flyers costs 150', (await st()).coins === c0 - 150 && (await f()).campaign.id === 'flyers');
+    await page.getByRole('article', { name: 'Local flyers' }).getByRole('button', { name: /^Launch Local flyers/ }).click();
+    check('launching Local flyers costs 150', (await st()).coins === c0 - 150 && (await f()).campaign.id === 'flyers');
     await page.keyboard.press('Escape');
     // play three days fast (open, so the day clock runs)
     await page.evaluate(() => window.__tycoonSet((st) => ({ ...st, facilities: { f1: { ...st.facilities.f1, open: true } } })));

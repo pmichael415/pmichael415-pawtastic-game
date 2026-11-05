@@ -273,6 +273,26 @@ describe("a checkout writes the family's history and credits its source once", (
     expect(fac(r).outcomes.at(-1)!.firstVisit).toBe(false);
     expect(fac(r).campaignRuns![0]!.visits).toBe(1);
   });
+  it("a family from before this update (no 'how they found you') isn't counted as joining from the campaign it came back through", () => {
+    const old = { name: "Biscuit", breed: 1, size: "small" as const, temper: "gentle" as const, visits: 4, friendship: 40, lastDay: 1, sat: 85 };
+    const { s, id } = served(open({ guestBook: [old] }));
+    const r = ok(checkout(s, id, false));
+    const g = fac(r).guestBook[0]!;
+    expect(g.source).toBeUndefined();
+    expect(g.visits).toBe(5);
+    expect(fac(r).outcomes.at(-1)!.firstVisit).toBe(false);
+    expect(fac(r).campaignRuns![0]!.visits).toBe(1); // the visit itself still came from the campaign
+  });
+  it("closing time: a family who's already moved twice goes home and the notice says so (no promise of a return)", () => {
+    const s0 = open({ clockMin: DAY_CLOSE - 1 });
+    const a = ok(createArrival(withFac(s0, { ...fac(s0), clockMin: 15 * 60 }), never, false, booking({ moved: 2 })));
+    const s = tick(withFac(a, { ...fac(a), clockMin: DAY_CLOSE - 1 }), 1, never);
+    expect(fac(s).bookings ?? []).toEqual([]);
+    expect(fac(s).courtesy).toMatchObject({ why: "closing", names: ["Biscuit"], rebooked: false });
+    const b = ok(createArrival(withFac(s0, { ...fac(s0), clockMin: 15 * 60 }), never, false, booking()));
+    const t = tick(withFac(b, { ...fac(b), clockMin: DAY_CLOSE - 1 }), 1, never);
+    expect(fac(t).courtesy).toMatchObject({ names: ["Biscuit"], rebooked: true });
+  });
   it("an outreach visit is credited to outreach", () => {
     const { s, id } = served(
       open(),

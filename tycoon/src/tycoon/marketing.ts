@@ -6,7 +6,14 @@ import { BREEDS, NAMES, groupName, mulberry, seedFrom, type GroupId } from "@/ga
 import { spend } from "./business";
 import { CAMPAIGNS, campaignDef, type Campaign } from "./catalog";
 import { caps } from "./connect";
-import { BOOKING_SLOTS, INACTIVE_AFTER, cantServe, familyStatus, noteTurned } from "./customers";
+import {
+  BOOKING_SLOTS,
+  INACTIVE_AFTER,
+  cantServe,
+  familyStatus,
+  noteTurned,
+  touchDay,
+} from "./customers";
 import { level } from "./progress";
 import { adjustRep } from "./reputation";
 import { fac, withFac } from "./state";
@@ -44,6 +51,12 @@ function inactiveTargets(f: Facility, startDay: number): TRegular[] {
       g.lastDay < startDay && (startDay - g.lastDay >= INACTIVE_AFTER || staysAway(f, g, startDay)),
   );
 }
+/** Inactive families who could answer a letter today (not staying away after a problem). */
+const answerable = (f: Facility) =>
+  inactiveTargets(f, f.day).filter((g) => !staysAway(f, g, f.day));
+/** How willing an inactive family is to answer a letter: a problem nobody followed up, or an unhappy last visit, lowers it. */
+const willingness = (g: TRegular) =>
+  (g.issue && !g.issue.followedUp ? 0.2 : 1) * ((g.sat ?? 60) >= 60 ? 1 : 0.6);
 /** Happy regulars a referral card goes to. */
 function happyRegulars(f: Facility): TRegular[] {
   return f.guestBook.filter(
@@ -112,6 +125,9 @@ export function readiness(f: Facility, id: CampaignId): Readiness {
   else if (def.service === "bath" && !(c.bath && c.tubs.length))
     why = "You need a working bath room with a tub first.";
   else if (!groups.length && def.service !== "boarding") why = "You need a working playroom first.";
+  else if (def.target === "inactive" && inactiveTargets(f, f.day).length && !answerable(f).length)
+    why =
+      "Every inactive family is staying away after a problem nobody followed up — a follow-up call (free) comes first; a letter won't reach them yet.";
   else if (def.target === "inactive" && !inactiveTargets(f, f.day).length)
     why =
       "You have no inactive families right now — a family counts as inactive after 4 active days without a visit.";
@@ -124,8 +140,10 @@ export function readiness(f: Facility, id: CampaignId): Readiness {
 function expected(f: Facility, def: Campaign): [number, number] {
   if (def.target === "new")
     return [def.reach * def.rate[0] * def.days, def.reach * def.rate[1] * def.days];
-  const who = def.target === "inactive" ? inactiveTargets(f, f.day) : happyRegulars(f);
-  const n = who.reduce((a, g) => a + (g.issue && !g.issue.followedUp ? 0.2 : 1), 0);
+  const n =
+    def.target === "inactive"
+      ? answerable(f).reduce((a, g) => a + willingness(g), 0)
+      : happyRegulars(f).length;
   return [n * def.rate[0], n * def.rate[1]];
 }
 /** The estimated response range over the whole campaign: [low, high] families. */
@@ -148,7 +166,7 @@ export function servableShare(f: Facility, def: Campaign): number {
 const SPACE = /playroom full|lobby full|beds full|lobby was full/;
 /** A daycare that's often full says so before you spend (families it brings would be offered another day). */
 function capacityWarning(f: Facility, def: Campaign): string | null {
-  const recent = (f.footfall ?? []).filter((d) => d.day >= f.day - 3);
+  const recent = (f.footfall ?? []).filter((d) => d.day > f.day - 3); // today and the 2 active days before
   const n = recent.reduce(
     (a, d) => a + Object.entries(d.turned).reduce((b, [k, v]) => b + (SPACE.test(k) ? v : 0), 0),
     0,
@@ -261,6 +279,7 @@ export function startCampaign(s: TycoonState, id: CampaignId): TResult {
     campaign: { id, untilDay: run.untilDay, run: run.uid },
     campaignRuns: [...(f.campaignRuns ?? []), run].slice(-12),
   };
+  f = touchDay(f); // today counts as a campaign day (the with/without comparison)
   if (def.reputation) f = adjustRep(f, def.reputation, `${def.name} — families toured the daycare`);
   return {
     ok: true,
@@ -344,12 +363,7 @@ export function drawDay(f: Facility, run: CampaignRun, day: number): Draw {
   const who = def.target === "inactive" ? inactiveTargets(f, run.startDay) : happyRegulars(f);
   if (first) out.reached = who.length;
   for (const g of who) {
-    const willing =
-      def.target === "inactive"
-        ? staysAway(f, g, day)
-          ? 0
-          : (g.issue && !g.issue.followedUp ? 0.2 : 1) * ((g.sat ?? 60) >= 60 ? 1 : 0.6)
-        : 1;
+    const willing = def.target === "inactive" ? (staysAway(f, g, day) ? 0 : willingness(g)) : 1;
     const yes = roll() < (rate * willing) / def.days;
     if (!yes || done.has(key(g)) || (def.target === "inactive" && here(f, g))) continue;
     out.answered.push(key(g));

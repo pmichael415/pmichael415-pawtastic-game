@@ -357,7 +357,7 @@ export type Facility = {
   /** The introductory day: the first day the daycare opened (0: already past; null/missing: not opened yet). */
   introDay?: number | null;
   /** Families kindly rescheduled (the introductory day's grace, or still at the desk at closing), for a short notice. */
-  courtesy?: { day: number; min: number; why: "intro" | "closing"; names: string[] } | null;
+  courtesy?: { day: number; min: number; why: "intro" | "closing"; names: string[]; /** whether the latest one booked another day (false: they'd already moved twice and went home) */ rebooked?: boolean } | null;
   /** Families who asked today for a kind of pup with no playroom here (they booked elsewhere — no charge, no tap). */
   /** Today's demonstrated demand: families turned away by pup kind, and families who asked for a bath with no bath room. */
   asked?: { day: number; groups: Partial<Record<GroupId, number>>; baths?: number } | null;

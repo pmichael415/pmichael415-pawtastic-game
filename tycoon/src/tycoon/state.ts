@@ -408,7 +408,7 @@ function parseFacility(x: unknown): Facility | null {
   // the introductory day: kept if saved; a save that already ran days (or served families) is past it
   f.introDay = typeof x["introDay"] === "number" && Number.isFinite(x["introDay"]) ? Math.max(0, Math.floor(x["introDay"])) : f.day > 1 || (f.stats.checkouts ?? 0) > 0 ? 0 : null;
   const ct = isObj(x["courtesy"]) ? x["courtesy"] : null;
-  f.courtesy = ct && (ct["why"] === "intro" || ct["why"] === "closing") && Array.isArray(ct["names"]) ? { day: int(ct["day"], f.day), min: minute(ct["min"], 0), why: ct["why"], names: (ct["names"] as unknown[]).filter((n): n is string => typeof n === "string").map((n) => n.slice(0, 24)).slice(-10) } : null;
+  f.courtesy = ct && (ct["why"] === "intro" || ct["why"] === "closing") && Array.isArray(ct["names"]) ? { day: int(ct["day"], f.day), min: minute(ct["min"], 0), why: ct["why"], names: (ct["names"] as unknown[]).filter((n): n is string => typeof n === "string").map((n) => n.slice(0, 24)).slice(-10), ...(typeof ct["rebooked"] === "boolean" ? { rebooked: ct["rebooked"] } : {}) } : null;
   const ak = isObj(x["asked"]) ? x["asked"] : null;
   if (ak && isObj(ak["groups"])) {
     const groups: Partial<Record<GroupId, number>> = {};

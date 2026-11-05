@@ -158,8 +158,20 @@ const servicePrefs = (f: Facility, g: TRegular): Service | null => {
   return null;
 };
 
+/** Why you can't get in touch with this family right now (booked in, here today, or contacted in the last few days). */
+export function contactBlock(f: Facility, g: TRegular): string | null {
+  const booking = (f.bookings ?? []).find((b) => same(b, g));
+  if (booking)
+    return `${ownerFor(g)} is booked in for day ${booking.day} at ${fmtHM(booking.min)}.`;
+  if (f.dogs.some((d) => same(d, g))) return `${g.name} is here today.`;
+  if (g.contactDay != null && f.day - g.contactDay < CONTACT_COOLDOWN)
+    return `You got in touch on day ${g.contactDay} — you can again from day ${g.contactDay + CONTACT_COOLDOWN}.`;
+  return null;
+}
+
 /** What you could do from this family's record right now (each one free, limits apply when you do it). */
 export function outreachOffers(f: Facility, g: TRegular): OutreachOffer[] {
+  if (contactBlock(f, g)) return [];
   if (g.issue && !g.issue.followedUp)
     return [
       {
@@ -351,8 +363,10 @@ export function touchDay(f: Facility, change: (d: Footfall) => Footfall = (d) =>
 export const noteTurned = (f: Facility, reason: string, n = 1): Facility =>
   touchDay(f, (d) => ({ ...d, turned: { ...d.turned, [reason]: (d.turned[reason] ?? 0) + n } }));
 /** A family who came today: a first-time walk-in, a family back on their own, or a booking. */
-export const noteArrival = (f: Facility, kind: "newWalkIns" | "returning" | "booked" | "rescheduled"): Facility =>
-  touchDay(f, (d) => ({ ...d, [kind]: (d[kind] ?? 0) + 1 }));
+export const noteArrival = (
+  f: Facility,
+  kind: "newWalkIns" | "returning" | "booked" | "rescheduled",
+): Facility => touchDay(f, (d) => ({ ...d, [kind]: (d[kind] ?? 0) + 1 }));
 
 /** The campaign run a source belongs to, if any (a referral from a referral campaign counts there). */
 export const runOf = (src: Source | undefined): string | null =>

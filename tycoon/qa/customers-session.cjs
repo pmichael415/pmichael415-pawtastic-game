@@ -5,8 +5,9 @@
 // call), then switches to an ACCELERATED 4× clock — labelled as such in the log — only so the next active days come
 // sooner for this test. It taps what the game puts forward: the guide, the front desk, the pup panel's next step, the
 // pickup sheet, the Objectives button, and the Marketing screen (the thank-you, then Local flyers once it unlocks and
-// the coins cover it with a reserve). Whether a campaign or a call brings anyone is up to the simulation; the log says
-// what happened either way.
+// the coins cover it with a reserve, then each active day the free calls the Customers list offers — follow-ups,
+// invitations, thank-yous). Whether a campaign or a call brings anyone is up to the simulation; the log says what
+// happened either way. It stops a few active days after the campaign ends, or at the time limit.
 // Screenshots, a video and log.json go in qa/out/customers-session/. Needs the dev server.
 // Run: NODE_PATH=/opt/node-tools/node_modules node qa/customers-session.cjs [base-url]
 const { chromium, devices } = require('playwright');
@@ -108,6 +109,15 @@ let speed = 1;
   let campaign = null; // { uid, at }
   let attributed = null; // the first paid visit that came from outreach or a campaign
   let resultsSeen = false;
+  let lastCallDay = null;
+  const calls = []; // { day, what, answer }
+  const daily = []; // the campaign run and outreach at each new active day
+  let lastDay = null;
+  const saveLog = async (final = false) => {
+    const s = await st().catch(() => null);
+    const f = s?.facilities?.f1;
+    fs.writeFileSync(path.join(OUT, 'log.json'), JSON.stringify({ partial: !final, milestones, thanked, campaign, attributed, calls, daily, runs: f?.campaignRuns, outreach: f?.outreach, log }, null, 1));
+  };
 
   async function dialogs() {
     const report = await usable('button:has-text("Start day")');
@@ -218,6 +228,25 @@ let speed = 1;
     return true;
   }
 
+  /** Each active day (from 09:00): the free calls the Customers list offers — follow-ups, invitations, thank-yous. */
+  async function dailyCalls(state) {
+    const f = state.facilities.f1;
+    if (!thanked || lastCallDay === f.day || f.clockMin < 9 * 60) return false;
+    lastCallDay = f.day;
+    if (!(await openMarketing('Customers'))) return false;
+    for (let i = 0; i < 2; i++) {
+      const btn = await usable('ul[aria-label="Families"] button[aria-label^="Follow up with"], ul[aria-label="Families"] button[aria-label^="Invite "], ul[aria-label="Families"] button[aria-label^="Say thank you to"]');
+      if (!btn) break;
+      const what = await textOf(btn);
+      await tap(btn, what);
+      await page.waitForTimeout(400);
+      calls.push({ day: f.day, what, answer: m.toasts.at(-1)?.text ?? '' });
+      if (!seen.has('call-shot')) { seen.add('call-shot'); await shot('daily-call', `a free call: ${what}`); }
+    }
+    await closeSheet();
+    return true;
+  }
+
   async function results(label) {
     if (!(await openMarketing('Results'))) return null;
     await page.waitForTimeout(400);
@@ -238,6 +267,13 @@ let speed = 1;
     const f = state.facilities.f1;
     lastSeen = { day: f.day, clock: f.clockMin, coins: state.coins };
     await toasts();
+    if (f.day !== lastDay) {
+      lastDay = f.day;
+      const run = f.campaignRuns.at(-1);
+      daily.push({ day: f.day, coins: state.coins, run: run ? { responses: run.responses, booked: run.booked, declined: run.declined, arrivals: run.arrivals, visits: run.visits, revenue: run.revenue, costs: run.costs } : null, outreach: f.outreach?.stats ?? null, bookings: f.bookings.map((b) => `${b.name} d${b.day} ${b.source.kind}${b.again ? ' (again)' : ''}`) });
+      note('new active day', daily.at(-1));
+      await saveLog();
+    }
     if (!milestones['1 first family served'] && f.outcomes.some((o) => o.how === 'checkout' && o.total > 0)) {
       const o = f.outcomes.find((x) => x.how === 'checkout' && x.total > 0);
       mark('1 first family served', `${o.owner} paid ${o.total} for ${o.dog} (${o.mood}); first visit: ${o.firstVisit}; came: ${o.source?.kind}`);
@@ -266,9 +302,10 @@ let speed = 1;
     let did = (await dialogs()) || (await pickupSheet());
     if (!did && !(await sheetOpen())) did = await thankYou(state);
     if (!did && !(await sheetOpen())) did = await launch(state);
+    if (!did && !(await sheetOpen())) did = await dailyCalls(state);
     if (!did) did = await care(state);
     // the campaign has run its days: compare what it brought with what it cost, then stop
-    if (!did && campaign?.uid && f.day >= campaign.untilDay && attributed && !resultsSeen) {
+    if (!did && campaign?.uid && f.day >= campaign.untilDay && (attributed || f.day >= campaign.untilDay + 3) && !resultsSeen) {
       resultsSeen = true;
       const text = await results('after');
       mark('8 results compared with cost', text?.slice(0, 900) ?? '');
@@ -287,7 +324,7 @@ let speed = 1;
     realMinutes: +((Date.now() - t0) / 60000).toFixed(1),
     taps: m.taps, failedTaps: m.failedTaps, pageErrors: m.errors,
     milestones,
-    thanked, campaign, attributed,
+    thanked, campaign, attributed, calls, daily,
     runs: f.campaignRuns,
     outreach: f.outreach,
     bookings: f.bookings,

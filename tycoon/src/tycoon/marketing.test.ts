@@ -139,6 +139,21 @@ describe("launching a campaign", () => {
     });
     expect(fac(noBeds).ledger).toEqual(fac(s).ledger);
   });
+  it("welcome-back letters can't be bought when every inactive family is still staying away after a problem", () => {
+    const away = fam(1, { lastDay: 1, sat: 30, lostUntil: 9, issue: { text: "x", day: 1, followedUp: false } });
+    const s = open({ day: 6, guestBook: [away] });
+    expect(readiness(fac(s), "welcome")).toMatchObject({ ready: false, why: expect.stringMatching(/staying away/) });
+    expect(campaignCard(s, "welcome").range).toEqual([0, 0]);
+    // an unhappy inactive family counts at its real (lower) chance
+    const meh = fam(2, { lastDay: 1, sat: 50 });
+    expect(campaignCard(open({ day: 6, guestBook: [meh] }), "welcome").range).toEqual([0, 1]);
+  });
+  it("the day a campaign starts counts as a campaign day, and the space warning looks at the last 3 active days only", () => {
+    const s = ok(startCampaign(open({ footfall: [{ day: 3, newWalkIns: 2, returning: 0, booked: 0, turned: {}, campaign: null }] }), "flyers"));
+    expect(fac(s).footfall!.at(-1)).toMatchObject({ day: 3, campaign: "flyers" });
+    const old = open({ day: 6, footfall: [{ day: 3, newWalkIns: 1, returning: 0, booked: 0, turned: { "lobby full": 3 }, campaign: null }] });
+    expect(campaignCard(old, "flyers").warn).toBeNull();
+  });
   it("shows the rooms, equipment and team it relies on", () => {
     const card = campaignCard(open(), "bath_promo");
     expect(card.checks.map((c) => c.label)).toEqual(["Rooms", "Equipment", "Team"]);

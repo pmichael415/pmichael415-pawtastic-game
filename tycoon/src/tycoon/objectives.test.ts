@@ -40,6 +40,9 @@ describe("the next objective", () => {
     expect(o.title).toMatch(/^Thank .+ — it's free$/);
     expect(o.detail).toMatch(/not guaranteed/);
     expect(nextObjective(ok(contact(s, { name: "Biscuit", breed: 1 }, "thank"))).id).toBe("hire");
+    // a family already booked in has nothing to thank for yet — no objective pointing at a button that isn't there
+    const booked = withFac(s, { ...fac(s), bookings: [{ uid: "b1", name: "Biscuit", breed: 1, size: "small", temper: "gentle", day: f.day + 1, min: 600, boarding: false, source: { kind: "walk-in" } }] });
+    expect(nextObjective(booked).id).toBe("hire");
   });
   it("then the first expansion (after level 2)", () => {
     let s = ok(hire({ ...served(started()), coins: 3000 }, "reception"));
