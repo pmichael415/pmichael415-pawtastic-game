@@ -317,7 +317,7 @@ let last = null; // { at, day, clock, overlays }
       if (paid.length > servedInNew) {
         servedInNew = paid.length;
         note(`paid from the new room: ${paid.at(-1).dog} · ${paid.at(-1).total} coins`, { lines: paid.at(-1).lines.map((l) => `${l.label} ${l.amount}`) });
-        if (servedInNew === 1) mark('9b paid from the new room', `${paid.at(-1).dog}'s family paid ${paid.at(-1).total}`);
+        mark('9b paid from the new room', `${paid[0].dog}'s family paid ${paid[0].total}`); // (once; two can pay at the same moment)
       }
     }
 
@@ -340,7 +340,7 @@ let last = null; // { at, day, clock, overlays }
       const panelTurnAway = await usable('[data-testid="panel-sheet"] button:has-text("Can\'t take today")');
       const panelFull = await page.locator('[data-testid="panel-sheet"]').getByText(/right now — they'd wait in the lobby/).count();
       if (panelTurnAway && panelFull) did = await tap(panelTurnAway, "Can't take today (the panel says there's no free spot)");
-      else {
+      else if (!(await page.locator('[data-testid="panel-sheet"]').count())) { // (a pup's panel would cover the desk)
         const fullAtDesk = page.locator('section[aria-label="Front desk"] li').filter({ hasText: '⚠️ no free' }).locator('button').first();
         if ((await fullAtDesk.count()) && (await fullAtDesk.isVisible().catch(() => false))) did = await tap(fullAtDesk, `open ${await textOf(fullAtDesk)} (the desk says no free spot)`);
       }
