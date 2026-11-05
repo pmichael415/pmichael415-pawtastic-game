@@ -191,10 +191,17 @@ export function idleRooms(f: Facility): Room[] {
   const connected = connectedRooms(f);
   return f.rooms.filter((r) => (r.type === "playroom" || r.type === "bath" || r.type === "boarding" || r.type === "staff") && !roomStatus(f, r, connected).working);
 }
-/** Families who asked today for each kind of pup with no playroom here (most first). */
+const GROUP_ORDER = GROUPS.map((g) => g.id);
+/**
+ * Families who asked today for each kind of pup with no playroom here (most first). A tie always breaks the same way
+ * (the usual group order), never by which kind happened to ask first — so Next and the card name the same kind.
+ */
 export function askedToday(f: Facility): { group: GroupId; n: number }[] {
   const groups = f.asked && f.asked.day === f.day ? f.asked.groups : {};
-  return (Object.entries(groups) as [GroupId, number][]).filter(([g, n]) => n > 0 && !hasPlayroomFor(f, g)).map(([group, n]) => ({ group, n })).sort((a, b) => b.n - a.n);
+  return (Object.entries(groups) as [GroupId, number][])
+    .filter(([g, n]) => n > 0 && !hasPlayroomFor(f, g))
+    .map(([group, n]) => ({ group, n }))
+    .sort((a, b) => b.n - a.n || GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group));
 }
 /** A kind of pup families want a room for right now: one waiting at the desk with no room, else the most asked today. */
 export function demandGroup(f: Facility): GroupId | null {

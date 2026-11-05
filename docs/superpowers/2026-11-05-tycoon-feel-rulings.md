@@ -66,3 +66,11 @@ Decisions made on Phil's behalf during the milestone, with what each costs if it
   lists the pickup, instead of the panel saying "All set — picks up at 16:00" with no checkout step while the coach
   said check out. A closed panel left the pup findable only by tapping it in 3D — cost if wrong: none (the guide holds
   the clock, so the family never waits).
+- Ruling (§6, found by the first-session play-through): with two kinds of pup asked for equally often, Next said
+  "8 Large & Active families asked" and the card, seconds later, "Playroom wing for Large & Gentle — 8 asked": a tie
+  went to whichever kind asked first. Ties now break by the usual group order. (What was built was what the spot bar
+  showed and charged — the exact-quote binding held.) — cost if wrong: none.
+- Ruling (§6): the receipt card (6 s, taps pass through) can sit over the bottom of the guide's decision or the
+  ways-to-grow card for those seconds. It already waits for a pup panel, the pickup sheet and the spot bar; making it
+  wait for the ways-to-grow card too would hide payment feedback for the whole saving stretch (the card shows inline
+  while Next is "grow"), so it stays — cost if wrong: a few seconds where a button is visible only under the card.

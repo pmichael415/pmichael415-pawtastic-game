@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { facilityUpkeep } from "./business";
 import { caps } from "./connect";
-import { EXPANSION_LEVEL, buyExpansion, expansionOptions } from "./expansion";
+import { EXPANSION_LEVEL, askedToday, buyExpansion, demandGroup, expansionOptions } from "./expansion";
 import { xpForLevel } from "./progress";
 import { tick } from "./run";
 import { quickStart } from "./start";
@@ -101,5 +101,21 @@ describe("a playroom wing", () => {
     s = ok(buyExpansion(s, "playroom"));
     expect(caps(fac(s)).playrooms.reduce((a, p) => a + p.spots, 0)).toBe(before + 1);
     expect(fac(s).rooms.filter((r) => r.type === "playroom")).toHaveLength(count);
+  });
+});
+
+// Found in the first-session play-through: with two kinds of pup asked for equally often, Next named one kind and the
+// card, seconds later, the other — the tie went to whichever was recorded first. Ties now break the same way always.
+describe("the kind of pup families want most", () => {
+  it("a tie doesn't depend on which kind asked first", () => {
+    const f = fac(ok(quickStart(newTycoon(0))));
+    const a = { ...f, asked: { day: f.day, groups: { "large-gentle": 8, "large-active": 8 } } };
+    const b = { ...f, asked: { day: f.day, groups: { "large-active": 8, "large-gentle": 8 } } };
+    expect(askedToday(a).map((x) => x.group)).toEqual(askedToday(b).map((x) => x.group));
+    expect(demandGroup(a)).toBe(demandGroup(b));
+  });
+  it("more asks still come first", () => {
+    const f = fac(ok(quickStart(newTycoon(0))));
+    expect(demandGroup({ ...f, asked: { day: f.day, groups: { "large-active": 7, "large-gentle": 8 } } })).toBe("large-gentle");
   });
 });

@@ -205,7 +205,10 @@ let last = null; // { at, day, clock, overlays }
     const read = async (a) => {
       const t = (await a.innerText().catch(() => '')).replace(/\s+/g, ' ');
       const cost = Number(((t.match(/Choose a spot · ([\d,]+)/) ?? [0, '0'])[1]).replace(/,/g, ''));
-      const perDay = Number(((t.match(/≈ ([+-]?\d+) a day/) ?? [0, 'NaN'])[1]));
+      // "≈ +88 a day", or with no demand yet "it would mostly add 17 upkeep a day" (a cost)
+      const est = t.match(/≈ ([+-]?\d+) a day/);
+      const onlyUpkeep = t.match(/mostly add (\d+) upkeep a day/);
+      const perDay = est ? Number(est[1]) : onlyUpkeep ? -Number(onlyUpkeep[1]) : NaN;
       return { cost, perDay, payback: perDay > 0 ? cost / perDay : Infinity, estimate: (t.match(/Estimate: (.*?)(?= Choose a spot| Improve|$)/) ?? [0, ''])[1].slice(0, 400) };
     };
     const w = await read(wing);
@@ -259,6 +262,7 @@ let last = null; // { at, day, clock, overlays }
         else mark('8 furnished and staffed', `came furnished (its beds); staffing waits: "${lbl}" costs more than the coins left after tonight — you look after it yourself meanwhile`, { readiness: ready });
       } else mark('8 furnished and staffed', `came furnished; ${ready}`, { readiness: ready });
     }
+    for (let i = 0; i < 3 && (await dialogs()); i++); // a celebration can open over the panel
     const close = await usable('button[aria-label="Close panel"], button:has-text("Done building")');
     if (close) await tap(close, await textOf(close));
     return true;
@@ -331,9 +335,10 @@ let last = null; // { at, day, clock, overlays }
         else if (rest) did = await tap(rest, await textOf(rest));
       }
     }
-    // pickups and drop-offs at the front desk, then the pup's one next step, then the rooms strip's cues
+    // an open pup panel's one next step first (it's what's in front of you), then pickups and drop-offs at the front
+    // desk, then the rooms strip's cues
     if (!did) {
-      for (const sel of ['section[aria-label="Front desk"] button:has-text("Check out")', 'section[aria-label="Front desk"] button:has-text("Check in")', '[data-testid="next-action"] button', 'section[aria-label="Rooms"] button:has-text("Move ")', 'section[aria-label="Rooms"] button:has-text("wants to play")', 'section[aria-label="Rooms"] button:has-text("bath is booked")']) {
+      for (const sel of ['[data-testid="next-action"] button', 'section[aria-label="Front desk"] button:has-text("Check out")', 'section[aria-label="Front desk"] button:has-text("Check in")', 'section[aria-label="Rooms"] button:has-text("Move ")', 'section[aria-label="Rooms"] button:has-text("wants to play")', 'section[aria-label="Rooms"] button:has-text("bath is booked")']) {
         const el = await usable(sel);
         if (el) { did = await tap(el, await textOf(el)); break; }
       }
