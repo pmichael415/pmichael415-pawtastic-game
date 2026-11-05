@@ -70,7 +70,7 @@ function seasonTerms() {
   return [
     h('h2', {}, season.name),
     h('p', {}, `${season.name} runs from Monday 9 November 2026, 12:00 am, to Saturday 5 December 2026, 11:59 pm (New York time), in four chapters. Each chapter is one week (the last ends on Saturday) and plays the same Weekly Challenge board for everyone that week, under the rules below. Your best score in each chapter is added up to make your season score; a chapter you don't play adds nothing. No purchase necessary, and buying anything never helps.`),
-    h('p', {}, "No weekly prizes are given during the season. When it ends, the top 3 players at each location by season score win the season's prizes shown in the game, for one dog. Your location for the season is the one of your first run in the season. Ties go to the player who reached their latest counted score first. The team bar compares the average of each location's top 10 season scores and wins no prize."),
+    h('p', {}, "No weekly prizes are given during the season. When it ends, the top 3 players at each location by season score win the season's prizes shown in the game, for one dog. Your location for the season is the one of your first run in the season. Ties go to the player who reached their latest counted score first. The team bar compares the average of each location's top 10 season scores; it wins no PAWtastic prize."),
   ];
 }
 
