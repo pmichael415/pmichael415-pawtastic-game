@@ -103,7 +103,7 @@ export function roomReadiness(f: Facility, room: Room): ReadinessStep[] {
   return [
     { step: "connected", done: st.connected, text: st.connected ? "Connected — there's a way in from the entrance" : "Not connected — nobody can get in yet" },
     { step: "furnished", done: !furnishedWhy, text: furnishedWhy ? `${furnishedWhy} to work` : "Furnished — it has what it needs" },
-    { step: "staffed", done: staff.kind === "covered" || staff.kind === "none", text: staff.kind === "none" ? "No staff needed" : staff.kind === "covered" ? staff.text.replace(/^✓ /, "") : "Run by you for now — someone can take it over" },
+    { step: "staffed", done: staff.kind === "covered" || staff.kind === "none", text: staff.kind === "none" ? "No staff needed" : staff.kind === "covered" ? `Staffed — ${staff.text.replace(/^✓ /, "")}` : "Run by you for now — someone can take it over" },
     {
       step: "operating",
       done: st.working && !room.closed,

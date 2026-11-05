@@ -170,7 +170,8 @@ export function EditPanel({
             return (
               <div className="mt-2 space-y-1 rounded-xl bg-muted p-2 text-sm">
                 <p className="text-secondary">{roomServes(f, room)}</p>
-                <p className={staff.kind === "covered" ? "font-semibold text-success" : "text-secondary"}>{staff.text}</p>
+                {/* who runs it is in the readiness list above once it's covered; here only when there's a step to take */}
+                {(staff.kind === "assign" || staff.kind === "hire") && <p className="text-secondary">{staff.text}</p>}
                 {(staff.kind === "assign" || staff.kind === "hire") && (
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
