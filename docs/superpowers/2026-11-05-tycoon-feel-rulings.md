@@ -61,3 +61,8 @@ Decisions made on Phil's behalf during the milestone, with what each costs if it
   if wrong: the reason, not the arithmetic, is what's in view.
 - Ruling (§5): a finished expansion's message names what it adds ("+3 spots for Large & Active pups, open and working")
   and, for a wing, the family already waiting who can now stay ("Rex can stay — check them in.") — cost if wrong: none.
+- Ruling (§6, found by the first-session play-through): when the guide says "Check out" (its pup has played), that
+  pup's family arrives for pickup — so the pup's panel leads with "Check out — their family is here" and the front desk
+  lists the pickup, instead of the panel saying "All set — picks up at 16:00" with no checkout step while the coach
+  said check out. A closed panel left the pup findable only by tapping it in 3D — cost if wrong: none (the guide holds
+  the clock, so the family never waits).

@@ -7,6 +7,7 @@ import { GUIDE_REWARD } from "./catalog";
 import { canOpen, caps } from "./connect";
 import { quickStart } from "./start";
 import { fac, withFac } from "./state";
+import { visitOf } from "./visit";
 import type { Facility, TDog, TourBeat, TourUpgrade, TycoonState } from "./types";
 
 export const TOUR_ORDER: TourBeat[] = ["meet", "checkin", "place", "play", "checkout", "upgrade", "benefit", "decision", "goals"];
@@ -124,7 +125,23 @@ export function syncTour(s: TycoonState, _now: number): { state: TycoonState; re
     out = enter({ ...out, tour: { ...out.tour!, beat: next } }, next);
     reached.push(next);
   }
-  return { state: out, reached };
+  return { state: familyComes(out), reached };
+}
+
+/**
+ * When the guide says "Check out" (its pup has played), that pup's family is here for pickup — so the pup's panel
+ * leads with Check out and the front desk lists the pickup, the same as the coach (found in the first-session
+ * play-through: the panel said "All set — picks up at 16:00" while the coach said check out).
+ */
+function familyComes(s: TycoonState): TycoonState {
+  const beat = s.tour!.beat;
+  const who = beat === "checkout" ? TOUR_DOGS.first : beat === "benefit" ? TOUR_DOGS.second : null;
+  const f = fac(s);
+  const d = who ? named(f, who) : null;
+  if (!d || !d.checkedIn || d.played < 1) return s;
+  const v = visitOf(f, d);
+  if (v.ownerHere != null) return s;
+  return withFac(s, { ...f, dogs: f.dogs.map((x) => (x.id === d.id ? { ...x, visit: { ...v, ownerHere: f.clockMin, pickup: f.clockMin, pickupDay: f.day } } : x)) });
 }
 
 /** Starts the tour. Quick start builds the small daycare, opens it and drops Biscuit off; scratch starts on the lot. */

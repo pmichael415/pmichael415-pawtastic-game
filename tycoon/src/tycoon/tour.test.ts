@@ -8,6 +8,7 @@ import { assignRoom, checkIn, checkout, playtime, setOpen, tick, toCalm } from "
 import { fac, newTycoon, parseTycoon } from "./state";
 import { chooseUpgrade, skipTour, startTour, syncTour, tourHolds } from "./tour";
 import { ok } from "./testkit";
+import { nextAction } from "./nextAction";
 import { addDoor, drawRoom, paintPaths, placeThing, setRoomType } from "./build";
 import type { TourBeat, TResult, TycoonState } from "./types";
 
@@ -142,5 +143,34 @@ describe("Build from scratch", () => {
     expect(groupOf(biscuit)).toBe("large-active");
     expect(s.tour?.beat).toBe("checkin");
     expect(fac(tick(s, 600, never)).dogs).toHaveLength(1);
+  });
+});
+
+// Found in the first-session play-through (milestone §6): the coach said "Check out" while the pup's panel said "All
+// set — picks up at 16:00" and offered no checkout step, and a pup whose panel was closed could only be found in 3D.
+describe("when the guide says check out, the family is here", () => {
+  it("after Biscuit's playtime his family arrives: his next step is Check out, and the desk lists the pickup", () => {
+    const seen: TourBeat[] = [];
+    let s = startTour(newTycoon(0), "quick", 0);
+    const id = () => dog(s, "Biscuit")!.id;
+    s = step(s, (x) => checkIn(x, id()), seen);
+    s = step(s, (x) => assignRoom(x, id(), playroom(x)), seen);
+    expect(nextAction(fac(s), dog(s, "Biscuit")!).id).toBe("play");
+    s = step(s, (x) => playtime(x, id()), seen);
+    expect(s.tour?.beat).toBe("checkout");
+    expect(nextAction(fac(s), dog(s, "Biscuit")!).id).toBe("checkout");
+    expect(dog(s, "Biscuit")!.visit!.ownerHere).toBe(fac(s).clockMin);
+  });
+  it("the same for Daisy once she has played", () => {
+    const seen: TourBeat[] = [];
+    let s = careFor(startTour({ ...newTycoon(0), coins: 5000 }, "quick", 0), "Biscuit", seen);
+    s = step(chooseUpgrade(s, "toy_bin"), (x) => placeFirstFree(x, "toy_bin"), seen);
+    const id = () => dog(s, "Daisy")!.id;
+    s = step(s, (x) => checkIn(x, id()), seen);
+    s = step(s, (x) => assignRoom(x, id(), playroom(x)), seen);
+    expect(dog(s, "Daisy")!.visit!.ownerHere).toBeNull();
+    s = step(s, (x) => playtime(x, id()), seen);
+    expect(s.tour?.beat).toBe("benefit");
+    expect(nextAction(fac(s), dog(s, "Daisy")!).id).toBe("checkout");
   });
 });
