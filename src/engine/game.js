@@ -80,6 +80,7 @@ export function goalProgress(game) {
   if (goal.type === 'score') { current = game.score; target = goal.target; }
   else if (goal.type === 'collect') { current = game.collected; target = goal.count; }
   else if (goal.type === 'leash') { current = game.leashTotal - game.leashLeft; target = game.leashTotal; }
+  else if (goal.type === 'cleanup') { current = (game.mudTotal - game.mudLeft) + (game.leashTotal - game.leashLeft); target = game.mudTotal + game.leashTotal; }
   else { current = game.mudTotal - game.mudLeft; target = game.mudTotal; }
   const remaining = Math.max(0, target - current);
   return { current, target, remaining, done: remaining === 0 };
