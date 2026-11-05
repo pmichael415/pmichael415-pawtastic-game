@@ -35,6 +35,9 @@ Decisions I made on Phil's behalf while building the customer loop (spec:
 
 ## Outreach
 
+- **Answers are per save:** a call's answer is decided from the save (its guided start time), the family, the day and
+  the kind of call — so it can't be re-rolled, but every new game's first thank-you isn't the same answer (the guide's
+  families and day are the same for everyone; found while reviewing the play-through).
 - **Limits:** 2 free calls each active day; one contact per family every 3 active days; one thank-you per visit,
   offered only within a day of that visit. The answer is decided once from the family, the day and the kind of call
   (re-trying can't re-roll); a yes is a booking for the next active day, never coins.

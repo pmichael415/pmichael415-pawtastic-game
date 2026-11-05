@@ -147,6 +147,16 @@ describe("outreach: free, simple, fair — and it leads to a booking, never coin
       expect(r.msg).toMatch(/booked/);
     } else expect(r.msg).toMatch(/think about it/);
   });
+  it("each save's families answer for themselves: decided once per save, but not the same answer in every new game", () => {
+    const answer = (startedAt: number) => {
+      const s = daycare(2, [fam({ lastDay: 2, sat: 90, visits: 1 })]);
+      const r = ok(contact({ ...s, tour: { mode: "quick" as const, beat: "goals" as const, startedAt, upgrade: null, done: true, skipped: false } }, { name: "Biscuit", breed: 1 }, "thank"));
+      return (fac(r).bookings ?? []).length > 0;
+    };
+    expect(answer(1234)).toBe(answer(1234));
+    const many = Array.from({ length: 24 }, (_, i) => answer(1_700_000_000_000 + i * 977));
+    expect(many.some(Boolean) && !many.every(Boolean)).toBe(true);
+  });
   it("one thank-you per visit, and one contact per family every few active days", () => {
     const s = ok(
       contact(daycare(2, [fam({ lastDay: 2, sat: 90 })]), { name: "Biscuit", breed: 1 }, "thank"),

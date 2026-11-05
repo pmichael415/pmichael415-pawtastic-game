@@ -297,7 +297,7 @@ export function contact(
       ok: false,
       error: `No free calls left today — you'll have ${FREE_CALLS_PER_DAY} again tomorrow.`,
     };
-  const roll = mulberry(seedFrom(`${g.name}|${g.breed}|${f.day}|${kind}|reply`));
+  const roll = mulberry(seedFrom(`${s.tour?.startedAt ?? 0}|${g.name}|${g.breed}|${f.day}|${kind}|reply`));
   const yes = roll() < responseChance(g, kind);
   const source: Source = { kind: "outreach", by, what: kind };
   const booking = yes ? bookingFor(f, g, source, roll, kind, requests, boarding) : null;
