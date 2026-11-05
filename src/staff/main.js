@@ -280,11 +280,18 @@ async function home() {
   const prizes = await pay.staffPrizes();
   const prizeList = prizes.ok && Array.isArray(prizes.prizes) ? prizes.prizes : [];
   const boardRows = prizes.ok && Array.isArray(prizes.board) ? prizes.board : [];
-  const prizeSection = h('section', { class: 'card stack' }, h('h2', {}, 'Weekly Challenge prizes'),
-    h('p', { class: 'muted' }, 'Each week the top 3 at each location win: 1st a free day of daycare, 2nd and 3rd a free bath. Players show their code at the front desk within 30 days.'),
+  // During a season (Season 1: Top Dog) no weekly prizes are given: the season's are given once, when it ends.
+  const season = prizes.ok && prizes.season && typeof prizes.season === 'object' && typeof prizes.season.name === 'string' ? prizes.season : null;
+  const seasonEnd = season ? new Date(season.endsAt).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+  const prizeSection = h('section', { class: 'card stack' }, h('h2', {}, season ? `${season.name} prizes` : 'Weekly Challenge prizes'),
+    season
+      ? h('p', { class: 'muted' }, season.ended
+        ? `${season.name} has ended. The top 3 at each location by season score win the season's prizes; they appear below once the season is closed (opening this page closes it). Players show their code at the front desk within 30 days.`
+        : `Chapter ${season.chapter} of ${season.chapters}. No weekly prizes during the season: when it ends (${seasonEnd}, New York time), the top 3 at each location by season score win the season's prizes. Open this page on Sunday after it ends: that closes the season and the winners appear here.`)
+      : h('p', { class: 'muted' }, 'Each week the top 3 at each location win: 1st a free day of daycare, 2nd and 3rd a free bath. Players show their code at the front desk within 30 days.'),
     prizeList.length
       ? h('ul', { class: 'list' }, prizeList.map(p => h('li', { class: `row ${p.status === 'won' ? 'earned' : p.status === 'void' || p.status === 'expired' ? 'void' : ''}` },
-        h('div', {}, h('strong', {}, `${rewardOf(p)} · ${p.dogName}`), h('p', { class: 'muted' }, `#${p.rank} ${LOC[p.location] ?? ''} · week of ${p.week} · code ${p.code} · ${p.email || ''}`)),
+        h('div', {}, h('strong', {}, `${rewardOf(p)} · ${p.dogName}`), h('p', { class: 'muted' }, `#${p.rank} ${LOC[p.location] ?? ''} · ${p.season || `week of ${p.week}`} · code ${p.code} · ${p.email || ''}`)),
         h('div', { class: 'row-side' }, h('span', { class: `tag ${p.status === 'won' ? 'earned' : p.status === 'redeemed' ? 'bath-given' : ''}` }, PRIZE_STATUS[p.status] ?? p.status)))))
       : h('p', { class: 'muted' }, 'No prizes yet. Winners appear here after each week ends (Monday).'));
   // The three-challenge format: scheduled for a future Monday by the owner; the week in progress never changes.
@@ -315,7 +322,7 @@ async function home() {
           home();
         } }, 'Schedule')),
         fmtNote)) : null;
-  const boardSection = h('section', { class: 'card stack' }, h('h2', {}, "This week's leaderboard"),
+  const boardSection = h('section', { class: 'card stack' }, h('h2', {}, season ? `${season.name} standings (season scores)` : "This week's leaderboard"),
     h('p', { class: 'muted' }, 'Hide a player whose dog name is rude, or who is cheating. Hidden players are off the leaderboard and win no prizes.'),
     boardRows.length
       ? h('ul', { class: 'list' }, boardRows.map(b => h('li', { class: `row${b.hidden ? ' void' : ''}` },
@@ -326,7 +333,7 @@ async function home() {
           if (!r.ok) { alert(errText(r.error)); return; }
           home();
         } }, b.hidden ? 'Show' : 'Hide')))))
-      : h('p', { class: 'muted' }, 'No scores yet this week.'));
+      : h('p', { class: 'muted' }, season ? 'No season scores yet.' : 'No scores yet this week.'));
   screen(
     h('p', { class: 'muted signed' }, `Signed in as ${res.email}`),
     form, area,
