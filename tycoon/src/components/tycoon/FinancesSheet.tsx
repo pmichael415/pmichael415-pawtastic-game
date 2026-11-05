@@ -42,8 +42,10 @@ function addUp(days: DayLedger[], dueTonight = 0) {
     (a, x) => ({ revenue: a.revenue + x.revenue, bonuses: a.bonuses + x.bonuses, sales: a.sales + x.sales, costs: a.costs + x.costsSoFar, invested: a.invested + x.invested }),
     { revenue: 0, bonuses: 0, sales: 0, costs: 0, invested: 0 },
   );
+  // operating profit by closing is a projection (it includes tonight's charges); the change in coins is what was
+  // actually recorded — tonight's costs aren't taken off before they're paid (audit gap F)
   const profit = m.revenue - m.costs - dueTonight;
-  return { income, expenses, dueTonight, revenue: m.revenue, bonuses: m.bonuses, sales: m.sales, profit, invested: m.invested, change: profit + m.bonuses + m.sales - m.invested };
+  return { income, expenses, dueTonight, revenue: m.revenue, bonuses: m.bonuses, sales: m.sales, profit, invested: m.invested, change: m.revenue - m.costs + m.bonuses + m.sales - m.invested };
 }
 
 /** 14-day profit, one bar per game day from a zero line: blue up for profit, red down for a loss. */
@@ -152,16 +154,16 @@ function Summary({ f }: { f: Facility }) {
           {head("Operating costs")}
           {EXPENSES.map(([k, name]) => <Fragment key={k}>{row(name, (v) => v.expenses[k].toLocaleString())}</Fragment>)}
           {row("Due tonight (wages, upkeep, supplies)", (v) => (v.dueTonight ? v.dueTonight.toLocaleString() : "—"), "text-muted-foreground")}
-          {row("Operating profit", (v) => fmt(v.profit), "border-t border-border font-bold text-secondary")}
+          {row("Operating profit by closing", (v) => fmt(v.profit), "border-t border-border font-bold text-secondary")}
           {head("Apart from running the daycare")}
           {row("Bonuses (game rewards)", (v) => v.bonuses.toLocaleString())}
           {row("Sale proceeds", (v) => v.sales.toLocaleString())}
           {row("Invested in building", (v) => v.invested.toLocaleString())}
-          {row("Change in coins", (v) => fmt(v.change), "text-muted-foreground")}
+          {row("Change in coins so far", (v) => fmt(v.change), "text-muted-foreground")}
         </tbody>
       </table>
       <p className="mt-1 text-[11px] text-muted-foreground">
-        Operating profit is what serving families made after running costs (today's includes what closing will charge tonight). Bonuses, sales and building are shown apart. Wages, upkeep and supplies are charged when each game day ends.
+        Operating profit by closing is what serving families makes after running costs — for today it's a projection that already counts what closing will charge tonight. Change in coins so far is what has actually been paid in and out (tonight's costs come off when the day ends). Bonuses, sales and building are shown apart.
       </p>
       <ProfitChart days={ledger.slice(-14)} today={{ day: f.day, tonight }} />
     </div>

@@ -53,6 +53,28 @@ export function validRoomAt(f: Facility, room: Room, ignoreUid: string | null = 
   }
   if (room.type && ONE_PER_FACILITY.includes(room.type) && others.some((o) => o.type === room.type))
     return `Only one ${ROOM_TYPE_NAMES[room.type]} per daycare.`;
+  return doorLimitError(f, room);
+}
+
+/** Every doorway into `room` among `rooms`: its own doors plus doors of other rooms that open into it. */
+function waysInto(rooms: Room[], room: Room): number {
+  return room.doors.length + rooms.reduce((n, x) => (x.uid === room.uid ? n : n + x.doors.filter((d) => containsTile(room, doorOutside(x, d))).length), 0);
+}
+/**
+ * Never a fifth way into any room (audit gap C): a doorway counts for the room it's on AND the room it opens into, so
+ * both are checked. A change may not take a room past MAX_DOORS ways in; a layout already past it (an older save)
+ * stays usable, it just can't gain another.
+ */
+function doorLimitError(f: Facility, trial: Room): string | null {
+  const before = f.rooms;
+  const after = before.some((r) => r.uid === trial.uid) ? before.map((r) => (r.uid === trial.uid ? trial : r)) : [...before, trial];
+  const affected = [trial, ...after.filter((x) => x.uid !== trial.uid && trial.doors.some((d) => containsTile(x, doorOutside(trial, d))))];
+  for (const x of affected) {
+    const was = before.find((r) => r.uid === x.uid);
+    const n = waysInto(after, x);
+    if (n > MAX_DOORS && n > (was ? waysInto(before, was) : 0))
+      return x.uid === trial.uid ? `A room can have up to ${MAX_DOORS} ways in (its own doors and doorways into it).` : `The ${roomLabel(x)} already has ${MAX_DOORS} ways in.`;
+  }
   return null;
 }
 
@@ -418,6 +440,8 @@ function cheapestDoor(f: Facility, room: Room, reached: { rooms: Set<string>; ti
     const len = side === "N" || side === "S" ? room.w : room.d;
     for (let i = 1; i < len - 1; i++) {
       const door: Door = { side, i };
+      // a doorway that would be a fifth way into this room or the one it opens into is never offered
+      if (doorLimitError(f, { ...room, doors: [...room.doors.filter((d) => !sameDoor(d, door)), door] })) continue;
       const paths = routeFor(f, room, door, reached);
       if (!paths) continue;
       if (!paths.length) return { door, paths };

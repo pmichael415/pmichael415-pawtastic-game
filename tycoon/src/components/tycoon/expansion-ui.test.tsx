@@ -112,3 +112,41 @@ describe("choosing where a new room goes", () => {
     expect(caps(fac(now())).tubs.length).toBe(tubs + 1);
   });
 });
+
+describe("the spot bar confirms the purchase it shows (audit gaps E and G)", () => {
+  /** A family with a pup of this kind waiting at the desk (a real arrival, then its size and temper set). */
+  const waitingNow = (size: "small" | "large", temper: "gentle" | "active") =>
+    act(() => {
+      tycoonStore.set((t) => {
+        const f = fac(t);
+        const d = { id: "w" + size + temper, name: "Waiting", breed: 1, size, temper, visits: 1, place: { kind: "lobby" as const }, checkedIn: false, happiness: 70, clean: 70, boarding: false, played: 0, bathed: false };
+        return withFac(t, { ...f, clockMin: 9 * 60, dogs: [d] });
+      });
+    });
+  it("the bar says exactly what it builds; a stale confirmation (the waiting family changed) builds nothing; queued taps build once", () => {
+    open(grown());
+    waitingNow("large", "gentle");
+    openCard();
+    fireEvent.click(within(card().getByRole("article", { name: /^Playroom wing/ })).getByRole("button", { name: /^Choose a spot · / }));
+    const bar = within(screen.getByRole("region", { name: "Choose a spot" }));
+    expect(bar.getByText(/^Builds a 3 × 3 playroom for Large & Gentle pups with its door and 3 Dog Beds — [\d,]+ game coins in all\.$/)).toBeTruthy();
+    const build = bar.getByRole("button", { name: /^Build here · / });
+    const rooms = fac(now()).rooms.length;
+    // stale: in one batch the waiting family changes, then the old button's tap arrives
+    act(() => {
+      tycoonStore.set((t) => withFac(t, { ...fac(t), dogs: fac(t).dogs.map((d) => ({ ...d, size: "small" as const, temper: "active" as const })) }));
+      build.click();
+    });
+    expect(fac(now()).rooms).toHaveLength(rooms);
+    // the bar now shows the playroom it would build for the family waiting now, and its button confirms that — once
+    const bar2 = within(screen.getByRole("region", { name: "Choose a spot" }));
+    expect(bar2.getAllByText(/for Small & Active pups/).length).toBeGreaterThan(0);
+    const fresh = bar2.getByRole("button", { name: /^Build here · / });
+    act(() => {
+      fresh.click();
+      fresh.click();
+    });
+    expect(fac(now()).rooms).toHaveLength(rooms + 1);
+    expect(fac(now()).rooms.at(-1)).toMatchObject({ type: "playroom", group: "small-active" });
+  });
+});

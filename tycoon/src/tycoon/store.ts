@@ -65,7 +65,7 @@ export type ActOpts = { quiet?: boolean; event?: { name: EventName; props: Props
 
 function setAside(raw: string) {
   try {
-    localStorage.setItem(`${SAVE_KEY}-unreadable-${Date.now()}`, raw);
+    storage()?.setItem(`${SAVE_KEY}-unreadable-${Date.now()}`, raw);
   } catch {
     /* storage blocked */
   }
@@ -74,7 +74,7 @@ function setAside(raw: string) {
 function load(): TycoonState {
   let raw: string | null = null;
   try {
-    raw = localStorage.getItem(SAVE_KEY);
+    raw = storage()?.getItem(SAVE_KEY) ?? null;
     const parsed = raw ? parseTycoon(JSON.parse(raw)) : null;
     if (parsed) return parsed;
     if (raw) setAside(raw);
@@ -87,7 +87,7 @@ function load(): TycoonState {
 /** The stored save, parsed, without side effects (no setting aside). */
 function readStored(): TycoonState | null {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = storage()?.getItem(SAVE_KEY) ?? null;
     return raw ? parseTycoon(JSON.parse(raw)) : null;
   } catch {
     return null;
@@ -99,7 +99,26 @@ const guard = createSaveGuard<TycoonState>(SAVE_KEY, readStored);
 const TAB = typeof window !== "undefined" ? tabId() : "server";
 let leading = true;
 let leaseTimer: ReturnType<typeof setInterval> | null = null;
-const storage = () => (typeof localStorage !== "undefined" ? localStorage : null);
+/**
+ * The browser's storage, or null when there is none or it is blocked. Some browsers throw on merely *reading*
+ * `window.localStorage` (blocked cookies, some private modes, sandboxed frames — audit gap B), so obtaining it is
+ * guarded too. With no storage the game plays from memory and says that progress can't be saved.
+ */
+const storage = (): Storage | null => {
+  try {
+    return typeof window !== "undefined" && window.localStorage ? window.localStorage : null;
+  } catch {
+    return null;
+  }
+};
+/** False when the last attempt to save failed (or there is no storage): the screen says so, never "saved". */
+let saveWorks = true;
+function noteSave(ok: boolean) {
+  if (ok === saveWorks) return;
+  saveWorks = ok;
+  snap = { ...snap, unsaved: !ok };
+  emit();
+}
 
 function persist(s: TycoonState) {
   if (!leading) return; // another tab is playing: never write over its save
@@ -117,10 +136,13 @@ function persist(s: TycoonState) {
     emit();
     return;
   }
+  const store = storage();
+  if (!store) return noteSave(false);
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ ...s, lastSeen: Date.now() }));
+    store.setItem(SAVE_KEY, JSON.stringify({ ...s, lastSeen: Date.now() }));
+    noteSave(true);
   } catch {
-    /* storage full / blocked */
+    noteSave(false); // storage full or blocked: keep playing from memory, and say so
   }
 }
 
@@ -162,8 +184,8 @@ export function confirmDeliveries(ids: string[]) {
  * (building, choosing a spot, a level-up, the day's report): the simulation waits whatever the preference says, and the
  * preference is untouched, so leaving restores it (audit finding 1).
  */
-type Snapshot = { state: TycoonState | null; paused: boolean; spectator: boolean; held: boolean };
-let snap: Snapshot = { state: null, paused: false, spectator: false, held: false };
+type Snapshot = { state: TycoonState | null; paused: boolean; spectator: boolean; held: boolean; unsaved: boolean };
+let snap: Snapshot = { state: null, paused: false, spectator: false, held: false, unsaved: false };
 const holds = new Set<string>();
 /** Set while a hold is on, so a reload mid-build comes back paused instead of restarting time. */
 const HELD_KEY = `${KEY}-held`;
@@ -229,7 +251,7 @@ function commit(next: TycoonState | null, opts: { paused?: boolean; checkGuide?:
   const prev = snap.state;
   // The guided tour catches up with every change (an action, a tick, a load): next beat, scripted pups, reward.
   if (next) next = syncTour(next, Date.now()).state;
-  snap = { state: next, paused: opts.paused ?? snap.paused, spectator: snap.spectator, held: snap.held };
+  snap = { ...snap, state: next, paused: opts.paused ?? snap.paused };
   if (next) {
     persist(next);
     report(prev, next, opts.checkGuide ?? false);
@@ -301,6 +323,22 @@ function watchLease() {
 }
 let pagehideWired = false;
 
+/**
+ * The "came back held" marker belongs to whichever tab is playing: only the leading tab reads and clears it (so a tab
+ * that opens just to watch never takes another tab's recovery state — audit gap A), and only it writes it.
+ */
+function takeHeldMarker(): boolean {
+  if (!leading) return false;
+  try {
+    const st = storage();
+    const was = !!st && st.getItem(HELD_KEY) === "1";
+    if (st && was) st.removeItem(HELD_KEY);
+    return was;
+  } catch {
+    return false; /* unreadable storage: nothing was held */
+  }
+}
+
 /** "Play here": take over from another tab, picking up its latest save. */
 export function playHere() {
   const st = storage();
@@ -308,9 +346,11 @@ export function playHere() {
   leading = true;
   const fresh = readStored();
   snap = { ...snap, spectator: false };
-  // a hidden tab that takes over stays paused: time away never costs anything
+  // a hidden tab that takes over stays paused (time away never costs anything), and so does one taking over from a tab
+  // that went away mid-build
   const hidden = typeof document !== "undefined" && document.hidden;
-  if (fresh) commit(fresh, { paused: snap.paused || hidden });
+  const wasHeld = takeHeldMarker();
+  if (fresh) commit(fresh, { paused: snap.paused || hidden || wasHeld });
   else emit();
 }
 
@@ -331,14 +371,7 @@ function activate(): { bonus: number; weekly: number; settled: number } {
   const { settledCredits: _done, ...state } = welcomed;
   // a page that went away while something held time (mid-build, a level-up…) comes back paused: nothing restarts on
   // its own, and no time is caught up (the clock only ever moves while running and on screen)
-  let wasHeld = false;
-  try {
-    const st2 = storage();
-    wasHeld = !!st2 && st2.getItem(HELD_KEY) === "1";
-    if (st2 && wasHeld) st2.removeItem(HELD_KEY);
-  } catch {
-    /* unreadable storage: nothing was held */
-  }
+  const wasHeld = takeHeldMarker();
   holds.clear();
   snap = { ...snap, held: false };
   commit(state, { paused: wasHeld });
@@ -354,7 +387,8 @@ function deactivate() {
   leaseTimer = null;
   setOnLevel(null);
   if (snap.state) persist(snap.state);
-  snap = { state: null, paused: false, spectator: false, held: false };
+  snap = { state: null, paused: false, spectator: false, held: false, unsaved: false };
+  saveWorks = true;
 }
 
 export type ActResult = TResult & { unlocked?: Trophy[] };
@@ -400,9 +434,10 @@ export const tycoonStore = {
     if (on) holds.add(key);
     else holds.delete(key);
     lastTick = Date.now();
-    // the "came back held" flag is best effort: full or blocked storage must never stop the hold itself
+    // the "came back held" flag is best effort (full or blocked storage must never stop the hold itself), and only the
+    // playing tab keeps it: a watching tab's screens never touch another tab's recovery state
     try {
-      const st = storage();
+      const st = leading ? storage() : null;
       if (st) {
         if (holds.size) st.setItem(HELD_KEY, "1");
         else st.removeItem(HELD_KEY);
@@ -434,12 +469,13 @@ export const tycoonStore = {
   _reset(s: TycoonState | null) {
     leading = true;
     holds.clear();
-    snap = { state: s, paused: false, spectator: false, held: false };
+    snap = { state: s, paused: false, spectator: false, held: false, unsaved: false };
+    saveWorks = true;
     emit();
   },
 };
 
-const SERVER_SNAPSHOT: Snapshot = { state: null, paused: false, spectator: false, held: false };
+const SERVER_SNAPSHOT: Snapshot = { state: null, paused: false, spectator: false, held: false, unsaved: false };
 
 export function useTycoon() {
   const current = useSyncExternalStore(tycoonStore.subscribe, tycoonStore.getSnapshot, () => SERVER_SNAPSHOT);
@@ -484,7 +520,7 @@ export function useTycoon() {
   const set = useCallback((fn: (s: TycoonState) => TycoonState) => tycoonStore.set(fn), []);
   const setPaused = useCallback((p: boolean | ((p: boolean) => boolean)) => tycoonStore.setPaused(typeof p === "function" ? p(snap.paused) : p), []);
 
-  return { state: current.state, act, set, paused: current.paused, held: current.held, setPaused, spectator: current.spectator, playHere };
+  return { state: current.state, act, set, paused: current.paused, held: current.held, unsaved: current.unsaved, setPaused, spectator: current.spectator, playHere };
 }
 
 // ---------- DEV-only test hooks for qa/e2e-tycoon.cjs (never in production builds) ----------
@@ -542,7 +578,7 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
 export function peekTycoon(): TycoonState | null {
   if (snap.state) return snap.state;
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = storage()?.getItem(SAVE_KEY) ?? null;
     return raw ? parseTycoon(JSON.parse(raw)) : null;
   } catch {
     return null;

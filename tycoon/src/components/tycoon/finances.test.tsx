@@ -40,7 +40,7 @@ describe("finances", () => {
     // profit is what running the daycare made; building is shown apart as what you invested
     expect(within(summary).getByText("Invested in building")).toBeTruthy();
     expect(within(summary).getByText("Operating costs")).toBeTruthy();
-    expect(within(summary).getByText("Operating profit")).toBeTruthy();
+    expect(within(summary).getByText("Operating profit by closing")).toBeTruthy(); // (renamed for audit gap F: today's is a projection)
     expect(screen.getByRole("img", { name: /Profit for the last/ })).toBeTruthy();
     unmount();
   });

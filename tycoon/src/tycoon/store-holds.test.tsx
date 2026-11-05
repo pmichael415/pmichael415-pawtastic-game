@@ -103,3 +103,66 @@ describe("holds vs the pause preference", () => {
   });
 });
 
+
+describe("several tabs (audit gap A): a watching tab never takes another tab's recovery state", () => {
+  const HELD = `${KEY}-held`;
+  const LEASE = "pawtastic-daycare-next-lease";
+  beforeEach(() => {
+    vi.useFakeTimers();
+    localStorage.clear();
+    tycoonStore._reset(null);
+  });
+  afterEach(() => vi.useRealTimers());
+  const save = () => {
+    const s = ok(setOpen({ ...ok(quickStart(newTycoon(Date.now()))), tour: SKIPPED, pendingLevel: null }, true));
+    localStorage.setItem(KEY, JSON.stringify(withFac(s, { ...fac(s), clockMin: 9 * 60 })));
+  };
+
+  it("tab A builds; tab B opens to watch and closes; A closes mid-build; reopening later stays paused", () => {
+    save();
+    // tab A is playing and is in Build: it holds the lease and the "came back held" marker is set
+    localStorage.setItem(LEASE, JSON.stringify({ tab: "tab-A", at: Date.now() }));
+    localStorage.setItem(HELD, "1");
+    const b = renderHook(() => useTycoon());
+    expect(b.result.current.spectator).toBe(true);
+    b.unmount();
+    expect(localStorage.getItem(HELD)).toBe("1"); // the watcher left A's recovery state alone
+    // tab A goes away mid-build (its lease is released); a new page opens later
+    localStorage.setItem(LEASE, JSON.stringify({ tab: "", at: 0 }));
+    tycoonStore._reset(null);
+    const c = renderHook(() => useTycoon());
+    expect(c.result.current.spectator).toBe(false);
+    expect(c.result.current.paused).toBe(true);
+    const clock = fac(tycoonStore.getState()!).clockMin;
+    act(() => vi.advanceTimersByTime(5000));
+    expect(fac(tycoonStore.getState()!).clockMin).toBe(clock); // no time ran, none was caught up
+    c.unmount();
+  });
+
+  it("a watching tab that takes over from a tab mid-build comes in paused", () => {
+    save();
+    localStorage.setItem(LEASE, JSON.stringify({ tab: "tab-A", at: Date.now() }));
+    localStorage.setItem(HELD, "1");
+    const b = renderHook(() => useTycoon());
+    act(() => b.result.current.playHere());
+    expect(b.result.current.spectator).toBe(false);
+    expect(b.result.current.paused).toBe(true);
+    const clock = fac(tycoonStore.getState()!).clockMin;
+    act(() => vi.advanceTimersByTime(5000));
+    expect(fac(tycoonStore.getState()!).clockMin).toBe(clock);
+    b.unmount();
+  });
+
+  it("a watching tab's own screens never write or clear the marker", () => {
+    save();
+    localStorage.setItem(LEASE, JSON.stringify({ tab: "tab-A", at: Date.now() }));
+    const b = renderHook(() => useTycoon());
+    expect(b.result.current.spectator).toBe(true);
+    act(() => tycoonStore.hold("screen", true));
+    expect(localStorage.getItem(HELD)).toBeNull();
+    localStorage.setItem(HELD, "1"); // tab A starts building meanwhile
+    act(() => tycoonStore.hold("screen", false));
+    expect(localStorage.getItem(HELD)).toBe("1");
+    b.unmount();
+  });
+});

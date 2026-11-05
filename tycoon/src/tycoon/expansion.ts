@@ -5,6 +5,7 @@
 import { GROUPS, groupName, groupOf, type GroupId } from "@/game/engine";
 import { addDoor, drawRoom, placeThing, setRoomType, upgradeThing } from "./build";
 import { WAGES, facilityUpkeep, today } from "./business";
+import { thingName } from "./catalog";
 import { caps, connectedRooms, roomStatus } from "./connect";
 import { funAppeal } from "./effects";
 import { containsTile, doorOutside, rectTiles, type Tile } from "./grid";
@@ -300,6 +301,7 @@ const plansMemo = new Map<string, Plan[]>();
 export function clearExpansionQuotes() {
   quotes.clear();
   plansMemo.clear();
+  fullQuotes.clear();
 }
 const layoutKey = (s: TycoonState, id: ExpansionId) => {
   const f = fac(s);
@@ -426,20 +428,92 @@ export function expansionOptions(s: TycoonState): ExpansionOption[] {
  * Buys the expansion for game coins (refused, with nothing changed, if it isn't possible or affordable). A new room
  * goes at `spot` — one of the offered spots — or the first offered spot when none is given.
  */
-export function buyExpansion(s: TycoonState, id: ExpansionId, spot?: { c: number; r: number }): TResult {
-  const o = expansionOptions(s).find((x) => x.id === id);
-  if (!o) return { ok: false, error: "Pick an expansion." };
+/**
+ * Exactly what an expansion will build (audit gap E): every new room (type, pup group, footprint, doors), every thing
+ * placed or raised a level (kind, square, turn, level), and the total. Shown to the player and passed back with the
+ * confirmation, so what's built is what was shown — or nothing.
+ */
+export type ExpansionQuote = {
+  id: ExpansionId;
+  rooms: { type: Room["type"]; group: GroupId | null; c: number; r: number; w: number; d: number; doors: Door[] }[];
+  things: { kind: string; c: number; r: number; rot: number; level: number }[];
+  cost: number;
+};
+/** The plan for this expansion at `spot` (the first offered spot when none is given), or why there is none. */
+function planAt(s: TycoonState, id: ExpansionId, spot?: { c: number; r: number }): { plan: Plan | null } | string {
   const offered = plans(s, id);
   const plan = spot ? (offered.find((p) => p.c === spot.c && p.r === spot.r) ?? null) : (offered[0] ?? null);
-  if (spot && !plan) return { ok: false, error: "That spot isn't one of the offered spots — pick one of them." };
+  if (spot && !plan && modeOf(fac(s), id) === "new") return "That spot isn't one of the offered spots — pick one of them.";
+  return { plan };
+}
+/** What changed between two states: the rooms and things a build added or raised, in a stable order. */
+export function changeOf(before: TycoonState, after: TycoonState): Omit<ExpansionQuote, "id" | "cost"> {
+  const b = fac(before);
+  const a = fac(after);
+  const had = new Set(b.rooms.map((r) => r.uid));
+  const level = new Map(b.items.map((i) => [i.uid, i.level]));
+  const rooms = a.rooms.filter((r) => !had.has(r.uid)).map((r) => ({ type: r.type, group: r.group ?? null, c: r.c, r: r.r, w: r.w, d: r.d, doors: [...r.doors] }));
+  const things = a.items.filter((i) => level.get(i.uid) !== i.level).map((i) => ({ kind: i.kind, c: i.c, r: i.r, rot: i.rot, level: i.level }));
+  const key = (x: { c: number; r: number }) => x.r * 1000 + x.c;
+  return { rooms: rooms.sort((x, y) => key(x) - key(y)), things: things.sort((x, y) => key(x) - key(y) || x.kind.localeCompare(y.kind)) };
+}
+const sameQuote = (x: ExpansionQuote, y: ExpansionQuote) => JSON.stringify(x) === JSON.stringify(y);
+/** The complete purchase an expansion would make right now at `spot`, or why it can't be made. */
+const fullQuotes = new Map<string, ExpansionQuote | string>();
+export function expansionQuote(s: TycoonState, id: ExpansionId, spot?: { c: number; r: number }): ExpansionQuote | string {
+  const at = planAt(s, id, spot);
+  if (typeof at === "string") return at;
+  // the same key as the price quotes: everything the build depends on (layout, items and levels, land, level gate,
+  // mode, the pup group families want)
+  const key = `${layoutKey(s, id)}|${planKey(at.plan)}`;
+  const hit = fullQuotes.get(key);
+  if (hit !== undefined) return hit;
+  const rich = { ...s, coins: RICH };
+  const after = build(rich, id, at.plan);
+  const out = typeof after === "string" ? after : { id, ...changeOf(rich, after), cost: today(fac(after)).expenses.building - today(fac(rich)).expenses.building };
+  if (fullQuotes.size > 100) fullQuotes.clear();
+  fullQuotes.set(key, out);
+  return out;
+}
+
+/** The quote in plain words: "a 3 × 3 playroom for Large & Gentle pups with its door, and 3 Dog Beds". */
+export function quoteWords(q: ExpansionQuote): string {
+  const parts: string[] = [];
+  for (const r of q.rooms) {
+    const kind = r.type === "playroom" ? "playroom" : r.type === "bath" ? "bath room" : r.type === "boarding" ? "boarding room" : r.type === "staff" ? "staff room" : "room";
+    parts.push(`a ${r.w} × ${r.d} ${kind}${r.group ? ` for ${groupName(r.group)} pups` : ""} with its door`);
+  }
+  const counts = new Map<string, number>();
+  for (const x of q.things) {
+    const name = x.level > 1 ? `${thingName(x.kind)} (level ${x.level})` : thingName(x.kind);
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  for (const [name, n] of counts) parts.push(n > 1 ? `${n} ${name}s` : `a ${name}`);
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : (parts[0] ?? "nothing");
+}
+
+/**
+ * Buys an expansion at `spot`. Given `shown` (the quote the player saw), it builds exactly that or nothing: a plan that
+ * changed since it was shown — another pup group, door, furnishing or price — is refused with nothing charged.
+ */
+export function buyExpansion(s: TycoonState, id: ExpansionId, spot?: { c: number; r: number }, shown?: ExpansionQuote): TResult {
+  const o = expansionOptions(s).find((x) => x.id === id);
+  if (!o) return { ok: false, error: "Pick an expansion." };
+  const at = planAt(s, id, spot);
+  if (typeof at === "string") return { ok: false, error: shown ? "That spot is no longer free — pick one of the spots shown now." : at };
+  const plan = at.plan;
   if (!o.available) return { ok: false, error: o.why ?? "That expansion isn't possible right now." };
   const q = quote(s, id, plan);
   if (typeof q === "string") return { ok: false, error: q };
-  if (s.coins < q.cost) return { ok: false, error: `${(q.cost - s.coins).toLocaleString("en-US")} more coins needed.` };
+  const now = expansionQuote(s, id, spot);
+  if (typeof now === "string") return { ok: false, error: now };
+  if (shown && !sameQuote(shown, now))
+    return { ok: false, error: `What this builds changed since you saw it — it's now ${o.title.toLowerCase()} for ${now.cost.toLocaleString("en-US")} coins. Check it and confirm again.` };
+  if (s.coins < now.cost) return { ok: false, error: `${(now.cost - s.coins).toLocaleString("en-US")} more coins needed.` };
   const after = build(s, id, plan);
   if (typeof after === "string") return { ok: false, error: after };
-  // never charge more (or less) than the price shown for this spot
+  // exactly what was quoted, for exactly its price — or nothing
   const spent = today(fac(after)).expenses.building - today(fac(s)).expenses.building;
-  if (spent !== q.cost) return { ok: false, error: "The price changed — check the new price and try again." };
+  if (spent !== now.cost || !sameQuote({ id, ...changeOf(s, after), cost: spent }, now)) return { ok: false, error: "The price changed — check the new price and try again." };
   return { ok: true, state: after, msg: `${o.title} — done! It's open and working.` };
 }

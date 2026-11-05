@@ -1,5 +1,6 @@
 // The guided tour's coach, pinned to the daycare (Stage A, spec §3.2–3.3): one line and the one thing to do next,
 // in words that match the player's controls. The upgrade and decision beats offer their choices right here.
+import { useRef } from "react";
 import { groupName, groupOf } from "@/game/engine";
 import { furnitureDef, outdoorDef } from "@/tycoon/catalog";
 import { canOpen, caps } from "@/tycoon/connect";
@@ -10,7 +11,7 @@ import { placeFirstFree } from "@/tycoon/build";
 import { fac } from "@/tycoon/state";
 import type { ActOpts, ActResult } from "@/tycoon/store";
 import { TOUR_DOGS, chooseUpgrade, firstDogGroup, passUpgrade, skipTour } from "@/tycoon/tour";
-import { buildPlayroomFor, playroomCost, restAtHome } from "@/tycoon/tourActions";
+import { buildPlayroomFor, playroomQuote, restAtHome, type PlayroomQuote } from "@/tycoon/tourActions";
 import type { TResult, TycoonState, TourUpgrade } from "@/tycoon/types";
 
 type Act = (fn: (s: TycoonState) => TResult, opts?: ActOpts) => ActResult;
@@ -21,6 +22,7 @@ const UPGRADES: { kind: TourUpgrade; name: string; price: number; benefit: strin
 ];
 
 export function CoachBubble({ state, controls, act, set, compact = false }: { state: TycoonState; controls: Controls; act: Act; set: (fn: (s: TycoonState) => TycoonState) => void; compact?: boolean }) {
+  const usedQuote = useRef<PlayroomQuote | null>(null);
   const t = state.tour;
   if (!t || t.done || t.skipped) return null;
   const f = fac(state);
@@ -97,12 +99,22 @@ export function CoachBubble({ state, controls, act, set, compact = false }: { st
       )}
       {t.beat === "decision" && rocket && (() => {
         const g = groupOf(rocket);
-        const cost = playroomCost(state, g);
+        // the button's quote (room, door, bed, total) is what the tap confirms — once (audit gap E)
+        const q = playroomQuote(state, g);
         return (
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            {cost !== null && !roomReady && (
-              <button type="button" onClick={() => act((s) => buildPlayroomFor(s, g))} className="min-h-11 rounded-xl bg-primary p-2 text-left text-sm font-bold text-primary-foreground">
-                {`Build a ${groupName(g)} playroom · ${cost} coins`}
+            {q && !roomReady && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (usedQuote.current === q) return;
+                  usedQuote.current = q;
+                  const r = act((s) => buildPlayroomFor(s, g, q));
+                  if (!r.ok) usedQuote.current = null;
+                }}
+                className="min-h-11 rounded-xl bg-primary p-2 text-left text-sm font-bold text-primary-foreground"
+              >
+                {`Build a ${groupName(g)} playroom · ${q.cost} coins`}
               </button>
             )}
             <button type="button" onClick={() => act((s) => restAtHome(s, rocket.id))} className="min-h-11 rounded-xl border border-border bg-background p-2 text-left text-sm font-bold text-secondary">

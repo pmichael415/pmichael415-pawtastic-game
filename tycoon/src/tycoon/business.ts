@@ -129,6 +129,16 @@ export function todayMoney(s: TycoonState): DayMoney {
   return dayMoney(today(f), due.wages + due.upkeep + due.supplies);
 }
 
+/**
+ * Pays a game-coin refund out of coins, recorded as today's refunds — creating today's entry if there is none yet (an
+ * older save's books can end with yesterday: audit gap D). Coins may go below zero; the family is always refunded.
+ */
+export function recordRefund(s: TycoonState, amount: number): TycoonState {
+  if (!(amount > 0)) return s;
+  const f = withToday(fac(s), (d) => ({ ...d, expenses: { ...d.expenses, refunds: d.expenses.refunds + amount } }));
+  return withFac({ ...s, coins: s.coins - amount }, f);
+}
+
 /** Adds what selling a room, a door or a thing paid back, recorded as today's sale proceeds (not service revenue). */
 export function recordSale(s: TycoonState, amount: number): TycoonState {
   if (!(amount > 0)) return s;

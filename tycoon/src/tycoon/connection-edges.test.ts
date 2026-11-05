@@ -1,6 +1,6 @@
 // Audit finding 4: connection edge cases, with valid fixtures (everything placed through the real build rules).
 import { describe, expect, it } from "vitest";
-import { addDoor, buildConnectedRoom, buyLand, connectRoom, connectionPlan, firstFreeRoomPlan, moveRoom, moveThing, placeThing, removeDoor, sellRoom, sellThing } from "./build";
+import { addDoor, buildConnectedRoom, buyLand, connectRoom, connectionPlan, drawRoom, firstFreeRoomPlan, moveRoom, moveThing, placeThing, planRoom, removeDoor, sellRoom, sellThing } from "./build";
 import { MAX_THINGS } from "./catalog";
 import { connectedRooms } from "./connect";
 import { doorOutside } from "./grid";
@@ -52,12 +52,12 @@ describe("A. a 2 × 2 room whose doorway is on the neighbour's wall", () => {
     const small = fac(s).rooms.at(-1)!;
     let lobby = room(s, "lobby");
     s = ok(removeDoor(s, lobby.uid, lobby.doors.find((d) => d.side === "N")!));
-    // the lobby already has four doors (its own, valid positions)
-    for (const d of [{ side: "S" as const, i: 1 }, { side: "E" as const, i: 1 }]) {
-      lobby = room(s, "lobby");
-      if (!lobby.doors.some((x) => x.side === d.side && x.i === d.i)) s = ok(addDoor(s, lobby.uid, d));
-    }
-    expect(room(s, "lobby").doors.length).toBe(4);
+    // the lobby at its limit: three doors of its own plus the playroom's doorway into it are four ways in (this fixture
+    // used to add a fourth own door as well — five ways in, which the rules now refuse: audit gap C)
+    s = ok(addDoor(s, room(s, "lobby").uid, { side: "S", i: 1 }));
+    lobby = room(s, "lobby");
+    expect(lobby.doors.length).toBe(3);
+    expect(addDoor(s, lobby.uid, { side: "E", i: 1 }).ok).toBe(false); // a fifth way in is refused
     const plan = connectionPlan(fac(s), small.uid);
     expect(plan === null || plan.doorOn !== room(s, "lobby").uid).toBe(true);
   });
@@ -76,6 +76,60 @@ describe("A2. a doorway on the neighbour's wall never makes a fifth way into the
     expect(connectedRooms(fac(s)).has(small.uid)).toBe(false);
     const plan = connectionPlan(fac(s), small.uid);
     expect(plan === null || plan.doorOn !== lobby.uid).toBe(true);
+  });
+});
+
+describe("A3. a room's own new doorway never makes a fifth way into the room it opens into (audit gap C)", () => {
+  /** Every doorway into a room: its own doors plus doors of other rooms whose outside square is inside it. */
+  const ways = (s: TycoonState, uid: string) => {
+    const f = fac(s);
+    const x = f.rooms.find((r) => r.uid === uid)!;
+    return x.doors.length + f.rooms.filter((r) => r.uid !== uid).reduce((n, r) => n + r.doors.filter((d) => { const o = doorOutside(r, d); return o.c >= x.c && o.c < x.c + x.w && o.r >= x.r && o.r < x.r + x.d; }).length, 0);
+  };
+  /** The starter lobby with four ways in: S (entrance), W (calm), a second S door, and the playroom's doorway. */
+  const fullLobby = () => {
+    const s = ok(addDoor(started(), room(started(), "lobby").uid, { side: "S", i: 1 }));
+    expect(ways(s, room(s, "lobby").uid)).toBe(4);
+    return s;
+  };
+  it("Add door: a door on a new room that would open into the full lobby is refused, nothing charged", () => {
+    let s = fullLobby();
+    s = ok(drawRoom(s, 16, 19, 3, 3)); // walls only, no door yet, right above the lobby
+    const north = fac(s).rooms.at(-1)!;
+    const coins = s.coins;
+    const r = addDoor(s, north.uid, { side: "S", i: 1 }); // its outside square is inside the lobby
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/4 ways in|four ways in|Lobby/i);
+    expect(s.coins).toBe(coins);
+    // a door on another wall is still fine
+    expect(addDoor(s, north.uid, { side: "N", i: 1 }).ok).toBe(true);
+  });
+  it("connected building: a room planned right above the full lobby doesn't get its door into the lobby", () => {
+    const s = fullLobby();
+    const rect = { c: 16, r: 19, w: 3, d: 3 };
+    const plan = planRoom(fac(s), rect);
+    if (plan.ok) {
+      const t = ok(buildConnectedRoom(s, rect, "calm", undefined, plan));
+      expect(ways(t, room(t, "lobby").uid)).toBe(4);
+      expect(spent(t) - spent(s)).toBe(plan.cost.total);
+    }
+  });
+  it("Connect it: reconnecting a room above the full lobby never adds a fifth way into the lobby", () => {
+    let s = ok(buildConnectedRoom(started(), { c: 16, r: 19, w: 3, d: 3 }, "calm"));
+    const north = fac(s).rooms.at(-1)!;
+    // its doorway into the lobby (on either room) goes; the lobby gets a second south door: four ways in again
+    const lobby0 = room(s, "lobby");
+    const shared = lobby0.doors.find((d) => d.side === "N");
+    s = shared ? ok(removeDoor(s, lobby0.uid, shared)) : ok(removeDoor(s, north.uid, fac(s).rooms.find((r) => r.uid === north.uid)!.doors.find((d) => d.side === "S")!));
+    s = ok(addDoor(s, room(s, "lobby").uid, { side: "S", i: 1 }));
+    expect(ways(s, room(s, "lobby").uid)).toBe(4);
+    expect(connectedRooms(fac(s)).has(north.uid)).toBe(false);
+    const plan = connectionPlan(fac(s), north.uid);
+    if (plan && !plan.blocked) {
+      const t = ok(connectRoom(s, north.uid, plan));
+      expect(ways(t, room(t, "lobby").uid)).toBe(4);
+      expect(connectedRooms(fac(t)).has(north.uid)).toBe(true);
+    }
   });
 });
 

@@ -27,7 +27,7 @@ import {
   personalityOf,
 } from "@/game/engine";
 import type { Regular, Stats } from "@/game/engine";
-import { bathPay, campaignBoost, checkoutPay, closeDay, countToday, demand, earn, fairPrice, refuses, spend, wageRecovery } from "./business";
+import { bathPay, campaignBoost, checkoutPay, closeDay, countToday, demand, earn, fairPrice, recordRefund, refuses, spend, wageRecovery } from "./business";
 import { canOpen, caps, roomStatus } from "./connect";
 import { arrivalMultiplier, decayMultiplier, funAppeal, playGain } from "./effects";
 import { XP, gainXp } from "./progress";
@@ -470,7 +470,7 @@ export function settle(s: TycoonState, dogId: string, how: Outcome["how"], exitB
   if (served) out = countToday(out, "checkouts");
   const parts = bonus ? { ...a.parts, bonus: (a.parts.bonus ?? 0) + bonus } : a.parts;
   out = earn(out, parts);
-  if (a.total < 0) out = payRefund(out, -a.total);
+  if (a.total < 0) out = recordRefund(out, -a.total);
   if (served) out = gainXp(out, XP.checkout + (a.mood === "delighted" ? XP.happyCheckout : 0));
   const why = unresolved[0]?.text ?? a.complaints[0]?.text ?? "it wasn't the day they hoped for.";
   const said = MOOD_LINE[a.mood](v.owner, dog.name, why);
@@ -488,11 +488,6 @@ export function outcomeLine(o: Outcome): string {
 }
 
 /** A refund larger than the day's bill: paid back to the family (it can take coins below zero, like any bill). */
-function payRefund(s: TycoonState, amount: number): TycoonState {
-  const f = fac(s);
-  const ledger = f.ledger.length ? f.ledger.map((d, i) => (i === f.ledger.length - 1 ? { ...d, expenses: { ...d.expenses, refunds: d.expenses.refunds + amount } } : d)) : f.ledger;
-  return withFac({ ...s, coins: s.coins - amount }, { ...f, ledger });
-}
 
 /** The player checks a pup out at the desk (see settle). */
 export function checkout(s: TycoonState, dogId: string, exitBath: boolean): TResult {

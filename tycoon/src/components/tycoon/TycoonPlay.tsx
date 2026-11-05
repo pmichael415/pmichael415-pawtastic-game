@@ -83,7 +83,7 @@ function useOwnedPaid(): ReadonlySet<PaidItemId> {
 }
 
 export function TycoonPlay() {
-  const { state, act, set, paused, setPaused, spectator, playHere } = useTycoon();
+  const { state, act, set, paused, setPaused, spectator, playHere, unsaved } = useTycoon();
   const owned = useOwnedPaid();
   // The engine reads ownership from memory while this page runs; it fails closed when the page goes away.
   setOwnedPaid(owned);
@@ -94,7 +94,7 @@ export function TycoonPlay() {
         <Loader2 className="h-6 w-6 animate-spin" aria-label="Loading your daycare" />
       </div>
     );
-  return <Play state={state} act={act} set={set} paused={paused} setPaused={setPaused} spectator={spectator} playHere={playHere} />;
+  return <Play state={state} act={act} set={set} paused={paused} setPaused={setPaused} spectator={spectator} playHere={playHere} unsaved={unsaved} />;
 }
 
 /** Where a pup is, as a square (for effects). */
@@ -107,7 +107,7 @@ function dogTile(f: Facility, d: TDog): { c: number; r: number } | null {
   return room ? { c: room.c + Math.floor(room.w / 2), r: room.r + Math.floor(room.d / 2) } : null;
 }
 
-function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, playHere = () => {} }: { state: TycoonState; act: Act; set: (fn: (s: TycoonState) => TycoonState) => void; paused: boolean; setPaused: (p: boolean) => void; spectator?: boolean; playHere?: () => void }) {
+function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, playHere = () => {}, unsaved = false }: { state: TycoonState; act: Act; set: (fn: (s: TycoonState) => TycoonState) => void; paused: boolean; setPaused: (p: boolean) => void; spectator?: boolean; playHere?: () => void; unsaved?: boolean }) {
   const settings = useSettings();
   const [no3d, setNo3d] = useState<FallbackReason | null>(null);
   const [diag, setDiag] = useState<Diagnostics | null>(null);
@@ -478,6 +478,12 @@ function Play({ state, act: rawAct, set, paused, setPaused, spectator = false, p
           <p className="min-w-0 flex-1 text-sm text-secondary">Your daycare is open in another tab, so time and costs run there — not here.</p>
           <Button className="h-11 shrink-0" onClick={playHere}>Play here</Button>
         </section>
+      )}
+      {unsaved && !spectator && (
+        <p role="status" aria-label="Progress can't be saved in this browser" className="rounded-2xl border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-secondary">
+          <b>Progress can't be saved in this browser</b> — its storage is blocked or full. You can keep playing, but this
+          daycare is lost when you close the page. Allowing site data (or freeing space) lets it save again.
+        </p>
       )}
       <TestBanner state={state} />
       {paused && !blocking && !spectator && (

@@ -81,6 +81,46 @@ describe("list view", () => {
     unmount();
   });
 
+  it("a genuinely stale confirmation — captured before the daycare changed, submitted after — charges nothing (audit gap G)", () => {
+    const { unmount } = render(<Harness />);
+    place("Lobby");
+    fireEvent.click(screen.getByRole("button", { name: "Place Playroom — Small & Gentle in first free spot" }));
+    const btn = screen.getByRole("button", { name: /^Build Playroom — Small & Gentle for \d+$/ });
+    const shown = Number(btn.getAttribute("aria-label")!.match(/for (\d+)$/)![1]);
+    const coins = tycoonStore.getState()!.coins;
+    const rooms = fac(tycoonStore.getState()!).rooms.length;
+    // in one batch, before the screen can update: the daycare changes, then the old button's tap is delivered
+    act(() => {
+      tycoonStore.dispatch((t) => sellThing(t, fac(t).items.find((i) => i.kind === "path" && i.uid !== "entrance")!.uid));
+      btn.click();
+    });
+    const now = tycoonStore.getState()!;
+    expect(fac(now).rooms).toHaveLength(rooms); // nothing built from the stale quote
+    // (the path sold meanwhile paid back its sale price: that is the only change in coins)
+    expect(now.coins - coins).toBe(fac(now).ledger.at(-1)!.sales);
+    // the row now shows the fresh price, which confirms normally
+    const fresh = Number(screen.getByRole("button", { name: /^Build Playroom — Small & Gentle for \d+$/ }).getAttribute("aria-label")!.match(/for (\d+)$/)![1]);
+    expect(fresh).not.toBe(shown);
+    unmount();
+  });
+
+  it("two taps queued before the screen updates build once and charge once (audit gap G)", () => {
+    const { unmount } = render(<Harness />);
+    place("Lobby");
+    fireEvent.click(screen.getByRole("button", { name: "Place Playroom — Small & Gentle in first free spot" }));
+    const btn = screen.getByRole("button", { name: /^Build Playroom — Small & Gentle for \d+$/ });
+    const shown = Number(btn.getAttribute("aria-label")!.match(/for (\d+)$/)![1]);
+    const coins = tycoonStore.getState()!.coins;
+    const rooms = fac(tycoonStore.getState()!).rooms.length;
+    act(() => {
+      btn.click();
+      btn.click(); // the same mounted button, the same captured confirmation
+    });
+    expect(fac(tycoonStore.getState()!).rooms).toHaveLength(rooms + 1);
+    expect(coins - tycoonStore.getState()!.coins).toBe(shown);
+    unmount();
+  });
+
   it("furniture asks which room, suggesting where it does its job", () => {
     const { unmount } = render(<Harness />);
     place("Lobby");

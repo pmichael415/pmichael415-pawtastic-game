@@ -19,7 +19,7 @@ vi.mock("@/components/tycoon/TycoonStage", async () => {
 
 import { TycoonPlay } from "./TycoonPlay";
 import { KEY, tycoonStore } from "@/tycoon/store";
-import { planRoom, removeDoor } from "@/tycoon/build";
+import { planRoom, removeDoor, sellThing } from "@/tycoon/build";
 import { connectedRooms } from "@/tycoon/connect";
 import { xpForLevel } from "@/tycoon/progress";
 import { quickStart } from "@/tycoon/start";
@@ -194,6 +194,54 @@ describe("Connect it charges the plan it shows, once (audit finding 3)", () => {
     fireEvent.click(connect);
     fireEvent.click(connect);
     expect(before.coins - now().coins).toBe(price);
+    expect(connectedRooms(fac(now())).has(play.uid)).toBe(true);
+  });
+});
+
+describe("stale and queued confirmations through the screen (audit gap G)", () => {
+  it("world builder: a confirmation captured before the route changed, delivered after, builds nothing; two queued taps build once", () => {
+    start();
+    tool("Rooms");
+    fireEvent.click(button("Bath Room"));
+    tap({ kind: "tile", c: 12, r: 18 }); // away from the building: its route needs path squares
+    const build = button(/^Build here/);
+    const rooms = fac(now()).rooms.length;
+    // stale: in one batch, a path square near the entrance goes (the route grows), then the old button's tap arrives
+    act(() => {
+      tycoonStore.dispatch((t) => sellThing(t, fac(t).items.find((i) => i.kind === "path" && i.c === 18 && i.r === 26)!.uid));
+      build.click();
+    });
+    expect(fac(now()).rooms).toHaveLength(rooms);
+    // queued: the fresh quote's button, tapped twice before the screen updates → one room, charged its shown price
+    tap({ kind: "tile", c: 12, r: 18 });
+    const line = screen.getAllByText(/^Bath Room 3 × 2 · Room \d+ \+ door 30( \+ path \d+ × 10)? = \d+$/)[0]!.textContent!;
+    const shown = Number(line.split("= ")[1]);
+    const again = button(/^Build here/);
+    const before = spent(now());
+    act(() => {
+      again.click();
+      again.click();
+    });
+    expect(fac(now()).rooms).toHaveLength(rooms + 1);
+    expect(spent(now()) - before).toBe(shown);
+  });
+
+  it("Connect it: two queued taps connect once, for the price on the button", () => {
+    start((s) => {
+      const play = fac(s).rooms.find((r) => r.type === "playroom")!;
+      return ok(removeDoor(s, play.uid, play.doors[0]!));
+    });
+    fireEvent.click(button("Done building"));
+    const play = fac(now()).rooms.find((r) => r.type === "playroom")!;
+    tap({ kind: "room", uid: play.uid });
+    const connect = within(screen.getByRole("region", { name: /^Edit Playroom/ })).getByRole("button", { name: /^Connect it · \d+$/ });
+    const price = Number(connect.textContent!.replace(/[^\d]/g, ""));
+    const before = spent(now());
+    act(() => {
+      connect.click();
+      connect.click();
+    });
+    expect(spent(now()) - before).toBe(price);
     expect(connectedRooms(fac(now())).has(play.uid)).toBe(true);
   });
 });

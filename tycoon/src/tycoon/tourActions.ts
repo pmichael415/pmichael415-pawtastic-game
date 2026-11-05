@@ -2,19 +2,40 @@
 // every rule: building a playroom with a dog spot for the decision pup, or letting a pup rest and go home free.
 import { groupName, type GroupId } from "@/game/engine";
 import { placeFirstFree, placeThing, setRoomType } from "./build";
-import { attachedRoom } from "./expansion";
+import { attachedRoom, changeOf } from "./expansion";
+import { today } from "./business";
 import { roomTiles } from "./grid";
 import { checkout, toCalm } from "./run";
 import { fac, withFac } from "./state";
 import type { Facility, TResult, TycoonState } from "./types";
 
-const spent = (f: Facility) => f.rooms.reduce((n, r) => n + r.spent, 0) + f.items.reduce((n, i) => n + i.spent, 0);
+
+/** Exactly what the guide's "Build a playroom" builds — the room, its door, the bed and where — and the total. */
+export type PlayroomQuote = { group: GroupId } & ReturnType<typeof changeOf> & { cost: number };
+const spentToday = (s: TycoonState) => today(fac(s)).expenses.building;
+export function playroomQuote(s: TycoonState, group: GroupId): PlayroomQuote | null {
+  const rich = { ...s, coins: Math.max(s.coins, 1_000_000) };
+  const r = makePlayroom(rich, group);
+  return r.ok ? { group, ...changeOf(rich, r.state), cost: spentToday(r.state) - spentToday(rich) } : null;
+}
 
 /**
  * A playroom for this group plus one Dog Bed inside it: joined to the building (next to a room, with a door into it)
- * when there's a spot, else at the first free spot on the lot with its door and path.
+ * when there's a spot, else at the first free spot on the lot with its door and path. Given `shown` (the quote on the
+ * guide's button), it builds exactly that or nothing (audit gap E): a changed plan charges nothing.
  */
-export function buildPlayroomFor(s: TycoonState, group: GroupId): TResult {
+export function buildPlayroomFor(s: TycoonState, group: GroupId, shown?: PlayroomQuote): TResult {
+  if (shown) {
+    const now = playroomQuote(s, group);
+    if (!now || JSON.stringify(now) !== JSON.stringify(shown)) return { ok: false, error: now ? `The playroom you saw can't be built as shown any more — it's now ${now.cost} coins. Check it and confirm again.` : "There's no spot for that playroom any more." };
+    if (s.coins < shown.cost) return { ok: false, error: `${shown.cost - s.coins} more coins needed.` };
+    const r = makePlayroom(s, group);
+    if (r.ok && spentToday(r.state) - spentToday(s) !== shown.cost) return { ok: false, error: "The price changed — check it and try again." };
+    return r;
+  }
+  return makePlayroom(s, group);
+}
+function makePlayroom(s: TycoonState, group: GroupId): TResult {
   const joined = attachedRoom(s, 3, 3);
   const typed = joined ? setRoomType(joined.state, joined.uid, "playroom", group) : null;
   const r = typed && typed.ok ? typed : placeFirstFree(s, { room: "playroom", group });
@@ -29,8 +50,7 @@ export function buildPlayroomFor(s: TycoonState, group: GroupId): TResult {
 
 /** What buildPlayroomFor would cost right now (null if it can't be built). */
 export function playroomCost(s: TycoonState, group: GroupId): number | null {
-  const r = buildPlayroomFor({ ...s, coins: Math.max(s.coins, 1_000_000) }, group);
-  return r.ok ? spent(fac(r.state)) - spent(fac(s)) : null;
+  return playroomQuote(s, group)?.cost ?? null;
 }
 
 /** Checks the pup in if needed, lets them settle in the calm room, and sends them home free of charge. */

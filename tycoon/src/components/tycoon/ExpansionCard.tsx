@@ -1,8 +1,9 @@
 // Ways to grow (staff design §5; combined-loop plan, task 4): five real options in four groups, each with its cost in
 // game coins, what it adds, the staffing it needs, the daily upkeep, what it makes possible and why you might want it —
 // or keep saving. A new room goes where you choose (Choose a spot); an improvement is bought here at once.
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { EXPANSION_GROUPS, buyExpansion, expansionOptions, type ExpansionId } from "@/tycoon/expansion";
+import { EXPANSION_GROUPS, buyExpansion, expansionOptions, expansionQuote, quoteWords, type ExpansionId, type ExpansionQuote } from "@/tycoon/expansion";
 import type { ActOpts, ActResult } from "@/tycoon/store";
 import type { TResult, TycoonState } from "@/tycoon/types";
 
@@ -48,16 +49,7 @@ export function ExpansionCard({ state, act, onSave, onBought, onChooseSpot }: { 
                         Choose a spot · {coins(o.cost)}
                       </Button>
                     ) : (
-                      <Button
-                        className="h-11 w-full"
-                        disabled={!o.available}
-                        onClick={() => {
-                          const r = act((s) => buyExpansion(s, o.id), { event: { name: "tycoon_build", props: { kind: "expansion", action: o.id } } });
-                          if (r.ok) onBought?.(boughtRoom(state, r.state)); // else the card stays, with the reason
-                        }}
-                      >
-                        Improve · {coins(o.cost)}
-                      </Button>
+                      <ImproveButton state={state} act={act} id={o.id} available={o.available} onBought={onBought} />
                     )}
                     {o.why && <p className="mt-1 text-xs text-muted-foreground">{o.why}</p>}
                   </div>
@@ -71,5 +63,30 @@ export function ExpansionCard({ state, act, onSave, onBought, onChooseSpot }: { 
         Save for now
       </Button>
     </section>
+  );
+}
+
+/** "Improve": bound to the improvement shown (what's added or raised, where, and the total), confirmed once. */
+function ImproveButton({ state, act, id, available, onBought }: { state: TycoonState; act: Act; id: ExpansionId; available: boolean; onBought?: ((room: string | null) => void) | undefined }) {
+  const quoted = expansionQuote(state, id);
+  const q = typeof quoted === "string" ? null : quoted;
+  const used = useRef<ExpansionQuote | null>(null);
+  return (
+    <>
+      {q && <p className="mb-1 text-xs text-secondary">Adds {quoteWords(q)}.</p>}
+      <Button
+        className="h-11 w-full"
+        disabled={!available || !q}
+        onClick={() => {
+          if (!q || used.current === q) return;
+          used.current = q;
+          const r = act((s) => buyExpansion(s, id, undefined, q), { event: { name: "tycoon_build", props: { kind: "expansion", action: id } } });
+          if (r.ok) onBought?.(boughtRoom(state, r.state)); // else the card stays, with the reason
+          else used.current = null;
+        }}
+      >
+        Improve · {coins(q?.cost ?? 0)}
+      </Button>
+    </>
   );
 }

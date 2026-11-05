@@ -3,7 +3,8 @@ import { caps, connectedRooms } from "./connect";
 import { fac, newTycoon } from "./state";
 import { ok } from "./testkit";
 import { startTour } from "./tour";
-import { buildPlayroomFor, playroomCost, restAtHome } from "./tourActions";
+import { buildPlayroomFor, playroomCost, playroomQuote, restAtHome } from "./tourActions";
+import { placeThing } from "./build";
 
 describe("the tour's one-tap choices", () => {
   it("builds a working Large & Active playroom with a dog spot, for exactly the cost shown", () => {
@@ -55,3 +56,27 @@ describe("letting a pup rest is truly free", () => {
   });
 });
 
+describe("the guide's \"Build a playroom\" is bound to what its button showed (audit gap E)", () => {
+  it("a layout change behind the button (its spot taken) charges nothing; the fresh quote builds; a replay does nothing", () => {
+    const s = startTour({ ...newTycoon(0), coins: 5000 }, "quick", 0);
+    const shown = playroomQuote(s, "large-active")!;
+    expect(shown.rooms[0]).toMatchObject({ type: "playroom", group: "large-active" });
+    expect(shown.things.map((x) => x.kind)).toContain("dog_bed");
+    // meanwhile a flower bed goes where that playroom would have been
+    const r0 = shown.rooms[0]!;
+    const blocked = ok(placeThing(s, "flowers", r0.c + 1, r0.r + 1, 0));
+    const coins = blocked.coins;
+    const r = buildPlayroomFor(blocked, "large-active", shown);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/as shown|no spot/);
+    expect(fac(blocked).rooms).toHaveLength(fac(s).rooms.length);
+    expect(blocked.coins).toBe(coins);
+    // from what the button shows now, it builds — once
+    const fresh = playroomQuote(blocked, "large-active")!;
+    const built = ok(buildPlayroomFor(blocked, "large-active", fresh));
+    expect(coins - built.coins).toBeLessThanOrEqual(fresh.cost); // (a level-up reward can come back)
+    expect(fac(built).rooms.at(-1)).toMatchObject({ type: "playroom", group: "large-active", c: fresh.rooms[0]!.c, r: fresh.rooms[0]!.r });
+    expect(buildPlayroomFor(built, "large-active", fresh).ok).toBe(false);
+    expect(fac(built).rooms.filter((x) => x.type === "playroom" && x.group === "large-active")).toHaveLength(1);
+  });
+});

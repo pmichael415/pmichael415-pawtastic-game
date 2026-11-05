@@ -76,5 +76,18 @@ describe("one set of numbers", () => {
     expect(num(v![1])).toBe(m.profitAtClose);
     unmount();
   });
+  it("Finances' Change in coins is what actually changed — tonight's costs aren't taken off before they're paid (audit gap F)", () => {
+    const s = midDay();
+    const m = todayMoney(s);
+    expect(m.dueTonight).toBeGreaterThan(0); // there is something still to pay tonight
+    const { unmount } = render(<FinancesSheet open state={s} act={() => ({ ok: false, error: "" })} onClose={() => {}} />);
+    const summary = within(screen.getByRole("tabpanel", { name: "Summary" }));
+    const change = summary.getByRole("row", { name: /^Change in coins/ });
+    expect(num(within(change).getAllByRole("cell")[1]!.textContent)).toBe(m.changeSoFar);
+    // the projected result is labelled as such, on its own row
+    const projected = summary.getByRole("row", { name: /^Operating profit by closing/ });
+    expect(num(within(projected).getAllByRole("cell")[1]!.textContent)).toBe(m.profitAtClose);
+    unmount();
+  });
 });
 

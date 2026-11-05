@@ -123,3 +123,36 @@ describe("every coin is on the books", () => {
     expect(gap(t)).toBe(gap(loaded));
   });
 });
+
+describe("refunds on an older save (audit gap D)", () => {
+  it("a refund larger than the bill, on a day with no ledger entry yet, is booked on today's entry — never yesterday's — and the books still add up after a reload", () => {
+    // an older save, loaded the morning after a day closed: its books end with yesterday
+    let s: TycoonState = ok(setOpen({ ...ok(quickStart(newTycoon(0))), tour: null }, true));
+    s = closeDay(s);
+    const f = fac(s);
+    const calm = f.rooms.find((r) => r.type === "calm")!.uid;
+    // a pup resting in the calm room whose bath was paid for in advance and never done; the family is here
+    const raw = JSON.parse(JSON.stringify(withFac(s, { ...f, clockMin: 10 * 60 })));
+    // an older save's books can end with yesterday (nothing recorded today yet) — loading accepts that
+    raw.facilities.f1.ledger = raw.facilities.f1.ledger.filter((d: { day: number }) => d.day < f.day);
+    raw.facilities.f1.dogs = [{ id: "dold", name: "Pepper", breed: 1, size: "small", temper: "gentle", visits: 1, place: { kind: "calm", room: calm }, checkedIn: true, happiness: 70, clean: 70, boarding: false, played: 0, bathed: false, visit: { owner: "Sam", requests: ["daycare", "bath"], prepaid: ["bath"], arrivedDay: f.day, arrived: 480, pickupDay: f.day, pickup: 600, ownerHere: 600, waitedLobby: 0, checkedInAt: 480, history: [], scuffle: false, safeMove: false, finishing: null, remedies: {}, paid: 25 } }];
+    let t = parseTycoon(raw)!;
+    expect(t).not.toBeNull();
+    expect(fac(t).ledger.at(-1)!.day).toBe(fac(t).day - 1);
+    const g0 = gap(t);
+    const yesterday = fac(t).ledger.at(-1)!;
+    expect(pickupView(t, "dold", false).options.billing).toContain("refund");
+    t = ok(remedy(t, "dold", "billing", "refund"));
+    t = ok(checkout(t, "dold", false));
+    expect(fac(t).outcomes.at(-1)!.total).toBe(-25);
+    const books = fac(t).ledger;
+    const todayEntry = books.find((d) => d.day === fac(t).day);
+    expect(todayEntry?.expenses.refunds).toBe(25);
+    expect(books.find((d) => d.day === yesterday.day)!.expenses.refunds).toBe(yesterday.expenses.refunds);
+    expect(todayEntry!.sales).toBe(0); // a refund is not a sale
+    expect(gap(t)).toBe(g0);
+    const reloaded = parseTycoon(JSON.parse(JSON.stringify(t)))!;
+    expect(gap(reloaded)).toBe(g0);
+    expect(reloaded.coins).toBe(t.coins);
+  });
+});
