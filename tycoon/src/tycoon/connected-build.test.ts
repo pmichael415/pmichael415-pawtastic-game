@@ -2,7 +2,7 @@
 // price before you pay; confirming builds room + door + path + type in one step for exactly that price, or refuses with
 // nothing charged. A door snaps into a neighbouring room when there is one; otherwise a path leads to the entrance.
 import { describe, expect, it } from "vitest";
-import { buildConnectedRoom, connectRoom, connectionPlan, placeInRoom, placeThing, planRoom, removeDoor, sellRoom, sellThing, spotInRoom } from "./build";
+import { buildConnectedRoom, connectRoom, connectionPlan, placeInRoom, placeThing, planRoom, planRoomOptions, removeDoor, sellRoom, sellThing, spotInRoom } from "./build";
 import { DOOR_PRICE } from "./catalog";
 import { connectedRooms, roomStatus } from "./connect";
 import { wayIn } from "./rooms";
@@ -158,5 +158,38 @@ describe("how a room is reached, and fixing it (empire milestone §2)", () => {
     const r = ok(connectRoom(s, room(s, "lobby").uid));
     expect(roomStatus(fac(r), room(r, "lobby")).connected).toBe(true);
     expect(roomStatus(fac(r), room(r, "playroom")).connected).toBe(true);
+  });
+});
+
+describe("choosing the entrance (milestone §3)", () => {
+  it("a spot offers every valid doorway with its own route and total, cheapest first; the first is the usual plan", () => {
+    const s = start();
+    const rect = { c: 11, r: 17, w: 3, d: 3 }; // out on the lot: several sides could take the door
+    const opts = planRoomOptions(fac(s), rect);
+    expect(opts.length).toBeGreaterThan(1);
+    const usual = planRoom(fac(s), rect);
+    if (!usual.ok) throw new Error("plan");
+    expect(opts[0]).toEqual(usual);
+    for (let i = 1; i < opts.length; i++) expect(opts[i]!.cost.total).toBeGreaterThanOrEqual(opts[i - 1]!.cost.total);
+    expect(new Set(opts.map((o) => `${o.door.side}${o.door.i}`)).size).toBe(opts.length);
+  });
+  it("building with a chosen (not the cheapest) entrance builds that doorway and route, for its price", () => {
+    const s = start();
+    const rect = { c: 11, r: 17, w: 3, d: 3 };
+    const pick = planRoomOptions(fac(s), rect).at(-1)!;
+    const r = ok(buildConnectedRoom(s, rect, "bath", undefined, pick));
+    const room = fac(r).rooms.at(-1)!;
+    expect(room.doors).toEqual([pick.door]);
+    expect(connectedRooms(fac(r)).has(room.uid)).toBe(true);
+    expect(spent(r) - spent(s)).toBe(pick.cost.total);
+  });
+  it("a chosen entrance whose route changed since it was shown charges nothing", () => {
+    const s = start();
+    const rect = { c: 11, r: 17, w: 3, d: 3 };
+    const pick = planRoomOptions(fac(s), rect).at(-1)!;
+    const changed = ok(sellThing(s, fac(s).items.find((i) => i.kind === "path" && i.c === 18 && i.r === 26)!.uid));
+    const r = buildConnectedRoom(changed, rect, "bath", undefined, pick);
+    expect(r.ok).toBe(false);
+    expect(fac(changed).rooms).toHaveLength(fac(s).rooms.length);
   });
 });

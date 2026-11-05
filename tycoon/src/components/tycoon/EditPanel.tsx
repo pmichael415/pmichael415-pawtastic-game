@@ -8,7 +8,7 @@ import { ROOM_TYPE_NAMES, SELL_RATE, furnitureDef, outdoorDef, upgradePrice } fr
 import { connectRoom, connectionPlan, moveThing, sellRoom, sellThing, setClosed, setRoomType, upgradeThing } from "@/tycoon/build";
 import { upkeepOf } from "@/tycoon/business";
 import { roomCleanOf, wayIn } from "@/tycoon/rooms";
-import { applyStaffPlan, roomServes, staffPlanFor } from "@/tycoon/roomCare";
+import { applyStaffPlan, roomReadiness, roomServes, staffPlanFor } from "@/tycoon/roomCare";
 import { clean } from "@/tycoon/run";
 import { roomStatus } from "@/tycoon/connect";
 import { isActive } from "@/tycoon/paid";
@@ -98,6 +98,16 @@ export function EditPanel({
             <p className="text-xs text-muted-foreground">
               {room.w} × {room.d} · {dogs} pup{dogs === 1 ? "" : "s"} inside · upkeep {upkeepOf(room)}/day
             </p>
+            {room.type && room.type !== "lobby" && (
+              // connected, furnished, staffed, operating — four states, told apart (milestone §3)
+              <ol aria-label="Room readiness" className="mt-1 space-y-0.5 text-xs">
+                {roomReadiness(f, room).map((x) => (
+                  <li key={x.step} className={x.done ? "text-success" : "font-semibold text-secondary"}>
+                    {x.done ? "✓" : "○"} {x.text}
+                  </li>
+                ))}
+              </ol>
+            )}
             {status.reason && <p className="mt-1 text-sm font-semibold text-destructive">{status.reason}</p>}
             {(() => {
               // How you get in — or why you can't, with a one-tap fix (empire milestone §2).

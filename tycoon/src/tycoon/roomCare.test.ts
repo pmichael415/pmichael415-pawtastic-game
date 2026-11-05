@@ -1,7 +1,8 @@
 // Running a new room (empire milestone §6): after you build it, its panel says who looks after it — with one tap to
 // give that job to someone free or hire for it — and what it does for families.
 import { describe, expect, it } from "vitest";
-import { applyStaffPlan, roomServes, staffPlanFor } from "./roomCare";
+import { applyStaffPlan, roomReadiness, roomServes, staffPlanFor } from "./roomCare";
+import { buildConnectedRoom, placeInRoom } from "./build";
 import { buyExpansion } from "./expansion";
 import { xpForLevel } from "./progress";
 import { quickStart } from "./start";
@@ -65,5 +66,34 @@ describe("what a room does for families", () => {
     const s = ok(buyExpansion(grown(), "bath"));
     expect(roomServes(fac(s), room(s, "bath"))).toMatch(/^1 tub — families who book a bath or an exit bath get one here/);
     expect(roomServes(fac(s), room(s, "playroom"))).toMatch(/^\d+ spots for Small & Gentle pups/);
+  });
+});
+
+describe("a room's four states, told apart (milestone §3)", () => {
+  it("built by hand: connected but not furnished, so not operating; furnished: operating, run by you; staffed: run by them; serving pups by name", () => {
+    let s: TycoonState = { ...grown(), coins: 20000 };
+    s = ok(buildConnectedRoom(s, { c: 11, r: 17, w: 3, d: 3 }, "bath"));
+    const uid = fac(s).rooms.at(-1)!.uid;
+    let st = roomReadiness(fac(s), fac(s).rooms.find((r) => r.uid === uid)!);
+    expect(st.map((x) => x.step)).toEqual(["connected", "furnished", "staffed", "operating"]);
+    expect(st[0]).toMatchObject({ done: true });
+    expect(st[1]).toMatchObject({ done: false, text: expect.stringMatching(/tub/i) });
+    expect(st[3]).toMatchObject({ done: false });
+    s = ok(placeInRoom(s, uid, "bath_tub"));
+    st = roomReadiness(fac(s), fac(s).rooms.find((r) => r.uid === uid)!);
+    expect(st[1]!.done).toBe(true);
+    expect(st[2]).toMatchObject({ done: false, text: expect.stringMatching(/you/i) }); // you run it yourself until someone does
+    expect(st[3]!.done).toBe(true);
+    s = ok(applyStaffPlan(s, staffPlanFor(fac(s), fac(s).rooms.find((r) => r.uid === uid)!)));
+    st = roomReadiness(fac(s), fac(s).rooms.find((r) => r.uid === uid)!);
+    expect(st[2]!.done).toBe(true);
+  });
+  it("operating says which pups it is serving now", () => {
+    const s = ok(buyExpansion(grown(), "playroom"));
+    const play = fac(s).rooms.at(-1)!;
+    const dog = { id: "dx", name: "Juno", breed: 1, size: "large" as const, temper: "active" as const, visits: 1, place: { kind: "room" as const, room: play.uid }, checkedIn: true, happiness: 80, clean: 80, boarding: false, played: 1, bathed: false };
+    const f = { ...fac(s), dogs: [dog] };
+    const st = roomReadiness(f, play);
+    expect(st[3]).toMatchObject({ done: true, text: expect.stringMatching(/Juno/) });
   });
 });

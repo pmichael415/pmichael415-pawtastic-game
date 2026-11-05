@@ -567,6 +567,37 @@ export function planRoom(f: Facility, rect: { c: number; r: number; w: number; d
   return { ok: true, rect, door: plan.door, doorOn: null, inner: plan.door, via, paths: plan.paths, cost: { room, door: DOOR_PRICE, paths, total: room + DOOR_PRICE + paths } };
 }
 
+/**
+ * Every way in a room drawn here could have (milestone §3, "choose the entrance"): each valid doorway with its own route
+ * to the entrance and total, cheapest first (so the first is planRoom's usual choice). A room too small for a door of
+ * its own gets the doorway on its neighbour's wall. Empty when there's no way in.
+ */
+export function planRoomOptions(f: Facility, rect: { c: number; r: number; w: number; d: number }): Extract<RoomPlan, { ok: true }>[] {
+  const draft: Room = { uid: "plan", ...rect, type: null, group: null, doors: [], floor: "wood", wall: WALL_COLORS[0]!, spent: 0, closed: false };
+  if (validRoomAt(f, draft)) return [];
+  const reached = reach(f);
+  const room = roomPrice(rect.w, rect.d);
+  const per = outdoorDef("path")!.price;
+  const out: Extract<RoomPlan, { ok: true }>[] = [];
+  for (const side of SIDES) {
+    const len = side === "N" || side === "S" ? rect.w : rect.d;
+    for (let i = 1; i < len - 1; i++) {
+      const door: Door = { side, i };
+      if (doorLimitError(f, { ...draft, doors: [door] })) continue;
+      const paths = routeFor(f, draft, door, reached);
+      if (!paths || tooFull(f, paths.length)) continue;
+      const o = doorOutside(draft, door);
+      const via = paths.length === 0 ? (f.rooms.find((x) => containsTile(x, o) && reached.rooms.has(x.uid))?.uid ?? null) : null;
+      out.push({ ok: true, rect, door, doorOn: null, inner: door, via, paths, cost: { room, door: DOOR_PRICE, paths: paths.length * per, total: room + DOOR_PRICE + paths.length * per } });
+    }
+  }
+  if (!out.length) {
+    const n = neighbourDoor(f, rect, reached);
+    if (n) out.push({ ok: true, rect, door: n.door, doorOn: n.room, inner: n.inner, via: n.room, paths: [], cost: { room, door: DOOR_PRICE, paths: 0, total: room + DOOR_PRICE } });
+  }
+  return out.sort((a, b) => a.paths.length - b.paths.length); // stable: equal routes keep wall order (planRoom's choice first)
+}
+
 /** Every doorway into a room: its own doors and those on other rooms' walls that open into it. */
 function openingsInto(f: Facility, room: Room): number {
   return room.doors.length + f.rooms.reduce((n, x) => (x.uid === room.uid ? n : n + x.doors.filter((d) => containsTile(room, doorOutside(x, d))).length), 0);
@@ -611,8 +642,15 @@ function planChanged(now: { door: Door; doorOn?: string | null; paths: { c: numb
 
 export function buildConnectedRoom(s: TycoonState, rect: { c: number; r: number; w: number; d: number }, type: RoomType | null, group?: GroupId, shown?: number | ShownPlan): TResult {
   if (type === "playroom" && !group) return { ok: false, error: "Pick a group for this playroom." };
-  const plan = planRoom(fac(s), rect);
-  if (!plan.ok) return { ok: false, error: plan.reason };
+  const usual = planRoom(fac(s), rect);
+  if (!usual.ok) return { ok: false, error: usual.reason };
+  // the entrance the player chose (milestone §3): that doorway's plan as it stands now, or the usual one
+  const chosen =
+    typeof shown === "object" && shown.door
+      ? planRoomOptions(fac(s), rect).find((o) => sameDoor(o.door, shown.door) && (o.doorOn ?? null) === (shown.doorOn ?? null))
+      : usual;
+  if (!chosen) return { ok: false, error: "That entrance isn't possible any more — check the spot and confirm again." };
+  const plan = chosen;
   // you get exactly what you saw — the doorway, the route and the price — or nothing changes
   if (typeof shown === "number" && shown !== plan.cost.total) return { ok: false, error: `The plan changed since you saw it (now ${plan.cost.total.toLocaleString("en-US")} coins) — check it and confirm again.` };
   if (typeof shown === "object") {

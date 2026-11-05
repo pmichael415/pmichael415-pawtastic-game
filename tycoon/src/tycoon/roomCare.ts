@@ -3,7 +3,7 @@
 // setRole, setRooms), so wages and roles follow the usual rules.
 import { groupName } from "@/game/engine";
 import { WAGES } from "./business";
-import { caps } from "./connect";
+import { caps, roomStatus } from "./connect";
 import { ROLE_NAME } from "./roles";
 import { roomName } from "./rooms";
 import { canHire, hire, hireCostFor, liveRooms, setRole, setRooms } from "./team";
@@ -85,4 +85,29 @@ export function roomServes(f: Facility, room: Room): string {
     default:
       return `${roomName(f, room.uid)}: pick what it's for.`;
   }
+}
+
+export type ReadinessStep = { step: "connected" | "furnished" | "staffed" | "operating"; done: boolean; text: string };
+/**
+ * A room's four states, told apart (milestone §3): connected (a way in), furnished (what the room needs to work),
+ * staffed (who runs it — "you" counts as an honest not-yet) and operating (open, working, and which pups it serves now).
+ */
+export function roomReadiness(f: Facility, room: Room): ReadinessStep[] {
+  const st = roomStatus(f, room);
+  const furnishedWhy = st.reason && st.reason.startsWith("Needs") ? st.reason : null;
+  const staff = staffPlanFor(f, room);
+  const inside = f.dogs.filter((d) => (d.place.kind === "room" || d.place.kind === "bed" || d.place.kind === "calm") && d.place.room === room.uid);
+  const bathing = room.type === "bath" ? f.dogs.filter((d) => d.bathing && caps(f).tubs.some((t) => t.uid === d.bathTub && t.room === room.uid)) : [];
+  const serving = [...inside, ...bathing];
+  const names = (xs: { name: string }[]) => (xs.length <= 3 ? xs.map((x) => x.name).join(", ") : `${xs.slice(0, 3).map((x) => x.name).join(", ")} and ${xs.length - 3} more`);
+  return [
+    { step: "connected", done: st.connected, text: st.connected ? "Connected — there's a way in from the entrance" : "Not connected — nobody can get in yet" },
+    { step: "furnished", done: !furnishedWhy, text: furnishedWhy ? `${furnishedWhy} to work` : "Furnished — it has what it needs" },
+    { step: "staffed", done: staff.kind === "covered" || staff.kind === "none", text: staff.kind === "none" ? "No staff needed" : staff.kind === "covered" ? staff.text.replace(/^✓ /, "") : "Run by you for now — someone can take it over" },
+    {
+      step: "operating",
+      done: st.working && !room.closed,
+      text: room.closed ? "Closed — reopen it to use it" : !st.working ? "Not operating yet" : serving.length ? `Operating — serving ${names(serving)} now` : "Operating — ready for pups",
+    },
+  ];
 }

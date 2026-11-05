@@ -19,7 +19,7 @@ vi.mock("@/components/tycoon/TycoonStage", async () => {
 
 import { TycoonPlay } from "./TycoonPlay";
 import { KEY, tycoonStore } from "@/tycoon/store";
-import { planRoom, removeDoor, sellThing } from "@/tycoon/build";
+import { placeInRoom, planRoom, removeDoor, sellThing } from "@/tycoon/build";
 import { connectedRooms } from "@/tycoon/connect";
 import { xpForLevel } from "@/tycoon/progress";
 import { quickStart } from "@/tycoon/start";
@@ -243,5 +243,53 @@ describe("stale and queued confirmations through the screen (audit gap G)", () =
     });
     expect(spent(now()) - before).toBe(price);
     expect(connectedRooms(fac(now())).has(play.uid)).toBe(true);
+  });
+});
+
+describe("choosing the entrance (milestone §3)", () => {
+  it("Next entrance moves the door on the outline and its route and total with it; Build here builds that door, for that price", () => {
+    start();
+    tool("Rooms");
+    fireEvent.click(button("Bath Room"));
+    tap({ kind: "tile", c: 12, r: 18 }); // out on the lot: more than one wall could take the door
+    const entrance = within(screen.getByRole("group", { name: "Entrance" }));
+    expect(entrance.getByText(/^Entrance 1 of \d+ · the cheapest$/)).toBeTruthy();
+    const first = ghost();
+    const total = () => Number(screen.getAllByText(/^Bath Room 3 × 2 · Room \d+ \+ door 30( \+ path \d+ × 10)? = \d+$/)[0]!.textContent!.split("= ")[1]);
+    const cheapest = total();
+    fireEvent.click(entrance.getByRole("button", { name: "Next entrance" }));
+    const second = ghost();
+    expect(second.door).not.toEqual(first.door);
+    const shown = total();
+    expect(shown).toBeGreaterThanOrEqual(cheapest);
+    const before = spent(now());
+    fireEvent.click(button(new RegExp(`^Build here · ${shown}`)));
+    const room = fac(now()).rooms.at(-1)!;
+    expect(room.type).toBe("bath");
+    expect(room.doors).toEqual([second.door]);
+    expect(spent(now()) - before).toBe(shown);
+    expect(connectedRooms(fac(now())).has(room.uid)).toBe(true);
+  });
+});
+
+describe("a new room's four states on its panel (milestone §3)", () => {
+  it("after building and furnishing a bath room, its panel shows connected, furnished, run by you, operating", () => {
+    start();
+    tool("Rooms");
+    fireEvent.click(button("Bath Room"));
+    tap({ kind: "tile", c: 12, r: 18 });
+    fireEvent.click(button(/^Build here/));
+    const uid = fac(now()).rooms.at(-1)!.uid;
+    fireEvent.click(button("Done building"));
+    tap({ kind: "room", uid });
+    let steps = within(screen.getByRole("list", { name: "Room readiness" })).getAllByRole("listitem").map((li) => li.textContent);
+    expect(steps[0]).toMatch(/^✓ Connected/);
+    expect(steps[1]).toMatch(/^○ Needs a bath tub/);
+    expect(steps[3]).toMatch(/^○ Not operating yet/);
+    act(() => tycoonStore.dispatch((s) => placeInRoom(s, uid, "bath_tub")));
+    steps = within(screen.getByRole("list", { name: "Room readiness" })).getAllByRole("listitem").map((li) => li.textContent);
+    expect(steps[1]).toMatch(/^✓ Furnished/);
+    expect(steps[2]).toMatch(/^○ Run by you/);
+    expect(steps[3]).toMatch(/^✓ Operating/);
   });
 });

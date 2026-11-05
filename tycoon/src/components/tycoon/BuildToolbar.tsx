@@ -5,7 +5,7 @@ import { GROUPS } from "@/game/engine";
 import type { GroupId } from "@/game/engine";
 import { spendWarning } from "@/tycoon/business";
 import { DOOR_PRICE, ONE_PER_FACILITY, ROOM_MAX, ROOM_MIN, ROOM_TYPE_NAMES, SELL_RATE, furnitureDef, outdoorDef, thingName } from "@/tycoon/catalog";
-import { DEFAULT_ROOM_SIZE, addDoor, buildConnectedRoom, costLine, moveRoom, moveThing, paintPaths, placeThing, planRoom, removeDoor, roomContaining, setRoomType, spotInRoom, validRoomAt, validThingAt, type RoomPlan } from "@/tycoon/build";
+import { DEFAULT_ROOM_SIZE, addDoor, buildConnectedRoom, costLine, moveRoom, moveThing, paintPaths, placeThing, planRoom, planRoomOptions, removeDoor, roomContaining, setRoomType, spotInRoom, validRoomAt, validThingAt, type RoomPlan } from "@/tycoon/build";
 import { OPPOSITE, containsTile, roomPrice, stepFrom, thingTiles, type Tile } from "@/tycoon/grid";
 import { roomStatus } from "@/tycoon/connect";
 import { level } from "@/tycoon/progress";
@@ -52,11 +52,13 @@ export type BuildUi = {
   group: GroupId | null;
   size: { w: number; d: number } | null;
   spot: Tile | null;
+  /** Which of the spot's possible entrances is chosen (0: the usual, cheapest one). */
+  entrance: number;
   /** The room being furnished (chosen first), and whether its catalog is open. */
   dest: string | null;
   browse: boolean;
 };
-const EMPTY: BuildUi = { tool: null, corner: null, end: null, typing: null, door: null, doorError: null, item: null, at: null, rot: 0, moving: null, movingRoom: null, roomAt: null, paths: [], kind: null, group: null, size: null, spot: null, dest: null, browse: false };
+const EMPTY: BuildUi = { tool: null, corner: null, end: null, typing: null, door: null, doorError: null, item: null, at: null, rot: 0, moving: null, movingRoom: null, roomAt: null, paths: [], kind: null, group: null, size: null, spot: null, entrance: 0, dest: null, browse: false };
 
 const onSide = (room: Room, c: number, r: number, side: Side) =>
   side === "N" ? r === room.r : side === "S" ? r === room.r + room.d - 1 : side === "W" ? c === room.c : c === room.c + room.w - 1;
@@ -98,10 +100,16 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
     let plan: RoomPlan | null = null;
     let connection: string | null = null;
     let placeAt: { at: Tile; rot: Rot } | null = null;
+    let entrances = 0;
+    let entranceIx = 0;
     if (ui.tool === "rooms" && ui.kind && ui.size && ui.spot) {
       const rect = rectAt(ui.spot, ui.size);
       const name = ROOM_TYPE_NAMES[ui.kind];
-      plan = planRoom(f, rect);
+      // every way in this spot allows (milestone §3): the chosen one shows its door, route and total
+      const opts = planRoomOptions(f, rect);
+      entrances = opts.length;
+      entranceIx = opts.length ? ((ui.entrance % opts.length) + opts.length) % opts.length : 0;
+      plan = opts[entranceIx] ?? planRoom(f, rect);
       reason = plan.ok ? short(state, plan.cost.total) : plan.reason;
       label = `${name} ${rect.w} × ${rect.d}${plan.ok ? ` · ${costLine(plan.cost)}` : ""}`;
       connection = connectionLine(f, plan);
@@ -157,7 +165,7 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
       ghost = { kind: "paths", tiles: ui.paths, ok: !reason };
     }
     const pickMode: PickMode = ui.tool === "doors" ? "edges" : ui.movingRoom || ui.tool === "rooms" || ui.tool === "paths" || ((ui.tool === "furniture" || ui.tool === "outdoor") && ui.item) ? "tiles" : "objects";
-    return { ghost, label, reason, pickMode, plan, connection, placeAt };
+    return { ghost, label, reason, pickMode, plan, connection, placeAt, entrances, entranceIx };
   }, [ui, f, state]);
 
   /** Handles a tap while building. Returns false when the tap is for selection (no tool, Paint or Sell). */
@@ -170,7 +178,7 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
     switch (ui.tool) {
       case "rooms":
         if (p.kind !== "tile") return true;
-        if (ui.kind) patch({ spot: { c: p.c, r: p.r } });
+        if (ui.kind) patch({ spot: { c: p.c, r: p.r }, entrance: 0 });
         else if (!ui.corner || ui.end || ui.typing) patch({ corner: { c: p.c, r: p.r }, end: null, typing: null });
         else patch({ end: { c: p.c, r: p.r } });
         return true;
@@ -230,13 +238,13 @@ export function useBuild(state: TycoonState, act: Act, fx: FxFn) {
     if (res.ok) setUi({ ...EMPTY, tool: "furniture", dest: uid }); // furnishing it is next
   }
   /** Type-first: choose what to build; its usual size is the starting outline. */
-  const chooseKind = (kind: RoomType, group?: GroupId) => patch({ kind, group: group ?? null, size: DEFAULT_ROOM_SIZE[kind], spot: null, corner: null, end: null });
+  const chooseKind = (kind: RoomType, group?: GroupId) => patch({ kind, group: group ?? null, size: DEFAULT_ROOM_SIZE[kind], spot: null, entrance: 0, corner: null, end: null });
   const resize = (dw: number, dd: number) => {
     if (!ui.size) return;
     const clamp = (n: number) => Math.min(ROOM_MAX, Math.max(ROOM_MIN, n));
-    patch({ size: { w: clamp(ui.size.w + dw), d: clamp(ui.size.d + dd) } });
+    patch({ size: { w: clamp(ui.size.w + dw), d: clamp(ui.size.d + dd) }, entrance: 0 });
   };
-  const turn = () => ui.size && patch({ size: { w: ui.size.d, d: ui.size.w } });
+  const turn = () => ui.size && patch({ size: { w: ui.size.d, d: ui.size.w }, entrance: 0 });
   /** Confirm: room + door + path + type in one step, charged once for exactly the price shown; then furnish it. */
   function buildHere() {
     const plan = derived.plan;
@@ -396,6 +404,20 @@ export function BuildToolbar({ b, state, act, onBuyPack, hidePaid = false }: { b
           {!ui.spot && <p className="text-sm text-muted-foreground">Tap where it goes. The outline shows its door and the way in; nothing is charged until you confirm.</p>}
           {b.label && ui.spot && <p className="font-display text-lg font-bold text-secondary">{b.label}</p>}
           {b.connection && <p className="text-sm font-semibold text-success">✓ {b.connection}</p>}
+          {ui.spot && b.entrances > 1 && (
+            <div className="flex items-center gap-2" role="group" aria-label="Entrance">
+              <Button variant="outline" size="sm" className="h-11" aria-label="Previous entrance" onClick={() => b.patch({ entrance: b.entranceIx - 1 })}>
+                ◀
+              </Button>
+              <p className="min-w-0 flex-1 text-center text-xs font-semibold text-secondary">
+                Entrance {b.entranceIx + 1} of {b.entrances}
+                {b.entranceIx === 0 ? " · the cheapest" : ""}
+              </p>
+              <Button variant="outline" size="sm" className="h-11" aria-label="Next entrance" onClick={() => b.patch({ entrance: b.entranceIx + 1 })}>
+                ▶
+              </Button>
+            </div>
+          )}
           {b.reason && <p className="text-sm font-semibold text-destructive">{b.reason}</p>}
           {b.plan?.ok && !b.reason && spendWarning(state, b.plan.cost.total) && <p className="text-xs font-semibold text-amber-700">⚠️ {spendWarning(state, b.plan.cost.total)}</p>}
           <div className="flex flex-wrap gap-2">
