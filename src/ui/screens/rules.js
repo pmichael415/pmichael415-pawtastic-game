@@ -8,6 +8,8 @@ import { topBar } from '../topbar.js';
 import { isPublicSite } from '../../backend/local.js';
 import { REFUND_POLICY } from '../payments.js';
 import { PASS, formatUsd } from '../../economy/catalog.js';
+import { weekKey } from '../../engine/challenge.js';
+import { seasonOf } from '../season.js';
 
 const SITE_URL = 'https://pawtasticacademy.com';
 // The player counter (src/net/player-count.js).
@@ -61,8 +63,20 @@ function referralTerms() {
 }
 
 // The Weekly Challenge and leaderboards. Prizes are real-world services given at the front desk.
+// During a season (Season 1: Top Dog) its terms come first: they replace the weekly prizes for its weeks.
+function seasonTerms() {
+  const season = seasonOf(weekKey(Date.now()));
+  if (!season) return [];
+  return [
+    h('h2', {}, season.name),
+    h('p', {}, `${season.name} runs from Monday 9 November 2026, 12:00 am, to Saturday 5 December 2026, 11:59 pm (New York time), in four chapters. Each chapter is one week (the last ends on Saturday) and plays the same Weekly Challenge board for everyone that week, under the rules below. Your best score in each chapter is added up to make your season score; a chapter you don't play adds nothing. No purchase necessary, and buying anything never helps.`),
+    h('p', {}, "No weekly prizes are given during the season. When it ends, the top 3 players at each location by season score win the season's prizes shown in the game, for one dog. Your location for the season is the one of your first run in the season. Ties go to the player who reached their latest counted score first. The team bar compares the average of each location's top 10 season scores and wins no prize."),
+  ];
+}
+
 function competeTerms() {
   return [
+    ...seasonTerms(),
     h('h2', {}, 'Weekly Challenge and leaderboards'),
     h('p', {}, 'No purchase necessary. Every week (Monday 12:00 am to Sunday 11:59 pm, New York time) everyone plays the same Weekly Challenge board with 25 moves. Boosters and extra moves cannot be used, and tries are free, so buying anything never helps. Your best score of the week counts.'),
     h('p', {}, "To be ranked you sign in and pick your PAWtastic (Hawthorne or Hillsdale). When the week ends, the top 3 players at each location win that week's prizes, for one dog. Each week's prizes are shown in the game during that week (for example a free day of daycare or a free bath); a week without other prizes shown awards 1st place a free day of daycare and 2nd and 3rd place a free bath. Ties go to the player who reached the score first. Scores are checked by our server, which replays every move."),

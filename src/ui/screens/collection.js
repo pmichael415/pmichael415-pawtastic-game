@@ -6,10 +6,13 @@ import { h } from '../dom.js';
 import { topBar } from '../topbar.js';
 import { TROPHIES } from '../../economy/wallet.js';
 import { CHALLENGES, CHALLENGE_IDS, weekKey, TIER_NAMES, TIER_ORDER } from '../../engine/challenge.js';
-import { weekRules, tierMark, challengeName, formatTeaser } from '../compete.js';
+import { weekRules, tierMark, challengeName, formatTeaser, weekSeason } from '../compete.js';
+import { seasonFor, chapterOf } from '../../engine/challenge.js';
 
 const num = n => Number(n || 0).toLocaleString('en-US');
 const weekLabel = key => {
+  const season = seasonFor(key); // a season's weeks are its chapters
+  if (season) return `${season.name} · Chapter ${chapterOf(key)}`;
   const [y, m, d] = String(key).split('-').map(Number);
   if (!y) return key;
   return `Week of ${new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`;
@@ -41,6 +44,7 @@ export function render(app) {
   const bar = topBar(app, { title: 'Badges & trophies', back: () => app.go('map') });
   const week = weekKey(Date.now());
   const rules = weekRules(week);
+  const season = weekSeason(week);
   const collection = state.collection ?? { badges: [], trophies: [], runs: 0 };
   const results = backend.weeklyResults?.(week) ?? {};
   const goldCount = collection.badges.filter(b => b.tier === 'gold').length;
@@ -54,8 +58,8 @@ export function render(app) {
     goldCount ? h('p', { class: 'small muted' }, `${goldCount} gold ${goldCount === 1 ? 'badge' : 'badges'} so far.`) : h('p', { class: 'small muted' }, 'Badges are earned by score in each Weekly Challenge: bronze at 15,000, silver at 25,000, gold at 38,000.'));
 
   // This week: each challenge in play, the best so far, the badge held and the next target.
-  const thisWeek = h('section', { class: 'card stack', 'aria-label': 'This week' },
-    h('h2', {}, 'This week'),
+  const thisWeek = h('section', { class: 'card stack', 'aria-label': season ? 'This chapter' : 'This week' },
+    h('h2', {}, season ? `This chapter (${season.chapter} of ${season.chapters})` : 'This week'),
     ...rules.challenges.map(id => {
       const best = results[id]?.best ?? (id === 'high-score' && state.weekly.week === week ? state.weekly.best : 0);
       const badge = collection.badges.find(b => b.week === week && b.challenge === id);
@@ -91,7 +95,7 @@ export function render(app) {
     })));
 
   app.view.append(bar, h('section', { class: 'collection stack' }, h('h1', {}, 'Badges & trophies'), summary, thisWeek, badges, trophies,
-    h('p', { class: 'small muted center' }, 'Badges and trophies are yours to keep and can’t be bought. Real prizes come from the weekly leaderboard, where boosters never count.')));
+    h('p', { class: 'small muted center' }, `Badges and trophies are yours to keep and can’t be bought. Real prizes come from the ${season ? 'season' : 'weekly'} leaderboard, where boosters never count.`)));
   return () => bar.stop();
 }
 

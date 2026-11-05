@@ -5,6 +5,10 @@
 // Weeks on the three-challenge format (version 2) offer three runs all week: the High score run, the
 // Combo run (chain reactions only, scaled so it counts like a high score run) and the Cleanup puzzle
 // (clear every muddy paw print and leash). The best result in each is added up for the leaderboard.
+//
+// In a season (Season 1: Top Dog) each week is a chapter: the same High score run, and the best run of each
+// chapter is added up to the season score; the screen says "chapter" where it says "week", and after a run
+// shows the season standing too.
 
 import { h, fill } from '../dom.js';
 import { closeIcon, starIcon } from '../icons.js';
@@ -21,7 +25,9 @@ import { isPublicSite } from '../../backend/local.js';
 import { TROPHIES } from '../../economy/wallet.js';
 import {
   prizeLine, endsInText, homeName, keepPendingRun, pickHome, syncProfile, loadWeekPrizes, weekRules, formatTeaser, tierMark, challengeName,
+  weekSeason, competitionLine,
 } from '../compete.js';
+import { seasonCountdown, SEASON_TEXT } from '../season.js';
 import { shareResult } from '../share-card.js';
 import { LOCATIONS } from '../../engine/levels.js';
 
@@ -36,25 +42,25 @@ const num = n => Number(n || 0).toLocaleString('en-US');
 const trophyName = id => TROPHIES.find(t => t.id === id)?.name ?? id;
 
 /** The badge line after a run: the badge just earned, or the next one and how far it is. */
-export function badgeLine(challenge, score, { newBadge = null, had = null } = {}) {
+export function badgeLine(challenge, score, { newBadge = null, had = null, period = 'week' } = {}) {
   if (newBadge) return `${tierMark(newBadge)} ${TIER_NAMES[newBadge]} badge earned!`;
   const tiers = CHALLENGES[challenge].tiers;
   const names = ['bronze', 'silver', 'gold'];
   const held = had ? TIER_ORDER[had] : 0;
   const target = names.find(n => TIER_ORDER[n] > held);
-  if (!target) return `${tierMark('gold')} Gold badge held this week: the top!`;
+  if (!target) return `${tierMark('gold')} Gold badge held this ${period}: the top!`;
   const goal = tiers[names.indexOf(target)];
   const need = Math.max(1, goal - score);
   if (had) return `${tierMark(had)} ${TIER_NAMES[had]} badge held · ${num(need)} more for ${TIER_NAMES[target]}`;
   return `${TIER_NAMES[target]} badge at ${num(goal)} · ${num(need)} to go`;
 }
 
-/** The personal-best line: a first run, a new best (by how much), or how far off the best this run was. */
-export function bestLine(score, previousBest, runs) {
-  if (!previousBest || runs <= 1) return 'Your first run this week sets the mark.';
+/** The personal-best line: a first run, a new best (by how much), or how far off the best this run was. `period` is "chapter" in a season. */
+export function bestLine(score, previousBest, runs, period = 'week') {
+  if (!previousBest || runs <= 1) return `Your first run this ${period} sets the mark.`;
   if (score > previousBest) return `New personal best: +${num(score - previousBest)} over your ${num(previousBest)}.`;
-  if (score === previousBest) return `Tied your best this week (${num(previousBest)}).`;
-  return `${num(previousBest - score)} short of your best this week (${num(previousBest)}).`;
+  if (score === previousBest) return `Tied your best this ${period} (${num(previousBest)}).`;
+  return `${num(previousBest - score)} short of your best this ${period} (${num(previousBest)}).`;
 }
 
 export function render(app, params = {}) {
@@ -69,12 +75,14 @@ export function render(app, params = {}) {
   const def = CHALLENGES[challenge];
   const beat = params.beat === true || isChallengeId(params.beat);
   const v2 = rules.version === 2;
+  const season = weekSeason(week); // null outside a season
+  const period = season ? 'chapter' : 'week';
   // The server decides which week it is (a phone clock can be wrong) and which format it plays; this
   // reloads the screen when the answer differs from what the phone assumed.
   loadWeekPrizes(app).then(() => {
     const now = weekKey(Date.now());
     const fresh = weekRules(now);
-    if (now !== week || fresh.version !== rules.version) { week = now; app.go('challenge', params); }
+    if (now !== week || fresh.version !== rules.version || !weekSeason(now) !== !season) { week = now; app.go('challenge', params); }
   }).catch(() => {});
 
   const game = newChallengeGame(week, challenge);
@@ -107,7 +115,7 @@ export function render(app, params = {}) {
       subText.textContent = `Chain points ${num(combo)} · best chain ${bestChain}`;
     }
     const best = bestOf();
-    bestText.textContent = best ? `Your best: ${num(best)}` : 'No result yet this week';
+    bestText.textContent = best ? `Your best: ${num(best)}` : `No result yet this ${period}`;
   };
 
   const leave = () => {
@@ -124,7 +132,9 @@ export function render(app, params = {}) {
   const header = h('div', { class: 'level-head' },
     h('button', { class: 'btn secondary icon-btn', type: 'button', 'aria-label': 'Leave the challenge', onClick: leave, html: closeIcon() }),
     h('div', { class: 'level-title' },
-      h('p', { class: 'eyebrow' }, `${beat ? 'Beat My Pup' : 'Weekly Challenge'} · ${endsInText(week)}`),
+      h('p', { class: 'eyebrow' }, season
+        ? `${beat ? 'Beat My Pup' : `Chapter ${season.chapter} of ${season.chapters}`} · ${seasonCountdown(season).replace(/^Season/, 'season')}`
+        : `${beat ? 'Beat My Pup' : 'Weekly Challenge'} · ${endsInText(week)}`),
       h('h2', {}, def.name)),
     movesEl);
   const goalBar = h('div', { class: 'goal-bar card' },
@@ -132,8 +142,8 @@ export function render(app, params = {}) {
     challenge === 'high-score' ? h('span', { class: 'goal-text' }, `Score as much as you can in ${movesFor(challenge)} moves`) : subText,
     h('span', { class: 'spacer' }), scoreText);
   const infoText = beat
-    ? `A friend challenged you to this week's ${def.name}. Beat the result on their card! `
-    : challenge === 'high-score' ? 'Same board for everyone this week. No boosters, and tries are free. ' : `${def.goal} ${def.scoring} Same board for everyone; no boosters, and tries are free. `;
+    ? `A friend challenged you to this ${period}'s ${def.name}. Beat the result on their card! `
+    : challenge === 'high-score' ? `Same board for everyone this ${period}. No boosters, and tries are free. ` : `${def.goal} ${def.scoring} Same board for everyone; no boosters, and tries are free. `;
   const info = h('p', { class: 'small muted challenge-info' }, infoText, bestText);
   const fallbackNote = wanted !== challenge
     ? h('p', { class: 'small card' }, `${challengeName(wanted)}s start with the three-challenge format${formatTeaser(rules) ? ` (${formatTeaser(rules).replace(/^From/, 'from').replace(/:.*$/, '')})` : ''}. Here is this week's ${def.name}.`)
@@ -182,12 +192,12 @@ export function render(app, params = {}) {
       return h('p', { class: 'small num' }, h('strong', {}, `Your total this week: ${num(total)}`), ' · ', CHALLENGE_IDS.map(id => `${CHALLENGES[id].short} ${num(r[id]?.best ?? 0)}`).join(' · '));
     })() : null;
     result.append(...[
-      h('p', { class: 'eyebrow' }, `Weekly Challenge · ${def.name}`),
+      h('p', { class: 'eyebrow' }, season ? `${season.name} · Chapter ${season.chapter}` : `Weekly Challenge · ${def.name}`),
       h('h2', {}, newBadge ? `${TIER_NAMES[newBadge]} badge!` : best && runs > 1 ? 'New personal best!' : 'Run complete'),
       h('p', { class: 'big-score num' }, num(score)),
       detail ? h('p', { class: 'small muted' }, detail) : null,
-      h('p', { class: 'small num' }, bestLine(score, previousBest, runs), ` Best this week: ${num(bestScore)}.`),
-      h('p', { class: 'small badge-line' }, badgeLine(challenge, score, { newBadge, had })),
+      h('p', { class: 'small num' }, bestLine(score, previousBest, runs, period), ` Best this ${period}: ${num(bestScore)}.`),
+      h('p', { class: 'small badge-line' }, badgeLine(challenge, score, { newBadge, had, period })),
       newTrophies.length ? h('p', { class: 'small trophy-line' }, `🏆 Trophy${newTrophies.length > 1 ? 's' : ''}: ${newTrophies.map(trophyName).join(', ')}`) : null,
       totals,
       h('p', { class: 'small tip-line' }, h('strong', {}, "Professor Paws' tip: "), tipFor(challenge, runs)),
@@ -202,6 +212,7 @@ export function render(app, params = {}) {
     share.hidden = false;
     share.addEventListener('click', () => shareResult(app, {
       challenge, week: confirmed.week, score: confirmed.best, tier: tierOf(challenge, confirmed.best), rank: confirmed.rank, players: confirmed.players, location: confirmed.location,
+      season: weekSeason(confirmed.week),
     }));
   }
 
@@ -227,12 +238,21 @@ export function render(app, params = {}) {
     if (!alive) return null;
     if (!res.ok) {
       if (res.error === 'offline' || res.error === 'server') keepPendingRun(run);
-      status.textContent = ERRORS[res.error] ?? ERRORS.offline;
+      const s = weekSeason(week);
+      status.textContent = res.error === 'week-over' && s ? (s.ended || Date.now() >= Date.parse(s.endsAt) ? SEASON_TEXT.seasonOver : SEASON_TEXT.chapterOver) : ERRORS[res.error] ?? ERRORS.offline;
       return null;
     }
     backend.markChallengeSent(week, res.score, challenge);
     const where = LOCATIONS[res.location] ?? homeName(backend.state());
     const rankLine = h('strong', {}, `#${res.rank} at ${where}`);
+    const standing = season && res.season && Number.isFinite(res.season.rank) && res.season.rank > 0 ? res.season : null;
+    if (season) {
+      // A chapter run: the chapter rank, then the season standing (which is what the prizes go by).
+      fill(status, rankLine, ` this chapter (${res.players} ${res.players === 1 ? 'player' : 'players'}). `,
+        standing ? h('strong', { class: 'season-standing' }, `Season: #${standing.rank} at ${where} with ${num(standing.score)} pts. `) : null,
+        standing && standing.rank <= 3 ? SEASON_TEXT.inPrizes : competitionLine(week));
+      return res;
+    }
     fill(status, rankLine, ` this week (${res.players} ${res.players === 1 ? 'player' : 'players'}). `,
       res.version === 2 && Number.isFinite(res.total) ? `Team total ${num(res.total)}. ` : '',
       res.rank <= 3 ? 'You are in the prizes right now! Hold on until Monday.' : prizeLine());
@@ -269,7 +289,7 @@ export function render(app, params = {}) {
   });
   view.wrap.addEventListener('pointerdown', () => hint.reset());
   hint.reset();
-  const foot = h('p', { class: 'small muted center' }, isPublicSite(backend) ? prizeLine() : 'Weekly Challenge');
+  const foot = h('p', { class: 'small muted center' }, isPublicSite(backend) ? (season ? competitionLine(week) : prizeLine()) : (season ? season.name : 'Weekly Challenge'));
   screen.append(...[v2 ? h('div', { class: 'btn-pair center' }, h('button', { class: 'linkish small', type: 'button', onClick: otherChallenges }, 'Other challenges this week'), h('button', { class: 'linkish small', type: 'button', onClick: () => app.go('collection') }, 'Badges & trophies')) : null, foot].filter(Boolean));
   updateHud();
   if (app.services.debug) window.__pawtasticChallenge = { game, moves, challenge, week, validMove: () => findValidMove(game.grid), swap: (a, b) => onSwap(a, b) };

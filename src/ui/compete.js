@@ -8,18 +8,26 @@ import { clientOf } from './payments.js';
 import { onMap } from './referral.js';
 import { LOCATIONS } from '../engine/levels.js';
 import { totalStars, totalBestScore } from '../economy/progression.js';
-import { weekKey, weekEndsAt, CHALLENGES, CHALLENGE_IDS, isChallengeId, isWeekKey, TIER_NAMES, rulesFor } from '../engine/challenge.js';
+import { weekKey, playEndsAt, CHALLENGES, CHALLENGE_IDS, isChallengeId, isWeekKey, TIER_NAMES, rulesFor, SEASONS } from '../engine/challenge.js';
+import { seasonOf, seasonHeadline, seasonCountdown, seasonPrizeLine, fmtLeft, SEASON_TEXT } from './season.js';
 
 const PRIZE_NAMES = { 'daycare-day': 'Free day of daycare', bath: 'Free bath' };
 const lower = t => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
 
 // This week's prizes as the server sent them: [{ rank, label }] for 1st–3rd. Until it answers, the wording
 // stays general, so a prize is never named that the server didn't confirm.
-let weekly = null; // { week, prizes, next, rules }
+let weekly = null; // { week, prizes, next, rules, endsAt, season }
 const goodLineup = v => Array.isArray(v) && v.length === 3 && v.every((p, i) => p && p.rank === i + 1 && typeof p.label === 'string' && p.label.length >= 3 && p.label.length <= 80);
 const goodRules = v => v && (v.version === 1 || v.version === 2) && Array.isArray(v.challenges) && v.challenges.every(isChallengeId);
 export function weekPrizes(week = weekKey(Date.now())) { return weekly?.week === week ? weekly.prizes : null; }
 export function nextPrizes() { return weekly?.next ?? null; }
+/**
+ * The season this week belongs to (Season 1: Top Dog), as the server said, or from the engine's constant until it
+ * answers; null outside a season. { id, name, chapter, chapters, endsAt, ended, prizes }
+ */
+export function weekSeason(week = weekKey(Date.now())) { return seasonOf(week, weekly ? { week: weekly.week, season: weekly.season } : null); }
+/** The season a won prize belongs to (a season's prizes are stored under its first week), or null. */
+export const prizeSeasonName = p => (typeof p?.season === 'string' && p.season) || SEASONS.find(s => s.weeks[0] === p?.week)?.name || null;
 /**
  * The format this week plays, as the server said: version 1 (one High score run) until the owner's scheduled
  * Monday, then version 2 (three challenges, best in each added up). Before the server answers, version 1.
@@ -43,6 +51,9 @@ export async function loadWeekPrizes(app) {
   weekly = {
     week: r.week, prizes: r.prizes, next: r.next && typeof r.next.week === 'string' && goodLineup(r.next.prizes) ? r.next : null,
     rules: goodRules(r.rules) ? { version: r.rules.version, challenges: r.rules.challenges.slice(), from: typeof r.rules.from === 'string' ? r.rules.from : null } : null,
+    // When this week's play ends (in a season's last chapter, the season end) and the season, as the server says.
+    endsAt: typeof r.endsAt === 'string' && !Number.isNaN(Date.parse(r.endsAt)) ? r.endsAt : null,
+    season: r.season && typeof r.season === 'object' ? r.season : null,
   };
   return weekly.prizes;
 }
@@ -86,11 +97,16 @@ export function pickHome(app, { reason = '' } = {}) {
   });
 }
 
-const fmtLeft = ms => {
-  const hours = Math.max(0, Math.floor(ms / 3600000));
-  return hours >= 24 ? `${Math.floor(hours / 24)}d ${hours % 24}h` : `${hours}h ${Math.max(0, Math.floor(ms / 60000) % 60)}m`;
-};
-export const endsInText = (week, now = Date.now()) => `ends in ${fmtLeft(weekEndsAt(week) - now)}`;
+// The end of this week's play as the server gave it (a season's last chapter ends with the season, on Saturday);
+// until it answers, the engine's (the same rule).
+const weekEnd = week => (weekly?.week === week && weekly.endsAt ? Date.parse(weekly.endsAt) : playEndsAt(week));
+export const endsInText = (week, now = Date.now()) => `ends in ${fmtLeft(weekEnd(week) - now)}`;
+/** The prize line for this week: the season's (given once, when it ends) in a season, else the week's. */
+export function competitionLine(week = weekKey(Date.now())) {
+  const season = weekSeason(week);
+  if (!season) return prizeLine();
+  return season.ended ? SEASON_TEXT.over : seasonPrizeLine(season.prizes ?? weekPrizes(week));
+}
 
 const TIER_MARK = { bronze: '🥉', silver: '🥈', gold: '🥇' };
 /** A badge mark for a tier (or '') and the player's best this week in a challenge. */
@@ -100,11 +116,51 @@ export function myBadge(app, week, challenge) {
   return app.services.backend.state().collection?.badges?.find(b => b.week === week && b.challenge === challenge) ?? null;
 }
 
-/** The map's Weekly Challenge card: one run (version 1) or three challenges with the player's best in each (version 2). */
+/**
+ * The map's card during a season: "Season 1: Top Dog · Chapter 2 of 4 · season ends Sat 5 Dec", the countdown to the
+ * server's end time, the season's prizes and how the season score works. (Same weekly-card class: other tools find it.)
+ */
+function seasonCard(app, week) {
+  const { backend } = app.services;
+  const state = backend.state();
+  const best = state.weekly.week === week ? state.weekly.best : 0;
+  const eyebrow = h('p', { class: 'eyebrow season-head' });
+  const countdown = h('p', { class: 'small num season-countdown' });
+  const headline = h('h2', {});
+  const line = h('p', { class: 'small' });
+  const how = h('p', { class: 'small muted' }, SEASON_TEXT.how);
+  const play = h('button', { class: 'btn gold', type: 'button', onClick: () => app.go('challenge') });
+  const card = h('section', { class: 'card weekly-card season-card', 'aria-label': 'Season' },
+    eyebrow, countdown, headline, line, how,
+    best ? h('p', { class: 'small num' }, h('strong', {}, `Your best this chapter: ${best.toLocaleString('en-US')}`)) : null,
+    h('div', { class: 'btn-pair' },
+      play,
+      h('button', { class: 'btn secondary', type: 'button', onClick: () => app.go('leaderboard', { board: 'season' }) }, 'Leaderboard')),
+    h('button', { class: 'linkish small', type: 'button', onClick: () => app.go('collection') }, 'Badges & trophies'));
+  const paint = () => {
+    const season = weekSeason(week);
+    if (!season) { card.replaceWith(weeklyCard(app)); return; } // the server says this week is not in a season
+    card.setAttribute('aria-label', season.name);
+    eyebrow.textContent = seasonHeadline(season);
+    countdown.textContent = seasonCountdown(season);
+    countdown.hidden = season.ended;
+    headline.textContent = season.ended ? 'Thanks for playing!' : prizeHeadline(season.prizes ?? weekPrizes(week));
+    line.textContent = season.ended ? SEASON_TEXT.winners : competitionLine(week);
+    how.hidden = season.ended;
+    play.hidden = season.ended;
+    play.textContent = best ? 'Play again' : `Play chapter ${season.chapter}`;
+  };
+  paint();
+  loadWeekPrizes(app).then(paint).catch(() => {});
+  return card;
+}
+
+/** The map's Weekly Challenge card: one run (version 1) or three challenges with the player's best in each (version 2). In a season, the season card. */
 export function weeklyCard(app) {
   const { backend } = app.services;
   const state = backend.state();
   const week = weekKey(Date.now());
+  if (weekSeason(week)) return seasonCard(app, week);
   const best = state.weekly.week === week ? state.weekly.best : 0;
   const headline = h('h2', {}, prizeHeadline());
   const line = h('p', { class: 'small' }, prizeLine());
@@ -137,10 +193,15 @@ export function weeklyCard(app) {
   };
   showNext();
   showFormats();
-  loadWeekPrizes(app).then(p => { if (p) { headline.textContent = prizeHeadline(p); line.textContent = prizeLine(p); showNext(); } showFormats(); }).catch(() => {});
+  let card = null;
+  loadWeekPrizes(app).then(p => {
+    if (weekSeason(week)) { card?.replaceWith(seasonCard(app, week)); return; } // the server says this week is a season chapter
+    if (p) { headline.textContent = prizeHeadline(p); line.textContent = prizeLine(p); showNext(); }
+    showFormats();
+  }).catch(() => {});
   const v2 = () => weekRules(week).version === 2;
   const play = h('button', { class: 'btn gold', type: 'button', onClick: () => app.go('challenge', v2() ? { challenge: 'high-score' } : {}) }, best ? 'Play again' : 'Play the challenge');
-  return h('section', { class: 'card weekly-card', 'aria-label': 'Weekly Challenge' },
+  card = h('section', { class: 'card weekly-card', 'aria-label': 'Weekly Challenge' },
     h('p', { class: 'eyebrow' }, `Weekly Challenge · ${endsInText(week)}`),
     headline,
     line,
@@ -151,6 +212,7 @@ export function weeklyCard(app) {
       play,
       h('button', { class: 'btn secondary', type: 'button', onClick: () => app.go('leaderboard') }, 'Leaderboard')),
     h('button', { class: 'linkish small', type: 'button', onClick: () => app.go('collection') }, 'Badges & trophies'));
+  return card;
 }
 
 /** The leaderboard profile: dog name, home and progress (signed-in players with a home only). */
@@ -214,8 +276,9 @@ export async function sendPendingRun(app) {
 const seenPrizes = () => { try { return JSON.parse(localStorage.getItem(PRIZES_SEEN_KEY) ?? '[]'); } catch { return []; } };
 
 export function prizeCard(p) {
+  const season = prizeSeasonName(p);
   return h('div', { class: 'card prize-card' },
-    h('p', { class: 'eyebrow' }, `Weekly Challenge · week of ${p.week} · #${p.rank} at ${LOCATIONS[p.location] ?? p.location}`),
+    h('p', { class: 'eyebrow' }, `${season ?? `Weekly Challenge · week of ${p.week}`} · #${p.rank} at ${LOCATIONS[p.location] ?? p.location}`),
     h('h3', {}, prizeName(p)),
     p.status === 'won'
       ? [h('p', {}, `Show this code at the PAWtastic ${LOCATIONS[p.location] ?? ''} front desk by ${new Date(p.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}:`),
@@ -238,7 +301,7 @@ export async function prizeNews(app) {
   let s;
   s = app.modal(h('div', { class: 'stack' },
     h('p', { class: 'eyebrow' }, 'You won!'),
-    h('h2', {}, `${dog} placed in the Weekly Challenge!`),
+    h('h2', {}, `${dog} placed in ${fresh.map(prizeSeasonName).find(Boolean) ?? 'the Weekly Challenge'}!`),
     ...fresh.map(prizeCard),
     h('button', { class: 'btn block', type: 'button', onClick: () => s.close() }, 'Yay!')), { label: 'Prize won' });
 }
@@ -280,7 +343,8 @@ export async function openBeatLink(app) {
   const week = weekKey(Date.now());
   const rules = weekRules(week);
   const challenge = rules.challenges.includes(link.challenge) ? link.challenge : 'high-score';
-  if (link.week && link.week !== week) app.toast(`That challenge week is over. Here's this week's ${challengeName(challenge)}.`);
+  const period = weekSeason(week) ? 'chapter' : 'week';
+  if (link.week && link.week !== week) app.toast(`That challenge ${period} is over. Here's this ${period}'s ${challengeName(challenge)}.`);
   else if (challenge !== link.challenge) app.toast(`${challengeName(link.challenge)}s aren't in this week's competition. Here's the ${challengeName(challenge)}.`);
   app.go('challenge', { challenge, beat: true });
   return true;

@@ -23,12 +23,13 @@ export function shareCaption(kind, { dogName, areaName } = {}) {
   return `${dog} is styling at PAWtastic Academy!`;
 }
 
-/** Beat My Pup: the caption for a server-checked Weekly Challenge result. */
-export function resultCaption({ dogName, challenge, score, tier = null }) {
+/** Beat My Pup: the caption for a server-checked Weekly Challenge result (in a season, the season and its chapter). */
+export function resultCaption({ dogName, challenge, score, tier = null, season = null }) {
   const dog = dogName || 'My pup';
   const name = CHALLENGES[challenge]?.name ?? 'Weekly Challenge';
   const badge = tier ? ` (${TIER_NAMES[tier]} badge)` : '';
-  return `${dog} scored ${Number(score).toLocaleString('en-US')} in this week's ${name} at PAWtastic Academy${badge}. Can your pup beat it?`;
+  const where = season ? `${season.name} (Chapter ${season.chapter})` : `this week's ${name}`;
+  return `${dog} scored ${Number(score).toLocaleString('en-US')} in ${where} at PAWtastic Academy${badge}. Can your pup beat it?`;
 }
 
 /** The link on a Beat My Pup card: opens the same challenge of the same week. It carries no score (scores are never trusted from a link). */
@@ -268,14 +269,15 @@ export async function shareDog(app, { kind, areaName, costume }) {
  * opens the same challenge. `score` must be the number the server returned, never one from this phone or a URL.
  * Native share when the phone has it (with the picture when it can attach files); otherwise copy the link.
  */
-export async function shareResult(app, { challenge, week, score, tier = null, rank = null, players = null }) {
+export async function shareResult(app, { challenge, week, score, tier = null, rank = null, players = null, season = null }) {
   const { backend, measure } = app.services;
   backend.logEvent?.('share_tap', { kind: 'beat-my-pup' });
   const dog = backend.state().dog;
   const dogName = dog?.name || 'My pup';
   const def = CHALLENGES[challenge] ?? CHALLENGES['high-score'];
-  const caption = resultCaption({ dogName, challenge, score, tier });
+  const caption = resultCaption({ dogName, challenge, score, tier, season });
   const link = beatLink({ challenge, week });
+  const period = season ? 'chapter' : 'week'; // in a season, each week is a chapter
   const stamp = `${Number(score).toLocaleString('en-US')} pts · ${def.short}${tier ? ` · ${TIER_NAMES[tier]}` : ''}`;
   let blob = null;
   try {
@@ -293,7 +295,7 @@ export async function shareResult(app, { challenge, week, score, tier = null, ra
   sheet = app.modal(h('div', { class: 'stack share' },
     h('p', { class: 'eyebrow' }, 'Beat My Pup'),
     src ? h('img', { class: 'share-img', src, alt: caption }) : h('p', { class: 'card' }, caption),
-    h('p', { class: 'small muted num' }, rank && players ? `Checked by PAWtastic: #${rank} of ${players} this week. ` : 'Checked by PAWtastic. ', 'Friends who open the link play the same challenge, this week only.'),
+    h('p', { class: 'small muted num' }, rank && players ? `Checked by PAWtastic: #${rank} of ${players} this ${period}. ` : 'Checked by PAWtastic. ', `Friends who open the link play the same challenge, this ${period} only.`),
     h('p', { class: 'small link-line num' }, h('a', { href: link, target: '_blank', rel: 'noopener' }, link)),
     h('div', { class: 'btn-pair' },
       shareBtn,

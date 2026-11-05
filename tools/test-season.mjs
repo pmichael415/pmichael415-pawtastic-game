@@ -45,3 +45,55 @@ test('the rules engine itself is unchanged by the season (the server pins season
   assert.equal(rulesFor('2026-11-16', '2026-11-09').version, 2);
   assert.equal(rulesFor('2026-11-16', null).version, 1);
 });
+
+// ---------- what the game shows (src/ui/season.js) ----------
+const ui = await import('../src/ui/season.js');
+const { resultCaption } = await import('../src/ui/share-card.js');
+const IN_CH2 = Date.parse('2026-11-18T15:00:00Z');
+const SERVER_SEASON = { id: 's1', name: 'Season 1: Top Dog', chapter: 2, chapters: 4, endsAt: '2026-12-06T04:59:59.999Z', ended: false, prizes: [{ rank: 1, label: 'A free night of boarding' }, { rank: 2, label: 'A free day of daycare and a free exit bath' }, { rank: 3, label: 'A free exit bath' }] };
+
+test('the season shown: the server\'s answer for this week, else the engine\'s constant; nothing outside the season', () => {
+  assert.deepEqual(ui.seasonOf('2026-11-16', { week: '2026-11-16', season: SERVER_SEASON }, IN_CH2), SERVER_SEASON);
+  assert.equal(ui.seasonOf('2026-11-02', { week: '2026-11-02', season: null }, IN_CH2), null, 'the server says no season');
+  assert.equal(ui.seasonOf('2026-11-16', { week: '2026-11-16', season: { id: 's1', chapter: 'x' } }, IN_CH2), null, 'a malformed answer is not shown');
+  assert.deepEqual(ui.seasonOf('2026-11-23', { week: '2026-11-16', season: SERVER_SEASON }, IN_CH2), { id: 's1', name: 'Season 1: Top Dog', chapter: 3, chapters: 4, endsAt: '2026-12-06T04:59:59.999Z', ended: false, prizes: null }, 'until the server answers for this week');
+  assert.equal(ui.seasonOf('2026-12-07', null, IN_CH2), null);
+  assert.equal(ui.seasonOf('2026-11-30', null, Date.parse('2026-12-06T06:00:00Z')).ended, true);
+});
+
+test('the season header, the countdown from the server\'s end time, and the prize line', () => {
+  assert.equal(ui.seasonHeadline(SERVER_SEASON), 'Season 1: Top Dog · Chapter 2 of 4 · season ends Sat 5 Dec');
+  assert.equal(ui.seasonHeadline({ ...SERVER_SEASON, chapter: 4, ended: true }), 'Season 1: Top Dog · the season is over');
+  assert.equal(ui.seasonCountdown(SERVER_SEASON, Date.parse('2026-12-04T04:59:59.999Z')), 'Season ends in 2d 0h');
+  assert.equal(ui.seasonCountdown(SERVER_SEASON, Date.parse('2026-12-06T02:29:59.999Z')), 'Season ends in 2h 30m');
+  assert.equal(ui.seasonCountdown({ ...SERVER_SEASON, endsAt: '2026-12-01T00:00:00.000Z' }, Date.parse('2026-11-30T23:00:00Z')), 'Season ends in 1h 0m', 'the server\'s end time is what counts down');
+  assert.equal(ui.seasonCountdown({ ...SERVER_SEASON, ended: true }, IN_CH2), 'The season is over');
+  assert.equal(ui.seasonPrizeLine(SERVER_SEASON.prizes), 'When the season ends, the top 3 at each location win: 1st a free night of boarding, 2nd a free day of daycare and a free exit bath, 3rd a free exit bath.');
+  assert.equal(ui.seasonPrizeLine(null), 'When the season ends, the top 3 at each location win real PAWtastic prizes.');
+});
+
+test('the team bar: Hawthorne vs Hillsdale by the average of each team\'s top 10', () => {
+  const bar = ui.teamBar({ hawthorne: { average: 7500, players: 12, counted: 10 }, hillsdale: { average: 9000, players: 2, counted: 2 } });
+  assert.equal(bar.leader, 'hillsdale');
+  assert.deepEqual(bar.sides.map(s => [s.id, s.name, s.average, s.players, s.share]), [['hawthorne', 'Hawthorne', 7500, 12, 45], ['hillsdale', 'Hillsdale', 9000, 2, 55]]);
+  const even = ui.teamBar({ hawthorne: { average: 0, players: 0, counted: 0 }, hillsdale: { average: 0, players: 0, counted: 0 } });
+  assert.equal(even.leader, null);
+  assert.deepEqual(even.sides.map(s => s.share), [50, 50]);
+  assert.equal(ui.teamBar({ hawthorne: { average: 10, players: 1 }, hillsdale: { average: 10, players: 3 } }).leader, null, 'a tie has no leader');
+  assert.equal(ui.teamBar(undefined).leader, null, 'no answer, no leader');
+  assert.equal(ui.TEAM_BAR_NOTE, 'The average of each team\'s top 10 season scores, so a busier location doesn\'t win by size.');
+});
+
+test('engaged, not compelled: no streak, guilt or pressure wording anywhere in the season text', () => {
+  const texts = [
+    ...Object.values(ui.SEASON_TEXT), ui.seasonHeadline(SERVER_SEASON), ui.seasonCountdown(SERVER_SEASON, IN_CH2), ui.seasonPrizeLine(SERVER_SEASON.prizes),
+    ui.TEAM_BAR_NOTE, resultCaption({ dogName: 'Max', challenge: 'high-score', score: 12345, season: SERVER_SEASON }),
+  ];
+  for (const t of texts) assert.doesNotMatch(t, /miss|streak|don.t lose|last chance|hurry|only \d+ left|lose your|buy|purchase|treats/i, t);
+  assert.match(ui.SEASON_TEXT.how, /best run in each chapter is added up/);
+});
+
+test('the Beat My Pup caption names the season and chapter in a season, and the week outside it', () => {
+  assert.equal(resultCaption({ dogName: 'Max', challenge: 'high-score', score: 12345, season: SERVER_SEASON }), 'Max scored 12,345 in Season 1: Top Dog (Chapter 2) at PAWtastic Academy. Can your pup beat it?');
+  assert.equal(resultCaption({ dogName: 'Max', challenge: 'high-score', score: 12345 }), "Max scored 12,345 in this week's High score run at PAWtastic Academy. Can your pup beat it?");
+});

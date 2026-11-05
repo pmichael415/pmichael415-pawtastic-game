@@ -221,6 +221,17 @@ input[type="text"], input[type="number"], input[type="email"], input[type="passw
 .teams .team-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
 .team { display: flex; flex-direction: column; align-items: center; padding: 8px; border-radius: 12px; background: #F4F1EC; }
 .team.leading { background: #FFF0CC; outline: 2px solid #F6A823; }
+/* Seasons (Season 1: Top Dog): the season header, its countdown and the Hawthorne vs Hillsdale team bar. */
+.season-card { border-color: var(--brand, #0068D6); }
+.season-card .season-head { color: var(--brand, #0068D6); }
+.season-countdown { font-weight: 700; }
+.team-bar p { margin: 0; }
+.team-bar-track { display: flex; height: 14px; border-radius: 999px; overflow: hidden; background: #F4F1EC; margin-top: 8px; }
+.team-bar-fill { display: block; height: 100%; transition: width 0.4s ease; }
+.team-bar-fill.team-hawthorne { background: var(--brand, #0068D6); }
+.team-bar-fill.team-hillsdale { background: #F6A823; }
+.team-bar .team-row { margin: 8px 0 6px; }
+.season-standing { display: inline; }
 .prize-card { border: 2px solid #2E9E5B; background: #EEF8F1; display: flex; flex-direction: column; gap: 6px; }
 .prize-card h3, .prize-card p { margin: 0; }
 .big-score { font-size: 2.4rem; font-weight: 700; margin: 0; text-align: center; color: var(--brand, #0068D6); }
