@@ -10,7 +10,7 @@ import { pickupView } from "./pickup";
 import { XP, gainXp } from "./progress";
 import { FOCI, ROLE_NAME } from "./roles";
 import { BATH_MIN, bathQueue, roomCleanOf, roomName, roomOfDog, setRoomClean, tubName, tubsInUse } from "./rooms";
-import { applyPlay, assignBed, assignRoom, bathBlock, checkIn, checkout, hireStaff, inActiveScuffle, startBath, turnAway } from "./run";
+import { applyPlay, assignBed, assignRoom, bathBlock, checkIn, checkout, hireStaff, inActiveScuffle, offerAnotherDay, startBath, turnAway } from "./run";
 import { DESK_UPSET, waitStage } from "./waiting";
 import { fac, withFac } from "./state";
 import { tourHolds } from "./tour";
@@ -376,8 +376,9 @@ function finish(s: TycoonState, id: string, j: Job): TycoonState {
       const d = f.dogs.find((x) => x.id === j.dog);
       if (!d || d.checkedIn) return free(s, null);
       if (spotFor(f, d, claimsOf({ ...f, staff: f.staff.filter((x) => x.id !== id) }))) return free(s, null); // a spot opened up: check-in instead
-      const r = turnAway(s, d.id);
-      return free(r.ok ? r.state : s, r.ok ? `Rescheduled ${d.name} — no ${d.boarding ? "boarding bed" : groupWords(d) + " spot"} today` : r.error);
+      const another = offerAnotherDay(s, d.id);
+      const r = another.ok ? another : turnAway(s, d.id);
+      return free(r.ok ? r.state : s, r.ok ? `${another.ok ? "Rescheduled" : "Couldn't take"} ${d.name} — no ${d.boarding ? "boarding bed" : groupWords(d) + " spot"} today` : r.error);
     }
     case "pickup": {
       const d = fac(s).dogs.find((x) => x.id === j.dog);

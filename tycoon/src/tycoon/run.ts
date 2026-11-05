@@ -12,7 +12,6 @@ import {
   MAX_OFFLINE_REWARD,
   MAX_STAFF,
   NAMES,
-  REGULAR_CHANCE,
   REP_MIN,
   mulberry,
   seedFrom,
@@ -27,7 +26,7 @@ import {
   personalityOf,
 } from "@/game/engine";
 import type { Regular, Stats } from "@/game/engine";
-import { bathPay, campaignBoost, checkoutPay, closeDay, countToday, demand, earn, fairPrice, recordRefund, refuses, spend, wageRecovery } from "./business";
+import { SUPPLY_COST, bathPay, checkoutPay, closeDay, countToday, demand, earn, fairPrice, recordRefund, refuses, spend, wageRecovery } from "./business";
 import { canOpen, caps, roomStatus } from "./connect";
 import { BATH_HAPPY, arrivalMultiplier, decayMultiplier, funAppeal, playGain } from "./effects";
 import { XP, gainXp } from "./progress";
@@ -35,11 +34,12 @@ import { fac, withFac } from "./state";
 import { tourHolds } from "./tour";
 import { LAST_DROPOFF, fmtTime, logVisit, newVisit, visitOf } from "./visit";
 import { assessVisit } from "./assess";
+import { cantServe, creditArrival, creditVisit, findFamily, fmtHM, noteArrival, noteTurned, pickReturning, slotFor, sourceWords, touchDay } from "./customers";
 import { runStaff, supervised } from "./team";
 import { DESK_GIVES_UP } from "./waiting";
 import { BATH_MIN, bathQueue, freeTub, roomCleanOf, roomOfDog, setRoomClean } from "./rooms";
-import { adjustRep, referralBoost, repDeltaFor, reviewFactor, reviewFor } from "./reputation";
-import type { Facility, Mood, Outcome, Room, TDog, TPlace, TRegular, TResult, TycoonState } from "./types";
+import { REFERRAL_BOOST, adjustRep, referralBoost, repDeltaFor, reviewFactor, reviewFor } from "./reputation";
+import type { Booking, Facility, Mood, Outcome, Room, Service, Source, TDog, TPlace, TRegular, TResult, TycoonState } from "./types";
 
 const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
 const gone = { ok: false as const, error: "That pup already went home." };
@@ -124,28 +124,36 @@ export function setOpen(s: TycoonState, open: boolean): TResult {
 
 // ---------- arrivals and check-in ----------
 
-/** A customer drops a pup off in the lobby. No coins yet; staff must check them in. */
-export function createArrival(s: TycoonState, rand: () => number, boarding = false): TResult {
+/**
+ * A customer drops a pup off in the lobby. No coins yet; staff must check them in. With a booking, it's that family
+ * (on its own dice, so the day's walk-ins don't shift), carrying how they came; a booked family comes even if their
+ * room is full — the desk can offer another day.
+ */
+export function createArrival(s: TycoonState, rand: () => number, boarding = false, booking?: Booking): TResult {
   const f = fac(s);
+  if (booking) {
+    boarding = booking.boarding;
+    rand = mulberry(seedFrom(`${booking.uid}|${booking.day}|arrive`));
+  }
   if (!f.open) return { ok: false, error: "Open the daycare first." };
   if (!lobbyStatus(f.clockMin).open) return { ok: false, error: "Lobby closed for the midday break — drop-offs resume at 14:00 (game clock)." };
   if (!boarding && f.clockMin >= LAST_DROPOFF) return { ok: false, error: "Daycare drop-offs end at 15:30 — boarders are still welcome." };
   const c = caps(f);
   if (!c.lobby) return { ok: false, error: "Build a working Lobby first." };
   if (lobbyDogs(f).length >= c.waiting) return { ok: false, error: "The lobby is full — move waiting pups to a playroom or bed first." };
-  if (boarding && c.beds.length - f.dogs.filter((d) => d.boarding).length <= 0) return { ok: false, error: "No free boarding bed." };
-  // regulars come back — not a family that left upset with nothing fixed (for 3 days)
-  const away = f.guestBook.filter((g) => !f.dogs.some((d) => d.name === g.name && d.breed === g.breed) && !((g.lostUntil ?? 0) > f.day));
-  const regChance = REGULAR_CHANCE;
-  const pool = away;
-  const reg = away.length && rand() < regChance ? pool[Math.floor(rand() * pool.length)]! : null;
-  const breed = reg ? reg.breed : Math.floor(rand() * BREEDS.length);
+  if (!booking && boarding && c.beds.length - f.dogs.filter((d) => d.boarding).length <= 0) return { ok: false, error: "No free boarding bed." };
+  // families come back on their own — the happier and closer, the likelier; not one that left upset with nothing put
+  // right (for 3 days), and not one already booked in (customers.ts)
+  const booked = new Set((f.bookings ?? []).map((b) => `${b.name}|${b.breed}`));
+  const away = f.guestBook.filter((g) => !f.dogs.some((d) => d.name === g.name && d.breed === g.breed) && !((g.lostUntil ?? 0) > f.day) && !booked.has(`${g.name}|${g.breed}`));
+  const reg = booking ? findFamily(f, booking) : pickReturning(f, away, rand);
+  const breed = booking ? booking.breed : reg ? reg.breed : Math.floor(rand() * BREEDS.length);
   const dog: TDog = {
     id: "d" + s.seq,
-    name: reg ? reg.name : NAMES[Math.floor(rand() * NAMES.length)]!,
+    name: booking ? booking.name : reg ? reg.name : NAMES[Math.floor(rand() * NAMES.length)]!,
     breed,
-    size: reg ? reg.size : BREEDS[breed]!.size,
-    temper: reg ? reg.temper : rand() < 0.5 ? "gentle" : "active",
+    size: booking ? booking.size : reg ? reg.size : BREEDS[breed]!.size,
+    temper: booking ? booking.temper : reg ? reg.temper : rand() < 0.5 ? "gentle" : "active",
     visits: reg ? reg.visits + 1 : 1,
     place: { kind: "lobby" },
     checkedIn: false,
@@ -155,13 +163,61 @@ export function createArrival(s: TycoonState, rand: () => number, boarding = fal
     played: 0,
     bathed: false,
   };
-  dog.visit = newVisit(f, dog, rand, !!c.bath);
+  const v = newVisit(f, dog, rand, !!c.bath);
+  if (booking?.requests?.includes("bath") && c.bath && !v.requests.includes("bath")) v.requests = [...v.requests, "bath"];
+  const source: Source = booking ? booking.source : !reg ? walkInSource(f, dog.id) : { kind: "walk-in" };
+  dog.visit = {
+    ...v,
+    source,
+    ...(booking ? { booking: booking.uid, history: [...v.history, `Booked ahead — ${sourceWords(source)}`] } : {}),
+    ...(booking?.moved ? { moved: booking.moved } : {}),
+  };
   // a family who asked for a bath with no bath room yet: today's demonstrated bath demand (milestone §4)
   const askedNow = f.asked && f.asked.day === f.day ? f.asked : { day: f.day, groups: {} };
-  const fAsked = dog.visit.bathAsked ? { ...f, asked: { ...askedNow, baths: (askedNow.baths ?? 0) + 1 } } : f;
-  const hello = reg ? `${dog.name} is back for visit #${dog.visits} (${friendshipLevel(reg.friendship).label})! Check them in at the desk.` : `${dog.name} was dropped off — check them in at the front desk.`;
-  const next = withFac({ ...s, seq: s.seq + 1 }, { ...fAsked, dogs: [...f.dogs, dog] });
+  let nf: Facility = dog.visit.bathAsked ? { ...f, asked: { ...askedNow, baths: (askedNow.baths ?? 0) + 1 } } : f;
+  nf = noteArrival(nf, booking ? "booked" : reg ? "returning" : "newWalkIns");
+  if (booking) nf = { ...nf, bookings: (nf.bookings ?? []).filter((b) => b.uid !== booking.uid) };
+  if (booking && !booking.again) nf = creditArrival(nf, booking.source);
+  const hello = booking
+    ? `${dog.name} is here for their booking — check them in at the desk.`
+    : reg ? `${dog.name} is back for visit #${dog.visits} (${friendshipLevel(reg.friendship).label})! Check them in at the desk.` : `${dog.name} was dropped off — check them in at the front desk.`;
+  const next = withFac({ ...s, seq: s.seq + 1 }, { ...nf, dogs: [...f.dogs, dog] });
   return { ok: true, state: trackRush(next).state, msg: hello };
+}
+
+/**
+ * How a first-time walk-in heard about the daycare: while a 5★ review's word of mouth is lifting drop-offs, the share
+ * of families it added came on that family's recommendation (decided from the pup, not the day's dice).
+ */
+function walkInSource(f: Facility, dogId: string): Source {
+  const boost = referralBoost(f);
+  const review = (f.reviews ?? []).filter((r) => r.stars === 5).at(-1);
+  if (boost <= 1 || !review) return { kind: "walk-in" };
+  return mulberry(seedFrom(`${dogId}|${f.day}|referral`))() < 1 - 1 / REFERRAL_BOOST ? { kind: "referral", from: review.dog } : { kind: "walk-in" };
+}
+
+/** Booked families whose time has come arrive at the desk (while there's lobby space; daycare ones until 15:30). */
+function bookedArrivals(s: TycoonState): TycoonState {
+  let out = s;
+  const f = fac(s);
+  const due = (f.bookings ?? []).filter((b) => b.day <= f.day && b.min <= f.clockMin && (b.boarding || f.clockMin < LAST_DROPOFF)).sort((a, b) => a.min - b.min);
+  for (const b of due) {
+    const r = createArrival(out, Math.random, b.boarding, b);
+    if (r.ok) out = r.state;
+  }
+  return out;
+}
+
+/** Closing time: bookings that couldn't get in today move to the next active day — twice at most, then they're lost. */
+function rollBookings(s: TycoonState): TycoonState {
+  let f = fac(s);
+  const left = (f.bookings ?? []).filter((b) => b.day <= f.day);
+  if (!left.length) return s;
+  const lost = left.filter((b) => (b.moved ?? 0) >= 2);
+  const keep = (f.bookings ?? []).filter((b) => !lost.includes(b)).map((b) => (b.day <= f.day ? { ...b, day: f.day + 1, moved: (b.moved ?? 0) + 1 } : b));
+  f = { ...f, bookings: keep };
+  if (lost.length) f = noteTurned(f, "booked, but the lobby was full", lost.length);
+  return withFac(s, f);
 }
 
 /** Staff check-in. Pays nothing (pay comes at checkout), earns XP and uses one day's supplies. */
@@ -183,9 +239,23 @@ export function checkIn(s: TycoonState, dogId: string): TResult {
   return { ok: true, state: st, msg: `${dog.name} is checked in!${prepaidBath ? ` ${v.owner} prepaid the bath (+${prepaidBath}).` : ""}`, ...(prepaidBath ? { earned: prepaidBath } : {}) };
 }
 
+/** Why the desk can't take this family today (for the unmet-demand record). */
+function deskReason(f: Facility, dog: TDog): string {
+  const v = visitOf(f, dog);
+  const requests: Service[] = v.requests.includes("bath") ? ["bath"] : [];
+  const why = cantServe(f, dog, dog.boarding, requests);
+  if (why) return why;
+  const c = caps(f);
+  if (dog.boarding) return c.beds.length - f.dogs.filter((d) => d.boarding && d.checkedIn).length <= 0 ? "boarding beds full" : "turned away at the desk";
+  const g = groupOf(dog);
+  const free = c.playrooms.some((p) => p.group === g && roomDogs(f, p.room.uid).length < p.spots);
+  return free ? "turned away at the desk" : `${groupName(g)} playroom full`;
+}
+
 /**
  * Politely turning a pup away before check-in (no room for their group, lobby crowded): the family takes them home,
- * no charge, nothing held against the daycare. Once checked in, the visit is a promise — use checkout.
+ * no charge, nothing held against the daycare — recorded as a family who couldn't come, with the reason. Once checked
+ * in, the visit is a promise — use checkout.
  */
 export function turnAway(s: TycoonState, dogId: string): TResult {
   const f = fac(s);
@@ -193,7 +263,41 @@ export function turnAway(s: TycoonState, dogId: string): TResult {
   if (!dog) return gone;
   if (dog.checkedIn) return { ok: false, error: `${dog.name} is already checked in — check them out instead.` };
   const v = visitOf(f, dog);
-  return { ok: true, state: withFac(s, { ...f, dogs: f.dogs.filter((d) => d.id !== dogId) }), msg: `${v.owner} took ${dog.name} home — we couldn't take them today. No charge.` };
+  const nf = noteTurned({ ...f, dogs: f.dogs.filter((d) => d.id !== dogId) }, deskReason(f, dog));
+  return { ok: true, state: withFac(s, nf), msg: `${v.owner} took ${dog.name} home — we couldn't take them today. No charge.` };
+}
+
+/** Offering another day: at most this many times per family (then it's "can't take today"). */
+export const MAX_MOVES = 2;
+/**
+ * The desk offers another day instead: the family takes their pup home and books the next active day (the time is
+ * decided from the pup and day). Same source, no charge, nothing held against the daycare; never a stranded pup.
+ */
+export function offerAnotherDay(s: TycoonState, dogId: string): TResult {
+  const f = fac(s);
+  const dog = findDog(f, dogId);
+  if (!dog) return gone;
+  if (dog.checkedIn) return { ok: false, error: `${dog.name} is already checked in — check them out instead.` };
+  const v = visitOf(f, dog);
+  const moved = v.moved ?? 0;
+  if (moved >= MAX_MOVES) return { ok: false, error: `${v.owner} can't make another day — they've moved twice already. Can't take today instead.` };
+  const roll = mulberry(seedFrom(`${dog.id}|${f.day}|another-day`));
+  const booking: Booking = {
+    uid: `b${f.day}-${dog.id}`.slice(0, 24),
+    name: dog.name,
+    breed: dog.breed,
+    size: dog.size,
+    temper: dog.temper,
+    day: f.day + 1,
+    min: slotFor(roll),
+    boarding: dog.boarding,
+    ...(v.requests.includes("bath") ? { requests: ["bath"] as Service[] } : {}),
+    source: v.source ?? { kind: "walk-in" },
+    moved: moved + 1,
+    again: true,
+  };
+  const nf = { ...f, dogs: f.dogs.filter((d) => d.id !== dogId), bookings: [...(f.bookings ?? []).filter((b) => b.uid !== booking.uid), booking] };
+  return { ok: true, state: withFac(s, nf), msg: `${v.owner} will bring ${dog.name} on day ${booking.day} at ${fmtHM(booking.min)} instead — no charge.` };
 }
 
 // ---------- placing pups ----------
@@ -417,9 +521,21 @@ export function settle(s: TycoonState, dogId: string, how: Outcome["how"], exitB
   let bonus = 0;
   let milestone: ReturnType<typeof friendshipLevel> | null = null;
   const servedVisit = dog.checkedIn && a.lines.some((l) => l.key === "daycare");
+  // the visit's revenue (anything prepaid at check-in plus today's bill) and direct costs (its supplies, a refund paid out)
+  const revenue = v.paid + Math.max(0, a.total);
+  const source: Source = v.source ?? { kind: "walk-in" };
   if (dog.checkedIn) {
     const gain = servedVisit ? Math.round(a.satisfaction / 10) + (dog.bathed || doExit ? 2 : 0) + (dog.played > 0 ? 2 : 0) : 0;
     const friendship = Math.min(100, (prev?.friendship ?? 0) + gain);
+    // the family's history: what they book, how they first found you, and a problem left unresolved (customers.ts)
+    const services = { ...(prev?.services ?? {}) };
+    if (servedVisit) {
+      const main: Service = dog.boarding ? "boarding" : "daycare";
+      services[main] = (services[main] ?? 0) + 1;
+      if (dog.bathed || doExit) services.bath = (services.bath ?? 0) + 1;
+    }
+    const hurt = unresolved.length && (a.mood === "upset" || a.mood === "disappointed");
+    const firstDay = prev ? prev.firstDay : f.day;
     const entry: TRegular = {
       name: dog.name,
       breed: dog.breed,
@@ -430,6 +546,12 @@ export function settle(s: TycoonState, dogId: string, how: Outcome["how"], exitB
       lastDay: f.day,
       sat: a.satisfaction,
       ...(a.mood === "upset" && unresolved.length ? { lostUntil: f.day + 3 } : {}),
+      ...(firstDay !== undefined ? { firstDay } : {}),
+      services,
+      source: prev?.source ?? source,
+      ...(hurt ? { issue: { text: unresolved[0]!.text, day: f.day, followedUp: false } } : {}),
+      ...(prev?.contactDay !== undefined ? { contactDay: prev.contactDay } : {}),
+      ...(prev?.thankedFor !== undefined ? { thankedFor: prev.thankedFor } : {}),
     };
     guestBook = [entry, ...st.guestBook.filter((g) => !(g.name === dog.name && g.breed === dog.breed))].slice(0, GUESTBOOK_MAX);
     const before = friendshipLevel(prev?.friendship ?? 0);
@@ -464,10 +586,15 @@ export function settle(s: TycoonState, dogId: string, how: Outcome["how"], exitB
     complaints: a.complaints.map((c) => ({ kind: c.kind, text: c.text, remedy: c.remedy, resolved: c.resolved })),
     repDelta: Math.round((st.reputation - repBefore) * 10) / 10,
     review,
+    firstVisit: !prev,
+    source,
+    revenue,
   };
   // a served visit (a playroom or bed) counts as a checkout and earns XP; a pup sent home unserved doesn't
   const served = dog.checkedIn && a.lines.some((l) => l.key === "daycare");
   st = { ...st, dogs: st.dogs.filter((d) => d.id !== dogId), guestBook, outcomes: [...(st.outcomes ?? []), outcome].slice(-30) };
+  // credited once, to the one source that brought this visit (a campaign run or outreach — a walk-in to none)
+  if (dog.checkedIn) st = creditVisit(st, source, { paid: served && revenue > 0, revenue, costs: SUPPLY_COST[f.supplies] + Math.max(0, -a.total) });
   if (served) st = bump(bump(st, "checkouts"), "earned", Math.max(0, a.total) + bonus);
   let out = withFac(s, st);
   if (served) out = countToday(out, "checkouts");
@@ -534,10 +661,11 @@ function pickups(s: TycoonState): TycoonState {
   return out;
 }
 
-/** A family is kindly rescheduled: no visit judged, no charge, no reputation change — and a short notice for the player. */
+/** A family is kindly rescheduled (a booking on the next active day): no visit judged, no charge, no reputation change — and a short notice for the player. */
 function courtesy(s: TycoonState, dogId: string, why: "intro" | "closing"): TycoonState {
   const name = fac(s).dogs.find((d) => d.id === dogId)?.name;
-  const r = turnAway(s, dogId);
+  const another = offerAnotherDay(s, dogId);
+  const r = another.ok ? another : turnAway(s, dogId);
   if (!r.ok || !name) return s;
   const f = fac(r.state);
   const prev = f.courtesy && f.courtesy.day === f.day && f.courtesy.why === why ? f.courtesy.names : [];
@@ -653,11 +781,13 @@ function tickStep(s: TycoonState, seconds: number, rand: () => number): TycoonSt
   }
   f = fac(out);
   if (!f.open) return runStaff(out, seconds * GAME_MIN_PER_SEC);
+  if (f.footfall?.at(-1)?.day !== f.day) out = withFac(out, touchDay(f)); // today's footfall starts (even if nobody comes)
 
   // The clock and drop-offs. Fractional seconds accumulate; arrivals roll once per whole game minute crossed.
   const baseChance = () => {
     const g = fac(out);
-    return ARRIVAL_CHANCE_PER_MIN * (g.reputation / 80) * arrivalMultiplier(appeal) * demand(g) * campaignBoost(g) * reviewFactor(g) * referralBoost(g);
+    // natural drop-offs: campaigns don't multiply them — a campaign brings its own bookings (marketing.ts)
+    return ARRIVAL_CHANCE_PER_MIN * (g.reputation / 80) * arrivalMultiplier(appeal) * demand(g) * reviewFactor(g) * referralBoost(g);
   };
   const boarderChance = () => {
     const g = fac(out);
@@ -675,7 +805,7 @@ function tickStep(s: TycoonState, seconds: number, rand: () => number): TycoonSt
     if (whole) clock = Math.round(clock);
     if (clock >= DAY_CLOSE) {
       // staff work up to closing first, then the day ends
-      out = closeDay(dayEndPickups(runStaff(withFac(out, { ...g, clockMin: DAY_CLOSE }), step)));
+      out = closeDay(rollBookings(dayEndPickups(runStaff(withFac(out, { ...g, clockMin: DAY_CLOSE }), step))));
       const h = fac(out);
       out = withFac(out, { ...h, clockMin: DAY_OPEN, rush: { day: h.day, peak: 0, since: null, awarded: false } });
       chance = baseChance();
@@ -686,6 +816,7 @@ function tickStep(s: TycoonState, seconds: number, rand: () => number): TycoonSt
     out = runStaff(out, step);
     if (whole) out = openMoments(pickups(out));
     if (!whole || !lobbyStatus(clock).open) continue;
+    out = bookedArrivals(out);
     if (rand() < chance) {
       const c = caps(fac(out));
       const freeBeds = c.beds.length - fac(out).dogs.filter((d) => d.boarding).length;
@@ -700,9 +831,9 @@ function tickStep(s: TycoonState, seconds: number, rand: () => number): TycoonSt
         if (!pup.boarding && !h.rooms.some((x) => x.type === "playroom" && x.group === g)) {
           const today = h.asked && h.asked.day === h.day ? h.asked : null;
           const asked = today?.groups ?? {};
-          out = withFac(out, { ...h, asked: { day: h.day, groups: { ...asked, [g]: (asked[g] ?? 0) + 1 }, ...(today?.baths ? { baths: today.baths } : {}) } });
+          out = withFac(out, noteTurned({ ...h, asked: { day: h.day, groups: { ...asked, [g]: (asked[g] ?? 0) + 1 }, ...(today?.baths ? { baths: today.baths } : {}) } }, `no ${groupName(g)} playroom`));
         } else out = r.state;
-      } // lobby full → the customer politely rebooks, no penalty
+      } else if (/lobby is full/.test(r.error)) out = withFac(out, noteTurned(fac(out), "lobby full")); // they go elsewhere today, no penalty
     }
   }
   return out;

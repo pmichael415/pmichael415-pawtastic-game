@@ -112,6 +112,12 @@ export type Visit = {
   waitBefore: number;
   /** The family asked for a bath at drop-off, but there was no bath room (demonstrated demand; nothing booked). */
   bathAsked?: boolean;
+  /** How the family came this time (a booking from outreach or a campaign, a referral, or a walk-in). */
+  source?: Source;
+  /** The booking they arrived on, if any. */
+  booking?: string;
+  /** Times this family has already been offered another day (at most twice). */
+  moved?: number;
   /** A personal moment: the pup asked for you (its favourite game); open, answered (done) or faded (missed). */
   moment?: { kind: Favorite; at: number; day: number; state: "open" | "done" | "missed" } | null;
 };
@@ -135,6 +141,12 @@ export type Outcome = {
   complaints: { kind: ComplaintKind; text: string; remedy: RemedyKind | null; resolved: boolean }[];
   repDelta: number;
   review: Review | null;
+  /** Their first visit here? (new vs returning families) */
+  firstVisit?: boolean;
+  /** How they came (attribution — one source per visit). */
+  source?: Source;
+  /** Service revenue from this visit (the bill, never a game reward). */
+  revenue?: number;
 };
 export type TDog = Omit<Dog, "site" | "place" | "x" | "y"> & {
   place: TPlace;
@@ -173,12 +185,93 @@ export type TStaff = Staff & {
 export type RepEntry = { day: number; min: number; delta: number; reason: string };
 export type Review = { day: number; stars: 1 | 2 | 3 | 4 | 5; owner: string; dog: string; text: string };
 /** A guest-book entry: the pup, plus how the family felt last time, and if they've stopped coming. */
-export type TRegular = Regular & { sat?: number; lostUntil?: number };
+/** How a family came this time (one source per visit — revenue is never counted twice). */
+export type OutreachKind = "thank" | "invite" | "followup" | "suggest";
+export type Source =
+  | { kind: "walk-in" }
+  | { kind: "campaign"; run: string; name: string }
+  | { kind: "outreach"; by: "you" | "staff"; what: OutreachKind }
+  | { kind: "referral"; from: string; run?: string };
+/**
+ * A family (a guest-book entry, keyed by its pup) and its history. Status — new, returning, regular, inactive — is
+ * worked out from these, never stored (customers.ts).
+ */
+export type TRegular = Regular & {
+  sat?: number;
+  lostUntil?: number;
+  firstDay?: number;
+  /** What they've booked, visit by visit (their preferences). */
+  services?: Partial<Record<Service, number>>;
+  /** How they first found the daycare. */
+  source?: Source;
+  /** The last problem that wasn't put right at pickup, and whether someone has followed up since. */
+  issue?: { text: string; day: number; followedUp: boolean } | null;
+  /** The active day of the last outreach to them (one contact per family per few days). */
+  contactDay?: number;
+  /** The visit (its day) they were last thanked for (one thank-you per visit). */
+  thankedFor?: number;
+};
+/** A future visit a family booked (outreach or a campaign): they arrive at the desk on that active day and time. */
+export type Booking = {
+  uid: string;
+  name: string;
+  breed: number;
+  size: "small" | "large";
+  temper: "gentle" | "active";
+  day: number;
+  min: number;
+  boarding: boolean;
+  /** Extra services they booked (a bath). */
+  requests?: Service[];
+  source: Source;
+  /** Times they were offered another day. */
+  moved?: number;
+  /** They already came once for this (offered another day at the desk): not a second arrival for its source. */
+  again?: boolean;
+};
+/** One active day's families: who came (new walk-ins, returning, booked) and who couldn't, by reason. */
+export type Footfall = {
+  day: number;
+  newWalkIns: number;
+  returning: number;
+  booked: number;
+  /** Families who wanted to come but couldn't (unmet demand), by reason. */
+  turned: Record<string, number>;
+  /** The campaign running that day, if any (for the with/without comparison). */
+  campaign: string | null;
+};
+/** One campaign, from start to finish, and what came of it (marketing.ts). */
+export type CampaignRun = {
+  uid: string;
+  id: CampaignId;
+  name: string;
+  startDay: number;
+  untilDay: number;
+  cost: number;
+  reached: number;
+  responses: number;
+  booked: number;
+  /** Responses the daycare couldn't take, by reason (unmet demand). */
+  declined: Record<string, number>;
+  arrivals: number;
+  visits: number;
+  revenue: number;
+  /** Direct service costs of the attributed visits (supplies, refunds). */
+  costs: number;
+  /** Active days whose responses were drawn. */
+  drawn: number[];
+};
+/** Outreach: today's free calls and what all outreach has brought, by who did it. */
+export type OutreachLog = {
+  day: number;
+  used: number;
+  stats: { calls: number; booked: number; arrivals: number; visits: number; revenue: number; costs: number };
+};
 
 export type Prices = { daycare: number; boarding: number; bath: number; exitBath: number };
 export type Wage = "lean" | "standard" | "generous";
 export type Supplies = "basic" | "premium";
-export type CampaignId = "flyers" | "online" | "openhouse";
+export type CampaignId = "flyers" | "online" | "openhouse" | "welcome" | "boarding_ads" | "bath_promo" | "referral";
 export type IncomeKey = "daycare" | "boarding" | "baths" | "exitBaths" | "tips" | "bonus";
 export type ExpenseKey = "wages" | "upkeep" | "supplies" | "marketing" | "building" | "refunds";
 
@@ -232,7 +325,15 @@ export type Facility = {
   prices: Prices;
   wage: Wage;
   supplies: Supplies;
-  campaign: { id: CampaignId; untilDay: number } | null;
+  campaign: { id: CampaignId; untilDay: number; run?: string } | null;
+  /** Future visits families booked (outreach, campaigns, offered another day). */
+  bookings?: Booking[];
+  /** Campaigns run so far and what each brought (newest last). */
+  campaignRuns?: CampaignRun[];
+  /** Today's free outreach calls and what outreach has brought. */
+  outreach?: OutreachLog;
+  /** Who came and who couldn't, for the last 14 active days (newest last). */
+  footfall?: Footfall[];
   ledger: DayLedger[];
   scuffles: { room: string }[];
   report: TReport | null;
