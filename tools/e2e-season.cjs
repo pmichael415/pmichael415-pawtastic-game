@@ -181,10 +181,20 @@ const mapCard = async page => { await page.goto(GAME, { waitUntil: 'networkidle'
   // 3. A Hillsdale player: the result shows the chapter rank and the season standing.
   const b = await newPage(CH2);
   await enroll(b, 'Bella', 'Hillsdale');
+  // A run kept by an already-open OLD build, in its storage shape, is sent after sign-in with its week (audit item 12).
+  await b.evaluate(m => localStorage.setItem('pawtastic-gd-pending-run-v1', JSON.stringify({ 'high-score': { week: '2026-11-16', moves: m, challenge: 'high-score' } })), maxRun.moves);
   await b.click('button[aria-label="Sound and effects"]', { force: true });
   await b.waitForTimeout(300);
   await b.click('.sheet button:text-is("Save progress to the cloud")');
   await signIn(b, 'bella@example.com');
+  let bellaRun = null;
+  for (let i = 0; i < 20 && !bellaRun; i++) {
+    const st = await state();
+    const id = Object.entries(st.players).find(([, v]) => v.dogName === 'Bella')?.[0];
+    bellaRun = id && st.weekly.find(r => r.userId === id && r.week === '2026-11-16');
+    if (!bellaRun) await b.waitForTimeout(500);
+  }
+  check(bellaRun && bellaRun.location === 'hillsdale' && !(await b.evaluate(() => localStorage.getItem('pawtastic-gd-pending-run-v1'))), 'a run kept by an old build is sent after sign-in, for the week it was played in', JSON.stringify(bellaRun && [bellaRun.week, bellaRun.score]));
   await playChallenge(b);
   await b.waitForFunction(() => /Season: #\d+ at Hillsdale/.test(document.querySelector('.sheet')?.innerText ?? ''), null, { timeout: 15000 }).catch(() => {});
   const sheetB = await b.innerText('.sheet');
