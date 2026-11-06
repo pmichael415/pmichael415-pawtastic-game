@@ -9,7 +9,8 @@
 //   (the PAWtastic Games hub) may call the game API from the browser, and its buyers return to its /graduation.
 //   Test helpers: GET /mock/state, POST /mock/refund { email, product }.
 //   The server's clock: MOCK_NOW=<ISO time> starts it there (it then runs on), POST /mock/clock { now: <ISO> | null } moves it
-//   (null: the real time). Seasons (Season 1: Top Dog) follow the engine's SEASONS, as the real server does.
+//   (null: the real time); every /api/public/game/* answer carries it as `serverNow`. Seasons (Season 1: Top Dog) follow
+//   the engine's SEASONS, as the real server does.
 
 import { weekKey, weekEndsAt, replayChallenge, rulesFor, isWeekKey, isChallengeId, combinedTotal, tierOf, CHALLENGES, CHALLENGE_IDS, nextWeek, SEASONS, seasonFor, chapterOf, seasonEndsAt, playEndsAt } from '../src/engine/challenge.js';
 import { createServer } from 'node:http';
@@ -132,6 +133,8 @@ function issue(user) {
   return { access_token: access, refresh_token: refresh, token_type: 'bearer', expires_in: 3600, expires_at: exp, user: { id: user.id, email: user.email } };
 }
 const send = (res, status, body, headers = {}) => {
+  // Every game API answer carries the server's clock, as the real server does (the game counts down by it).
+  if (body && typeof body === 'object' && !Array.isArray(body) && res.req?.url?.startsWith('/api/public/game/')) body = { ...body, serverNow: new Date(now()).toISOString() };
   res.writeHead(status, { 'content-type': 'application/json', ...headers });
   res.end(body === undefined ? '' : JSON.stringify(body));
 };

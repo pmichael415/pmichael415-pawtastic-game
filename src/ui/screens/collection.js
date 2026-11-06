@@ -5,8 +5,8 @@
 import { h } from '../dom.js';
 import { topBar } from '../topbar.js';
 import { TROPHIES } from '../../economy/wallet.js';
-import { CHALLENGES, CHALLENGE_IDS, weekKey, TIER_NAMES, TIER_ORDER } from '../../engine/challenge.js';
-import { weekRules, tierMark, challengeName, formatTeaser, weekSeason } from '../compete.js';
+import { CHALLENGES, CHALLENGE_IDS, TIER_NAMES, TIER_ORDER } from '../../engine/challenge.js';
+import { weekRules, tierMark, challengeName, formatTeaser, weekSeason, playWeek } from '../compete.js';
 import { seasonFor, chapterOf } from '../../engine/challenge.js';
 
 const num = n => Number(n || 0).toLocaleString('en-US');
@@ -42,7 +42,7 @@ export function render(app) {
   const { backend } = app.services;
   const state = backend.state();
   const bar = topBar(app, { title: 'Badges & trophies', back: () => app.go('map') });
-  const week = weekKey(Date.now());
+  const week = playWeek();
   const rules = weekRules(week);
   const season = weekSeason(week);
   const collection = state.collection ?? { badges: [], trophies: [], runs: 0 };

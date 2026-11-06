@@ -20,7 +20,11 @@ const cardShot = async (page, name) => {
   await (await page.$('.weekly-card'))?.screenshot({ path: `${shots}/${name}.png` });
 };
 
+const H = 3600000, D = 24 * H;
 const CH2 = '2026-11-18T15:00:00Z'; // Wed 18 Nov, 10 am New York: chapter 2 of 4
+const MON_JUST_AFTER = '2026-11-16T05:00:30Z'; // Mon 16 Nov, 12:00:30 am New York: chapter 2 has just started
+const SUN_JUST_BEFORE = '2026-11-16T04:30:00Z'; // Sun 15 Nov, 11:30 pm New York: still chapter 1
+const SAT_LATE = '2026-12-06T04:58:00Z'; // Sat 5 Dec, 11:58 pm New York: the season's last two minutes
 const CH4 = '2026-12-03T15:00:00Z'; // Thu 3 Dec: chapter 4, which ends Saturday
 const AFTER = '2026-12-06T05:06:00Z'; // Sun 6 Dec, 12:06 am: the season ended 6 minutes ago
 const BEFORE = '2026-11-05T15:00:00Z'; // the week before the season
@@ -62,17 +66,38 @@ async function playChallenge(page) {
   }
   await page.waitForSelector('.sheet .big-score', { timeout: 15000 });
 }
+// The phone's clock off the server's by `ms` (hours or days, ahead or behind): shifts Date and Date.now() in the page.
+function skewPhoneClock(ms) {
+  const Real = Date;
+  class PhoneDate extends Real {
+    constructor(...a) { if (a.length) super(...a); else super(Real.now() + ms); }
+    static now() { return Real.now() + ms; }
+  }
+  globalThis.Date = PhoneDate;
+}
+// Opens the challenge from the map card and says which week's board it is playing.
+async function boardWeek(page) {
+  await page.goto(`${GAME}?debug=1`, { waitUntil: 'networkidle' });
+  await closeSheets(page);
+  await page.click('.weekly-card button:has-text("Play")');
+  await page.waitForFunction(() => !!window.__pawtasticChallenge, null, { timeout: 15000 });
+  return page.evaluate(() => window.__pawtasticChallenge.week);
+}
+const phoneTime = page => page.evaluate(() => new Date().toISOString());
+const staffToken = async () => (await (await fetch(`${base}/auth/v1/verify`, { method: 'POST', headers: { apikey: 'sb_publishable_mock_key', 'content-type': 'application/json' }, body: JSON.stringify({ type: 'email', email: 'info@pawtasticacademy.com', token: '123456' }) })).json()).access_token;
+const staffPost = async body => (await fetch(`${base}/api/public/game/staff/prizes`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${await staffToken()}` }, body: JSON.stringify(body) })).json();
 const mapCard = async page => { await page.goto(GAME, { waitUntil: 'networkidle' }); await closeSheets(page); await page.waitForTimeout(900); return page.innerText('.weekly-card').catch(() => ''); };
 
 (async () => {
   const browser = await chromium.launch();
   const errors = [];
   const contexts = [];
-  const newPage = async at => {
+  const newPage = async (at, skew = 0) => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     await context.clock.setSystemTime(new Date(at)); // the phone's clock; time runs on from there
     contexts.push(context);
     const page = await context.newPage();
+    if (skew) await page.addInitScript(skewPhoneClock, skew); // a phone whose clock is wrong
     page.on('pageerror', e => errors.push(e.message));
     page.on('dialog', d => d.accept());
     return page;
@@ -134,10 +159,59 @@ const mapCard = async page => { await page.goto(GAME, { waitUntil: 'networkidle'
   check(/Chapter 2 of 4 · ends in/i.test(board) && !/Team bar|Team battle/i.test(board) && /Each chapter has its own board/.test(board), 'chapter board: its own scores, no team battle (the season has the bar)', flat(board).slice(0, 220));
   await shot(b, '04-chapter-leaderboard');
 
+  // 4b. A wrong phone clock (hours or days, ahead or behind) never picks the chapter, the board or the countdown.
+  for (const [label, skew, name] of [['6 days ahead', 6 * D, 'Ahead'], ['9 days behind', -9 * D, 'Behind'], ['3 hours behind', -3 * H, 'Late']]) {
+    const p = await newPage(CH2, skew);
+    await enroll(p, name, 'Hawthorne');
+    const phone = await phoneTime(p);
+    card = await mapCard(p);
+    check(/Chapter 2 of 4/i.test(card) && /Season ends in 17d 1[34]h/i.test(card), `phone ${label}: the map shows the server's chapter and countdown`, `phone ${phone} · ${(card.match(/Chapter \d of 4|Season ends in [^\n]*/gi) || []).join(' · ')}`);
+    const w = await boardWeek(p);
+    check(w === '2026-11-16', `phone ${label}: the board played is the server's chapter 2`, w);
+    if (name === 'Ahead') {
+      // Signed in, the run is submitted for the server's chapter and counted there.
+      await p.goto(GAME, { waitUntil: 'networkidle' });
+      await closeSheets(p);
+      await p.click('button[aria-label="Sound and effects"]', { force: true });
+      await p.waitForTimeout(300);
+      await p.click('.sheet button:text-is("Save progress to the cloud")');
+      await signIn(p, 'ahead@example.com');
+      await playChallenge(p);
+      await p.waitForFunction(() => /this chapter/.test(document.querySelector('.sheet')?.innerText ?? ''), null, { timeout: 15000 }).catch(() => {});
+      const st = await state();
+      const id = Object.entries(st.players).find(([, v]) => v.dogName === 'Ahead')?.[0];
+      check(id && st.weekly.some(r => r.userId === id && r.week === '2026-11-16') && !st.weekly.some(r => r.userId === id && r.week !== '2026-11-16'), 'phone 6 days ahead: the run is submitted and counted for chapter 2', JSON.stringify(st.weekly.filter(r => r.userId === id).map(r => r.week)));
+      await staffPost({ action: 'hide', userId: id, hidden: true }); // keeps the season's winners below as they were
+    }
+  }
+  // The Monday boundary: the server's chapter whichever side of midnight the phone is on.
+  await moveClocks(MON_JUST_AFTER);
+  let p = await newPage(MON_JUST_AFTER, -H);
+  await enroll(p, 'Sunday', 'Hillsdale');
+  card = await mapCard(p);
+  check(/Chapter 2 of 4/i.test(card), 'Monday 12:00 am, phone an hour behind (Sunday): chapter 2 on the map', `phone ${await phoneTime(p)}`);
+  check(await boardWeek(p) === '2026-11-16', 'Monday 12:00 am, phone an hour behind: the board is chapter 2\'s');
+  await moveClocks(SUN_JUST_BEFORE);
+  p = await newPage(SUN_JUST_BEFORE, H);
+  await enroll(p, 'Monday', 'Hillsdale');
+  card = await mapCard(p);
+  check(/Chapter 1 of 4/i.test(card) && /Season ends in/i.test(card), 'Sunday 11:30 pm, phone an hour ahead (Monday): still chapter 1 on the map', `phone ${await phoneTime(p)}`);
+  check(await boardWeek(p) === '2026-11-09', 'Sunday 11:30 pm, phone an hour ahead: the board is chapter 1\'s');
+  await moveClocks(CH2);
+
   // 5. Chapter 4 ends on Saturday: the countdown runs to Sat 5 Dec, not Monday.
   await moveClocks(CH4);
   card = await mapCard(a);
   check(/Chapter 4 of 4/i.test(card) && /Season ends in 2d 1[34]h/i.test(card), 'chapter 4: the countdown ends on Saturday', (card.match(/Season ends in [^\n]*/i) || [''])[0]);
+  // The season's last minutes on Saturday, with the phone a day behind or ten minutes ahead.
+  await moveClocks(SAT_LATE);
+  for (const [label, skew] of [['a day behind', -D], ['10 minutes ahead', 10 * 60000]]) {
+    const q = await newPage(SAT_LATE, skew);
+    await enroll(q, skew < 0 ? 'Friday' : 'Sooner', 'Hawthorne');
+    card = await mapCard(q);
+    check(/Chapter 4 of 4/i.test(card) && /Season ends in 0h 1m/i.test(card) && await q.$('.weekly-card button:has-text("Play"):visible'), `Sat 5 Dec 11:58 pm, phone ${label}: "Season ends in 0h 1m" and still playable`, `phone ${await phoneTime(q)} · ${(card.match(/Season ends in [^\n]*/i) || [''])[0]}`);
+    if (skew < 0) await shot(q, '09-saturday-last-minutes-phone-behind', false);
+  }
 
   // 6. The season ends: runs are refused; the first request closes it once; winners are told; staff see the prizes.
   await moveClocks(AFTER);
@@ -162,6 +236,13 @@ const mapCard = async page => { await page.goto(GAME, { waitUntil: 'networkidle'
   check(/the season is over/i.test(card) && /Thanks for playing/.test(card) && !/Season ends in/i.test(card) && !(await a.$('.weekly-card button:has-text("Play"):visible')), 'map after the end: the season is over, no countdown, no play button', flat(card).slice(0, 200));
   await fetch(`${base}/api/public/game/leaderboard?board=season`);
   check((await state()).prizes.length === 2, 'closing again changes nothing');
+  // Sunday 6 Dec with a phone two days behind (Friday: "the season is still on") or a day ahead (a week after it).
+  for (const [label, skew] of [['two days behind', -2 * D], ['a day ahead', D]]) {
+    const q = await newPage(AFTER, skew);
+    await enroll(q, skew < 0 ? 'Friday' : 'Monday', 'Hillsdale');
+    card = await mapCard(q);
+    check(/the season is over/i.test(card) && !/Season ends in/i.test(card) && !(await q.$('.weekly-card button:has-text("Play"):visible')), `Sun 6 Dec, phone ${label}: the season is over, no countdown, no play button`, `phone ${await phoneTime(q)} · ${flat(card).slice(0, 120)}`);
+  }
   const desk = await newPage(AFTER);
   await desk.goto(`${base}/staff/index.html`, { waitUntil: 'networkidle' });
   await desk.fill('#email', 'info@pawtasticacademy.com');

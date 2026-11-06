@@ -17,7 +17,7 @@ import { createHint } from '../hint.js';
 import { trySwap, goalProgress } from '../../engine/game.js';
 import { findValidMove } from '../../engine/shuffle.js';
 import {
-  newChallengeGame, weekKey, CHALLENGES, CHALLENGE_IDS, isChallengeId, COMBO_SCALE, comboOf, cleanupScore,
+  newChallengeGame, CHALLENGES, CHALLENGE_IDS, isChallengeId, COMBO_SCALE, comboOf, cleanupScore,
   replayChallenge, tierOf, tipFor, movesFor, TIER_NAMES, TIER_ORDER,
 } from '../../engine/challenge.js';
 import { clientOf, signInSheet } from '../payments.js';
@@ -25,8 +25,9 @@ import { isPublicSite } from '../../backend/local.js';
 import { TROPHIES } from '../../economy/wallet.js';
 import {
   prizeLine, endsInText, homeName, keepPendingRun, pickHome, syncProfile, loadWeekPrizes, weekRules, formatTeaser, tierMark, challengeName,
-  weekSeason, competitionLine,
+  weekSeason, competitionLine, playWeek, serverWeekKnown,
 } from '../compete.js';
+import { serverNow } from '../../net/server-clock.js';
 import { seasonCountdown, SEASON_TEXT } from '../season.js';
 import { shareResult } from '../share-card.js';
 import { LOCATIONS } from '../../engine/levels.js';
@@ -63,10 +64,22 @@ export function bestLine(score, previousBest, runs, period = 'week') {
   return `${num(previousBest - score)} short of your best this ${period} (${num(previousBest)}).`;
 }
 
+// How long the screen waits for the server to say which week it is before it plays the best guess (offline play).
+const ASK_SERVER_MS = 5000;
+
 export function render(app, params = {}) {
   const { backend, audio, measure } = app.services;
   const pay = clientOf(app);
-  let week = weekKey(Date.now());
+  // The server decides which week (in a season, which chapter) this is: a phone's clock can be days off. Until it has
+  // said so for the current week, the board waits for its answer instead of playing a week the phone guessed.
+  if (pay?.accounts && !serverWeekKnown() && !params.askedServer) {
+    let waiting = true;
+    app.view.append(h('section', { class: 'level challenge' }, h('p', { class: 'muted center', role: 'status' }, 'Getting the challenge board…')));
+    Promise.race([loadWeekPrizes(app).catch(() => null), new Promise(r => setTimeout(r, ASK_SERVER_MS))])
+      .then(() => { if (waiting) app.go('challenge', { ...params, askedServer: true }); });
+    return () => { waiting = false; };
+  }
+  let week = playWeek();
   let rules = weekRules(week);
   const wanted = isChallengeId(params.challenge) ? params.challenge : 'high-score';
   // A challenge that isn't in this week's competition (a Beat My Pup link from a version-2 week, say) falls
@@ -78,9 +91,9 @@ export function render(app, params = {}) {
   const season = weekSeason(week); // null outside a season
   const period = season ? 'chapter' : 'week';
   // The server decides which week it is (a phone clock can be wrong) and which format it plays; this
-  // reloads the screen when the answer differs from what the phone assumed.
+  // reloads the screen when its latest answer differs from the week on the board.
   loadWeekPrizes(app).then(() => {
-    const now = weekKey(Date.now());
+    const now = playWeek();
     const fresh = weekRules(now);
     if (now !== week || fresh.version !== rules.version || !weekSeason(now) !== !season) { week = now; app.go('challenge', params); }
   }).catch(() => {});
@@ -239,7 +252,7 @@ export function render(app, params = {}) {
     if (!res.ok) {
       if (res.error === 'offline' || res.error === 'server') keepPendingRun(run);
       const s = weekSeason(week);
-      status.textContent = res.error === 'week-over' && s ? (s.ended || Date.now() >= Date.parse(s.endsAt) ? SEASON_TEXT.seasonOver : SEASON_TEXT.chapterOver) : ERRORS[res.error] ?? ERRORS.offline;
+      status.textContent = res.error === 'week-over' && s ? (s.ended || serverNow() >= Date.parse(s.endsAt) ? SEASON_TEXT.seasonOver : SEASON_TEXT.chapterOver) : ERRORS[res.error] ?? ERRORS.offline;
       return null;
     }
     backend.markChallengeSent(week, res.score, challenge);

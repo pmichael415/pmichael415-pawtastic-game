@@ -7,6 +7,7 @@
 
 import { seasonFor, chapterOf, seasonEndsAt } from '../engine/challenge.js';
 import { LOCATIONS } from '../engine/levels.js';
+import { serverNow } from '../net/server-clock.js';
 
 export const SEASON_TEXT = {
   how: 'Your best run in each chapter is added up to make your season score. Same board for everyone each chapter; no boosters, and tries are free.',
@@ -28,7 +29,7 @@ const goodSeason = s => !!s && typeof s.id === 'string' && typeof s.name === 'st
  * The season to show for a week: the server's answer when it is about this week (`server` = { week, season }), else
  * the engine's constant; null outside a season.
  */
-export function seasonOf(week, server = null, now = Date.now()) {
+export function seasonOf(week, server = null, now = serverNow()) {
   if (server && server.week === week) {
     const s = server.season;
     return goodSeason(s) ? { id: s.id, name: s.name, chapter: s.chapter, chapters: s.chapters, endsAt: s.endsAt, ended: !!s.ended, prizes: goodLineup(s.prizes) ? s.prizes : null } : null;
@@ -53,8 +54,8 @@ export function fmtLeft(ms) {
 /** "Season 1: Top Dog · Chapter 2 of 4 · season ends Sat 5 Dec" */
 export const seasonHeadline = s => (s.ended ? `${s.name} · the season is over` : `${s.name} · Chapter ${s.chapter} of ${s.chapters} · season ends ${endDay(s.endsAt)}`);
 
-/** "Season ends in 18d 4h", counted down to the end time the server gave. */
-export function seasonCountdown(s, now = Date.now()) {
+/** "Season ends in 18d 4h", counted down to the end time the server gave, by the server's clock. */
+export function seasonCountdown(s, now = serverNow()) {
   const end = Date.parse(s.endsAt);
   return s.ended || !(end > now) ? 'The season is over' : `Season ends in ${fmtLeft(end - now)}`;
 }

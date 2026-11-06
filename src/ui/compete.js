@@ -8,7 +8,8 @@ import { clientOf } from './payments.js';
 import { onMap } from './referral.js';
 import { LOCATIONS } from '../engine/levels.js';
 import { totalStars, totalBestScore } from '../economy/progression.js';
-import { weekKey, playEndsAt, CHALLENGES, CHALLENGE_IDS, isChallengeId, isWeekKey, TIER_NAMES, rulesFor, SEASONS } from '../engine/challenge.js';
+import { weekKey, weekEndsAt, playEndsAt, CHALLENGES, CHALLENGE_IDS, isChallengeId, isWeekKey, TIER_NAMES, rulesFor, SEASONS } from '../engine/challenge.js';
+import { serverNow } from '../net/server-clock.js';
 import { seasonOf, seasonHeadline, seasonCountdown, seasonPrizeLine, fmtLeft, SEASON_TEXT } from './season.js';
 
 const PRIZE_NAMES = { 'daycare-day': 'Free day of daycare', bath: 'Free bath' };
@@ -19,20 +20,33 @@ const lower = t => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
 let weekly = null; // { week, prizes, next, rules, endsAt, season }
 const goodLineup = v => Array.isArray(v) && v.length === 3 && v.every((p, i) => p && p.rank === i + 1 && typeof p.label === 'string' && p.label.length >= 3 && p.label.length <= 80);
 const goodRules = v => v && (v.version === 1 || v.version === 2) && Array.isArray(v.challenges) && v.challenges.every(isChallengeId);
-export function weekPrizes(week = weekKey(Date.now())) { return weekly?.week === week ? weekly.prizes : null; }
+/**
+ * The week (in a season, the chapter) to play and submit: the SERVER's week from GET /challenge, while it lasts by the
+ * server's clock (src/net/server-clock.js). Until the server has answered, the best guess: the week of the server's
+ * clock, which is the phone's until the first answer. A wrong phone clock never picks the chapter.
+ */
+export function playWeek(now = serverNow()) {
+  if (serverWeekKnown(now)) return weekly.week;
+  return weekKey(now);
+}
+/** True when the server has said which week it is and that week has not ended (by the server's clock). */
+export const serverWeekKnown = (now = serverNow()) => !!weekly && now < weekEndsAt(weekly.week);
+/** For tests: forget the server's answer. */
+export function forgetServerWeek() { weekly = null; }
+export function weekPrizes(week = playWeek()) { return weekly?.week === week ? weekly.prizes : null; }
 export function nextPrizes() { return weekly?.next ?? null; }
 /**
  * The season this week belongs to (Season 1: Top Dog), as the server said, or from the engine's constant until it
  * answers; null outside a season. { id, name, chapter, chapters, endsAt, ended, prizes }
  */
-export function weekSeason(week = weekKey(Date.now())) { return seasonOf(week, weekly ? { week: weekly.week, season: weekly.season } : null); }
+export function weekSeason(week = playWeek()) { return seasonOf(week, weekly ? { week: weekly.week, season: weekly.season } : null); }
 /** The season a won prize belongs to (a season's prizes are stored under its first week), or null. */
 export const prizeSeasonName = p => (typeof p?.season === 'string' && p.season) || SEASONS.find(s => s.weeks[0] === p?.week)?.name || null;
 /**
  * The format this week plays, as the server said: version 1 (one High score run) until the owner's scheduled
  * Monday, then version 2 (three challenges, best in each added up). Before the server answers, version 1.
  */
-export function weekRules(week = weekKey(Date.now())) {
+export function weekRules(week = playWeek()) {
   if (weekly?.week === week && goodRules(weekly.rules)) return weekly.rules;
   return rulesFor(week, weekly?.rules?.from ?? null);
 }
@@ -100,9 +114,9 @@ export function pickHome(app, { reason = '' } = {}) {
 // The end of this week's play as the server gave it (a season's last chapter ends with the season, on Saturday);
 // until it answers, the engine's (the same rule).
 const weekEnd = week => (weekly?.week === week && weekly.endsAt ? Date.parse(weekly.endsAt) : playEndsAt(week));
-export const endsInText = (week, now = Date.now()) => `ends in ${fmtLeft(weekEnd(week) - now)}`;
+export const endsInText = (week, now = serverNow()) => `ends in ${fmtLeft(weekEnd(week) - now)}`;
 /** The prize line for this week: the season's (given once, when it ends) in a season, else the week's. */
-export function competitionLine(week = weekKey(Date.now())) {
+export function competitionLine(week = playWeek()) {
   const season = weekSeason(week);
   if (!season) return prizeLine();
   return season.ended ? SEASON_TEXT.over : seasonPrizeLine(season.prizes ?? weekPrizes(week));
@@ -151,7 +165,10 @@ function seasonCard(app, week) {
     play.textContent = best ? 'Play again' : `Play chapter ${season.chapter}`;
   };
   paint();
-  loadWeekPrizes(app).then(paint).catch(() => {});
+  loadWeekPrizes(app).then(() => {
+    if (playWeek() !== week) { card.replaceWith(weeklyCard(app)); return; } // the server's week is another chapter
+    paint();
+  }).catch(() => {});
   return card;
 }
 
@@ -159,7 +176,7 @@ function seasonCard(app, week) {
 export function weeklyCard(app) {
   const { backend } = app.services;
   const state = backend.state();
-  const week = weekKey(Date.now());
+  const week = playWeek();
   if (weekSeason(week)) return seasonCard(app, week);
   const best = state.weekly.week === week ? state.weekly.best : 0;
   const headline = h('h2', {}, prizeHeadline());
@@ -195,6 +212,7 @@ export function weeklyCard(app) {
   showFormats();
   let card = null;
   loadWeekPrizes(app).then(p => {
+    if (playWeek() !== week) { card?.replaceWith(weeklyCard(app)); return; } // the server's week, not the phone's guess
     if (weekSeason(week)) { card?.replaceWith(seasonCard(app, week)); return; } // the server says this week is a season chapter
     if (p) { headline.textContent = prizeHeadline(p); line.textContent = prizeLine(p); showNext(); }
     showFormats();
@@ -253,7 +271,7 @@ export async function sendPendingRun(app) {
   const { backend } = app.services;
   const state = backend.state();
   if (!pay?.signedIn || !state.home) return null;
-  const week = weekKey(Date.now());
+  const week = playWeek();
   const runs = { ...readPending() };
   const w = state.weekly;
   if (w.week === week) {
@@ -340,7 +358,7 @@ export async function openBeatLink(app) {
   beatLinkSeen = null;
   if (!(await onMap(app))) return false;
   await loadWeekPrizes(app).catch(() => null);
-  const week = weekKey(Date.now());
+  const week = playWeek();
   const rules = weekRules(week);
   const challenge = rules.challenges.includes(link.challenge) ? link.challenge : 'high-score';
   const period = weekSeason(week) ? 'chapter' : 'week';

@@ -8,8 +8,8 @@ import { h, fill } from '../dom.js';
 import { topBar } from '../topbar.js';
 import { clientOf, signInThenReload } from '../payments.js';
 import { LOCATIONS } from '../../engine/levels.js';
-import { weekKey, CHALLENGES, CHALLENGE_IDS } from '../../engine/challenge.js';
-import { prizeLine, prizeForRank, endsInText, homeName, pickHome, prizeCard, syncProfile, sendPendingRun, loadWeekPrizes, weekRules, formatTeaser, weekSeason, weekPrizes, competitionLine } from '../compete.js';
+import { CHALLENGES, CHALLENGE_IDS } from '../../engine/challenge.js';
+import { prizeLine, prizeForRank, endsInText, homeName, pickHome, prizeCard, syncProfile, sendPendingRun, loadWeekPrizes, weekRules, formatTeaser, weekSeason, weekPrizes, competitionLine, playWeek } from '../compete.js';
 import { seasonHeadline, seasonCountdown, teamBar, TEAM_BAR_NOTE, SEASON_TEXT } from '../season.js';
 
 const MEDALS = { 1: '🥇', 2: '🥈', 3: '🥉' };
@@ -33,8 +33,9 @@ export function render(app, { board: wanted, location = 'all' } = {}) {
   const pay = clientOf(app);
   const bar = topBar(app, { title: 'Leaderboard', back: () => app.go('map') });
   const go = (b, l) => app.go('leaderboard', { board: b, location: l });
-  const week = weekKey(Date.now());
+  const week = playWeek();
   const season = weekSeason(week);
+  let alive = true;
   // In a season the Season board comes first; outside one there is no season tab (and the screen is as before).
   const board = season ? (['season', 'weekly', 'alltime'].includes(wanted) ? wanted : 'season') : (wanted === 'alltime' ? 'alltime' : 'weekly');
   const tabList = season ? [['season', 'Season'], ['weekly', 'This chapter'], ['alltime', 'All-time']] : [['weekly', 'This week'], ['alltime', 'All-time']];
@@ -92,6 +93,8 @@ export function render(app, { board: wanted, location = 'all' } = {}) {
     if (!pay?.accounts) { fill(body, h('p', { class: 'card' }, 'The leaderboard needs the internet. Open the game at play.pawtasticacademy.com.')); return; }
     if (pay.signedIn) { await syncProfile(app).catch(() => null); await sendPendingRun(app).catch(() => null); }
     const [res, prizes] = await Promise.all([pay.leaderboard({ board, location }), pay.signedIn ? pay.prizes() : Promise.resolve(null), loadWeekPrizes(app).catch(() => null)]);
+    // The server's week differs from the guess this screen was drawn with (a wrong phone clock): draw it again.
+    if (playWeek() !== week) { if (alive) app.go('leaderboard', { board: wanted, location }); return; }
     showFormat();
     paintSeason();
     if (!res.ok) { fill(body, h('p', { class: 'card' }, "Couldn't load the leaderboard. Try again in a moment.")); return; }
@@ -134,5 +137,5 @@ export function render(app, { board: wanted, location = 'all' } = {}) {
         : h('p', { class: 'card muted' }, board === 'season' ? SEASON_TEXT.noScores : board === 'weekly' ? `No scores yet this ${season ? 'chapter' : 'week'}. Be the first!` : 'No players yet. Be the first!'),
       state.home ? h('p', { class: 'small muted' }, `Your team: ${homeName(state)}. Players show as their dog's name and location only.`) : null);
   })();
-  return () => bar.stop();
+  return () => { alive = false; bar.stop(); };
 }

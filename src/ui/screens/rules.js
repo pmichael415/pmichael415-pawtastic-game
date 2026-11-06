@@ -8,7 +8,7 @@ import { topBar } from '../topbar.js';
 import { isPublicSite } from '../../backend/local.js';
 import { REFUND_POLICY } from '../payments.js';
 import { PASS, formatUsd } from '../../economy/catalog.js';
-import { weekKey } from '../../engine/challenge.js';
+import { playWeek, serverWeekKnown, loadWeekPrizes } from '../compete.js';
 import { seasonOf } from '../season.js';
 
 const SITE_URL = 'https://pawtasticacademy.com';
@@ -65,7 +65,7 @@ function referralTerms() {
 // The Weekly Challenge and leaderboards. Prizes are real-world services given at the front desk.
 // During a season (Season 1: Top Dog) its terms come first: they replace the weekly prizes for its weeks.
 function seasonTerms() {
-  const season = seasonOf(weekKey(Date.now()));
+  const season = seasonOf(playWeek());
   if (!season) return [];
   return [
     h('h2', {}, season.name),
@@ -112,5 +112,9 @@ export function render(app) {
   const { backend } = app.services;
   const body = isPublicSite(backend) ? publicRules(!!backend.payments, !!app.services.pay?.accounts) : customerRules();
   app.view.append(bar, h('section', { class: 'rules stack card' }, ...body));
-  return () => bar.stop();
+  // The season's rules follow the server's week (a phone's clock can be wrong): until the server has said which week
+  // it is, ask it, then draw the page again.
+  let alive = true;
+  if (app.services.pay?.accounts && !serverWeekKnown()) loadWeekPrizes(app).then(() => { if (alive && serverWeekKnown()) app.go('rules'); }).catch(() => {});
+  return () => { alive = false; bar.stop(); };
 }

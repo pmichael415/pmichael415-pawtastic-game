@@ -9,6 +9,7 @@
 // 'offline' | 'signed-out' | 'rate-limited' | 'server' | a server error code (e.g. 'monthly-cap').
 
 import { createLocalStorage } from '../economy/storage-local.js';
+import { noteServerTime } from './server-clock.js';
 
 export const SESSION_KEY = 'pawtastic-gd-session-v1';
 export const PENDING_KEY = 'pawtastic-gd-pending-checkout-v1';
@@ -44,10 +45,12 @@ export const isEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(s ?? '')
 /**
  * Resolves the payments client, or null when the site's server can't be reached.
  * loc/hist: for reading and cleaning a magic-link sign-in (#access_token=...).
+ * onServerTime: told the server's clock (`serverNow`) of every answer that has one, with the send and receive times.
  */
 export async function openPayments({
   fetchImpl = globalThis.fetch?.bind(globalThis), base = '', loc = globalThis.location, hist = globalThis.history,
   store = createLocalStorage(SESSION_KEY), now = () => Date.now(), timeoutMs = 3500, configTimeoutMs = 8000, redirectPath = '/play/index.html',
+  onServerTime = noteServerTime,
 } = {}) {
   if (typeof fetchImpl !== 'function') return null;
   const nowS = () => Math.floor(now() / 1000);
@@ -60,9 +63,12 @@ export async function openPayments({
       if (body !== undefined) headers['content-type'] = 'application/json';
       if (apikey) headers.apikey = apikey;
       if (token) headers.authorization = `Bearer ${token}`;
+      const sent = now();
       const res = await fetchImpl(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: ctrl?.signal, credentials: 'same-origin' });
       let data = null;
       try { data = await res.json(); } catch { data = null; }
+      // The server's clock (src/net/server-clock.js): countdowns and the season's state follow it, not the phone's.
+      if (typeof data?.serverNow === 'string') onServerTime(data.serverNow, sent, now());
       return { status: res.status, data };
     } catch {
       return { status: 0, data: null };
