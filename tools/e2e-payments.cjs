@@ -11,7 +11,8 @@ const EMAIL = 'buyer@example.com';
 const results = [];
 const check = (ok, label, extra = '') => { results.push({ ok: !!ok, label }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${extra ? `  (${extra})` : ''}`); };
 
-const wallet = page => page.evaluate(() => JSON.parse(localStorage.getItem('pawtastic-gd-wallet-v1')));
+// A signed-in player's save lives under per-account keys (Lovable's owner-save hook in the built page: <key>:<mode>:<user id>).
+const wallet = page => page.evaluate(() => { const u = JSON.parse(localStorage.getItem('pawtastic-gd-session-v1') || 'null')?.user_id; return JSON.parse(localStorage.getItem(u ? `pawtastic-gd-wallet-v1:test:${u}` : 'pawtastic-gd-wallet-v1')); });
 const state = async () => (await fetch(`${base}/mock/state`)).json();
 const text = page => page.innerText('body');
 
@@ -243,6 +244,8 @@ async function goShop(page) { await page.click('button:has-text("Shop")', { forc
     await goShop(a);
     await a.click('button:text-is("Request refund")', { force: true });
     await a.click('.sheet button:text-is("Send")');
+    // The problem report's toast may still be up: wait for this sheet to close, or the menu click below lands on it.
+    await a.waitForSelector('.sheet[aria-label="Request a refund"]', { state: 'detached', timeout: 10000 }).catch(() => {});
     check(await toast(a, /Sent to PAWtastic/), 'refund request: sent');
     s = await state();
     check(s.reports.some(r => r.kind === 'problem' && /bone bomb/.test(r.message) && r.email === EMAIL), 'server: problem report with reply email');

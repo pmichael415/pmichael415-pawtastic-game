@@ -570,6 +570,13 @@ createServer(async (req, res) => {
       } catch { return send(res, 404, { error: 'not-found' }); }
     }
 
+    // Lovable's owner modules, which the built page imports from the site root: test stand-ins (tools/mock-owner/).
+    if (path === '/owner-save-client.js' || path === '/owner-bridge.js') {
+      const data = await readFile(new URL(`./mock-owner${path}`, import.meta.url));
+      res.writeHead(200, { 'content-type': 'text/javascript', 'cache-control': 'no-cache' });
+      return res.end(data);
+    }
+
     // The front desk's referral page.
     if (path === '/staff/index.html' || path === '/staff/') {
       let page;

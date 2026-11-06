@@ -9,7 +9,8 @@ const GAME = `${base}/play/index.html`;
 const EMAIL = 'phone@example.com';
 const results = [];
 const check = (ok, label, extra = '') => { results.push({ ok: !!ok, label }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${extra ? `  (${extra})` : ''}`); };
-const wallet = page => page.evaluate(() => JSON.parse(localStorage.getItem('pawtastic-gd-wallet-v1')));
+// A signed-in player's save lives under per-account keys (Lovable's owner-save hook in the built page: <key>:<mode>:<user id>).
+const wallet = page => page.evaluate(() => { const u = JSON.parse(localStorage.getItem('pawtastic-gd-session-v1') || 'null')?.user_id; return JSON.parse(localStorage.getItem(u ? `pawtastic-gd-wallet-v1:test:${u}` : 'pawtastic-gd-wallet-v1')); });
 const state = async () => (await fetch(`${base}/mock/state`)).json();
 
 async function closeSheets(page, keep = []) {

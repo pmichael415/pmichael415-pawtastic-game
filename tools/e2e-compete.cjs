@@ -170,11 +170,14 @@ async function playChallenge(page, { greedy = false } = {}) {
 
   // 7. The home-location adventure opens after Orientation.
   await a.evaluate(() => {
-    const w = JSON.parse(localStorage.getItem('pawtastic-gd-wallet-v1'));
+    // A signed-in player's save lives under per-account keys (Lovable's owner-save hook: <key>:<mode>:<user id>).
+    const uid = JSON.parse(localStorage.getItem('pawtastic-gd-session-v1') || 'null')?.user_id;
+    const key = k => (uid ? `${k}:test:${uid}` : k);
+    const w = JSON.parse(localStorage.getItem(key('pawtastic-gd-wallet-v1')));
     for (let i = 1; i <= 8; i++) w.progress.levels[i] = { stars: 2, score: 15000 };
     w.progress.unlocked = 9;
-    localStorage.setItem('pawtastic-gd-wallet-v1', JSON.stringify(w));
-    localStorage.setItem('pawtastic-gd-saved-at-v1', JSON.stringify({ at: Date.now() + 60000, provisional: false }));
+    localStorage.setItem(key('pawtastic-gd-wallet-v1'), JSON.stringify(w));
+    localStorage.setItem(key('pawtastic-gd-saved-at-v1'), JSON.stringify({ at: Date.now() + 60000, provisional: false }));
   });
   await a.goto(GAME, { waitUntil: 'networkidle' });
   await a.click('body');

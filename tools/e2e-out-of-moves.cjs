@@ -13,7 +13,9 @@ const RUN = Date.now().toString(36);
 const results = [];
 const check = (ok, label, extra = '') => { results.push(!!ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${extra ? `  (${extra})` : ''}`); };
 
-const readWallet = page => page.evaluate(k => JSON.parse(localStorage.getItem(k)), KEY);
+// A signed-in player's save lives under per-account keys (Lovable's owner-save hook in the built page: <key>:<mode>:<user id>).
+const readWallet = page => page.evaluate(k => { const u = JSON.parse(localStorage.getItem('pawtastic-gd-session-v1') || 'null')?.user_id; return JSON.parse(localStorage.getItem(u ? `${k}:test:${u}` : k)); }, KEY);
+const writeWallet = (page, w) => page.evaluate(([k, v]) => { const u = JSON.parse(localStorage.getItem('pawtastic-gd-session-v1') || 'null')?.user_id; localStorage.setItem(u ? `${k}:test:${u}` : k, v); }, [KEY, JSON.stringify(w)]);
 const treats = w => w.treats.free + w.treats.converted + w.treats.paid;
 const sheetText = page => page.$$eval('.sheet', els => els.map(e => e.innerText).join(' | ')).catch(() => '');
 async function toast(page, re, timeout = 10000) {
@@ -43,7 +45,7 @@ async function outOfMovesSave(page, n) {
   await closeIntroSheets(page);
   const w = await readWallet(page);
   w.inventory.boosters.shuffle = 1; // a shuffle saves the board, like a move does
-  await page.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, JSON.stringify(w)]);
+  await writeWallet(page, w);
   await page.goto(`${GAME}?debug=1&screen=level&level=1`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1200);
   await page.click('button[aria-label^="Shuffle"]', { force: true });
@@ -53,7 +55,7 @@ async function outOfMovesSave(page, n) {
   lost.treats = { free: n, converted: 0, paid: 0 };
   await page.goto(`${base}/mock/state`); // leave the game so it can't save over the edit
   await page.goto(GAME, { waitUntil: 'domcontentloaded' });
-  await page.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, JSON.stringify(lost)]);
+  await writeWallet(page, lost);
   await page.goto(GAME, { waitUntil: 'networkidle' });
   await page.waitForTimeout(800);
 }
