@@ -225,12 +225,15 @@ export async function openPayments({
       kind, message: String(message ?? '').slice(0, 2000), ...(email ? { email } : {}), ...(details ? { details } : {}),
     }, { signedIn: false }),
     // Measurement (src/net/measure.js): a batch of what the player did, with the sign-in when there is one.
+    // Built page: Lovable's owner hook (tools/owner-hooks.mjs) skips this send when the player opted out of analytics.
     event: body => call('POST', '/api/public/game/event', body, { signedIn: false }),
     // The owner's numbers on the staff page (staff emails only): players, returns, purchases, problems.
     staffReport: (days = 7) => call('GET', `/api/public/game/staff/report?days=${encodeURIComponent(days)}`),
 
     // The saved game on the buyer's account, in the shape src/backend/saved-game.js reads
     // (the same one claude.ai provides), so it syncs exactly like the claude.ai demo does.
+    // Built page: Lovable's owner hook (tools/owner-hooks.mjs) replaces this with accountStore(doc), the doc made by
+    // Graduation's /owner-save-client.js (save v2), and adds saveCall + accountIdentity for it.
     accountStore() {
       const doc = {
         async get() {

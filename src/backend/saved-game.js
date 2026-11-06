@@ -48,6 +48,7 @@ export async function openSavedGame({
       const snap = await remote.get();
       const theirs = snap.exists ? snap.data() : null;
       linked = true;
+      // Built page: Lovable's owner hook (tools/owner-hooks.mjs) adds snap.forceAccount (an explicit "Use account save").
       const accountWins = theirs?.wallet && (provisional || !hadLocal || (theirs.at ?? 0) > at);
       if (accountWins) {
         write(stores.wallet, theirs.wallet);

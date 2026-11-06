@@ -89,6 +89,8 @@ const startApp = ({ storagePersistent, jar = null, pay = null, flushSave = null 
   }, screens);
 };
 
+// Built page: Lovable's owner-save / owner-bridge hooks (tools/owner-hooks.mjs) are spliced into bootLocal verbatim:
+// an analytics opt-out check, /owner-save-client.js and per-account save keys, and /owner-bridge.js at the end.
 async function bootLocal() {
   // The public site's own server: real purchases (Stripe), buyers' saved games and reports.
   // Null anywhere else (claude.ai, a file on disk), where the game stays as it was.

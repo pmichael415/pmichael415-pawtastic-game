@@ -4,6 +4,7 @@ import { build } from 'esbuild';
 import { readFileSync, writeFileSync, mkdtempSync, cpSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { applyOwnerHooks } from './owner-hooks.mjs';
 
 const [gameDir, outFile] = process.argv.slice(2);
 const work = mkdtempSync(join(tmpdir(), 'pawtastic-'));
@@ -25,7 +26,8 @@ const css = await build({
   entryPoints: [join(work, 'src/ui/styles.css')], bundle: true, write: false,
   loader: { '.woff2': 'dataurl' }, minify: true, logLevel: 'warning',
 });
-const jsText = js.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
+// Lovable's owner-save / owner-bridge hooks, spliced in verbatim (see tools/owner-hooks.mjs).
+const jsText = applyOwnerHooks(js.outputFiles[0].text).replace(/<\/script/gi, '<\\/script');
 const cssText = css.outputFiles[0].text.replace(/<\/style/gi, '<\\/style');
 
 let html = readFileSync(join(work, 'index.html'), 'utf8');
