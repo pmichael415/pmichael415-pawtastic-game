@@ -27,6 +27,9 @@ const SUN_JUST_BEFORE = '2026-11-16T04:30:00Z'; // Sun 15 Nov, 11:30 pm New York
 const SAT_LATE = '2026-12-06T04:58:00Z'; // Sat 5 Dec, 11:58 pm New York: the season's last two minutes
 const JUST_ENDED = '2026-12-06T05:02:00Z'; // Sun 6 Dec, 12:02 am: ended, inside the 5 minutes' grace (awaiting the close)
 const LINEUP = ['A free night of boarding', 'A free day of daycare and a free exit bath', 'A free exit bath'];
+// The rules page: the owner-approved season paragraph (CONTRACT), and the ordinary weekly-prize paragraph.
+const SEASON_RULES = "Season 1: Top Dog runs from Mon 9 Nov 2026, 12:00 am, to Sat 5 Dec 2026, 11:59 pm (New York), in four chapters. Your best score in each chapter is added up to make your season score; a chapter you don't play adds nothing. No purchase necessary, and buying anything never helps. No weekly prizes are given during the season. When it ends, the top 3 players at each location by season score win the season's prizes shown in the game, for one dog. Your location is the one of your first run in the season. Ties go to whoever reached their latest counted score first. The team bar compares the average of each location's top 10 season scores; it wins no PAWtastic prize.";
+const WEEKLY_PRIZE_RULES = "To be ranked you sign in and pick your PAWtastic (Hawthorne or Hillsdale). When the week ends, the top 3 players at each location win that week's prizes, for one dog. Each week's prizes are shown in the game during that week (for example a free day of daycare or a free bath); a week without other prizes shown awards 1st place a free day of daycare and 2nd and 3rd place a free bath. Ties go to the player who reached the score first. Scores are checked by our server, which replays every move.";
 const CH4 = '2026-12-03T15:00:00Z'; // Thu 3 Dec: chapter 4, which ends Saturday
 const AFTER = '2026-12-06T05:06:00Z'; // Sun 6 Dec, 12:06 am: the season ended 6 minutes ago
 const BEFORE = '2026-11-05T15:00:00Z'; // the week before the season
@@ -85,6 +88,17 @@ async function boardWeek(page) {
   await page.waitForFunction(() => !!window.__pawtasticChallenge, null, { timeout: 15000 });
   return page.evaluate(() => window.__pawtasticChallenge.week);
 }
+// The rules page's paragraphs as rendered (DOM text; whitespace normalised only).
+async function rulesParagraphs(page) {
+  await page.goto(GAME, { waitUntil: 'networkidle' });
+  await closeSheets(page);
+  await page.click('button[aria-label="Sound and effects"]', { force: true });
+  await page.waitForTimeout(300);
+  await page.click('.sheet button:text-is("Game rules & privacy")');
+  await page.waitForSelector('section.rules');
+  await page.waitForTimeout(800);
+  return page.$$eval('section.rules p', els => els.map(e => e.textContent.replace(/\s+/g, ' ').trim()));
+}
 const phoneTime = page => page.evaluate(() => new Date().toISOString());
 const staffToken = async () => (await (await fetch(`${base}/auth/v1/verify`, { method: 'POST', headers: { apikey: 'sb_publishable_mock_key', 'content-type': 'application/json' }, body: JSON.stringify({ type: 'email', email: 'info@pawtasticacademy.com', token: '123456' }) })).json()).access_token;
 const staffPost = async body => (await fetch(`${base}/api/public/game/staff/prizes`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${await staffToken()}` }, body: JSON.stringify(body) })).json();
@@ -132,6 +146,12 @@ const mapCard = async page => { await page.goto(GAME, { waitUntil: 'networkidle'
   check(/best run in each chapter is added up/i.test(card) && !/this week|resets|miss|streak/i.test(card), 'map: chapter wording, no "this week", no streak or guilt wording');
   check(await a.$('.weekly-card.season-card'), 'map: the card keeps the weekly-card class');
   await cardShot(a, '01-season-map-card-chapter2');
+
+  // 1b. The rules page during the season: exactly the owner-approved paragraph, and no weekly-prize paragraph (item 9).
+  let rules = await rulesParagraphs(a);
+  check(rules.filter(t => t === SEASON_RULES).length === 1 && rules.filter(t => t.startsWith('Season 1: Top Dog')).length === 1, 'rules page in the season: exactly the approved season paragraph (rendered text)', rules.find(t => /^Season 1/.test(t))?.slice(0, 80));
+  check(!rules.includes(WEEKLY_PRIZE_RULES) && !rules.some(t => /When the week ends|a week without other prizes shown/.test(t)), 'rules page in the season: no ordinary weekly-prize paragraph');
+  await shot(a, '01b-rules-in-season');
 
   // 2. A run, then sign in: it is sent and counted for the chapter and the season.
   await playChallenge(a);
@@ -294,6 +314,8 @@ const mapCard = async page => { await page.goto(GAME, { waitUntil: 'networkidle'
     await a.waitForTimeout(1200);
     const t = await a.$$eval('.seg[aria-label="Leaderboard"] .seg-btn', els => els.map(e => e.textContent));
     check(t.join('|') === 'This week|All-time' && !/Team bar/.test(await a.innerText('.leaderboard')), `${label}: leaderboard tabs as before (no Season tab)`, t.join('|'));
+    rules = await rulesParagraphs(a);
+    check(rules.filter(t => t === WEEKLY_PRIZE_RULES).length === 1 && !rules.some(t => /Season 1|season score/.test(t)), `${label}: rules page as before (the weekly-prize paragraph unchanged, no season paragraph)`);
     await shot(a, label === 'the week after the season' ? '07-after-season-week' : '08-before-season-week', false);
   }
 

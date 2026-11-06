@@ -23,6 +23,9 @@ export const SEASON_TEXT = {
   // The season has ended and is not closed yet (or its close is blocked; staff see why, players never do).
   confirming: 'The season has ended — winners are being confirmed.',
 };
+// The rules page's Season 1: Top Dog paragraph, exactly as the owner approved it (shown during the season, in place of
+// the ordinary weekly-prize paragraph).
+export const SEASON_1_RULES = "Season 1: Top Dog runs from Mon 9 Nov 2026, 12:00 am, to Sat 5 Dec 2026, 11:59 pm (New York), in four chapters. Your best score in each chapter is added up to make your season score; a chapter you don't play adds nothing. No purchase necessary, and buying anything never helps. No weekly prizes are given during the season. When it ends, the top 3 players at each location by season score win the season's prizes shown in the game, for one dog. Your location is the one of your first run in the season. Ties go to whoever reached their latest counted score first. The team bar compares the average of each location's top 10 season scores; it wins no PAWtastic prize.";
 export const TEAM_BAR_NOTE = "The average of each team's top 10 season scores, so a busier location doesn't win by size.";
 
 const goodLineup = v => Array.isArray(v) && v.length === 3 && v.every((p, i) => p && p.rank === i + 1 && typeof p.label === 'string' && p.label.length >= 3 && p.label.length <= 80);
