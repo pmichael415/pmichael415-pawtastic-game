@@ -99,6 +99,21 @@ async function rulesParagraphs(page) {
   await page.waitForTimeout(800);
   return page.$$eval('section.rules p', els => els.map(e => e.textContent.replace(/\s+/g, ' ').trim()));
 }
+// The staff page, signed in as the front desk; resolves the season panel's text ('' when there is none).
+async function staffPanel(desk) {
+  await desk.goto(`${base}/staff/index.html`, { waitUntil: 'networkidle' });
+  if (await desk.$('#email')) {
+    await desk.fill('#email', 'info@pawtasticacademy.com');
+    await desk.click('button:text-is("Email me a sign-in code")');
+    await desk.fill('#code', '123456');
+    await desk.click('button:text-is("Sign in")');
+  }
+  await desk.waitForSelector('h2:text-is("Look up a code")', { timeout: 15000 });
+  await desk.waitForTimeout(600);
+  return desk.innerText('.season-panel').catch(() => '');
+}
+const closeButton = desk => desk.$('.season-panel button:text-is("Close season now")');
+const OCCUPIED = { weeks: ['2026-11-09'], closed_weeks: ['2026-11-09'], prize_weeks: ['2026-11-09'], prizes: { total: 4, won: 2, redeemed: 1, void: 1, emailed: 3 }, redeemed: 1 };
 const phoneTime = page => page.evaluate(() => new Date().toISOString());
 const staffToken = async () => (await (await fetch(`${base}/auth/v1/verify`, { method: 'POST', headers: { apikey: 'sb_publishable_mock_key', 'content-type': 'application/json' }, body: JSON.stringify({ type: 'email', email: 'info@pawtasticacademy.com', token: '123456' }) })).json()).access_token;
 const staffPost = async body => (await fetch(`${base}/api/public/game/staff/prizes`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${await staffToken()}` }, body: JSON.stringify(body) })).json();
@@ -250,6 +265,22 @@ const mapCard = async page => { await page.goto(GAME, { waitUntil: 'networkidle'
   check(await boardWeek(p) === '2026-11-09', 'Sunday 11:30 pm, phone an hour ahead: the board is chapter 1\'s');
   await moveClocks(CH2);
 
+  // 4c. The staff page's season panel while the season runs (audit item 10): status, lineup, no close yet; the old
+  //     game's trap (prizes under a season week) shows as a warning even now; without it, no warning.
+  const desk = await newPage(CH2);
+  let panel = await staffPanel(desk);
+  check(/Season 1: Top Dog: season close/.test(panel) && /Running: it ends Sat, Dec 5, 11:59\sPM \(New York time\)/.test(panel) && /Prize lineup \(week of 2026-11-09\): confirmed/.test(panel) && /Winners: 0/.test(panel) && !/Warning/.test(panel), 'staff panel, running: status in plain words, lineup confirmed, no warning', flat(panel).slice(0, 220));
+  check(await closeButton(desk).then(b => !!b && b.isDisabled()) && /"Close season now" is available from Sun, Dec 6, 12:04\sAM/.test(panel) && await desk.$('.season-panel button:text-is("Send pending emails")'), 'staff panel, running: "Close season now" disabled until the end + 5 minutes');
+  await post('/mock/season-block', { details: OCCUPIED });
+  panel = await staffPanel(desk);
+  check(/Running/.test(panel) && /Warning: the old game already gave prizes under a Season 1 week \(4 prizes, 1 redeemed, weeks 2026-11-09\)\. The season will not close until the owner follows docs\/season-1-recovery\.md\./.test(panel) && /4 prizes: 2 not used yet, 1 redeemed, 1 voided, 3 emailed/.test(panel), 'staff panel, running + prize-week-occupied: the warning with its numbers and weeks', flat(panel).slice(0, 300));
+  await shot(desk, '10-staff-running-old-prizes-warning');
+  card = await mapCard(a);
+  check(!/Warning|occupied|recovery|old game/i.test(card), 'players never see the warning');
+  await post('/mock/season-block', { details: null });
+  panel = await staffPanel(desk);
+  check(!/Warning/.test(panel), 'staff panel, running, no reason: no warning');
+
   // 5. Chapter 4 ends on Saturday: the countdown runs to Sat 5 Dec, not Monday.
   await moveClocks(CH4);
   card = await mapCard(a);
@@ -270,6 +301,8 @@ const mapCard = async page => { await page.goto(GAME, { waitUntil: 'networkidle'
   check(/The season has ended — winners are being confirmed/.test(card) && !/Season ends in/i.test(card) && !(await a.$('.weekly-card button:has-text("Play"):visible')), 'awaiting the close: "The season has ended — winners are being confirmed", no countdown, no play', flat(card).slice(0, 200));
   check((await state()).seasons[0].status === 'awaiting-close' && (await state()).prizes.length === 0, 'awaiting the close: nothing awarded yet');
   await cardShot(a, '05a-season-ended-winners-being-confirmed');
+  panel = await staffPanel(desk);
+  check(/Ended: waiting for the season close/.test(panel) && await closeButton(desk).then(b => !!b && b.isDisabled()), 'staff panel, awaiting the close inside the grace: "Close season now" still disabled', flat(panel).slice(0, 160));
   // The lineup is a draft again at the end: the close is blocked. Players see the same words, never why.
   await post('/mock/week-prizes', { week: '2026-11-09', labels: LINEUP, approved: false });
   await moveClocks(AFTER);
@@ -277,9 +310,23 @@ const mapCard = async page => { await page.goto(GAME, { waitUntil: 'networkidle'
   const blocked = (await state()).seasons[0];
   check(blocked.status === 'blocked' && blocked.reason === 'lineup-not-confirmed' && (await state()).prizes.length === 0, 'the close is blocked (lineup not confirmed): nothing awarded', `${blocked.status} ${blocked.reason}`);
   check(/The season has ended — winners are being confirmed/.test(card) && !/lineup|blocked|occupied|daycare|bath|boarding/i.test(card), 'blocked: players see "winners are being confirmed", no details and no standard prizes', flat(card).slice(0, 200));
+  // Staff see why, and can close it once the owner has approved the lineup.
+  panel = await staffPanel(desk);
+  check(/Ended, but the season close is blocked/.test(panel) && /prize lineup \(week of 2026-11-09\) is not approved in full/.test(panel) && /Prize lineup \(week of 2026-11-09\): not confirmed/.test(panel) && await closeButton(desk).then(b => !!b && b.isEnabled()), 'staff panel, blocked: the reason in plain words; "Close season now" enabled after the end + 5 minutes', flat(panel).slice(0, 260));
+  await shot(desk, '11-staff-blocked-lineup');
   await post('/mock/week-prizes', { week: '2026-11-09', labels: LINEUP, approved: true });
+  await (await closeButton(desk)).click();
+  await desk.waitForFunction(() => /Closed on/.test(document.querySelector('.season-panel')?.innerText ?? ''), null, { timeout: 15000 }).catch(() => {});
+  await desk.waitForTimeout(500);
+  panel = await desk.innerText('.season-panel').catch(() => '');
+  check(/Closed on Sun, Dec 6/.test(panel) && /2 winners/.test(panel) && /Prize emails: 0 sent, 2 waiting, 0 retrying, 0 suppressed \(will not be sent\) of 2\. Owner summary: waiting\./.test(panel) && await closeButton(desk).then(b => !!b && b.isDisabled()), 'staff "Close season now": closed, 2 winners, 2 prize emails waiting', flat(panel).slice(0, 260));
+  await desk.click('.season-panel button:text-is("Send pending emails")');
+  await desk.waitForFunction(() => /2 sent/.test(document.querySelector('.season-panel')?.innerText ?? ''), null, { timeout: 15000 }).catch(() => {});
+  panel = await desk.innerText('.season-panel').catch(() => '');
+  check(/Prize emails: 2 sent, 0 waiting, 0 retrying, 0 suppressed \(will not be sent\) of 2\. Owner summary: sent\./.test(panel), 'staff "Send pending emails": the prize emails and the owner summary are sent', flat(panel).slice(0, 260));
+  await shot(desk, '12-staff-closed-emails-sent');
 
-  // 6b. Approved again: runs are refused; the first request closes it once; winners are told; staff see the prizes.
+  // 6b. Closed: runs are refused; winners are told; staff see the prizes.
   const token = await a.evaluate(() => JSON.parse(localStorage.getItem('pawtastic-gd-session-v1')).access_token);
   const late = await fetch(`${base}/api/public/game/challenge`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ week: '2026-11-30', moves: maxRun.moves }) });
   check(late.status === 400 && (await late.json()).error === 'week-over', 'after the season end (+5 min) a run is refused: week-over');
@@ -308,13 +355,7 @@ const mapCard = async page => { await page.goto(GAME, { waitUntil: 'networkidle'
     card = await mapCard(q);
     check(/the season is over/i.test(card) && !/Season ends in/i.test(card) && !(await q.$('.weekly-card button:has-text("Play"):visible')), `Sun 6 Dec, phone ${label}: the season is over, no countdown, no play button`, `phone ${await phoneTime(q)} · ${flat(card).slice(0, 120)}`);
   }
-  const desk = await newPage(AFTER);
-  await desk.goto(`${base}/staff/index.html`, { waitUntil: 'networkidle' });
-  await desk.fill('#email', 'info@pawtasticacademy.com');
-  await desk.click('button:text-is("Email me a sign-in code")');
-  await desk.fill('#code', '123456');
-  await desk.click('button:text-is("Sign in")');
-  await desk.waitForTimeout(1000);
+  await staffPanel(desk);
   const staff = await desk.innerText('body');
   check(/Season 1: Top Dog prizes/.test(staff) && /#1 Hawthorne · Season 1: Top Dog · code/.test(staff) && /Season 1: Top Dog standings/.test(staff), 'staff page: season prizes and standings', flat(staff).slice(0, 200));
   await shot(desk, '06-staff-after-season');

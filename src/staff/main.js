@@ -5,6 +5,9 @@
 import { h, fill } from '../ui/dom.js';
 import { openPayments, isEmail } from '../net/pay-api.js';
 import { normalizeCode } from '../net/friend-code.js';
+import { serverNow, serverClockKnown } from '../net/server-clock.js';
+import { seasonFor, chapterOf } from '../engine/challenge.js';
+import { seasonPanel } from './season-panel.js';
 
 const root = document.getElementById('staff');
 const ERR = {
@@ -280,14 +283,23 @@ async function home() {
   const prizes = await pay.staffPrizes();
   const prizeList = prizes.ok && Array.isArray(prizes.prizes) ? prizes.prizes : [];
   const boardRows = prizes.ok && Array.isArray(prizes.board) ? prizes.board : [];
-  // During a season (Season 1: Top Dog) no weekly prizes are given: the season's are given once, when it ends.
-  const season = prizes.ok && prizes.season && typeof prizes.season === 'object' && typeof prizes.season.name === 'string' ? prizes.season : null;
+  // The server's clock ("Close season now" waits for the season end + 5 minutes by it, not by this computer's clock).
+  if (!serverClockKnown()) await pay.challengeWeek().catch(() => null);
+  // The season's close as the server reports it (status, why it is blocked, winners, emails): staff only.
+  const staffSeason = prizes.ok && prizes.season && typeof prizes.season === 'object' && typeof prizes.season.name === 'string' ? prizes.season : null;
+  const panel = staffSeason && typeof staffSeason.status === 'string'
+    ? seasonPanel(staffSeason, { now: serverNow(), act: body => pay.staffPrizeAction(body), onDone: () => home() })
+    : null;
+  // During a season's weeks (Season 1: Top Dog) no weekly prizes are given: the season's are given once, when it ends.
+  const def = typeof prizes.week === 'string' ? seasonFor(prizes.week) : null;
+  const season = def ? { name: staffSeason?.name ?? def.name, chapter: chapterOf(prizes.week), chapters: def.weeks.length, endsAt: staffSeason?.endsAt ?? def.endsAt } : null;
+  if (season) season.ended = serverNow() > Date.parse(season.endsAt);
   const seasonEnd = season ? new Date(season.endsAt).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
   const prizeSection = h('section', { class: 'card stack' }, h('h2', {}, season ? `${season.name} prizes` : 'Weekly Challenge prizes'),
     season
       ? h('p', { class: 'muted' }, season.ended
-        ? `${season.name} has ended. The top 3 at each location by season score win the season's prizes; they appear below once the season is closed (opening this page closes it). Players show their code at the front desk within 30 days.`
-        : `Chapter ${season.chapter} of ${season.chapters}. No weekly prizes during the season: when it ends (${seasonEnd}, New York time), the top 3 at each location by season score win the season's prizes. Open this page on Sunday after it ends: that closes the season and the winners appear here.`)
+        ? `${season.name} has ended. The top 3 at each location by season score win the season's prizes; they appear below once the season is closed. Players show their code at the front desk within 30 days.`
+        : `Chapter ${season.chapter} of ${season.chapters}. No weekly prizes during the season: when it ends (${seasonEnd}, New York time), the top 3 at each location by season score win the season's prizes. The winners appear here once the season is closed.`)
       : h('p', { class: 'muted' }, 'Each week the top 3 at each location win: 1st a free day of daycare, 2nd and 3rd a free bath. Players show their code at the front desk within 30 days.'),
     prizeList.length
       ? h('ul', { class: 'list' }, prizeList.map(p => h('li', { class: `row ${p.status === 'won' ? 'earned' : p.status === 'void' || p.status === 'expired' ? 'void' : ''}` },
@@ -344,6 +356,7 @@ async function home() {
         h('li', {}, 'When that player brings their dog in, look up their code, give the free bath and tap "Bath given".'),
         h('li', {}, 'Weekly Challenge winners show a prize code: look it up, give the free daycare day or bath, and tap "Mark redeemed".'))),
     ownerReport(),
+    panel,
     prizeSection,
     formatSection,
     boardSection,
