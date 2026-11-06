@@ -9,8 +9,8 @@ import { topBar } from '../topbar.js';
 import { clientOf, signInThenReload } from '../payments.js';
 import { LOCATIONS } from '../../engine/levels.js';
 import { CHALLENGES, CHALLENGE_IDS } from '../../engine/challenge.js';
-import { prizeLine, prizeForRank, endsInText, homeName, pickHome, prizeCard, syncProfile, sendPendingRun, loadWeekPrizes, weekRules, formatTeaser, weekSeason, weekPrizes, competitionLine, playWeek } from '../compete.js';
-import { seasonHeadline, seasonCountdown, teamBar, TEAM_BAR_NOTE, SEASON_TEXT } from '../season.js';
+import { prizeLine, prizeForRank, endsInText, homeName, pickHome, prizeCard, syncProfile, sendPendingRun, loadWeekPrizes, weekRules, formatTeaser, weekSeason, competitionLine, playWeek } from '../compete.js';
+import { seasonHeadline, seasonCountdown, seasonPhase, teamBar, TEAM_BAR_NOTE, SEASON_TEXT } from '../season.js';
 
 const MEDALS = { 1: '🥇', 2: '🥈', 3: '🥉' };
 const num = n => Number(n || 0).toLocaleString('en-US');
@@ -71,9 +71,9 @@ export function render(app, { board: wanted, location = 'all' } = {}) {
     if (!s) return;
     seasonHead.textContent = board === 'weekly' ? `${s.name} · Chapter ${s.chapter} of ${s.chapters} · ${endsInText(week)}` : seasonHeadline(s);
     seasonCount.textContent = seasonCountdown(s);
-    seasonCount.hidden = s.ended;
+    seasonCount.hidden = seasonPhase(s) !== 'running';
     seasonPrizes.textContent = competitionLine(week);
-    playRow.hidden = s.ended;
+    playRow.hidden = seasonPhase(s) !== 'running';
   };
   const intro = season && board === 'season'
     ? h('div', { class: 'card stack weekly-card season-card' }, seasonHead, seasonCount, seasonPrizes, h('p', { class: 'small muted' }, SEASON_TEXT.how), playRow)
@@ -115,7 +115,8 @@ export function render(app, { board: wanted, location = 'all' } = {}) {
       h('span', { class: 'lb-name' }, h('strong', {}, e.dogName), h('span', { class: 'small muted' }, ` · ${LOCATIONS[e.location] ?? ''}`), e.me ? h('span', { class: 'you-tag' }, 'You') : null),
       h('span', { class: 'lb-score num' }, scoreBoard ? `${num(e.score)} ${unit}` : `${num(e.stars)} ${unit}`)));
     const bests = board === 'weekly' && res.me?.bests && typeof res.me.bests === 'object' ? res.me.bests : null;
-    const seasonPrizeList = season ? (weekSeason(week)?.prizes ?? weekPrizes(week)) : undefined;
+    // A season's places name its prizes only once the server confirmed the lineup (never the weekly prizes).
+    const seasonPrizeList = season ? weekSeason(week)?.prizes ?? null : undefined;
     const me = res.me
       ? h('p', { class: 'card small num me-line' }, h('strong', {}, `You: #${res.me.rank}`), location === 'all' ? '' : ` at ${LOCATIONS[location]}`,
         ` · ${scoreBoard ? `${num(res.me.score)} pts` : `${num(res.me.stars)} ★`}`,

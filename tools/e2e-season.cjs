@@ -25,6 +25,8 @@ const CH2 = '2026-11-18T15:00:00Z'; // Wed 18 Nov, 10 am New York: chapter 2 of 
 const MON_JUST_AFTER = '2026-11-16T05:00:30Z'; // Mon 16 Nov, 12:00:30 am New York: chapter 2 has just started
 const SUN_JUST_BEFORE = '2026-11-16T04:30:00Z'; // Sun 15 Nov, 11:30 pm New York: still chapter 1
 const SAT_LATE = '2026-12-06T04:58:00Z'; // Sat 5 Dec, 11:58 pm New York: the season's last two minutes
+const JUST_ENDED = '2026-12-06T05:02:00Z'; // Sun 6 Dec, 12:02 am: ended, inside the 5 minutes' grace (awaiting the close)
+const LINEUP = ['A free night of boarding', 'A free day of daycare and a free exit bath', 'A free exit bath'];
 const CH4 = '2026-12-03T15:00:00Z'; // Thu 3 Dec: chapter 4, which ends Saturday
 const AFTER = '2026-12-06T05:06:00Z'; // Sun 6 Dec, 12:06 am: the season ended 6 minutes ago
 const BEFORE = '2026-11-05T15:00:00Z'; // the week before the season
@@ -104,14 +106,26 @@ const mapCard = async page => { await page.goto(GAME, { waitUntil: 'networkidle'
   };
   const moveClocks = async at => { await post('/mock/clock', { now: at }); for (const c of contexts) await c.clock.setSystemTime(new Date(at)); };
 
-  // 0. The owner's approved lineup for the week of 9 Nov is the season's.
+  // 0. The season's lineup (the week of 9 Nov) is still a draft: "Season prizes are being confirmed", never the
+  //    standard weekly prizes (audit items 3/4/5).
   await post('/mock/clock', { now: CH2 });
-  await post('/mock/week-prizes', { week: '2026-11-09', labels: ['A free night of boarding', 'A free day of daycare and a free exit bath', 'A free exit bath'], approved: true });
-
-  // 1. Chapter 2: the map card shows the season, its chapter, its end and the countdown.
+  await post('/mock/week-prizes', { week: '2026-11-09', labels: LINEUP, approved: false });
   const a = await newPage(CH2);
   await enroll(a, 'Max', 'Hawthorne');
   let card = await mapCard(a);
+  check(/Season prizes are being confirmed/.test(card) && !/daycare|bath|boarding/i.test(card), 'lineup not confirmed: the map says "Season prizes are being confirmed", no standard prizes', flat(card).slice(0, 220));
+  await cardShot(a, '00-season-prizes-being-confirmed');
+  await a.click('.weekly-card button:text-is("Leaderboard")');
+  await a.waitForSelector('.leaderboard .season-card');
+  await a.waitForTimeout(800);
+  const pending = await a.innerText('.leaderboard .season-card');
+  check(/Season prizes are being confirmed/.test(pending) && !/daycare|bath|boarding/i.test(pending), 'lineup not confirmed: the Season board says so too', flat(pending).slice(0, 200));
+
+  // The owner approves the lineup for the week of 9 Nov: it is the season's.
+  await post('/mock/week-prizes', { week: '2026-11-09', labels: LINEUP, approved: true });
+
+  // 1. Chapter 2: the map card shows the season, its chapter, its end and the countdown.
+  card = await mapCard(a);
   check(/Season 1: Top Dog · Chapter 2 of 4 · season ends Sat 5 Dec/i.test(card), 'map: season header with the chapter and the end day', flat(card).slice(0, 200));
   check(/Season ends in 17d 1[34]h/i.test(card), 'map: countdown to the season end (Sat 5 Dec 11:59 pm New York)', (card.match(/Season ends in [^\n]*/i) || [''])[0]);
   check(/1st a free night of boarding, 2nd a free day of daycare and a free exit bath, 3rd a free exit bath/.test(card) && /When the season ends/.test(card), 'map: the season prizes, given when it ends');
@@ -213,8 +227,22 @@ const mapCard = async page => { await page.goto(GAME, { waitUntil: 'networkidle'
     if (skew < 0) await shot(q, '09-saturday-last-minutes-phone-behind', false);
   }
 
-  // 6. The season ends: runs are refused; the first request closes it once; winners are told; staff see the prizes.
+  // 6. The season ends. Inside the 5 minutes' grace it is awaiting its close: "winners are being confirmed".
+  await moveClocks(JUST_ENDED);
+  card = await mapCard(a);
+  check(/The season has ended — winners are being confirmed/.test(card) && !/Season ends in/i.test(card) && !(await a.$('.weekly-card button:has-text("Play"):visible')), 'awaiting the close: "The season has ended — winners are being confirmed", no countdown, no play', flat(card).slice(0, 200));
+  check((await state()).seasons[0].status === 'awaiting-close' && (await state()).prizes.length === 0, 'awaiting the close: nothing awarded yet');
+  await cardShot(a, '05a-season-ended-winners-being-confirmed');
+  // The lineup is a draft again at the end: the close is blocked. Players see the same words, never why.
+  await post('/mock/week-prizes', { week: '2026-11-09', labels: LINEUP, approved: false });
   await moveClocks(AFTER);
+  card = await mapCard(a);
+  const blocked = (await state()).seasons[0];
+  check(blocked.status === 'blocked' && blocked.reason === 'lineup-not-confirmed' && (await state()).prizes.length === 0, 'the close is blocked (lineup not confirmed): nothing awarded', `${blocked.status} ${blocked.reason}`);
+  check(/The season has ended — winners are being confirmed/.test(card) && !/lineup|blocked|occupied|daycare|bath|boarding/i.test(card), 'blocked: players see "winners are being confirmed", no details and no standard prizes', flat(card).slice(0, 200));
+  await post('/mock/week-prizes', { week: '2026-11-09', labels: LINEUP, approved: true });
+
+  // 6b. Approved again: runs are refused; the first request closes it once; winners are told; staff see the prizes.
   const token = await a.evaluate(() => JSON.parse(localStorage.getItem('pawtastic-gd-session-v1')).access_token);
   const late = await fetch(`${base}/api/public/game/challenge`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ week: '2026-11-30', moves: maxRun.moves }) });
   check(late.status === 400 && (await late.json()).error === 'week-over', 'after the season end (+5 min) a run is refused: week-over');

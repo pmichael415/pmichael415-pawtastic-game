@@ -10,7 +10,7 @@ import { LOCATIONS } from '../engine/levels.js';
 import { totalStars, totalBestScore } from '../economy/progression.js';
 import { weekKey, weekEndsAt, playEndsAt, CHALLENGES, CHALLENGE_IDS, isChallengeId, isWeekKey, TIER_NAMES, rulesFor, SEASONS } from '../engine/challenge.js';
 import { serverNow } from '../net/server-clock.js';
-import { seasonOf, seasonHeadline, seasonCountdown, seasonPrizeLine, fmtLeft, SEASON_TEXT } from './season.js';
+import { seasonOf, seasonHeadline, seasonCountdown, seasonPrizeText, seasonPhase, fmtLeft, SEASON_TEXT } from './season.js';
 
 const PRIZE_NAMES = { 'daycare-day': 'Free day of daycare', bath: 'Free bath' };
 const lower = t => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
@@ -61,9 +61,11 @@ export async function loadWeekPrizes(app) {
   const pay = clientOf(app);
   if (!pay?.challengeWeek) return null;
   const r = await pay.challengeWeek().catch(() => null);
-  if (!r?.ok || typeof r.week !== 'string' || !goodLineup(r.prizes)) return null;
+  // In a season the server sends the season's lineup only once it is confirmed (otherwise no prizes: []).
+  const inSeason = !!r?.season && typeof r.season === 'object';
+  if (!r?.ok || !isWeekKey(r.week) || (!inSeason && !goodLineup(r.prizes))) return null;
   weekly = {
-    week: r.week, prizes: r.prizes, next: r.next && typeof r.next.week === 'string' && goodLineup(r.next.prizes) ? r.next : null,
+    week: r.week, prizes: goodLineup(r.prizes) ? r.prizes : null, next: r.next && typeof r.next.week === 'string' && goodLineup(r.next.prizes) ? r.next : null,
     rules: goodRules(r.rules) ? { version: r.rules.version, challenges: r.rules.challenges.slice(), from: typeof r.rules.from === 'string' ? r.rules.from : null } : null,
     // When this week's play ends (in a season's last chapter, the season end) and the season, as the server says.
     endsAt: typeof r.endsAt === 'string' && !Number.isNaN(Date.parse(r.endsAt)) ? r.endsAt : null,
@@ -119,8 +121,12 @@ export const endsInText = (week, now = serverNow()) => `ends in ${fmtLeft(weekEn
 export function competitionLine(week = playWeek()) {
   const season = weekSeason(week);
   if (!season) return prizeLine();
-  return season.ended ? SEASON_TEXT.over : seasonPrizeLine(season.prizes ?? weekPrizes(week));
+  const phase = seasonPhase(season);
+  if (phase === 'confirming') return SEASON_TEXT.confirming;
+  return phase === 'closed' ? SEASON_TEXT.over : seasonPrizeText(season);
 }
+/** The season card's headline while it runs: its 1st prize once confirmed, else general wording (never weekly prizes). */
+export const seasonHeadlinePrize = season => prizeHeadline(season.prizesConfirmed ? season.prizes : null);
 
 const TIER_MARK = { bronze: '🥉', silver: '🥈', gold: '🥇' };
 /** A badge mark for a tier (or '') and the player's best this week in a challenge. */
@@ -156,12 +162,13 @@ function seasonCard(app, week) {
     if (!season) { card.replaceWith(weeklyCard(app)); return; } // the server says this week is not in a season
     card.setAttribute('aria-label', season.name);
     eyebrow.textContent = seasonHeadline(season);
+    const phase = seasonPhase(season);
     countdown.textContent = seasonCountdown(season);
-    countdown.hidden = season.ended;
-    headline.textContent = season.ended ? 'Thanks for playing!' : prizeHeadline(season.prizes ?? weekPrizes(week));
-    line.textContent = season.ended ? SEASON_TEXT.winners : competitionLine(week);
-    how.hidden = season.ended;
-    play.hidden = season.ended;
+    countdown.hidden = phase !== 'running';
+    headline.textContent = phase !== 'running' ? 'Thanks for playing!' : seasonHeadlinePrize(season);
+    line.textContent = phase === 'closed' ? SEASON_TEXT.winners : competitionLine(week);
+    how.hidden = phase !== 'running';
+    play.hidden = phase !== 'running';
     play.textContent = best ? 'Play again' : `Play chapter ${season.chapter}`;
   };
   paint();

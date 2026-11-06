@@ -18,6 +18,10 @@ export const SEASON_TEXT = {
   chapterOver: "This chapter just ended, so this run can't count. The next chapter is ready!",
   seasonOver: "The season is over, so this run can't count. Thanks for playing!",
   noScores: 'No season scores yet. Be the first!',
+  // The server has no complete approved lineup for the season (yet): never the standard weekly prizes instead.
+  prizesPending: 'Season prizes are being confirmed.',
+  // The season has ended and is not closed yet (or its close is blocked; staff see why, players never do).
+  confirming: 'The season has ended — winners are being confirmed.',
 };
 export const TEAM_BAR_NOTE = "The average of each team's top 10 season scores, so a busier location doesn't win by size.";
 
@@ -25,17 +29,36 @@ const goodLineup = v => Array.isArray(v) && v.length === 3 && v.every((p, i) => 
 const goodSeason = s => !!s && typeof s.id === 'string' && typeof s.name === 'string' && s.name.length <= 60
   && Number.isInteger(s.chapter) && Number.isInteger(s.chapters) && s.chapter >= 1 && s.chapter <= s.chapters && !Number.isNaN(Date.parse(s.endsAt));
 
+const STATUSES = ['running', 'awaiting-close', 'closed', 'blocked'];
 /**
  * The season to show for a week: the server's answer when it is about this week (`server` = { week, season }), else
- * the engine's constant; null outside a season.
+ * the engine's constant; null outside a season. `prizes` is the season's lineup only when the server confirmed it
+ * (prizesConfirmed and all three places); `status` is the server's ('running', 'awaiting-close', 'closed', 'blocked'),
+ * null until it answers. A block's reason and details are for staff only and are not kept here.
  */
 export function seasonOf(week, server = null, now = serverNow()) {
   if (server && server.week === week) {
     const s = server.season;
-    return goodSeason(s) ? { id: s.id, name: s.name, chapter: s.chapter, chapters: s.chapters, endsAt: s.endsAt, ended: !!s.ended, prizes: goodLineup(s.prizes) ? s.prizes : null } : null;
+    if (!goodSeason(s)) return null;
+    const confirmed = s.prizesConfirmed === true && goodLineup(s.prizes);
+    return {
+      id: s.id, name: s.name, chapter: s.chapter, chapters: s.chapters, endsAt: s.endsAt, ended: !!s.ended || now > Date.parse(s.endsAt),
+      prizes: confirmed ? s.prizes : null, prizesConfirmed: confirmed, status: STATUSES.includes(s.status) ? s.status : null, fromServer: true,
+    };
   }
   const s = seasonFor(week);
-  return s ? { id: s.id, name: s.name, chapter: chapterOf(week), chapters: s.weeks.length, endsAt: s.endsAt, ended: now > seasonEndsAt(s), prizes: null } : null;
+  return s ? { id: s.id, name: s.name, chapter: chapterOf(week), chapters: s.weeks.length, endsAt: s.endsAt, ended: now > seasonEndsAt(s), prizes: null, prizesConfirmed: false, status: null, fromServer: false } : null;
+}
+
+/**
+ * Where the season is: 'running'; 'confirming' once it has ended by the server's clock and the server has not said
+ * it is closed (awaiting its close, or blocked); 'closed' (results, as before; also when no server has answered).
+ */
+export function seasonPhase(s, now = serverNow()) {
+  const ended = s.ended || !(Date.parse(s.endsAt) > now) || s.status === 'awaiting-close' || s.status === 'closed' || s.status === 'blocked';
+  if (!ended) return 'running';
+  if (s.status === 'closed' || !s.fromServer || s.status === null) return 'closed';
+  return 'confirming';
 }
 
 const nyDay = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', day: 'numeric', month: 'short' });
@@ -61,6 +84,14 @@ export function seasonCountdown(s, now = serverNow()) {
 }
 
 const lower = t => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
+/**
+ * The season's prize line: its confirmed lineup; "Season prizes are being confirmed." when the server answered without
+ * one; general wording until the server answers. Never the standard weekly prizes.
+ */
+export function seasonPrizeText(s) {
+  if (s.prizesConfirmed && goodLineup(s.prizes)) return seasonPrizeLine(s.prizes);
+  return s.fromServer ? SEASON_TEXT.prizesPending : seasonPrizeLine(null);
+}
 /** The season's prizes, given once when it ends (general wording until the server confirms the lineup). */
 export function seasonPrizeLine(prizes) {
   if (!goodLineup(prizes)) return 'When the season ends, the top 3 at each location win real PAWtastic prizes.';

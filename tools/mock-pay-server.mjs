@@ -7,7 +7,9 @@
 //   makes "Pay" succeed without recording the purchase (to test "Purchase not delivered").
 //   MOCK_HUB_ORIGINS=http://127.0.0.1:5173 acts like the server with docs/graduation-hub/ applied: that address
 //   (the PAWtastic Games hub) may call the game API from the browser, and its buyers return to its /graduation.
-//   Test helpers: GET /mock/state, POST /mock/refund { email, product }.
+//   Test helpers: GET /mock/state, POST /mock/refund { email, product }. Seasons: POST /mock/week-prizes (approved: false
+//   leaves the season's lineup unconfirmed), /mock/season-block { details } (the old code's prizes under a season week),
+//   /mock/season-emails { status, summary }, /mock/teams { teams } (team bar numbers; also MOCK_TEAMS).
 //   The server's clock: MOCK_NOW=<ISO time> starts it there (it then runs on), POST /mock/clock { now: <ISO> | null } moves it
 //   (null: the real time); every /api/public/game/* answer carries it as `serverNow`. Seasons (Season 1: Top Dog) follow
 //   the engine's SEASONS, as the real server does.
@@ -71,11 +73,52 @@ function awardWeek(week) {
 }
 const prizeSeason = week => SEASONS.find(s => s.weeks[0] === week) ?? null;
 const prizeOut = p => ({ id: p.id, week: p.week, location: p.location, rank: p.rank, reward: p.reward, label: p.label ?? null, code: p.code, status: p.status, expiresAt: p.expiresAt, score: p.score, season: prizeSeason(p.week)?.name ?? null });
-// Seasons, as the real server does them: chapter scores added up (hidden players out), the location of the first run in
-// the season, ties to whoever reached their latest counted score first, the team bar (average of each location's top 10),
-// and one close at the season end (+5 minutes): the top 3 per location win the lineup of the season's first week.
+// Seasons, as the real server does them (the shared CONTRACT of the Season 1 fixes): chapter scores added up (hidden
+// players out), the location of the first run in the season, ties to whoever reached their latest counted score first,
+// the team bar (the UNROUNDED average of each location's top 10), and one close at the season end + 5 minutes: the top 3
+// per location win ONLY the complete approved lineup of the season's first week (never the standard prizes).
+// Status: 'running' until the end; then 'awaiting-close' until closed; 'blocked' when the close can't run (the lineup is
+// not confirmed, or the old code already gave prizes under a season week); 'closed'. Staff see why; players never do.
 const GRACE_MS = 5 * 60000;
-const seasonInfo = (season, week) => ({ id: season.id, name: season.name, chapter: chapterOf(week) ?? season.weeks.length, chapters: season.weeks.length, endsAt: new Date(seasonEndsAt(season)).toISOString(), ended: now() > seasonEndsAt(season) });
+const fullLineup = week => { const l = weekLineups.get(week); return l?.approved && Array.isArray(l.labels) && l.labels.length === 3 && l.labels.every(x => typeof x === 'string' && x.trim()) ? approvedLineup(week) : null; };
+const closedSeasons = new Map(); // id → closedAt (ISO)
+let summaryState = new Map(); // id → the owner summary email: 'pending' | 'sent' | 'retrying' | 'suppressed'
+let forcedOccupied = null; // POST /mock/season-block: details of prizes the old code gave under a season week
+function occupied(season) {
+  // The old game's weekly close gave prizes under a season week (rows the season's own close did not make).
+  const rows = prizes.filter(p => season.weeks.includes(p.week) && !p.seasonClose);
+  if (!rows.length) return forcedOccupied;
+  const n = st => rows.filter(p => p.status === st).length;
+  const weeks = [...new Set(rows.map(p => p.week))].sort();
+  return { weeks, closed_weeks: weeks, prize_weeks: weeks, prizes: { total: rows.length, won: n('won'), redeemed: n('redeemed'), void: n('void'), emailed: rows.filter(p => p.emailStatus === 'sent').length }, redeemed: n('redeemed') };
+}
+function seasonState(season) {
+  const end = seasonEndsAt(season);
+  const closedAt = closedSeasons.get(season.id) ?? null;
+  const lineup = !!fullLineup(season.weeks[0]);
+  const occ = closedAt ? null : occupied(season);
+  const blockReason = occ ? 'prize-week-occupied' : !lineup ? 'lineup-not-confirmed' : null;
+  const status = closedAt ? 'closed' : now() < end ? 'running' : now() >= end + GRACE_MS && blockReason ? 'blocked' : 'awaiting-close';
+  // The old code's trap is reported early, while the season still runs; a missing lineup once the close is blocked.
+  const reason = status === 'closed' ? null : occ ? 'prize-week-occupied' : status === 'blocked' ? blockReason : null;
+  return { status, reason, details: reason === 'prize-week-occupied' ? occ : null, lineupConfirmed: lineup, closedAt };
+}
+const seasonInfo = (season, week) => {
+  const lineup = fullLineup(season.weeks[0]);
+  return { id: season.id, name: season.name, chapter: chapterOf(week) ?? season.weeks.length, chapters: season.weeks.length, endsAt: new Date(seasonEndsAt(season)).toISOString(), ended: now() > seasonEndsAt(season),
+    prizes: lineup ? shown(lineup) : null, prizesConfirmed: !!lineup, status: seasonState(season).status };
+};
+const seasonNowOrLast = week => seasonFor(week) ?? [...SEASONS].reverse().find(s => s.weeks[0] <= week) ?? null;
+// The staff page's season object (CONTRACT: Staff GET adds season).
+function staffSeason(season) {
+  if (!season) return null;
+  const st = seasonState(season);
+  const rows = prizes.filter(p => p.seasonClose && p.week === season.weeks[0]);
+  const count = x => rows.filter(p => p.emailStatus === x).length;
+  return { id: season.id, name: season.name, status: st.status, reason: st.reason, details: st.details, lineupConfirmed: st.lineupConfirmed, endsAt: new Date(seasonEndsAt(season)).toISOString(),
+    closedAt: st.closedAt, prizeWeek: season.weeks[0], winners: rows.length,
+    emails: { prizes: { total: rows.length, sent: count('sent'), pending: count('pending'), retrying: count('retrying'), suppressed: count('suppressed') }, summary: summaryState.get(season.id) ?? 'none' } };
+}
 function seasonStandings(season, { withHidden = false } = {}) {
   const by = new Map();
   for (const w of weekly.filter(x => season.weeks.includes(x.week)).sort((a, b) => a.week.localeCompare(b.week))) {
@@ -88,27 +131,39 @@ function seasonStandings(season, { withHidden = false } = {}) {
   const shownRows = all.filter(r => !players.get(r.userId)?.hidden);
   const teams = Object.fromEntries(['hawthorne', 'hillsdale'].map(l => {
     const team = shownRows.filter(r => r.location === l); const top = team.slice(0, 10);
-    return [l, { average: top.length ? Math.round(top.reduce((t, r) => t + r.score, 0) / top.length) : 0, players: team.length, counted: top.length }];
+    // Unrounded: the game rounds only for display and decides the leader on these.
+    return [l, { average: top.length ? top.reduce((t, r) => t + r.score, 0) / top.length : 0, players: team.length, counted: top.length }];
   }));
-  return { rows, teams };
+  // MOCK_TEAMS='{"hawthorne":{"average":7500.4,...},...}' (or POST /mock/teams) replaces the team bar, for tests.
+  return { rows, teams: forcedTeams ?? teams };
 }
-const closedSeasons = new Set();
+let forcedTeams = process.env.MOCK_TEAMS ? JSON.parse(process.env.MOCK_TEAMS) : null;
+// The close: only at/after the end + grace, only with the complete approved lineup, only when no season week is
+// occupied by the old code's prizes; once.
 function closeSeasons() {
   for (const season of SEASONS) {
     if (now() < seasonEndsAt(season) + GRACE_MS || closedSeasons.has(season.id)) continue;
-    closedSeasons.add(season.id);
     const key = season.weeks[0];
-    const lineup = prizesFor(key);
+    const lineup = fullLineup(key);
+    if (!lineup || occupied(season)) continue; // blocked: staff see why
+    closedSeasons.set(season.id, new Date(now()).toISOString());
     const { rows } = seasonStandings(season);
     for (const location of ['hawthorne', 'hillsdale']) {
       rows.filter(r => r.location === location).slice(0, 3).forEach((r, i) => {
         if (prizes.some(p => p.week === key && p.location === location && p.rank === i + 1)) return;
         const user = [...db.users.values()].find(u => u.id === r.userId);
         prizes.push({ id: randomUUID(), week: key, location, rank: i + 1, userId: r.userId, dogName: players.get(r.userId)?.dogName ?? 'PAWtastic Pup', email: user?.email ?? '',
-          score: r.score, reward: lineup[i].reward, label: lineup[i].reward === 'custom' ? lineup[i].label : null, code: Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * 32)]).join(''), status: 'won', expiresAt: new Date(seasonEndsAt(season) + 30 * 86400000).toISOString() });
+          score: r.score, reward: lineup[i].reward, label: lineup[i].reward === 'custom' ? lineup[i].label : null, code: Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * 32)]).join(''), status: 'won', expiresAt: new Date(seasonEndsAt(season) + 30 * 86400000).toISOString(),
+          seasonClose: true, emailStatus: user?.email ? 'pending' : 'suppressed' });
       });
     }
+    summaryState.set(season.id, 'pending');
   }
+}
+// Staff "Send pending emails": a bounded, retry-safe catch-up (a fake sender here: pending and retrying become sent).
+function sendSeasonEmails(season) {
+  for (const p of prizes.filter(x => x.seasonClose && x.week === season.weeks[0] && (x.emailStatus === 'pending' || x.emailStatus === 'retrying'))) p.emailStatus = 'sent';
+  if (['pending', 'retrying'].includes(summaryState.get(season.id))) summaryState.set(season.id, 'sent');
 }
 
 // Home Screen app sign-in codes (src/lib/game/signin.server.ts in the Lovable project).
@@ -266,8 +321,9 @@ createServer(async (req, res) => {
       const week = weekKey(now());
       const season = seasonFor(week);
       if (season) {
-        const lineup = shown(prizesFor(season.weeks[0]));
-        return send(res, 200, { week, endsAt: new Date(playEndsAt(week)).toISOString(), moves: 25, prizes: lineup, next: null, rules: { ...rulesOut(week), version: 1, challenges: ['high-score'], from: null }, season: { ...seasonInfo(season, week), prizes: lineup } });
+        // Only the complete approved lineup, else no prizes ([]) and prizesConfirmed false: never the standard ones.
+        const info = seasonInfo(season, week);
+        return send(res, 200, { week, endsAt: new Date(playEndsAt(week)).toISOString(), moves: 25, prizes: info.prizes ?? [], next: null, rules: { ...rulesOut(week), version: 1, challenges: ['high-score'], from: null }, season: info });
       }
       const next = weekKey(weekEndsAt(week) + 3600000);
       const upcoming = approvedLineup(next);
@@ -412,10 +468,17 @@ createServer(async (req, res) => {
           const season = seasonFor(week);
           // During a season staff see the season standings (with hidden players), which decide the prizes.
           const rows = season ? seasonStandings(season, { withHidden: true }).rows : weekly.filter(w => w.week === week).sort((a, b) => b.score - a.score);
-          return send(res, 200, { prizes: [...prizes].reverse().map(staffOut), week, season: season ? seasonInfo(season, week) : null, board: rows.map(r => ({ userId: r.userId, dogName: players.get(r.userId)?.dogName ?? '', location: r.location, score: r.score, hidden: !!players.get(r.userId)?.hidden })),
+          return send(res, 200, { prizes: [...prizes].reverse().map(staffOut), week, season: staffSeason(seasonNowOrLast(week)), board: rows.map(r => ({ userId: r.userId, dogName: players.get(r.userId)?.dogName ?? '', location: r.location, score: r.score, hidden: !!players.get(r.userId)?.hidden })),
             format: { from: formatFrom, thisWeek: week, earliest: nextWeek(week), version: season ? 1 : rulesFor(week, formatFrom).version } });
         }
         const b = await bodyOf(req);
+        if (b.action === 'send-emails' || b.action === 'close-season') {
+          const target = seasonNowOrLast(weekKey(now()));
+          if (!target) return send(res, 400, { error: 'no-season' });
+          if (b.action === 'close-season') closeSeasons(); // takes effect only after the end + grace
+          else sendSeasonEmails(target);
+          return send(res, 200, { season: staffSeason(target) });
+        }
         if (b.action === 'schedule-format') {
           if (!isWeekKey(b.fromWeek)) return send(res, 400, { error: 'invalid-request' });
           if (b.fromWeek <= weekKey(now())) return send(res, 400, { error: 'week-started' });
@@ -547,6 +610,17 @@ createServer(async (req, res) => {
       clockOffset = b.now && !Number.isNaN(Date.parse(b.now)) ? Date.parse(b.now) - Date.now() : 0;
       return send(res, 200, { now: new Date(now()).toISOString(), week: weekKey(now()) });
     }
+    // The old game's trap: { details } as if it had given prizes under a season week ({ details: null } clears it).
+    if (path === '/mock/season-block' && req.method === 'POST') { forcedOccupied = (await bodyOf(req)).details ?? null; return send(res, 200, { seasons: SEASONS.map(staffSeason) }); }
+    // Sets every season prize email's state ({ status: 'retrying' | 'suppressed' | 'pending' }), for the staff panel.
+    if (path === '/mock/season-emails' && req.method === 'POST') {
+      const { status, summary } = await bodyOf(req);
+      for (const p of prizes.filter(x => x.seasonClose)) if (status) p.emailStatus = status;
+      if (summary) for (const sea of SEASONS) summaryState.set(sea.id, summary);
+      return send(res, 200, { seasons: SEASONS.map(staffSeason) });
+    }
+    // Replaces the team bar's numbers ({ teams } or { teams: null }), e.g. fractional or equal averages.
+    if (path === '/mock/teams' && req.method === 'POST') { forcedTeams = (await bodyOf(req)).teams ?? null; return send(res, 200, { teams: forcedTeams }); }
     if (path === '/mock/award-week' && req.method === 'POST') { awardWeek(weekKey(now())); return send(res, 200, { prizes }); }
     // Switches the three-challenge format on from a week ({ from: 'now' | '<Monday>' | null }) for tests.
     if (path === '/mock/format' && req.method === 'POST') {
@@ -554,7 +628,7 @@ createServer(async (req, res) => {
       formatFrom = b.from === 'now' ? weekKey(now()) : isWeekKey(b.from ?? '') ? b.from : null;
       return send(res, 200, { from: formatFrom });
     }
-    if (path === '/mock/state') return send(res, 200, { devices, events, players: Object.fromEntries(players), weekly, results, formatFrom, prizes, purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent, codes: Object.fromEntries(db.codes), referrals: db.referrals, appCodes });
+    if (path === '/mock/state') return send(res, 200, { seasons: SEASONS.map(staffSeason), devices, events, players: Object.fromEntries(players), weekly, results, formatFrom, prizes, purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent, codes: Object.fromEntries(db.codes), referrals: db.referrals, appCodes });
     if (path === '/mock/refund' && req.method === 'POST') {
       const { email, product } = await bodyOf(req);
       const user = userFor(email);

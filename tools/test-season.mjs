@@ -50,13 +50,13 @@ test('the rules engine itself is unchanged by the season (the server pins season
 const ui = await import('../src/ui/season.js');
 const { resultCaption } = await import('../src/ui/share-card.js');
 const IN_CH2 = Date.parse('2026-11-18T15:00:00Z');
-const SERVER_SEASON = { id: 's1', name: 'Season 1: Top Dog', chapter: 2, chapters: 4, endsAt: '2026-12-06T04:59:59.999Z', ended: false, prizes: [{ rank: 1, label: 'A free night of boarding' }, { rank: 2, label: 'A free day of daycare and a free exit bath' }, { rank: 3, label: 'A free exit bath' }] };
+const SERVER_SEASON = { id: 's1', name: 'Season 1: Top Dog', chapter: 2, chapters: 4, endsAt: '2026-12-06T04:59:59.999Z', ended: false, prizes: [{ rank: 1, label: 'A free night of boarding' }, { rank: 2, label: 'A free day of daycare and a free exit bath' }, { rank: 3, label: 'A free exit bath' }], prizesConfirmed: true, status: 'running' };
 
 test('the season shown: the server\'s answer for this week, else the engine\'s constant; nothing outside the season', () => {
-  assert.deepEqual(ui.seasonOf('2026-11-16', { week: '2026-11-16', season: SERVER_SEASON }, IN_CH2), SERVER_SEASON);
+  assert.deepEqual(ui.seasonOf('2026-11-16', { week: '2026-11-16', season: SERVER_SEASON }, IN_CH2), { ...SERVER_SEASON, fromServer: true });
   assert.equal(ui.seasonOf('2026-11-02', { week: '2026-11-02', season: null }, IN_CH2), null, 'the server says no season');
   assert.equal(ui.seasonOf('2026-11-16', { week: '2026-11-16', season: { id: 's1', chapter: 'x' } }, IN_CH2), null, 'a malformed answer is not shown');
-  assert.deepEqual(ui.seasonOf('2026-11-23', { week: '2026-11-16', season: SERVER_SEASON }, IN_CH2), { id: 's1', name: 'Season 1: Top Dog', chapter: 3, chapters: 4, endsAt: '2026-12-06T04:59:59.999Z', ended: false, prizes: null }, 'until the server answers for this week');
+  assert.deepEqual(ui.seasonOf('2026-11-23', { week: '2026-11-16', season: SERVER_SEASON }, IN_CH2), { id: 's1', name: 'Season 1: Top Dog', chapter: 3, chapters: 4, endsAt: '2026-12-06T04:59:59.999Z', ended: false, prizes: null, prizesConfirmed: false, status: null, fromServer: false }, 'until the server answers for this week');
   assert.equal(ui.seasonOf('2026-12-07', null, IN_CH2), null);
   assert.equal(ui.seasonOf('2026-11-30', null, Date.parse('2026-12-06T06:00:00Z')).ended, true);
 });
@@ -96,4 +96,55 @@ test('engaged, not compelled: no streak, guilt or pressure wording anywhere in t
 test('the Beat My Pup caption names the season and chapter in a season, and the week outside it', () => {
   assert.equal(resultCaption({ dogName: 'Max', challenge: 'high-score', score: 12345, season: SERVER_SEASON }), 'Max scored 12,345 in Season 1: Top Dog (Chapter 2) at PAWtastic Academy. Can your pup beat it?');
   assert.equal(resultCaption({ dogName: 'Max', challenge: 'high-score', score: 12345 }), "Max scored 12,345 in this week's High score run at PAWtastic Academy. Can your pup beat it?");
+});
+
+// ---------- audit items 3/4/5 (client): season prizes unconfirmed, and the season's end states ----------
+const compete = await import('../src/ui/compete.js');
+const LINEUP = SERVER_SEASON.prizes;
+const STANDARD = [{ rank: 1, label: 'A free day of daycare' }, { rank: 2, label: 'A free bath' }, { rank: 3, label: 'A free bath' }];
+const answer = (season, prizes = season?.prizesConfirmed ? LINEUP : []) => ({ ok: true, week: '2026-11-16', serverNow: '2026-11-18T15:00:00Z', endsAt: '2026-11-23T05:00:00.000Z', moves: 25, next: null, rules: { version: 1, challenges: ['high-score'], from: null }, prizes, season });
+const load = async a => { compete.forgetServerWeek(); await compete.loadWeekPrizes({ services: { pay: { challengeWeek: async () => a } } }); return compete.weekSeason('2026-11-16'); };
+
+test('season prizes unconfirmed (prizesConfirmed false, prizes null, [] lineup): "Season prizes are being confirmed", never the standard prizes', async () => {
+  for (const season of [{ ...SERVER_SEASON, prizes: null, prizesConfirmed: false }, { ...SERVER_SEASON, prizesConfirmed: false }, { ...SERVER_SEASON, prizes: null, prizesConfirmed: undefined }]) {
+    for (const prizes of [[], STANDARD]) { // the new server sends []; an answer with the standard prizes must not show them either
+      const s = await load(answer(season, prizes));
+      assert.ok(s, 'the season is still shown');
+      assert.equal(s.prizesConfirmed, false);
+      assert.equal(s.prizes, null);
+      assert.equal(ui.seasonPrizeText(s), 'Season prizes are being confirmed.');
+      assert.equal(compete.competitionLine('2026-11-16'), 'Season prizes are being confirmed.');
+      assert.equal(compete.seasonHeadlinePrize(s), 'Win real PAWtastic prizes');
+      for (const t of [ui.seasonPrizeText(s), compete.competitionLine('2026-11-16'), compete.seasonHeadlinePrize(s)]) assert.doesNotMatch(t, /daycare|bath|boarding/i, t);
+    }
+  }
+});
+
+test('season prizes confirmed: the approved lineup, named', async () => {
+  const s = await load(answer({ ...SERVER_SEASON }));
+  assert.equal(s.prizesConfirmed, true);
+  assert.equal(compete.competitionLine('2026-11-16'), 'When the season ends, the top 3 at each location win: 1st a free night of boarding, 2nd a free day of daycare and a free exit bath, 3rd a free exit bath.');
+  assert.equal(compete.seasonHeadlinePrize(s), 'Win a free night of boarding');
+  const half = await load(answer({ ...SERVER_SEASON, prizes: LINEUP.slice(0, 2), prizesConfirmed: true }, LINEUP.slice(0, 2)));
+  assert.equal(half.prizesConfirmed, false, 'an incomplete lineup is not confirmed, whatever the flag says');
+});
+
+test('the season has ended: awaiting-close or blocked say winners are being confirmed (no block details); closed shows the results', async () => {
+  const over = { ...SERVER_SEASON, chapter: 4, ended: true };
+  for (const status of ['awaiting-close', 'blocked']) {
+    const s = await load(answer({ ...over, status, reason: 'lineup-not-confirmed', details: { secret: 1 } }));
+    assert.equal(ui.seasonPhase(s), 'confirming');
+    assert.equal(compete.competitionLine('2026-11-16'), 'The season has ended — winners are being confirmed.');
+    assert.equal('reason' in s || 'details' in s, false, 'block details never reach the player\'s screen');
+  }
+  const closed = await load(answer({ ...over, status: 'closed' }));
+  assert.equal(ui.seasonPhase(closed), 'closed');
+  assert.equal(compete.competitionLine('2026-11-16'), ui.SEASON_TEXT.over);
+  // A "running" answer from before the end, with the server clock now past it: winners are being confirmed.
+  const stale = await load(answer({ ...SERVER_SEASON, status: 'running' }));
+  assert.equal(ui.seasonPhase(stale, Date.parse('2026-12-06T05:01:00Z')), 'confirming');
+  assert.equal(ui.seasonPhase(stale, IN_CH2), 'running');
+  // The engine's constant (no answer yet) after the end: as before.
+  assert.equal(ui.seasonPhase(ui.seasonOf('2026-11-30', null, Date.parse('2026-12-06T06:00:00Z')), Date.parse('2026-12-06T06:00:00Z')), 'closed');
+  assert.match(ui.SEASON_TEXT.confirming, /^The season has ended — winners are being confirmed\.$/);
 });
