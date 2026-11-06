@@ -102,15 +102,20 @@ export function seasonPrizeLine(prizes) {
   return `When the season ends, the top 3 at each location win: 1st ${a}, 2nd ${b}, 3rd ${c}.`;
 }
 
-/** Hawthorne vs Hillsdale: each side's average (of its top 10), its bar share in %, and the leader (null when even). */
+/**
+ * Hawthorne vs Hillsdale: each side's average of its top 10 season scores, as the server sends it (unrounded), shown
+ * rounded (`average`); the bar shares and the leader are decided on the unrounded values (`exact`). Equal averages:
+ * no leader, "Tied".
+ */
 export function teamBar(teams) {
   const sides = Object.entries(LOCATIONS).map(([id, name]) => {
     const t = teams?.[id] ?? {};
-    return { id, name, average: Math.max(0, Math.round(Number(t.average) || 0)), players: Math.max(0, Number(t.players) || 0), counted: Math.max(0, Number(t.counted) || 0) };
+    const exact = Math.max(0, Number(t.average) || 0);
+    return { id, name, exact, average: Math.round(exact), players: Math.max(0, Number(t.players) || 0), counted: Math.max(0, Number(t.counted) || 0) };
   });
-  const sum = sides.reduce((s, x) => s + x.average, 0);
-  const first = sum ? Math.round((sides[0].average / sum) * 100) : 50;
+  const sum = sides[0].exact + sides[1].exact;
+  const first = sum ? Math.round((sides[0].exact / sum) * 100) : 50;
   sides[0].share = first; sides[1].share = 100 - first;
-  const leader = sides[0].average === sides[1].average ? null : (sides[0].average > sides[1].average ? sides[0] : sides[1]).id;
-  return { sides, leader };
+  const lead = sides[0].exact === sides[1].exact ? null : sides[0].exact > sides[1].exact ? sides[0] : sides[1];
+  return { sides, leader: lead?.id ?? null, label: lead ? `${lead.name} leads` : 'Tied' };
 }

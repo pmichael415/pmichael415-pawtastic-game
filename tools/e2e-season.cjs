@@ -193,6 +193,23 @@ const mapCard = async page => { await page.goto(GAME, { waitUntil: 'networkidle'
   check(/Chapter 2 of 4 · ends in/i.test(board) && !/Team bar|Team battle/i.test(board) && /Each chapter has its own board/.test(board), 'chapter board: its own scores, no team battle (the season has the bar)', flat(board).slice(0, 220));
   await shot(b, '04-chapter-leaderboard');
 
+  // 4a. The team bar decides the leader on the unrounded averages; equal averages are "Tied" (audit item 11).
+  await post('/mock/teams', { teams: { hawthorne: { average: 7500.4, players: 3, counted: 3 }, hillsdale: { average: 7500.2, players: 2, counted: 2 } } });
+  await b.click('.seg-btn:text-is("Season")');
+  await b.waitForSelector('.team-bar');
+  await b.waitForTimeout(500);
+  let bar = await b.innerText('.team-bar');
+  check(/Hawthorne leads/.test(bar) && (bar.match(/7,500\b/g) || []).length === 2 && await b.$('.team-bar .team.leading:has-text("Hawthorne")'), 'team bar: averages 7500.4 vs 7500.2 both show 7,500 and Hawthorne leads', flat(bar));
+  await shot(b, '03a-team-bar-fractional');
+  await post('/mock/teams', { teams: { hawthorne: { average: 22000 / 3, players: 3, counted: 3 }, hillsdale: { average: 22000 / 3, players: 6, counted: 6 } } });
+  await b.click('.seg-btn:text-is("Season")');
+  await b.waitForSelector('.team-bar');
+  await b.waitForTimeout(500);
+  bar = await b.innerText('.team-bar');
+  check(/Tied/.test(bar) && (bar.match(/7,333\b/g) || []).length === 2 && !(await b.$('.team-bar .leading')), 'team bar: equal averages (7333.33…) are "Tied", no leader', flat(bar));
+  await shot(b, '03b-team-bar-tied');
+  await post('/mock/teams', { teams: null });
+
   // 4b. A wrong phone clock (hours or days, ahead or behind) never picks the chapter, the board or the countdown.
   for (const [label, skew, name] of [['6 days ahead', 6 * D, 'Ahead'], ['9 days behind', -9 * D, 'Behind'], ['3 hours behind', -3 * H, 'Late']]) {
     const p = await newPage(CH2, skew);

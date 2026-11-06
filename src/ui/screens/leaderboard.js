@@ -17,9 +17,10 @@ const num = n => Number(n || 0).toLocaleString('en-US');
 
 /** The team bar: Hawthorne vs Hillsdale, each side's average of its top 10 season scores. */
 function teamBarCard(teams) {
-  const { sides, leader } = teamBar(teams);
+  const { sides, leader, label } = teamBar(teams);
   return h('div', { class: 'card teams team-bar', 'aria-label': 'Team bar: Hawthorne vs Hillsdale' },
     h('p', { class: 'eyebrow' }, 'Team bar · Hawthorne vs Hillsdale'),
+    h('p', { class: 'small team-bar-leader' }, h('strong', {}, label)),
     h('div', { class: 'team-bar-track', role: 'img', 'aria-label': sides.map(s => `${s.name} ${num(s.average)}`).join(', ') },
       sides.map(s => h('span', { class: `team-bar-fill team-${s.id}${leader === s.id ? ' leading' : ''}`, style: `width: ${s.share}%` }))),
     h('div', { class: 'team-row' }, sides.map(s => h('div', { class: `team${leader === s.id ? ' leading' : ''}` },

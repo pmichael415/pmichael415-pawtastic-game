@@ -148,3 +148,19 @@ test('the season has ended: awaiting-close or blocked say winners are being conf
   assert.equal(ui.seasonPhase(ui.seasonOf('2026-11-30', null, Date.parse('2026-12-06T06:00:00Z')), Date.parse('2026-12-06T06:00:00Z')), 'closed');
   assert.match(ui.SEASON_TEXT.confirming, /^The season has ended — winners are being confirmed\.$/);
 });
+
+// ---------- audit item 11: the team bar on unrounded averages ----------
+test('team bar: the leader is decided on the unrounded averages, equal averages are "Tied", the numbers shown are rounded', () => {
+  const close = ui.teamBar({ hawthorne: { average: 7500.4, players: 3, counted: 3 }, hillsdale: { average: 7500.2, players: 5, counted: 5 } });
+  assert.equal(close.leader, 'hawthorne', '7500.4 > 7500.2 although both show 7,500');
+  assert.deepEqual(close.sides.map(s => s.average), [7500, 7500]);
+  assert.equal(close.label, 'Hawthorne leads');
+  const flip = ui.teamBar({ hawthorne: { average: 7499.6, players: 1 }, hillsdale: { average: 7500.4, players: 1 } });
+  assert.deepEqual([flip.leader, flip.label, ...flip.sides.map(s => s.average)], ['hillsdale', 'Hillsdale leads', 7500, 7500]);
+  const tie = ui.teamBar({ hawthorne: { average: 22000 / 3, players: 3 }, hillsdale: { average: 22000 / 3, players: 6 } });
+  assert.deepEqual([tie.leader, tie.label, ...tie.sides.map(s => s.average), ...tie.sides.map(s => s.share)], [null, 'Tied', 7333, 7333, 50, 50]);
+  assert.equal(ui.teamBar({ hawthorne: { average: 7500.5 }, hillsdale: { average: 7500.49 } }).leader, 'hawthorne');
+  assert.equal(ui.teamBar({ hawthorne: { average: '7000.25' }, hillsdale: { average: 7000.25 } }).label, 'Tied', 'a number sent as text is the same number');
+  assert.deepEqual(ui.teamBar({ hawthorne: { average: 1000.5 }, hillsdale: { average: 3001.5 } }).sides.map(s => s.share), [25, 75], 'the bar splits on the unrounded averages');
+  assert.equal(ui.teamBar(undefined).label, 'Tied');
+});
