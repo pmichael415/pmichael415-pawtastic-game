@@ -20,7 +20,12 @@ export function gameSite(doc = globalThis.document, loc = globalThis.location) {
   try { if (/^https?:$/.test(loc?.protocol ?? '')) return loc.origin; } catch { /* default */ }
   return API_BASES[0];
 }
-export const gameLink = (params = '', doc = globalThis.document, loc = globalThis.location) => `${gameSite(doc, loc)}/play/index.html${params ? `?${params}` : ''}`;
+/**
+ * Graduation Day in the PAWtastic Games hub: the one stop (owner, 7 Nov 2026). Links players share (invites, Beat My Pup)
+ * open it there, from Graduation Day's own site too; the hub hands the link's ref / beat / week to the game.
+ */
+export const HUB_GRADUATION = 'https://play.pawtasticacademy.com/graduation';
+export const gameLink = (params = '') => `${HUB_GRADUATION}${params ? `?${params}` : ''}`;
 
 /** True when this page runs inside another page's frame (or can't tell). */
 export function embedded(win = globalThis) {

@@ -37,7 +37,7 @@ export function beatLink({ challenge, week }, deps) {
   const params = new URLSearchParams();
   params.set('beat', isChallengeId(challenge) ? challenge : 'high-score');
   if (isWeekKey(week)) params.set('week', week);
-  return gameLink(params.toString(), deps?.doc, deps?.loc);
+  return gameLink(params.toString());
 }
 
 export function shareFilename(name) {

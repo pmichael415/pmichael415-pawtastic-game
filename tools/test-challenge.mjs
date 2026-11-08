@@ -210,18 +210,19 @@ test('sent marks are per challenge, and a reload keeps results, badges and troph
 });
 
 // ---------- Beat My Pup ----------
-test('the Beat My Pup link opens the game itself and carries only the challenge and the week — never a score', () => {
+test('the Beat My Pup link opens Graduation Day in the PAWtastic Games hub (the one stop) and carries only the challenge and the week — never a score', () => {
   const doc = { querySelector: () => ({ content: 'https://pawtastic-graduation.lovable.app' }) };
   const hub = { protocol: 'https:', origin: 'https://play.pawtasticacademy.com' };
-  assert.equal(gameSite(doc, hub), 'https://pawtastic-graduation.lovable.app', 'inside the hub the game\'s own site is used (the hub does not serve /play)');
-  assert.equal(gameSite({ querySelector: () => null }, hub), 'https://play.pawtasticacademy.com');
+  const oldSite = { protocol: 'https:', origin: 'https://pawtastic-graduation.lovable.app' };
+  assert.equal(gameSite(doc, hub), 'https://pawtastic-graduation.lovable.app', 'inside the hub the server is Graduation Day\'s own');
   assert.equal(gameSite({ querySelector: () => ({ content: 'https://evil.example' }) }, hub), 'https://play.pawtasticacademy.com', 'only the allowlisted server counts');
-  assert.equal(gameSite({ querySelector: () => null }, { protocol: 'file:' }), 'https://pawtastic-graduation.lovable.app');
-  const link = beatLink({ challenge: 'combo', week: WEEK }, { doc: { querySelector: () => null }, loc: hub });
-  assert.equal(link, 'https://play.pawtasticacademy.com/play/index.html?beat=combo&week=2026-11-02');
-  assert.equal(beatLink({ challenge: 'boss', week: 'tuesday' }, { doc: { querySelector: () => null }, loc: hub }), 'https://play.pawtasticacademy.com/play/index.html?beat=high-score');
+  const link = beatLink({ challenge: 'combo', week: WEEK }, { doc, loc: hub });
+  assert.equal(link, 'https://play.pawtasticacademy.com/graduation?beat=combo&week=2026-11-02');
+  assert.equal(beatLink({ challenge: 'combo', week: WEEK }, { doc: { querySelector: () => null }, loc: oldSite }), link, 'from Graduation Day\'s own site too');
+  assert.equal(beatLink({ challenge: 'boss', week: 'tuesday' }, { doc, loc: hub }), 'https://play.pawtasticacademy.com/graduation?beat=high-score');
   assert.equal(/score|pts|=\d{4,}/.test(link.replace(/week=\d{4}-\d{2}-\d{2}/, '')), false, 'no score in the link');
-  assert.equal(gameLink('', { querySelector: () => null }, hub), 'https://play.pawtasticacademy.com/play/index.html');
+  assert.equal(gameLink(''), 'https://play.pawtasticacademy.com/graduation');
+  assert.equal(gameLink('ref=ABCDEF'), 'https://play.pawtasticacademy.com/graduation?ref=ABCDEF', 'invite links too');
 });
 
 test('the caption names the pup, the verified score and the challenge', () => {

@@ -1,4 +1,6 @@
-// Browser test of "Add to Home Screen" against tools/mock-pay-server.mjs (payments may be on or off).
+// Browser test of "Add to Home Screen" against tools/mock-pay-server.mjs (payments may be on or off). Graduation Day's
+// own site points players to the PAWtastic Games hub (the one stop, owner 7 Nov 2026): its map shows the hub notice
+// instead of an install banner, and installing is offered from the menu.
 //   node tools/mock-pay-server.mjs dist 8810 &   then   node tools/e2e-install.cjs http://127.0.0.1:8810
 const { chromium, devices } = require('playwright');
 const base = process.argv[2] || 'http://127.0.0.1:8810';
@@ -31,26 +33,30 @@ async function enroll(page) {
   const iconsOk = await Promise.all(m.icons.map(async i => (await fetch(base + i.src)).ok));
   check(iconsOk.every(Boolean) && m.icons.some(i => i.sizes === '512x512' && i.purpose === 'maskable'), 'manifest: all icons load, including a maskable one');
 
-  // Desktop: card, steps, Not now remembered.
+  const HUB = 'https://play.pawtasticacademy.com/graduation';
+  const openMenuAdd = async (page) => {
+    await page.click('button[aria-label="Sound and effects"]', { force: true }); await page.waitForTimeout(300);
+    await page.click('.sheet button:text-is("Add to Home Screen")', { force: true }); await page.waitForTimeout(300);
+  };
+
+  // Desktop: the hub notice on the map (no install banner); installing from the menu.
   let page = await ctxFor({ viewport: { width: 1280, height: 900 } });
   await enroll(page);
   check(await page.$eval('link[rel=manifest]', l => l.getAttribute('href')) === '/manifest.webmanifest', 'page links the manifest');
   check(await page.$eval('meta[name="apple-mobile-web-app-title"]', x => x.content) === 'PAWtastic', 'page names the Home Screen app PAWtastic');
-  check(/add PAWtastic to your Home Screen/.test(await page.innerText('body')), 'map shows the Add to Home Screen card');
-  await page.click('.install-card button:text-is("Add")', { force: true });
-  check(/install icon at the right end of the address bar/.test(await page.innerText('.sheet')), 'desktop: install steps for Chrome/Edge');
-  await page.click('.sheet button:text-is("Got it")');
-  await page.click('.install-card button[aria-label="Not now"]', { force: true }); await page.waitForTimeout(400);
-  check(!(await page.$('.install-card')), 'Not now hides the card');
+  check(/Graduation Day now lives in PAWtastic Games/.test(await page.innerText('body')), 'map shows the PAWtastic Games notice');
+  check(await page.$eval('.hub-card a', a => a.getAttribute('href')) === HUB, 'the notice opens Graduation Day in the hub', HUB);
+  check(!(await page.$('.install-card')), 'no install banner on Graduation Day\'s own site');
   await page.goto(GAME, { waitUntil: 'networkidle' }); await closeIntroSheets(page);
-  check(!(await page.$('.install-card')), 'Not now is remembered after reloading');
-  await page.click('button[aria-label="Sound and effects"]', { force: true }); await page.waitForTimeout(300);
-  check(/Add to Home Screen/.test(await page.innerText('.sheet')), 'menu still offers Add to Home Screen');
+  check(!!(await page.$('.hub-card')), 'the notice stays after reloading');
+  await openMenuAdd(page);
+  check(/install icon at the right end of the address bar/.test(await page.innerText('.sheet')), 'desktop: install steps for Chrome/Edge (from the menu)');
+  await page.click('.sheet button:text-is("Got it")');
 
   // iPhone Safari: Share steps, plus the cloud-save tip.
   page = await ctxFor({ ...devices['iPhone 13'] });
   await enroll(page);
-  await page.click('.install-card button:text-is("Add")', { force: true });
+  await openMenuAdd(page);
   const ios = await page.innerText('.sheet');
   check(/Tap the Share button/.test(ios) && /Add to Home Screen/.test(ios), 'iPhone: Share → Add to Home Screen steps');
   check(/Tap Save progress first/.test(ios), 'iPhone: tip to save progress before moving to the app');
@@ -64,14 +70,13 @@ async function enroll(page) {
     e.userChoice = Promise.resolve({ outcome: 'accepted' });
     window.dispatchEvent(e);
   });
-  await page.click('.install-card button:text-is("Add")', { force: true }); await page.waitForTimeout(500);
+  await openMenuAdd(page); await page.waitForTimeout(500);
   check(await page.evaluate(() => window.__prompted === true), "Android: opens the browser's install prompt");
-  check(!(await page.$('.install-card')), 'Android: card gone once installed');
 
-  // Already on the Home Screen (iPhone app): no card, no menu item.
+  // Already on the Home Screen (iPhone app of the old site): still shown the way to the hub, no menu item.
   page = await ctxFor({ ...devices['iPhone 13'] }, () => { Object.defineProperty(navigator, 'standalone', { get: () => true }); });
   await enroll(page);
-  check(!(await page.$('.install-card')), 'installed app: no Add to Home Screen card');
+  check(!!(await page.$('.hub-card')) && !(await page.$('.install-card')), 'installed old-site app: the PAWtastic Games notice, no install banner');
   await page.click('button[aria-label="Sound and effects"]', { force: true }); await page.waitForTimeout(300);
   check(!/Add to Home Screen/.test(await page.innerText('.sheet')), 'installed app: no menu item');
 

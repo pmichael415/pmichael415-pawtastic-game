@@ -11,6 +11,7 @@ import { showDailyRewards } from '../daily.js';
 import { showStarterPackOffer } from './results.js';
 import { cloudSaveCard } from '../payments.js';
 import { installCard } from '../install.js';
+import { hubCard } from '../hub-notice.js';
 import { friendOfferCard, showInvite } from '../referral.js';
 import { isPublicSite } from '../../backend/local.js';
 import { AREAS, CHAPTERS, LEVELS, ALL_LEVELS, LAST_LEVEL, isHardLevel, chapterOf, locationChapter, levelNumber } from '../../engine/levels.js';
@@ -156,8 +157,9 @@ export function render(app, params = {}) {
   const gradNote = state.progress.levels[LAST_LEVEL]
     ? `${dogName} is a PAWtastic Summer Camp champion!`
     : state.progress.levels[CHAPTERS[0].last] ? `${dogName} graduated from PAWtastic Academy! Summer Camp is open.` : null;
-  // One small banner at a time: a friend's offer first, then Add to Home Screen, then Save progress to the cloud.
-  const nudge = publicSite ? (friendOfferCard(app) ?? installCard(app) ?? cloudSaveCard(app)) : null;
+  // One small banner at a time: a friend's offer first; on Graduation Day's own site the way to PAWtastic Games (the one
+  // stop); inside the hub, Add to Home Screen (hidden there by the hub), then Save progress to the cloud.
+  const nudge = publicSite ? (friendOfferCard(app) ?? hubCard() ?? installCard(app) ?? cloudSaveCard(app)) : null;
   const weekly = publicSite && state.dog ? weeklyCard(app) : null;
   app.view.append(...[bar, continueCard, nudge, nav, weekly, homeCard, roads, starRoad, view === 'main' ? signs : null, h('div', { class: 'map' },
     view === 'main' && gradNote ? h('p', { class: 'card grad-note' }, gradNote) : null,
