@@ -9,6 +9,7 @@ import { appCodeMenuItem } from './app-signin.js';
 import { confirmPurchase } from './purchase.js';
 import { PACKS, STARTER_PACK, PASS, formatUsd } from '../economy/catalog.js';
 import { pendingCheckout, isEmail } from '../net/pay-api.js';
+import { keepResume } from './growth.js';
 
 // What each product is, in the words the buyer sees before paying. `kind` says whether it is used up
 // (consumable), kept for good (one-time) or renews (subscription) — see KINDS.
@@ -73,70 +74,82 @@ export async function leave(app, go) {
 }
 
 /** The email-code sign-in. Resolves true once signed in. */
-export function signInSheet(app, { title = 'Sign in', reason = '' } = {}) {
+/**
+ * The email-code sign-in steps as an element (email, then the 6-digit code). `onDone(true)` once signed in;
+ * `onDone(false)` when the player cancels. Used by the sign-in sheet and, inline, by the leaderboard join card.
+ */
+export function signInForm(app, { title = 'Sign in', reason = '', onDone = () => {} } = {}) {
   const pay = clientOf(app);
+  let done = false;
+  let email = pay?.email ?? '';
+  const finish = ok => { if (done && ok) return; if (ok) done = true; onDone(ok); };
+  const box = h('div', { class: 'stack signin-sheet' });
+  const note = h('p', { class: 'small', role: 'status', 'aria-live': 'polite' });
+
+  function askEmail() {
+    const input = h('input', { type: 'email', id: 'signin-email', autocomplete: 'email', inputmode: 'email', value: email, placeholder: 'you@example.com' });
+    const send = h('button', { class: 'btn', type: 'submit' }, 'Email me a code');
+    const form = h('form', { class: 'stack' },
+      h('label', { for: 'signin-email' }, 'Your email'), input, note,
+      h('div', { class: 'btn-pair' }, send, h('button', { class: 'btn secondary', type: 'button', onClick: () => finish(false) }, 'Cancel')));
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      email = input.value.trim();
+      if (!isEmail(email)) { note.textContent = payError('invalid-email'); return; }
+      send.disabled = true; note.textContent = 'Sending…';
+      const res = await pay.sendCode(email);
+      send.disabled = false;
+      if (res.ok) askCode(); else note.textContent = payError(res.error);
+    });
+    fill(box, title ? h('h2', {}, title) : null, reason ? h('p', {}, reason) : null, form,
+      h('p', { class: 'muted small' }, "No password needed. We'll email you a 6-digit code."));
+    setTimeout(() => input.focus(), 50);
+  }
+
+  function askCode() {
+    const input = h('input', { type: 'text', id: 'signin-code', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 10, placeholder: '123456', class: 'num' });
+    const go = h('button', { class: 'btn', type: 'submit' }, 'Sign in');
+    note.textContent = '';
+    const form = h('form', { class: 'stack' },
+      h('label', { for: 'signin-code' }, '6-digit code'), input, note,
+      h('div', { class: 'btn-pair' }, go, h('button', { class: 'btn secondary', type: 'button', onClick: () => finish(false) }, 'Cancel')));
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      go.disabled = true; note.textContent = 'Checking…';
+      const res = await pay.verifyCode(email, input.value);
+      go.disabled = false;
+      if (res.ok) finish(true); else note.textContent = payError(res.error);
+    });
+    fill(box, title ? h('h2', {}, 'Check your email') : null,
+      h('p', {}, 'We sent an email to ', h('strong', {}, email), '. Type the 6-digit code from it here, or tap the sign-in link in the email. It can take a minute to arrive.'),
+      standalone() ? h('p', { class: 'card small' }, h('strong', {}, 'Playing from your Home Screen? '), 'Tap the link in the email: Safari opens and shows a 6-digit code. Come back to this app and type that code here.') : null,
+      form,
+      h('div', { class: 'btn-pair' },
+        h('button', { class: 'linkish', type: 'button', onClick: async () => { note.textContent = 'Sending a new code…'; const r = await pay.sendCode(email); note.textContent = r.ok ? 'New code sent.' : payError(r.error); } }, 'Send a new code'),
+        h('button', { class: 'linkish', type: 'button', onClick: askEmail }, 'Use a different email')));
+    setTimeout(() => input.focus(), 50);
+  }
+
+  askEmail();
+  return box;
+}
+
+export function signInSheet(app, { title = 'Sign in', reason = '' } = {}) {
   return new Promise(resolve => {
     let sheet;
-    let done = false;
-    let email = pay?.email ?? '';
-    const finish = ok => { if (done) return; done = true; sheet?.close(); resolve(ok); };
-    const box = h('div', { class: 'stack signin-sheet' });
-    const note = h('p', { class: 'small', role: 'status', 'aria-live': 'polite' });
-
-    function askEmail() {
-      const input = h('input', { type: 'email', id: 'signin-email', autocomplete: 'email', inputmode: 'email', value: email, placeholder: 'you@example.com' });
-      const send = h('button', { class: 'btn', type: 'submit' }, 'Email me a code');
-      const form = h('form', { class: 'stack' },
-        h('label', { for: 'signin-email' }, 'Your email'), input, note,
-        h('div', { class: 'btn-pair' }, send, h('button', { class: 'btn secondary', type: 'button', onClick: () => finish(false) }, 'Cancel')));
-      form.addEventListener('submit', async e => {
-        e.preventDefault();
-        email = input.value.trim();
-        if (!isEmail(email)) { note.textContent = payError('invalid-email'); return; }
-        send.disabled = true; note.textContent = 'Sending…';
-        const res = await pay.sendCode(email);
-        send.disabled = false;
-        if (res.ok) askCode(); else note.textContent = payError(res.error);
-      });
-      fill(box, h('h2', {}, title), reason ? h('p', {}, reason) : null, form,
-        h('p', { class: 'muted small' }, "No password needed. We'll email you a 6-digit code."));
-      setTimeout(() => input.focus(), 50);
-    }
-
-    function askCode() {
-      const input = h('input', { type: 'text', id: 'signin-code', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 10, placeholder: '123456', class: 'num' });
-      const go = h('button', { class: 'btn', type: 'submit' }, 'Sign in');
-      note.textContent = '';
-      const form = h('form', { class: 'stack' },
-        h('label', { for: 'signin-code' }, '6-digit code'), input, note,
-        h('div', { class: 'btn-pair' }, go, h('button', { class: 'btn secondary', type: 'button', onClick: () => finish(false) }, 'Cancel')));
-      form.addEventListener('submit', async e => {
-        e.preventDefault();
-        go.disabled = true; note.textContent = 'Checking…';
-        const res = await pay.verifyCode(email, input.value);
-        go.disabled = false;
-        if (res.ok) finish(true); else note.textContent = payError(res.error);
-      });
-      fill(box, h('h2', {}, 'Check your email'),
-        h('p', {}, 'We sent an email to ', h('strong', {}, email), '. Type the 6-digit code from it here, or tap the sign-in link in the email. It can take a minute to arrive.'),
-        standalone() ? h('p', { class: 'card small' }, h('strong', {}, 'Playing from your Home Screen? '), 'Tap the link in the email: Safari opens and shows a 6-digit code. Come back to this app and type that code here.') : null,
-        form,
-        h('div', { class: 'btn-pair' },
-          h('button', { class: 'linkish', type: 'button', onClick: async () => { note.textContent = 'Sending a new code…'; const r = await pay.sendCode(email); note.textContent = r.ok ? 'New code sent.' : payError(r.error); } }, 'Send a new code'),
-          h('button', { class: 'linkish', type: 'button', onClick: askEmail }, 'Use a different email')));
-      setTimeout(() => input.focus(), 50);
-    }
-
-    askEmail();
-    sheet = app.modal(box, { label: title, onClose: () => finish(false) });
+    let settled = false;
+    const settle = ok => { if (settled) return; settled = true; sheet?.close(); resolve(ok); };
+    const box = signInForm(app, { title, reason, onDone: settle });
+    sheet = app.modal(box, { label: title, onClose: () => settle(false) });
   });
 }
 
 /** After signing in, reload so the saved game links to the account, then carry on with `product`. */
-export async function signInThenReload(app, { product = null, reason } = {}) {
+export async function signInThenReload(app, { product = null, reason, resume = null } = {}) {
   const ok = await signInSheet(app, { reason });
   if (!ok) return false;
   if (product) pendingCheckout().set(product);
+  else if (resume) keepResume(resume);
   app.toast('Signed in. Loading your account…');
   await leave(app, () => location.reload());
   return true;
@@ -260,7 +273,7 @@ export async function restorePurchases(app) {
   const pay = paymentsOf(app);
   if (!pay) return { ok: false, error: 'server' };
   if (!pay.signedIn) {
-    await signInThenReload(app, { reason: 'Sign in with the email you used to buy, and everything you bought comes back to this account.' });
+    await signInThenReload(app, { reason: 'Sign in with the email you used to buy, and everything you bought comes back to this account.', resume: { screen: 'shop' } });
     return { ok: false, error: 'signed-out' };
   }
   const result = await syncAccount(app);

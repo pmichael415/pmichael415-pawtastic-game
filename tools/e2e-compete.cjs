@@ -1,6 +1,7 @@
 // Competing end to end against tools/mock-pay-server.mjs (Chromium): home location, the Weekly Challenge,
 // leaderboards, prizes and their redemption at the front desk, and the home-location adventure.
 //   node tools/mock-pay-server.mjs dist 8862 &   then   node tools/e2e-compete.cjs http://127.0.0.1:8862
+//   Inside a season, run both with MOCK_NOW=<an ordinary week, e.g. 2026-10-28T15:00:00Z>: this script tests ordinary weeks.
 
 const { chromium } = require('playwright');
 
@@ -57,7 +58,11 @@ async function playChallenge(page, { greedy = false } = {}) {
   const browser = await chromium.launch();
   const errors = [];
   const newPage = async () => {
-    const page = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    // With MOCK_NOW (the mock server's clock moved, e.g. to an ordinary week outside a season), the phone's clock moves
+    // with it, as on a real phone: otherwise every session token looks expired to the page and is refreshed on each call.
+    if (process.env.MOCK_NOW) await context.clock.setSystemTime(new Date(process.env.MOCK_NOW));
+    const page = await context.newPage();
     page.on('pageerror', e => errors.push(e.message));
     page.on('dialog', d => d.accept());
     return page;
@@ -79,10 +84,20 @@ async function playChallenge(page, { greedy = false } = {}) {
   const sheet = await a.innerText('.sheet');
   const score = Number((await a.$eval('.sheet .big-score', el => el.textContent)).replace(/\D/g, ''));
   check(score > 0 && /Run complete/.test(sheet) && /first run this week sets the mark/.test(sheet) && /Professor Paws' tip/.test(sheet), 'challenge: 25 moves give a score, the first run sets the mark, a tip follows', String(score));
-  check(/Save your progress/.test(sheet), 'challenge: signed out, asks to sign in for the leaderboard');
+  // Growth (owner, 10 Nov 2026): a guest joins the leaderboard on the result itself, and lands on their rank.
+  await a.waitForFunction(() => /You'd be in the top 3 at Hawthorne!/.test(document.querySelector('.sheet .join-card')?.innerText ?? ''), null, { timeout: 15000 }).catch(() => {});
+  const joinText = await a.innerText('.sheet .join-card').catch(() => '');
+  check(/Put Max on the Hawthorne board/.test(joinText) && /You'd be in the top 3 at Hawthorne!/.test(joinText), 'challenge: signed out, the join card says where the run would rank', joinText.replace(/\n/g, ' | ').slice(0, 160));
   check((await a.evaluate(() => JSON.parse(localStorage.getItem('pawtastic-gd-wallet-v1')).weekly.best)) === score, 'challenge: best kept on this phone');
-  await a.click('.sheet button:text-is("Sign in")');
-  await signIn(a, 'max@example.com');
+  await a.fill('.sheet .join-card #signin-email', 'max@example.com');
+  await a.click('.sheet .join-card button:text-is("Email me a code")');
+  await a.waitForSelector('.sheet .join-card #signin-code');
+  await a.fill('.sheet .join-card #signin-code', '123456');
+  await Promise.all([a.waitForNavigation({ waitUntil: 'networkidle' }).catch(() => {}), a.click('.sheet .join-card button:text-is("Sign in")')]);
+  await a.waitForSelector('.lb-row.me', { timeout: 15000 }).catch(() => {});
+  check(!!(await a.$('.lb-row.me')) && /Max/.test(await a.innerText('.lb-row.me').catch(() => '')), 'join card: after signing in the player lands on the leaderboard, on their own row');
+  check((await a.evaluate(() => localStorage.getItem('pawtastic-gd-resume-v1'))) === null, 'join card: the resume note is used once');
+  await a.goto(GAME, { waitUntil: 'networkidle' }); await closeSheets(a);
   const s1 = await state();
   check(s1.weekly.length === 1 && s1.weekly[0].score === score && s1.weekly[0].location === 'hawthorne', 'after sign-in the run is sent and replayed on the server', JSON.stringify(s1.weekly.map(w => w.score)));
   check(Object.values(s1.players)[0]?.dogName === 'Max', 'leaderboard profile saved (dog name and location)');

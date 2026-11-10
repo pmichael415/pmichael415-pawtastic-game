@@ -9,7 +9,7 @@ import { topBar } from '../topbar.js';
 import { clientOf, signInThenReload } from '../payments.js';
 import { LOCATIONS } from '../../engine/levels.js';
 import { CHALLENGES, CHALLENGE_IDS } from '../../engine/challenge.js';
-import { prizeLine, prizeForRank, endsInText, homeName, pickHome, prizeCard, syncProfile, sendPendingRun, loadWeekPrizes, weekRules, formatTeaser, weekSeason, competitionLine, playWeek } from '../compete.js';
+import { prizeLine, prizeForRank, endsInText, homeName, pickHome, prizeCard, syncProfile, sendPendingRun, loadWeekPrizes, weekRules, formatTeaser, weekSeason, competitionLine, playWeek, joinCard } from '../compete.js';
 import { seasonHeadline, seasonCountdown, seasonPhase, teamBar, TEAM_BAR_NOTE, SEASON_TEXT } from '../season.js';
 
 const MEDALS = { 1: '🥇', 2: '🥈', 3: '🥉' };
@@ -126,7 +126,11 @@ export function render(app, { board: wanted, location = 'all' } = {}) {
       : null;
     const join = !pay.signedIn
       ? h('div', { class: 'card stack' }, h('p', {}, 'Sign in to put your pup on the leaderboard and play for prizes.'),
-        h('button', { class: 'btn', type: 'button', onClick: () => signInThenReload(app, { reason: 'Sign in with your email to join the leaderboard. Your progress is saved to the cloud too.' }) }, 'Join the leaderboard'))
+        h('button', { class: 'btn', type: 'button', onClick: () => {
+          // The same one-step join card as after a run (owner, 10 Nov 2026); no score line here.
+          if (!state.home) { signInThenReload(app, { reason: 'Sign in with your email to join the leaderboard. Your progress is saved to the cloud too.' }); return; }
+          app.modal(joinCard(app, { score: 0, season: board === 'season' }), { label: 'Join the leaderboard' });
+        } }, 'Join the leaderboard'))
       : !state.home
         ? h('div', { class: 'card stack' }, h('p', {}, 'Pick your PAWtastic to join its team.'),
           h('button', { class: 'btn', type: 'button', onClick: async () => { if (await pickHome(app)) { await syncProfile(app).catch(() => null); go(board, location); } } }, 'Pick my PAWtastic'))

@@ -172,7 +172,8 @@ const mapCard = async page => { await page.goto(GAME, { waitUntil: 'networkidle'
   await playChallenge(a);
   const sheetA = await a.innerText('.sheet');
   check(/Season 1: Top Dog · Chapter 2/i.test(sheetA) && /first run this chapter sets the mark/i.test(sheetA), 'run result: the season and chapter, chapter wording', flat(sheetA).slice(0, 160));
-  await a.click('.sheet button:text-is("Sign in")');
+  // Growth (owner, 10 Nov 2026): the guest signs in on the join card itself, right on the result.
+  check(/Put Max on the Hawthorne board/.test(await a.innerText('.sheet .join-card').catch(() => '')), 'run result: the one-step join card for the guest');
   await signIn(a, 'max@example.com');
   const s1 = await state();
   const maxRun = s1.weekly.find(w => w.week === '2026-11-16');

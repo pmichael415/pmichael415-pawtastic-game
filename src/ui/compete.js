@@ -4,14 +4,14 @@
 // owner approved for the week, or the standard 1st a free day of daycare, 2nd and 3rd a free bath).
 
 import { h, fill } from './dom.js';
-import { clientOf } from './payments.js';
+import { clientOf, signInForm, leave } from './payments.js';
 import { onMap } from './referral.js';
 import { LOCATIONS } from '../engine/levels.js';
 import { totalStars, totalBestScore } from '../economy/progression.js';
 import { weekKey, weekEndsAt, playEndsAt, CHALLENGES, CHALLENGE_IDS, isChallengeId, isWeekKey, TIER_NAMES, rulesFor, SEASONS } from '../engine/challenge.js';
 import { serverNow } from '../net/server-clock.js';
 import { seasonOf, seasonHeadline, seasonCountdown, seasonPrizeText, seasonPhase, fmtLeft, SEASON_TEXT } from './season.js';
-import { weekLabel, nyDate, expiringSoon, expiringPrize, evalLink, prizeGap } from './growth.js';
+import { weekLabel, nyDate, expiringSoon, expiringPrize, evalLink, prizeGap, keepResume, takeResume } from './growth.js';
 import { copyText } from './share-card.js';
 
 const PRIZE_NAMES = { 'daycare-day': 'Free day of daycare', bath: 'Free bath' };
@@ -382,9 +382,55 @@ export async function prizeNews(app) {
 
 /** After opening: profile, any run not sent yet, and prize news. */
 export async function competeOnOpen(app) {
+  const resume = takeResume();
   await syncProfile(app).catch(() => null);
-  await sendPendingRun(app).catch(() => null);
+  const sent = await sendPendingRun(app).catch(() => null);
+  // Back from signing in on the join card (or in the shop): pick up where the player was.
+  const pay = clientOf(app);
+  if (resume && pay?.signedIn) {
+    if (resume.screen === 'leaderboard') {
+      if (sent?.ok) app.services.measure?.track('board_joined', { board: resume.board === 'season' ? 'season' : 'weekly' });
+      app.go('leaderboard', { board: resume.board === 'season' ? 'season' : 'weekly', location: app.services.backend.state().home ?? 'all' });
+    } else if (resume.screen === 'shop') app.go('shop');
+  }
   await prizeNews(app).catch(() => null);
+}
+
+/**
+ * Join the leaderboard in one step (owner, 10 Nov 2026): where the run would rank at the player's location, the prize,
+ * and the email-code sign-in right on the card. Signing in reloads the page (account saves need it); the run is kept
+ * on the phone and sent after the reload, and the player lands on their rank.
+ */
+export function joinCard(app, { score = 0, season = false } = {}) {
+  const state = app.services.backend.state();
+  const where = LOCATIONS[state.home] ?? 'your PAWtastic';
+  const dog = state.dog?.name || 'your pup';
+  const board = season ? 'season' : 'weekly';
+  const gap = h('p', { class: 'join-gap' });
+  gap.hidden = true;
+  const pay = clientOf(app);
+  if (score > 0 && pay?.accounts && state.home) {
+    pay.leaderboard({ board, location: state.home }).then(res => {
+      if (!res?.ok) return;
+      const g = prizeGap({ entries: res.entries ?? [], score, location: where });
+      if (g) { gap.textContent = g.text; gap.hidden = false; }
+    }).catch(() => {});
+  }
+  const headline = season ? seasonHeadlinePrize(weekSeason() ?? { prizesConfirmed: false }) : prizeHeadline();
+  const form = signInForm(app, {
+    title: null,
+    onDone: ok => {
+      if (!ok) return;
+      keepResume({ screen: 'leaderboard', board });
+      app.toast('Signed in. Saving your run…');
+      leave(app, () => globalThis.location.reload());
+    },
+  });
+  return h('div', { class: 'card stack join-card' },
+    h('h3', {}, `Put ${dog} on the ${where} board.`),
+    gap,
+    h('p', { class: 'small' }, `${headline}: the top 3 at each location win. Enter your email and we'll send a 6-digit code.`),
+    form);
 }
 
 

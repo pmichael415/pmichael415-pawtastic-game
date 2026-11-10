@@ -91,3 +91,20 @@ test('below the 50th entry the rank is unknown, never guessed', async () => {
   assert.deepEqual(g, { kind: 'unknown', text: 'Join the leaderboard to see your rank', rank: null });
   assert.equal(prizeGap({ entries: fifty, me: null, score: 0, location: 'Hawthorne' }), null); // nothing played yet
 });
+
+// After signing in from the join card the page reloads; the game picks up where the player was (task 8).
+const memStore = () => { const m = new Map(); return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k) }; };
+test('takeResume returns what was kept once, and nothing after 30 minutes', async () => {
+  const { keepResume, takeResume, RESUME_KEY } = await import('../src/ui/growth.js');
+  assert.equal(RESUME_KEY, 'pawtastic-gd-resume-v1');
+  const store = memStore(); const t = Date.parse('2026-11-10T15:00:00Z');
+  keepResume({ screen: 'leaderboard', board: 'season' }, store, t);
+  assert.deepEqual(takeResume(t + 60000, store), { screen: 'leaderboard', board: 'season', at: t });
+  assert.equal(takeResume(t + 60000, store), null); // read once
+  keepResume({ screen: 'shop' }, store, t);
+  assert.equal(takeResume(t + 31 * 60000, store), null); // too old
+  store.setItem(RESUME_KEY, '{not json');
+  assert.equal(takeResume(t, store), null);
+  keepResume({ screen: 'somewhere-else' }, store, t);
+  assert.equal(takeResume(t, store), null); // only known screens
+});

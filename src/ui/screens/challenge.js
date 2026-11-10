@@ -20,12 +20,12 @@ import {
   newChallengeGame, CHALLENGES, CHALLENGE_IDS, isChallengeId, COMBO_SCALE, comboOf, cleanupScore,
   replayChallenge, tierOf, tipFor, movesFor, TIER_NAMES, TIER_ORDER,
 } from '../../engine/challenge.js';
-import { clientOf, signInSheet } from '../payments.js';
+import { clientOf } from '../payments.js';
 import { isPublicSite } from '../../backend/local.js';
 import { TROPHIES } from '../../economy/wallet.js';
 import {
   prizeLine, endsInText, homeName, keepPendingRun, pickHome, syncProfile, loadWeekPrizes, weekRules, formatTeaser, tierMark, challengeName,
-  weekSeason, competitionLine, playWeek, serverWeekKnown,
+  weekSeason, competitionLine, playWeek, serverWeekKnown, joinCard,
 } from '../compete.js';
 import { serverNow } from '../../net/server-clock.js';
 import { seasonCountdown, SEASON_TEXT } from '../season.js';
@@ -241,13 +241,12 @@ export function render(app, params = {}) {
     if (!backend.state().home) { status.textContent = ERRORS['no-home']; return null; }
     if (!pay.signedIn) {
       keepPendingRun(run);
-      status.replaceChildren(
-        h('span', {}, 'Save your progress (sign in with your email) to put this result on the leaderboard and play for prizes. '),
-        h('button', { class: 'linkish', type: 'button', onClick: async () => {
-          closeResult();
-          const ok = await signInSheet(app, { title: 'Join the leaderboard', reason: 'Sign in with your email. Your result goes on the leaderboard and your progress is saved to the cloud.' });
-          if (ok) location.reload(); else app.go('challenge', { challenge });
-        } }, 'Sign in'));
+      // One step: the join card, with where this run would rank and the email sign-in right here.
+      // The board's score: the week's total of each challenge's best (version 2), else the best run.
+      const results = backend.weeklyResults?.(week) ?? {};
+      const st = backend.state();
+      const boardScore = weekRules(week).version === 2 ? CHALLENGE_IDS.reduce((sum, id) => sum + (results[id]?.best ?? 0), 0) : Math.max(score, st.weekly.week === week ? st.weekly.best : 0);
+      status.replaceChildren(joinCard(app, { score: boardScore, season: !!weekSeason(week) }));
       return null;
     }
     status.textContent = 'Checking your run…';

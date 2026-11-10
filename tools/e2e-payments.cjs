@@ -157,6 +157,16 @@ async function goShop(page) { await page.click('button:has-text("Shop")', { forc
     const wb = await wallet(b);
     check(wb.dog?.name === 'Biscuit' && wb.treats.paid === 100, 'second device: progress and purchase restored', `${wb.dog?.name} / ${wb.treats.paid}`);
 
+    // 3a. Growth (owner, 10 Nov 2026): signing in from the Treats shop without picking a pack comes back to the shop.
+    const r = await newPage();
+    await enroll(r, 'Rex');
+    await goShop(r);
+    await r.click('button:text-is("Restore purchases")');
+    await signIn(r);
+    await r.waitForSelector('.shop-grid', { timeout: 15000 }).catch(() => {});
+    check(!!(await r.$('.shop-grid')), 'shop: signing in from "Restore purchases" comes back to the shop');
+    check((await wallet(r)).treats.paid === 100, 'shop: and the purchase is restored');
+
     // 3b. Third device: the sign-in link from the email (instead of the code) signs in too.
     const c = await newPage();
     await enroll(c, 'Max');

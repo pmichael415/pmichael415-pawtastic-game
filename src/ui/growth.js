@@ -67,3 +67,17 @@ export function prizeGap({ entries = [], me = null, score = 0, location = '' }) 
   if (rank <= 3) return { kind: 'top3-open', text: `You'd be in the top 3 at ${location}!`, rank };
   return { kind: 'places', text: `You'd be #${rank} at ${location} · ${places(rank - 3)} from a prize`, rank };
 }
+
+/** A note kept across the sign-in reload, so the game picks up where the player was (read once, 30 minutes). */
+export const RESUME_KEY = 'pawtastic-gd-resume-v1';
+const RESUME_SCREENS = new Set(['leaderboard', 'shop']);
+export function keepResume(what, store = globalThis.localStorage, now = Date.now()) {
+  try { store?.setItem(RESUME_KEY, JSON.stringify({ ...what, at: now })); } catch { /* private mode: the player just lands on the map */ }
+}
+export function takeResume(now = Date.now(), store = globalThis.localStorage) {
+  let v = null;
+  try { v = JSON.parse(store?.getItem(RESUME_KEY) ?? 'null'); } catch { v = null; }
+  try { store?.removeItem(RESUME_KEY); } catch { /* ignore */ }
+  if (!v || typeof v !== 'object' || !RESUME_SCREENS.has(v.screen) || !(now - v.at >= 0 && now - v.at <= 30 * 60000)) return null;
+  return v;
+}
