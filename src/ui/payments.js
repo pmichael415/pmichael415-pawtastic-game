@@ -243,10 +243,17 @@ export async function syncAccount(app) {
       if (r.ok) { claimed.push(p.id); if (!r.duplicate) { added.push(p); if (p.product === 'pass') passBought = true; } }
     }
   }
+  // Invite rewards (owner, 10 Nov 2026): 20 free Treats each, added once per id, then acknowledged.
+  const invites = [];
+  for (const r of Array.isArray(res.invites) ? res.invites : []) {
+    if (typeof r?.id !== 'string' || typeof backend.applyInviteReward !== 'function') continue;
+    const out = backend.applyInviteReward(r.id, r.amount);
+    if (out.ok) invites.push(r.id);
+  }
   // Right after paying, the pass row can be a moment behind the purchase: never switch off a pass just bought.
   if (res.pass && typeof res.pass.active === 'boolean' && (res.pass.active || !passBought)) backend.syncPass(res.pass);
   await saveNow(app);
-  if (claimed.length || refunds.length) await pay.ack({ claimed, refunds });
+  if (claimed.length || refunds.length || invites.length) await pay.ack({ claimed, refunds, ...(invites.length ? { invites } : {}) });
   if (added.length) pendingDelivery().clear();
   return { ok: true, added, refunded };
 }

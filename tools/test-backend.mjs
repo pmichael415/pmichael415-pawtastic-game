@@ -40,3 +40,22 @@ test('claude.ai demo: simulated purchases still work', async () => {
   assert.equal((await b.buyPack('pack55')).ok, true);
   assert.equal(total(wallet), before + 55);
 });
+
+// Invite rewards (owner, 10 Nov 2026): 20 free Treats per reward id, added once per save, never doubled by a re-sync.
+test('an invite reward adds its free Treats once per id', () => {
+  const memory = () => { let v = null; return { load: () => v, save: o => { v = structuredClone(o); } }; };
+  const store = memory();
+  const wallet = createWallet({ storage: store, now: () => Date.now() });
+  const free0 = wallet.state.treats.free;
+  const id = '33333333-3333-4333-8333-333333333333';
+  assert.deepEqual(wallet.applyInviteReward(id, 20), { ok: true, treats: 20 });
+  assert.equal(wallet.state.treats.free, free0 + 20);
+  assert.deepEqual(wallet.applyInviteReward(id, 20), { ok: true, duplicate: true });
+  assert.equal(wallet.state.treats.free, free0 + 20);
+  assert.equal(wallet.applyInviteReward('', 20).ok, false);
+  assert.equal(wallet.applyInviteReward('x', 500).ok, false); // an invite reward is 1 to 100 Treats
+  const again = createWallet({ storage: store, now: () => Date.now() }); // reopened: the id is remembered
+  assert.deepEqual(again.applyInviteReward(id, 20), { ok: true, duplicate: true });
+  const b = createLocalBackend({ wallet: again, features: PAID_FEATURES, release: 'public', payments: {} });
+  assert.deepEqual(b.applyInviteReward('44444444-4444-4444-8444-444444444444', 20), { ok: true, treats: 20 });
+});

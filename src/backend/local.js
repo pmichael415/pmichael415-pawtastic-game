@@ -59,6 +59,7 @@ export function createLocalBackend({ wallet, features = DEMO_FEATURES, release =
 
     // Real purchases: apply what the server says was paid or refunded, and the Pup Pass status.
     applyPurchase: (id, product) => wallet.applyPurchase(id, product),
+    applyInviteReward: (id, amount) => wallet.applyInviteReward(id, amount),
     applyRefund: (id, product) => wallet.applyRefund(id, product),
     syncPass: pass => wallet.syncPass(pass),
 

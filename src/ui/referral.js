@@ -7,7 +7,7 @@
 
 import { h, fill } from './dom.js';
 import { gameLink } from '../net/embed.js';
-import { clientOf, signInSheet, payError, leave } from './payments.js';
+import { clientOf, signInSheet, payError, leave, syncAccount } from './payments.js';
 import { FRIEND_CODE as CODE, normalizeCode } from '../net/friend-code.js';
 
 export { normalizeCode };
@@ -252,5 +252,6 @@ export async function sendInviteOnce(app) {
   if (m.done) write(INVITE_SENT_KEY, { code: ref.code, at: Date.now(), joined: m.joined });
   if (m.joined) app.services.measure?.track('invite_joined', {});
   if (m.text) app.toast(m.text);
+  if (m.joined) await syncAccount(app).catch(() => null); // the 20 Treats arrive now, claimed like a purchase
   return res;
 }

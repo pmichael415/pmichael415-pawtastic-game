@@ -109,6 +109,10 @@ async function staffSignIn(page, email) {
   await Promise.all([friend.waitForNavigation({ waitUntil: 'networkidle' }).catch(() => {}), friend.click('.sheet .join-card button:text-is("Sign in")')]);
   await friend.waitForFunction(() => /20 Treats from your friend's invite/.test(document.body.innerText), null, { timeout: 15000 }).catch(() => {});
   check(/20 Treats from your friend's invite are on their way/.test(await text(friend)), 'invite: the friend is welcomed with 20 Treats after joining the leaderboard');
+  // The 20 Treats are added by the game itself (claimed like a purchase), never as an owner grant.
+  await friend.waitForTimeout(1500);
+  const freeAfter = await friend.evaluate(() => { const k = Object.keys(localStorage).filter(x => x.startsWith('pawtastic-gd-wallet-v1:')).pop(); const w = JSON.parse(localStorage.getItem(k)); return { free: w.treats.free, rewards: w.purchases.invites ?? [] }; });
+  check(freeAfter.rewards.length === 1, 'invite: the friend\'s wallet took the reward once', JSON.stringify(freeAfter));
   let inv = await state();
   check(inv.invitePosts.length === 1 && inv.invitePosts[0].code === code && inv.invites.length === 1 && inv.invites[0].rewarded, 'invite: credited once on the server, with the sharer rewarded', JSON.stringify(inv.invitePosts));
   await friend.goto(GAME, { waitUntil: 'networkidle' }); await friend.waitForTimeout(1500);
@@ -118,6 +122,9 @@ async function staffSignIn(page, email) {
   await sharer.click('button:text-is("Invite friends")', { force: true });
   await sharer.waitForSelector('.sheet .invite-joined', { timeout: 10000 }).catch(() => {});
   check(/1 of 5 friends joined this season · \+20 Treats each/.test(await sharer.innerText('.sheet').catch(() => '')), 'invite screen: 1 of 5 friends joined this season');
+  const sharerRewards = await sharer.evaluate(() => { const k = Object.keys(localStorage).filter(x => x.startsWith('pawtastic-gd-wallet-v1')).sort().pop(); return (JSON.parse(localStorage.getItem(k)).purchases.invites ?? []).length; });
+  check(sharerRewards === 1, 'invite: the sharer\'s wallet took their 20 Treats once', String(sharerRewards));
+  check((await state()).inviteRewards.every(r => r.claimed), 'invite: both rewards acknowledged on the server');
   await sharer.click('.sheet button:text-is("Done")');
 
   // 3. A player's own link, and an unknown code, show no offer.

@@ -33,7 +33,7 @@ export function defaultState() {
     streak: { day: 0, lastOpenDay: null },
     starterPack: { bought: false, offerShown: false },
     // Real purchases (public site): server purchase ids already added to, or refunded from, this save.
-    purchases: { applied: [], refunded: [] },
+    purchases: { applied: [], refunded: [], invites: [] }, // invites: invite reward ids already added (owner, 10 Nov 2026)
     spending: [],
     spendingLimit: SPENDING_LIMIT.default,
     limitChosen: false,
@@ -138,6 +138,7 @@ function cleanLists(state) {
   if (!Number.isInteger(state.collection.runs) || state.collection.runs < 0) state.collection.runs = 0;
   state.purchases.applied = list(state.purchases.applied, isText);
   state.purchases.refunded = list(state.purchases.refunded, isText);
+  state.purchases.invites = list(state.purchases.invites, isText);
   state.spending = list(state.spending, s => isPlainObject(s) && Number.isFinite(s.at) && Number.isFinite(s.usd) && isText(s.what));
 }
 
@@ -319,6 +320,20 @@ export function createWallet({ storage, now }) {
       state.purchases.applied.push(id);
       save();
       return { ok: true, product, treats: pack?.treats ?? (product === 'starter' ? STARTER_PACK.treats : 0) };
+    },
+
+    // An invite reward the server confirmed (owner, 10 Nov 2026): free Treats, added once per reward id per save,
+    // so syncing again or on another device with the same save never doubles it.
+    applyInviteReward(id, amount) {
+      if (typeof id !== 'string' || !id) return fail('invalid');
+      if (!Number.isInteger(amount) || amount < 1 || amount > 100) return fail('invalid');
+      const done = state.purchases.invites;
+      if (done.includes(id)) return { ok: true, duplicate: true };
+      state.treats.free += amount;
+      done.push(id);
+      if (done.length > 200) done.splice(0, done.length - 200);
+      save();
+      return { ok: true, treats: amount };
     },
 
     // A refunded purchase: its bought Treats come back off the balance (never below zero).

@@ -208,7 +208,7 @@ export async function openPayments({
 
     checkout: product => call('POST', '/api/public/game/checkout', { product }),
     account: () => call('GET', '/api/public/game/account'),
-    ack: ({ claimed = [], refunds = [] }) => call('POST', '/api/public/game/account/ack', { claimed, refunds }),
+    ack: ({ claimed = [], refunds = [], invites }) => call('POST', '/api/public/game/account/ack', { claimed, refunds, ...(invites?.length ? { invites } : {}) }),
     portal: () => call('POST', '/api/public/game/portal', {}),
     // Competing: the Weekly Challenge (the server replays each run), leaderboards, the player's
     // leaderboard profile (dog name, home location, stars) and prizes won.
