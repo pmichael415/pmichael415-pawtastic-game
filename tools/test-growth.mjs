@@ -51,3 +51,43 @@ test('the map reminds about the won prize that expires first, within 7 days only
   assert.equal(expiringPrize([prizes[0], prizes[3]], now), null);
   assert.equal(expiringPrize(null, now), null);
 });
+
+// How close a player is to a prize at their location (task 7). `entries` is the location's board, best first.
+const board = scores => scores.map((score, i) => ({ rank: i + 1, score, dogName: `Dog ${i + 1}`, me: false }));
+test('signed in and in the top 3: "You\'re in the prizes!"', async () => {
+  const { prizeGap } = await import('../src/ui/growth.js');
+  const g = prizeGap({ entries: board([900, 800, 700]), me: { rank: 2, score: 800 }, location: 'Hawthorne' });
+  assert.equal(g.kind, 'in-prizes');
+  assert.equal(g.text, "You're in the prizes! #2 at Hawthorne");
+});
+test('signed in, outside the prizes: places away, plus points when close to 3rd', async () => {
+  const { prizeGap } = await import('../src/ui/growth.js');
+  const near = prizeGap({ entries: board([900, 800, 700, 650, 600]), me: { rank: 5, score: 600 }, location: 'Hillsdale' });
+  assert.equal(near.kind, 'places');
+  assert.equal(near.text, '2 places from a prize at Hillsdale · 100 points from 3rd');
+  const far = prizeGap({ entries: board([9000, 8000, 7000, 650]), me: { rank: 4, score: 650 }, location: 'Hillsdale' });
+  assert.equal(far.text, '1 place from a prize at Hillsdale');
+});
+test('a guest gets the rank their best would have, ties going to whoever got there first', async () => {
+  const { prizeGap } = await import('../src/ui/growth.js');
+  const g = prizeGap({ entries: board([900, 800, 700, 600]), me: null, score: 700, location: 'Hawthorne' });
+  assert.equal(g.rank, 4);
+  assert.equal(g.text, "You'd be #4 at Hawthorne · 1 place from a prize");
+  const top = prizeGap({ entries: board([900, 800, 700]), me: null, score: 850, location: 'Hawthorne' });
+  assert.equal(top.rank, 2);
+  assert.equal(top.text, "You'd be in the top 3 at Hawthorne!");
+});
+test('fewer than 3 players at the location: a guest is in the top 3', async () => {
+  const { prizeGap } = await import('../src/ui/growth.js');
+  const g = prizeGap({ entries: board([5000, 4000]), me: null, score: 10, location: 'Hillsdale' });
+  assert.equal(g.kind, 'top3-open');
+  assert.equal(g.rank, 3);
+  assert.equal(g.text, "You'd be in the top 3 at Hillsdale!");
+});
+test('below the 50th entry the rank is unknown, never guessed', async () => {
+  const { prizeGap } = await import('../src/ui/growth.js');
+  const fifty = board(Array.from({ length: 50 }, (_, i) => 10000 - i * 10));
+  const g = prizeGap({ entries: fifty, me: null, score: 5, location: 'Hawthorne' });
+  assert.deepEqual(g, { kind: 'unknown', text: 'Join the leaderboard to see your rank', rank: null });
+  assert.equal(prizeGap({ entries: fifty, me: null, score: 0, location: 'Hawthorne' }), null); // nothing played yet
+});

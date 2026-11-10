@@ -44,3 +44,26 @@ export function expiringPrize(prizes, nowMs = Date.now()) {
   if (!Array.isArray(prizes)) return null;
   return prizes.filter(p => expiringSoon(p, nowMs)).sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt))[0] ?? null;
 }
+
+const BOARD_SIZE = 50; // the server shows the top 50 of a board
+const places = n => `${n} place${n === 1 ? '' : 's'}`;
+
+/**
+ * How close a player is to a prize at their location: `entries` is the location's board (best first, top 50), `me` the
+ * signed-in player's row ({rank, score}) or null, `score` a guest's best on this phone. Ties go to whoever got there
+ * first, so a guest ranks after equal scores. Below the 50th entry a guest's rank is unknown and never guessed.
+ * Returns null when there is nothing to say (a guest who hasn't played).
+ */
+export function prizeGap({ entries = [], me = null, score = 0, location = '' }) {
+  if (me && me.rank > 0) {
+    if (me.rank <= 3) return { kind: 'in-prizes', text: `You're in the prizes! #${me.rank} at ${location}`, rank: me.rank };
+    const third = entries[2]?.score;
+    const gap = Number.isFinite(third) ? third - me.score : Infinity;
+    return { kind: 'places', text: `${places(me.rank - 3)} from a prize at ${location}${gap > 0 && gap <= 500 ? ` · ${gap.toLocaleString('en-US')} points from 3rd` : ''}`, rank: me.rank };
+  }
+  if (!(score > 0)) return null;
+  const rank = 1 + entries.filter(e => e.score >= score).length;
+  if (entries.length >= BOARD_SIZE && rank > BOARD_SIZE) return { kind: 'unknown', text: 'Join the leaderboard to see your rank', rank: null };
+  if (rank <= 3) return { kind: 'top3-open', text: `You'd be in the top 3 at ${location}!`, rank };
+  return { kind: 'places', text: `You'd be #${rank} at ${location} · ${places(rank - 3)} from a prize`, rank };
+}

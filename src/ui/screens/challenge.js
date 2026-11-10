@@ -31,6 +31,7 @@ import { serverNow } from '../../net/server-clock.js';
 import { seasonCountdown, SEASON_TEXT } from '../season.js';
 import { shareResult } from '../share-card.js';
 import { LOCATIONS } from '../../engine/levels.js';
+import { prizeGap } from '../growth.js';
 
 const ERRORS = {
   'week-over': 'This week\'s challenge just ended, so this run can\'t count. A new challenge is ready!',
@@ -221,6 +222,10 @@ export function render(app, params = {}) {
     if (!best) { status.textContent = 'Only your best run counts. Keep trying!'; return; }
     const confirmed = await sendRun(score, status, () => sheet.close());
     if (!confirmed || !alive) return;
+    // How close to a prize at the player's location, from this run's own answer (no extra request).
+    const standing = confirmed.season ?? confirmed;
+    const gap = prizeGap({ me: { rank: standing.rank, score: standing.score ?? confirmed.best }, location: LOCATIONS[confirmed.location] ?? confirmed.location });
+    if (gap) status.after(h('p', { class: 'small gap-line' }, gap.text));
     // Beat My Pup: the card carries the server-checked result, never a number from this phone alone.
     share.hidden = false;
     share.addEventListener('click', () => shareResult(app, {

@@ -11,7 +11,7 @@ import { totalStars, totalBestScore } from '../economy/progression.js';
 import { weekKey, weekEndsAt, playEndsAt, CHALLENGES, CHALLENGE_IDS, isChallengeId, isWeekKey, TIER_NAMES, rulesFor, SEASONS } from '../engine/challenge.js';
 import { serverNow } from '../net/server-clock.js';
 import { seasonOf, seasonHeadline, seasonCountdown, seasonPrizeText, seasonPhase, fmtLeft, SEASON_TEXT } from './season.js';
-import { weekLabel, nyDate, expiringSoon, expiringPrize, evalLink } from './growth.js';
+import { weekLabel, nyDate, expiringSoon, expiringPrize, evalLink, prizeGap } from './growth.js';
 import { copyText } from './share-card.js';
 
 const PRIZE_NAMES = { 'daycare-day': 'Free day of daycare', bath: 'Free bath' };
@@ -142,6 +142,24 @@ export function myBadge(app, week, challenge) {
  * The map's card during a season: "Season 1: Top Dog · Chapter 2 of 4 · season ends Sat 5 Dec", the countdown to the
  * server's end time, the season's prizes and how the season score works. (Same weekly-card class: other tools find it.)
  */
+/**
+ * One line on the challenge card: how close the player is to a prize at their home location (owner, 10 Nov 2026).
+ * Signed in: their own rank on the location's board; a guest: the rank their best on this phone would have.
+ */
+function gapLine(app, { season, score }) {
+  const line = h('p', { class: 'small gap-line' });
+  line.hidden = true;
+  const pay = clientOf(app);
+  const home = app.services.backend.state().home;
+  if (!pay?.accounts || !home) return line;
+  pay.leaderboard({ board: season ? 'season' : 'weekly', location: home }).then(res => {
+    if (!res?.ok) return;
+    const g = prizeGap({ entries: res.entries ?? [], me: res.me ?? null, score, location: LOCATIONS[home] ?? home });
+    if (g) { line.textContent = g.text; line.hidden = false; }
+  }).catch(() => {});
+  return line;
+}
+
 function seasonCard(app, week) {
   const { backend } = app.services;
   const state = backend.state();
@@ -155,6 +173,7 @@ function seasonCard(app, week) {
   const card = h('section', { class: 'card weekly-card season-card', 'aria-label': 'Season' },
     eyebrow, countdown, headline, line, how,
     best ? h('p', { class: 'small num' }, h('strong', {}, `Your best this chapter: ${best.toLocaleString('en-US')}`)) : null,
+    gapLine(app, { season: true, score: best }),
     h('div', { class: 'btn-pair' },
       play,
       h('button', { class: 'btn secondary', type: 'button', onClick: () => app.go('leaderboard', { board: 'season' }) }, 'Leaderboard')),
@@ -235,6 +254,7 @@ export function weeklyCard(app) {
     upcoming,
     formats,
     best && !v2() ? h('p', { class: 'small num' }, h('strong', {}, `Your best this week: ${best.toLocaleString('en-US')}`)) : null,
+    gapLine(app, { season: false, score: v2() ? CHALLENGE_IDS.reduce((sum, id) => sum + ((backend.weeklyResults?.(week) ?? {})[id]?.best ?? 0), 0) : best }),
     h('div', { class: 'btn-pair' },
       play,
       h('button', { class: 'btn secondary', type: 'button', onClick: () => app.go('leaderboard') }, 'Leaderboard')),

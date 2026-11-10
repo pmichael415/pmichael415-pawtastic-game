@@ -101,6 +101,7 @@ async function playChallenge(page, { greedy = false } = {}) {
   await playChallenge(b);
   await b.waitForFunction(() => /#\d+ at Hillsdale/.test(document.querySelector('.sheet')?.innerText ?? ''), null, { timeout: 15000 }).catch(() => {});
   check(/#1 at Hillsdale/.test(await b.innerText('.sheet')), 'challenge: signed in, the result shows the rank at Hillsdale');
+  check(/You're in the prizes! #1 at Hillsdale/.test(await b.innerText('.sheet')), 'challenge: the result says how close to a prize (in the prizes at Hillsdale)');
   // A made-up score is refused by the server.
   const token = await b.evaluate(() => JSON.parse(localStorage.getItem('pawtastic-gd-session-v1')).access_token);
   const fake = await fetch(`${base}/api/public/game/challenge`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ week: s1.weekly[0].week, moves: Array(25).fill([0, 0, 7, 7]) }) });
@@ -134,6 +135,7 @@ async function playChallenge(page, { greedy = false } = {}) {
   await setLineup({ next: true, labels: ['A free night of boarding', 'Two free baths', 'A free bath'], approved: true });
   card = await weeklyText();
   check(/Next week: 1st a free night of boarding/.test(card), "next week's approved lineup is teased", card.replace(/\n/g, ' | '));
+  check(/You're in the prizes! #1 at Hawthorne/i.test(card), 'map card: how close to a prize at your location', card.replace(/\n/g, ' | ').slice(-160));
 
   // 5. The week ends: this week's approved prizes for #1 at each location, shown to the winner with a code.
   await fetch(`${base}/mock/award-week`, { method: 'POST' });
