@@ -78,7 +78,7 @@ export async function leave(app, go) {
  * The email-code sign-in steps as an element (email, then the 6-digit code). `onDone(true)` once signed in;
  * `onDone(false)` when the player cancels. Used by the sign-in sheet and, inline, by the leaderboard join card.
  */
-export function signInForm(app, { title = 'Sign in', reason = '', onDone = () => {} } = {}) {
+export function signInForm(app, { title = 'Sign in', reason = '', onDone = () => {}, onCodeSent = null, codeFor = null } = {}) {
   const pay = clientOf(app);
   let done = false;
   let email = pay?.email ?? '';
@@ -99,7 +99,7 @@ export function signInForm(app, { title = 'Sign in', reason = '', onDone = () =>
       send.disabled = true; note.textContent = 'Sending…';
       const res = await pay.sendCode(email);
       send.disabled = false;
-      if (res.ok) askCode(); else note.textContent = payError(res.error);
+      if (res.ok) { onCodeSent?.(email); askCode(); } else note.textContent = payError(res.error);
     });
     fill(box, title ? h('h2', {}, title) : null, reason ? h('p', {}, reason) : null, form,
       h('p', { class: 'muted small' }, "No password needed. We'll email you a 6-digit code."));
@@ -130,7 +130,7 @@ export function signInForm(app, { title = 'Sign in', reason = '', onDone = () =>
     setTimeout(() => input.focus(), 50);
   }
 
-  askEmail();
+  if (codeFor && isEmail(codeFor)) { email = codeFor; askCode(); } else askEmail(); // codeFor: back at the code step after a reload
   return box;
 }
 

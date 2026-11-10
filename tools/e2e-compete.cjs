@@ -92,6 +92,10 @@ async function playChallenge(page, { greedy = false } = {}) {
   await a.fill('.sheet .join-card #signin-email', 'max@example.com');
   await a.click('.sheet .join-card button:text-is("Email me a code")');
   await a.waitForSelector('.sheet .join-card #signin-code');
+  // Review fix: the page reloads while the player is in Mail getting the code; the card comes back at the code step.
+  await a.reload({ waitUntil: 'networkidle' });
+  await a.waitForSelector('.sheet .join-card #signin-code', { timeout: 15000 }).catch(() => {});
+  check(!!(await a.$('.sheet .join-card #signin-code')), 'join card: after a reload mid-join it comes back at the code step');
   await a.fill('.sheet .join-card #signin-code', '123456');
   await Promise.all([a.waitForNavigation({ waitUntil: 'networkidle' }).catch(() => {}), a.click('.sheet .join-card button:text-is("Sign in")')]);
   await a.waitForSelector('.lb-row.me', { timeout: 15000 }).catch(() => {});
@@ -101,6 +105,18 @@ async function playChallenge(page, { greedy = false } = {}) {
   const s1 = await state();
   check(s1.weekly.length === 1 && s1.weekly[0].score === score && s1.weekly[0].location === 'hawthorne', 'after sign-in the run is sent and replayed on the server', JSON.stringify(s1.weekly.map(w => w.score)));
   check(Object.values(s1.players)[0]?.dogName === 'Max', 'leaderboard profile saved (dog name and location)');
+
+  // Review fixes: Cancel on the join card does something, and a guest's run that isn't a new best still shows the card.
+  const z = await newPage();
+  await enroll(z, 'Zed', 'Hawthorne');
+  await playChallenge(z);
+  await z.waitForSelector('.sheet .join-card', { timeout: 15000 }).catch(() => {});
+  await z.click('.sheet .join-card button:text-is("Cancel")');
+  await z.waitForTimeout(400);
+  check(!(await z.$('.sheet .join-card')) && /Your best is kept on this phone/.test(await z.innerText('.sheet').catch(() => '')), 'join card: Cancel closes it and says the best is kept on this phone');
+  await playChallenge(z); // the same moves again: the same score, not a new best
+  await z.waitForSelector('.sheet .join-card', { timeout: 15000 }).catch(() => {});
+  check(/Put Zed on the Hawthorne board/.test(await z.innerText('.sheet').catch(() => '')), 'join card: shown after a run that is not a new best too');
 
   // 3. A second player at Hillsdale, picking the home later from the map card.
   const b = await newPage();

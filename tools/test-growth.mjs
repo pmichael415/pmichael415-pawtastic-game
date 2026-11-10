@@ -117,3 +117,11 @@ test('invite answers become one calm message, and only a network failure is retr
   for (const error of ['own-code', 'already-invited', 'unknown-code', 'not-on-board']) assert.deepEqual(inviteMessage({ ok: false, error }), { text: null, done: true, joined: false });
   for (const error of ['offline', 'server', 'signed-out']) assert.deepEqual(inviteMessage({ ok: false, error }), { text: null, done: false, joined: false });
 });
+
+// Review fix: a prize "expires" at 00:00 New York time (weekly) or 23:59:59.999 (season); show the last day it can be used.
+test('prizes show the last New York day they can be used', async () => {
+  const { nyUseBy } = await import('../src/ui/growth.js');
+  assert.equal(nyUseBy('2026-12-09T05:00:00Z'), 'Dec 8'); // weekly: ends at midnight starting the 9th
+  assert.equal(nyUseBy('2027-01-05T04:59:59.999Z'), 'Jan 4'); // season: ends 23:59:59.999 on the 4th
+  assert.equal(nyUseBy('nope'), '');
+});

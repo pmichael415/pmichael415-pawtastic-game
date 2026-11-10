@@ -129,7 +129,8 @@ export function render(app, { board: wanted, location = 'all' } = {}) {
         h('button', { class: 'btn', type: 'button', onClick: () => {
           // The same one-step join card as after a run (owner, 10 Nov 2026); no score line here.
           if (!state.home) { signInThenReload(app, { reason: 'Sign in with your email to join the leaderboard. Your progress is saved to the cloud too.' }); return; }
-          app.modal(joinCard(app, { score: 0, season: board === 'season' }), { label: 'Join the leaderboard' });
+          let m;
+          m = app.modal(joinCard(app, { score: 0, season: board === 'season', onCancel: () => m?.close() }), { label: 'Join the leaderboard' });
         } }, 'Join the leaderboard'))
       : !state.home
         ? h('div', { class: 'card stack' }, h('p', {}, 'Pick your PAWtastic to join its team.'),

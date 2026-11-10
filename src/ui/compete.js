@@ -11,7 +11,7 @@ import { totalStars, totalBestScore } from '../economy/progression.js';
 import { weekKey, weekEndsAt, playEndsAt, CHALLENGES, CHALLENGE_IDS, isChallengeId, isWeekKey, TIER_NAMES, rulesFor, SEASONS } from '../engine/challenge.js';
 import { serverNow } from '../net/server-clock.js';
 import { seasonOf, seasonHeadline, seasonCountdown, seasonPrizeText, seasonPhase, fmtLeft, SEASON_TEXT } from './season.js';
-import { weekLabel, nyDate, expiringSoon, expiringPrize, evalLink, prizeGap, keepResume, takeResume } from './growth.js';
+import { weekLabel, nyUseBy, expiringSoon, expiringPrize, evalLink, prizeGap, keepResume, takeResume } from './growth.js';
 import { copyText } from './share-card.js';
 
 const PRIZE_NAMES = { 'daycare-day': 'Free day of daycare', bath: 'Free bath' };
@@ -339,10 +339,10 @@ export function prizeCard(p, app = null) {
     h('p', { class: 'eyebrow' }, `${season ?? `Weekly Challenge · ${weekLabel(p.week)}`} · #${p.rank} at ${where}`),
     h('h3', {}, prizeName(p)),
     won
-      ? [h('p', {}, `Show this code at the PAWtastic ${LOCATIONS[p.location] ?? ''} front desk by ${nyDate(p.expiresAt)}:`),
+      ? [h('p', {}, `Show this code at the PAWtastic ${LOCATIONS[p.location] ?? ''} front desk by ${nyUseBy(p.expiresAt)}:`),
         h('p', { class: 'friend-code num', 'aria-label': `Prize code ${String(p.code).split('').join(' ')}` }, p.code),
         copy,
-        expiringSoon(p) ? h('p', { class: 'small prize-expiry' }, h('strong', {}, `Expires ${nyDate(p.expiresAt)}.`), ' Show the code before then.') : null,
+        expiringSoon(p) ? h('p', { class: 'small prize-expiry' }, h('strong', {}, `Use it by ${nyUseBy(p.expiresAt)}.`), ' That is the last day.') : null,
         h('p', { class: 'small' }, 'New to PAWtastic? ', book, '.'),
         h('p', { class: 'small' }, 'Already a client? Just show this code at the front desk.'),
         h('p', { class: 'muted small' }, "For one dog. New clients complete PAWtastic's usual evaluation and paperwork first.")]
@@ -356,7 +356,7 @@ export function prizeReminderCard(app, now = serverNow()) {
   const p = expiringPrize(myPrizes, now);
   if (!p) return null;
   return h('div', { class: 'card nudge-card prize-reminder' },
-    h('p', {}, h('strong', {}, `Your ${lower(prizeName(p))} expires ${nyDate(p.expiresAt)}.`), ` Show the code at the PAWtastic ${LOCATIONS[p.location] ?? ''} front desk.`),
+    h('p', {}, h('strong', {}, `Use your ${lower(prizeName(p))} by ${nyUseBy(p.expiresAt)}.`), ` Show the code at the PAWtastic ${LOCATIONS[p.location] ?? ''} front desk.`),
     h('button', { class: 'btn', type: 'button', onClick: () => app.go('leaderboard') }, 'Show code'));
 }
 
@@ -388,8 +388,15 @@ export async function competeOnOpen(app) {
   if (sent?.ok) await sendInviteOnce(app).catch(() => null); // a friend's link: both get 20 Treats (once)
   // Back from signing in on the join card (or in the shop): pick up where the player was.
   const pay = clientOf(app);
-  if (resume && pay?.signedIn) {
-    if (resume.screen === 'leaderboard') {
+  if (resume?.screen === 'join' && !pay?.signedIn) {
+    // Reloaded while the email code was on its way: reopen the join card at the code step (and keep the note).
+    keepResume(resume);
+    if (await onMap(app)) {
+      let m;
+      m = app.modal(joinCard(app, { season: resume.board === 'season', codeFor: resume.email, onCancel: () => m?.close() }), { label: 'Join the leaderboard' });
+    }
+  } else if (resume && pay?.signedIn) {
+    if (resume.screen === 'leaderboard' || resume.screen === 'join') {
       if (sent?.ok) app.services.measure?.track('board_joined', { board: resume.board === 'season' ? 'season' : 'weekly' });
       app.go('leaderboard', { board: resume.board === 'season' ? 'season' : 'weekly', location: app.services.backend.state().home ?? 'all' });
     } else if (resume.screen === 'shop') app.go('shop');
@@ -402,7 +409,7 @@ export async function competeOnOpen(app) {
  * and the email-code sign-in right on the card. Signing in reloads the page (account saves need it); the run is kept
  * on the phone and sent after the reload, and the player lands on their rank.
  */
-export function joinCard(app, { score = 0, season = false } = {}) {
+export function joinCard(app, { score = 0, season = false, codeFor = null, onCancel = null } = {}) {
   const state = app.services.backend.state();
   const where = LOCATIONS[state.home] ?? 'your PAWtastic';
   const dog = state.dog?.name || 'your pup';
@@ -418,20 +425,30 @@ export function joinCard(app, { score = 0, season = false } = {}) {
     }).catch(() => {});
   }
   const headline = season ? seasonHeadlinePrize(weekSeason() ?? { prizesConfirmed: false }) : prizeHeadline();
+  let card = null;
   const form = signInForm(app, {
     title: null,
+    codeFor,
+    // The code is on its way: if the page reloads meanwhile (the Home Screen app, Mail), the card comes back at the code step.
+    onCodeSent: email => keepResume({ screen: 'join', board, step: 'code', email }),
     onDone: ok => {
-      if (!ok) return;
+      if (!ok) {
+        takeResume(); // cancelled: forget the code step
+        if (onCancel) onCancel();
+        else card?.replaceWith(h('p', { class: 'small muted join-later' }, 'Your best is kept on this phone. Join the leaderboard any time from Leaderboard.'));
+        return;
+      }
       keepResume({ screen: 'leaderboard', board });
       app.toast('Signed in. Saving your run…');
       leave(app, () => globalThis.location.reload());
     },
   });
-  return h('div', { class: 'card stack join-card' },
+  card = h('div', { class: 'card stack join-card' },
     h('h3', {}, `Put ${dog} on the ${where} board.`),
     gap,
     h('p', { class: 'small' }, `${headline}: the top 3 at each location win. Enter your email and we'll send a 6-digit code.`),
     form);
+  return card;
 }
 
 

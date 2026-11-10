@@ -222,7 +222,12 @@ export function render(app, params = {}) {
       h('div', { class: 'btn-pair' }, again, others ?? board),
       h('div', { class: 'btn-pair' }, share, others ? board : null)].filter(Boolean));
     sheet = app.modal(result, { label: 'Run complete', dismissible: false });
-    if (!best) { status.textContent = 'Only your best run counts. Keep trying!'; return; }
+    if (!best) {
+      status.textContent = 'Only your best run counts. Keep trying!';
+      // A guest still gets the join card (their best is already on this phone and is sent after signing in).
+      if (pay?.accounts && !pay.signedIn && backend.state().home) status.after(joinCard(app, { score: boardScoreNow(score), season: !!weekSeason(week) }));
+      return;
+    }
     const confirmed = await sendRun(score, status, () => sheet.close());
     if (!confirmed || !alive) return;
     sendInviteOnce(app).catch(() => null); // came through a friend's link: both get 20 Treats (once)
@@ -239,6 +244,13 @@ export function render(app, params = {}) {
     }));
   }
 
+  // The board's score: the week's total of each challenge's best (version 2), else the best run this week.
+  function boardScoreNow(score) {
+    const results = backend.weeklyResults?.(week) ?? {};
+    const st = backend.state();
+    return weekRules(week).version === 2 ? CHALLENGE_IDS.reduce((sum, id) => sum + (results[id]?.best ?? 0), 0) : Math.max(score, st.weekly.week === week ? st.weekly.best : 0);
+  }
+
   async function sendRun(score, status, closeResult) {
     const run = { week, moves: moves.slice(), challenge };
     if (!pay?.accounts) { status.textContent = 'The leaderboard needs the internet.'; return null; }
@@ -247,11 +259,7 @@ export function render(app, params = {}) {
     if (!pay.signedIn) {
       keepPendingRun(run);
       // One step: the join card, with where this run would rank and the email sign-in right here.
-      // The board's score: the week's total of each challenge's best (version 2), else the best run.
-      const results = backend.weeklyResults?.(week) ?? {};
-      const st = backend.state();
-      const boardScore = weekRules(week).version === 2 ? CHALLENGE_IDS.reduce((sum, id) => sum + (results[id]?.best ?? 0), 0) : Math.max(score, st.weekly.week === week ? st.weekly.best : 0);
-      status.replaceChildren(joinCard(app, { score: boardScore, season: !!weekSeason(week) }));
+      status.replaceChildren(joinCard(app, { score: boardScoreNow(score), season: !!weekSeason(week) }));
       return null;
     }
     status.textContent = 'Checking your run…';

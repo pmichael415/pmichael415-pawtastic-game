@@ -17,6 +17,11 @@ export function weekLabel(week) {
 
 /** A moment as a New York day: "Dec 9". */
 export const nyDate = iso => { const d = new Date(iso); return valid(d) ? SHORT.format(d) : ''; };
+/**
+ * The last New York day a prize can be used: weekly prizes expire at 00:00 New York time (so the day before) and season
+ * prizes at 23:59:59.999; one millisecond back covers both. "Dec 8".
+ */
+export const nyUseBy = iso => { const t = Date.parse(iso); return Number.isFinite(t) ? SHORT.format(new Date(t - 1)) : ''; };
 /** A moment as a New York day with its weekday: "Wed, Dec 9". */
 export const nyLongDate = iso => { const d = new Date(iso); return valid(d) ? LONG.format(d) : ''; };
 
@@ -70,7 +75,7 @@ export function prizeGap({ entries = [], me = null, score = 0, location = '' }) 
 
 /** A note kept across the sign-in reload, so the game picks up where the player was (read once, 30 minutes). */
 export const RESUME_KEY = 'pawtastic-gd-resume-v1';
-const RESUME_SCREENS = new Set(['leaderboard', 'shop']);
+const RESUME_SCREENS = new Set(['leaderboard', 'shop', 'join']); // join: the code was emailed, the card reopens at the code step
 export function keepResume(what, store = globalThis.localStorage, now = Date.now()) {
   try { store?.setItem(RESUME_KEY, JSON.stringify({ ...what, at: now })); } catch { /* private mode: the player just lands on the map */ }
 }
