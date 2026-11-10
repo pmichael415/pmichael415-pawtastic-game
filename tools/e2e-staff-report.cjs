@@ -65,6 +65,9 @@ async function staffSignIn(page, email) {
   // The desk is another person on another device: a fresh browser context (the game's session is per origin).
   const desk = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
   desk.on('pageerror', e => errors.push(e.message));
+  await fetch(`${base}/mock/seed-board`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entries: [
+    { dogName: 'Biscuit', location: 'hawthorne', score: 9000 }, { dogName: 'Max', location: 'hawthorne', score: 7000 }, { dogName: 'Luna', location: 'hillsdale', score: 8000 },
+  ] }) }).catch(() => {});
   await staffSignIn(desk, 'info@pawtasticacademy.com');
   await desk.waitForSelector('.report', { timeout: 8000 });
   await desk.waitForTimeout(1500);
@@ -87,6 +90,16 @@ async function staffSignIn(page, email) {
     check(/^\d+$/.test(growth['Booking taps'] ?? ''), 'growth: booking taps', growth['Booking taps']);
     check(/^\d+ · \d+$/.test(growth['Prizes won · redeemed'] ?? ''), 'growth: prizes won and redeemed', growth['Prizes won · redeemed']);
     check(/frontdesk 1/.test(growth['Top sources'] ?? ''), 'growth: top sources by device', growth['Top sources']);
+    // Top Dogs post (owner, 10 Nov 2026): a 1080x1350 PNG of the top dog names, made on the staff page.
+    const topBtn = await desk.$('button:text-is("Download this week\'s Top Dogs post")');
+    check(!!topBtn, 'standings: "Download this week\'s Top Dogs post" button');
+    if (topBtn) {
+      const [dl] = await Promise.all([desk.waitForEvent('download', { timeout: 10000 }).catch(() => null), topBtn.click()]);
+      const file = dl ? await dl.path() : null;
+      const png = file ? require('fs').readFileSync(file) : null;
+      const size = png && png.slice(1, 4).toString() === 'PNG' ? [png.readUInt32BE(16), png.readUInt32BE(20)] : null;
+      check(dl?.suggestedFilename() === 'pawtastic-top-dogs.png' && size?.[0] === 1080 && size?.[1] === 1350, 'Top Dogs post downloads as a 1080x1350 PNG', JSON.stringify({ name: dl?.suggestedFilename(), size }));
+    }
     await desk.click('button:text-is("30 days")');
     await desk.waitForTimeout(1200);
     const pressed = await desk.$eval('.report button[aria-pressed="true"]', el => el.textContent);

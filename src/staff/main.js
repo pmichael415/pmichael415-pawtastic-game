@@ -8,6 +8,7 @@ import { normalizeCode } from '../net/friend-code.js';
 import { serverNow, serverClockKnown } from '../net/server-clock.js';
 import { seasonFor, chapterOf } from '../engine/challenge.js';
 import { seasonPanel } from './season-panel.js';
+import { topDogsLines, downloadTopDogs } from './top-dogs.js';
 
 const root = document.getElementById('staff');
 const ERR = {
@@ -353,6 +354,15 @@ async function home() {
         fmtNote)) : null;
   const boardSection = h('section', { class: 'card stack' }, h('h2', {}, season ? `${season.name} standings (season scores)` : "This week's leaderboard"),
     h('p', { class: 'muted' }, 'Hide a player whose dog name is rude, or who is cheating. Hidden players are off the leaderboard and win no prizes.'),
+    // Owner, 10 Nov 2026: a ready-to-post picture of the top 3 dog names at each location (hidden players left out).
+    season && boardRows.some(b => !b.hidden) ? h('div', { class: 'stack' },
+      h('button', { class: 'btn secondary', type: 'button', onClick: async () => {
+        const shown = boardRows.filter(b => !b.hidden).sort((a, b) => Number(b.score) - Number(a.score));
+        const boards = { hawthorne: shown.filter(b => b.location === 'hawthorne'), hillsdale: shown.filter(b => b.location === 'hillsdale') };
+        const ok = await downloadTopDogs(topDogsLines({ seasonName: season.name, chapter: season.chapter, boards }));
+        if (!ok) alert('Could not make the picture on this device.');
+      } }, "Download this week's Top Dogs post"),
+      h('p', { class: 'muted small' }, 'Dog names only, ready for Instagram or Facebook. Ask before posting a client\'s dog photo.')) : null,
     boardRows.length
       ? h('ul', { class: 'list' }, boardRows.map(b => h('li', { class: `row${b.hidden ? ' void' : ''}` },
         h('div', {}, h('strong', {}, b.dogName), h('p', { class: 'muted' }, `${LOC[b.location] ?? ''} · ${Number(b.score).toLocaleString('en-US')} pts`)),

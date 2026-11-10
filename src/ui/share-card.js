@@ -8,6 +8,7 @@ import { shareLink } from './referral.js';
 import { isPublicSite } from '../backend/local.js';
 import { gameLink } from '../net/embed.js';
 import { CHALLENGES, isChallengeId, isWeekKey, TIER_NAMES } from '../engine/challenge.js';
+import { LOCATIONS } from '../engine/levels.js';
 
 const CAMP_AREAS = new Set(['Cabin Check-in', 'Lake Day', 'Trail Hike', 'Campfire Night', 'Talent Show']);
 const W = 1080, H = 1350;
@@ -24,12 +25,16 @@ export function shareCaption(kind, { dogName, areaName } = {}) {
 }
 
 /** Beat My Pup: the caption for a server-checked Weekly Challenge result (in a season, the season and its chapter). */
-export function resultCaption({ dogName, challenge, score, tier = null, season = null }) {
+export function resultCaption({ dogName, challenge, score, tier = null, season = null, rank = null, location = null }) {
   const dog = dogName || 'My pup';
   const name = CHALLENGES[challenge]?.name ?? 'Weekly Challenge';
   const badge = tier ? ` (${TIER_NAMES[tier]} badge)` : '';
   const where = season ? `${season.name} (Chapter ${season.chapter})` : `this week's ${name}`;
-  return `${dog} scored ${Number(score).toLocaleString('en-US')} in ${where} at PAWtastic Academy${badge}. Can your pup beat it?`;
+  const pts = Number(score).toLocaleString('en-US');
+  // A place the server confirmed is worth bragging about (owner, 10 Nov 2026): "#2 at PAWtastic Hawthorne".
+  const place = Number.isInteger(rank) && rank > 0 && Object.hasOwn(LOCATIONS, location ?? '') ? `#${rank} at PAWtastic ${LOCATIONS[location]}` : null;
+  if (place) return `${dog} is ${place} with ${pts} in ${where}${badge}. Can your pup beat it?`;
+  return `${dog} scored ${pts} in ${where} at PAWtastic Academy${badge}. Can your pup beat it?`;
 }
 
 /**
@@ -275,13 +280,13 @@ export async function shareDog(app, { kind, areaName, costume }) {
  * opens the same challenge. `score` must be the number the server returned, never one from this phone or a URL.
  * Native share when the phone has it (with the picture when it can attach files); otherwise copy the link.
  */
-export async function shareResult(app, { challenge, week, score, tier = null, rank = null, players = null, season = null }) {
+export async function shareResult(app, { challenge, week, score, tier = null, rank = null, players = null, season = null, location = null }) {
   const { backend, measure } = app.services;
   backend.logEvent?.('share_tap', { kind: 'beat-my-pup' });
   const dog = backend.state().dog;
   const dogName = dog?.name || 'My pup';
   const def = CHALLENGES[challenge] ?? CHALLENGES['high-score'];
-  const caption = resultCaption({ dogName, challenge, score, tier, season });
+  const caption = resultCaption({ dogName, challenge, score, tier, season, rank, location });
   const link = beatLink({ challenge, week });
   const period = season ? 'chapter' : 'week'; // in a season, each week is a chapter
   const stamp = `${Number(score).toLocaleString('en-US')} pts · ${def.short}${tier ? ` · ${TIER_NAMES[tier]}` : ''}`;
@@ -301,7 +306,7 @@ export async function shareResult(app, { challenge, week, score, tier = null, ra
   sheet = app.modal(h('div', { class: 'stack share' },
     h('p', { class: 'eyebrow' }, 'Beat My Pup'),
     src ? h('img', { class: 'share-img', src, alt: caption }) : h('p', { class: 'card' }, caption),
-    h('p', { class: 'small muted num' }, rank && players ? `Checked by PAWtastic: #${rank} of ${players} this ${period}. ` : 'Checked by PAWtastic. ', `Friends who open the link play the same challenge, this ${period} only.`),
+    h('p', { class: 'small muted num' }, rank && players ? `Checked by PAWtastic: #${rank} of ${players}${Object.hasOwn(LOCATIONS, location ?? '') ? ` at ${LOCATIONS[location]}` : ''} this ${period}. ` : 'Checked by PAWtastic. ', `Friends who open the link play the same challenge, this ${period} only.`),
     h('p', { class: 'small link-line num' }, h('a', { href: link, target: '_blank', rel: 'noopener' }, link)),
     h('div', { class: 'btn-pair' },
       shareBtn,

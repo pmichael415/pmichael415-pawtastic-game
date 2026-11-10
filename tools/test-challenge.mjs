@@ -238,3 +238,16 @@ test('the caption names the pup, the verified score and the challenge', () => {
     "Biscuit scored 23,400 in this week's Combo run at PAWtastic Academy (Bronze badge). Can your pup beat it?");
   assert.equal(resultCaption({ dogName: '', challenge: 'cleanup', score: 5 }), "My pup scored 5 in this week's Cleanup puzzle at PAWtastic Academy. Can your pup beat it?");
 });
+
+// Owner, 10 Nov 2026 ("do what you think will make us go viral"): a confirmed place is worth bragging about.
+test('the caption says the place at the location when the server confirmed it', () => {
+  assert.equal(resultCaption({ dogName: 'Biscuit', challenge: 'high-score', score: 8340, rank: 2, location: 'hawthorne' }),
+    "Biscuit is #2 at PAWtastic Hawthorne with 8,340 in this week's High score run. Can your pup beat it?");
+  assert.equal(resultCaption({ dogName: 'Max', challenge: 'combo', score: 23400, tier: 'bronze', rank: 1, location: 'hillsdale', season: { name: 'Season 1: Top Dog', chapter: 2 } }),
+    'Max is #1 at PAWtastic Hillsdale with 23,400 in Season 1: Top Dog (Chapter 2) (Bronze badge). Can your pup beat it?');
+  // No confirmed place, or an unknown location: the plain caption.
+  assert.equal(resultCaption({ dogName: 'Biscuit', challenge: 'combo', score: 23400, rank: 0, location: 'hawthorne' }),
+    "Biscuit scored 23,400 in this week's Combo run at PAWtastic Academy. Can your pup beat it?");
+  assert.equal(resultCaption({ dogName: 'Biscuit', challenge: 'combo', score: 23400, rank: 3, location: 'mars' }),
+    "Biscuit scored 23,400 in this week's Combo run at PAWtastic Academy. Can your pup beat it?");
+});

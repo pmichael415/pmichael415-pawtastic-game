@@ -85,6 +85,15 @@ async function staffSignIn(page, email) {
   const offer = await friend.innerText('.sheet').catch(() => '');
   check(/\$10 off your first PAWtastic visit/.test(offer) && offer.includes(code), 'friend sees the $10 off offer with the code', offer.replace(/\n/g, ' | ').slice(0, 160));
   check(/In the game: Join the leaderboard and you both get 20 Treats\./.test(offer), 'friend offer: in the game, you both get 20 Treats');
+  // Live check, 10 Nov 2026: the "Visit PAWtastic Academy" link button ran past the sheet's right padding on phones.
+  const fit = await friend.evaluate(() => {
+    const a = [...document.querySelectorAll('.sheet a.btn.block')].find(x => /Visit PAWtastic Academy/.test(x.textContent));
+    const box = [...document.querySelectorAll('.sheet button.btn.block, .sheet .btn.block')].find(x => x.tagName === 'BUTTON');
+    if (!a || !box) return null;
+    const r = a.getBoundingClientRect(), b = box.getBoundingClientRect();
+    return { linkLeft: Math.round(r.left), linkRight: Math.round(r.right), btnLeft: Math.round(b.left), btnRight: Math.round(b.right) };
+  });
+  check(!!fit && Math.abs(fit.linkRight - fit.btnRight) <= 1 && Math.abs(fit.linkLeft - fit.btnLeft) <= 1, 'friend offer: the "Visit PAWtastic Academy" button lines up with "Play the game"', JSON.stringify(fit));
   await closeIntroSheets(friend);
   check(/Friend offer: \$10 off/.test(await text(friend)), 'friend\'s map shows the friend offer banner');
   await friend.click('button[aria-label="Sound and effects"]', { force: true });

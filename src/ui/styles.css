@@ -84,7 +84,7 @@ p { margin: 0; }
 .btn.secondary { background: var(--surface); color: var(--text); border-color: var(--line); }
 .btn.ghost { background: transparent; color: var(--brand-ink); border-color: transparent; }
 .btn.gold { background: var(--reward); color: #3A2A00; }
-.btn.block { width: 100%; }
+.btn.block { width: 100%; box-sizing: border-box; } /* links too, not only buttons (live check, 10 Nov 2026) */
 .btn-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
 .chip {

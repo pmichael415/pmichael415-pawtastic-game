@@ -656,6 +656,16 @@ createServer(async (req, res) => {
     }
     // Replaces the team bar's numbers ({ teams } or { teams: null }), e.g. fractional or equal averages.
     if (path === '/mock/teams' && req.method === 'POST') { forcedTeams = (await bodyOf(req)).teams ?? null; return send(res, 200, { teams: forcedTeams }); }
+    // Puts dogs on this week's board for staff-page tests ({ entries: [{ dogName, location, score }] }).
+    if (path === '/mock/seed-board' && req.method === 'POST') {
+      const entries = (await bodyOf(req)).entries ?? [];
+      entries.forEach((e, i) => {
+        const id = `seed-${weekly.length + i}`;
+        players.set(id, { dogName: String(e.dogName).slice(0, 20), location: e.location, stars: 0, levels: 0, bestTotal: 0, hidden: false });
+        weekly.push({ week: weekKey(now()), userId: id, location: e.location, score: e.score, moves: { version: 1 }, at: now() });
+      });
+      return send(res, 200, { seeded: entries.length });
+    }
     if (path === '/mock/award-week' && req.method === 'POST') { awardWeek(weekKey(now())); return send(res, 200, { prizes }); }
     // Switches the three-challenge format on from a week ({ from: 'now' | '<Monday>' | null }) for tests.
     if (path === '/mock/format' && req.method === 'POST') {
