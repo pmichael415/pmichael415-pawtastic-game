@@ -668,3 +668,7 @@ html.fx-off .jar-art.lid-pop [data-part="lid"] { animation: none; transform: tra
 .pass-summary h2 { margin: 0; font-size: 1.1rem; }
 .pass-summary p { margin: 0; }
 @media (max-width: 380px) { .pass-summary-row { grid-template-columns: 1fr; } .pass-preview { justify-self: center; } }
+
+/* Prize cards: no long-press text selection (the iPhone Copy/Look Up menu covered the card); the Copy code button copies
+   the code. Never applied to inputs or other cards: iOS Safari won't let you type into an input with user-select:none. */
+.prize-card, .prize-card *:not(input):not(textarea) { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }

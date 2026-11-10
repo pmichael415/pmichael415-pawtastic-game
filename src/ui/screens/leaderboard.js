@@ -133,7 +133,7 @@ export function render(app, { board: wanted, location = 'all' } = {}) {
         : null;
     const mine = (prizes?.ok && Array.isArray(prizes.prizes) ? prizes.prizes : []).filter(p => p.status === 'won');
     fill(body,
-      mine.length ? h('div', { class: 'stack' }, h('h2', {}, 'Your prizes'), ...mine.map(prizeCard)) : null,
+      mine.length ? h('div', { class: 'stack' }, h('h2', {}, 'Your prizes'), ...mine.map(p => prizeCard(p, app))) : null,
       teams, join, me,
       rows.length ? h('ol', { class: 'lb-list', 'aria-label': `${tabList.find(t => t[0] === board)?.[1] ?? 'Leaderboard'}${location === 'all' ? '' : `, ${LOCATIONS[location]}`}` }, rows)
         : h('p', { class: 'card muted' }, board === 'season' ? SEASON_TEXT.noScores : board === 'weekly' ? `No scores yet this ${season ? 'chapter' : 'week'}. Be the first!` : 'No players yet. Be the first!'),

@@ -143,6 +143,14 @@ async function playChallenge(page, { greedy = false } = {}) {
   await a.waitForSelector('.sheet .prize-card', { timeout: 15000 }).catch(() => {});
   const won = await a.innerText('.sheet').catch(() => '');
   check(/placed in the Weekly Challenge/.test(won) && won.includes(prize.code) && /Two free days of daycare/.test(won), 'winner is told, with the prize and its code', won.replace(/\n/g, ' | ').slice(0, 160));
+  // Growth (owner, 10 Nov 2026): a readable week, Copy code, a free-evaluation booking link for new clients, and no
+  // long-press text selection on the prize card (the iPhone Copy/Look Up menu covered it).
+  check(/week of [a-z]{3} \d{1,2}\b/i.test(won) && !/week of \d{4}-\d{2}-\d{2}/i.test(won), 'prize card: the week reads "Week of Mon D"', won.replace(/\n/g, ' | ').slice(0, 120));
+  check(!!(await a.$('.sheet .prize-card button:has-text("Copy code")')), 'prize card: a Copy code button');
+  const book = await a.$eval('.sheet .prize-card a[href*="booking-page"]', el => el.getAttribute('href')).catch(() => '');
+  check(/^https:\/\/pawtasticacademy\.com\/booking-page-ht\?.*utm_campaign=free_evaluation.*utm_content=prize-hawthorne/.test(book), 'prize card: "Book your free evaluation" for Hawthorne, tagged', book);
+  check(/Already a client\? Just show this code at the front desk/.test(won), 'prize card: existing clients just show the code');
+  check(await a.$eval('.sheet .prize-card', el => getComputedStyle(el).userSelect === 'none' || getComputedStyle(el).webkitUserSelect === 'none').catch(() => false), 'prize card: no long-press text selection');
   await closeSheets(a);
 
   // 6. The front desk redeems it, and can hide a player.

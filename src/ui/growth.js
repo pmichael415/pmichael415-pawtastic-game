@@ -1,0 +1,46 @@
+// Growth helpers (owner, 10 Nov 2026; spec "More players for PAWtastic Games"): readable prize dates in New York time,
+// the expiry reminder, the free-evaluation booking links, and how close a player is to a prize. Pure: no DOM, no I/O.
+
+const NY = 'America/New_York';
+const DAY = 86400000;
+const fmt = options => new Intl.DateTimeFormat('en-US', { timeZone: NY, ...options });
+const SHORT = fmt({ month: 'short', day: 'numeric' });
+const LONG = fmt({ weekday: 'short', month: 'short', day: 'numeric' });
+const WEEK = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
+const valid = d => !Number.isNaN(d.getTime());
+
+/** "2026-10-26" (a Monday, the week's key) → "Week of Oct 26". */
+export function weekLabel(week) {
+  const d = new Date(`${week}T00:00:00Z`);
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(week)) && valid(d) ? `Week of ${WEEK.format(d)}` : 'Weekly Challenge';
+}
+
+/** A moment as a New York day: "Dec 9". */
+export const nyDate = iso => { const d = new Date(iso); return valid(d) ? SHORT.format(d) : ''; };
+/** A moment as a New York day with its weekday: "Wed, Dec 9". */
+export const nyLongDate = iso => { const d = new Date(iso); return valid(d) ? LONG.format(d) : ''; };
+
+/** A won (not yet redeemed) prize in its last 7 days. */
+export function expiringSoon(prize, nowMs = Date.now()) {
+  const end = Date.parse(prize?.expiresAt ?? '');
+  return prize?.status === 'won' && Number.isFinite(end) && end > nowMs && end - nowMs <= 7 * DAY;
+}
+
+/** Each location's free-evaluation booking page (the same pages the hub's Visit page uses). */
+export const EVAL_LINKS = {
+  hawthorne: 'https://pawtasticacademy.com/booking-page-ht',
+  hillsdale: 'https://pawtasticacademy.com/booking-page',
+};
+
+/** The booking link for a location, tagged so a booking can be traced to the game (`from`: where it was tapped). */
+export function evalLink(location, from) {
+  const loc = location in EVAL_LINKS ? location : 'hawthorne';
+  const q = new URLSearchParams({ utm_source: 'graduation_day', utm_medium: 'game', utm_campaign: 'free_evaluation', utm_content: `${from}-${loc}` });
+  return `${EVAL_LINKS[loc]}?${q}`;
+}
+
+/** Of the player's prizes, the won one that expires first, if it's in its last 7 days (the map's reminder). */
+export function expiringPrize(prizes, nowMs = Date.now()) {
+  if (!Array.isArray(prizes)) return null;
+  return prizes.filter(p => expiringSoon(p, nowMs)).sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt))[0] ?? null;
+}

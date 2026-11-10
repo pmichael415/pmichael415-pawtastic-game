@@ -11,6 +11,8 @@ import { totalStars, totalBestScore } from '../economy/progression.js';
 import { weekKey, weekEndsAt, playEndsAt, CHALLENGES, CHALLENGE_IDS, isChallengeId, isWeekKey, TIER_NAMES, rulesFor, SEASONS } from '../engine/challenge.js';
 import { serverNow } from '../net/server-clock.js';
 import { seasonOf, seasonHeadline, seasonCountdown, seasonPrizeText, seasonPhase, fmtLeft, SEASON_TEXT } from './season.js';
+import { weekLabel, nyDate, expiringSoon, expiringPrize, evalLink } from './growth.js';
+import { copyText } from './share-card.js';
 
 const PRIZE_NAMES = { 'daycare-day': 'Free day of daycare', bath: 'Free bath' };
 const lower = t => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
@@ -300,16 +302,42 @@ export async function sendPendingRun(app) {
 
 const seenPrizes = () => { try { return JSON.parse(localStorage.getItem(PRIZES_SEEN_KEY) ?? '[]'); } catch { return []; } };
 
-export function prizeCard(p) {
+/**
+ * A prize the player won: the code to show at the front desk, a Copy code button, a free-evaluation booking link for
+ * new clients, and a note in the prize's last 7 days (owner, 10 Nov 2026). Dates are New York days.
+ */
+export function prizeCard(p, app = null) {
   const season = prizeSeasonName(p);
+  const where = LOCATIONS[p.location] ?? p.location;
+  const won = p.status === 'won';
+  const copy = h('button', { class: 'btn secondary small', type: 'button', onClick: async () => {
+    const ok = await copyText(String(p.code));
+    app?.toast?.(ok ? 'Code copied' : `Your code: ${p.code}`);
+  } }, 'Copy code');
+  const book = h('a', { href: evalLink(p.location, 'prize'), target: '_blank', rel: 'noopener', onClick: () => app?.services?.measure?.track('booking_tap', { from: 'prize', location: p.location }) }, 'Book your free evaluation');
   return h('div', { class: 'card prize-card' },
-    h('p', { class: 'eyebrow' }, `${season ?? `Weekly Challenge · week of ${p.week}`} · #${p.rank} at ${LOCATIONS[p.location] ?? p.location}`),
+    h('p', { class: 'eyebrow' }, `${season ?? `Weekly Challenge · ${weekLabel(p.week)}`} · #${p.rank} at ${where}`),
     h('h3', {}, prizeName(p)),
-    p.status === 'won'
-      ? [h('p', {}, `Show this code at the PAWtastic ${LOCATIONS[p.location] ?? ''} front desk by ${new Date(p.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}:`),
+    won
+      ? [h('p', {}, `Show this code at the PAWtastic ${LOCATIONS[p.location] ?? ''} front desk by ${nyDate(p.expiresAt)}:`),
         h('p', { class: 'friend-code num', 'aria-label': `Prize code ${String(p.code).split('').join(' ')}` }, p.code),
+        copy,
+        expiringSoon(p) ? h('p', { class: 'small prize-expiry' }, h('strong', {}, `Expires ${nyDate(p.expiresAt)}.`), ' Show the code before then.') : null,
+        h('p', { class: 'small' }, 'New to PAWtastic? ', book, '.'),
+        h('p', { class: 'small' }, 'Already a client? Just show this code at the front desk.'),
         h('p', { class: 'muted small' }, "For one dog. New clients complete PAWtastic's usual evaluation and paperwork first.")]
       : h('p', { class: 'muted small' }, p.status === 'redeemed' ? 'Enjoyed. Thanks for playing!' : 'This prize has expired.'));
+}
+
+let myPrizes = []; // the signed-in player's prizes, as last read by prizeNews
+
+/** The map's reminder when a won prize is in its last 7 days (owner, 10 Nov 2026); null otherwise. */
+export function prizeReminderCard(app, now = serverNow()) {
+  const p = expiringPrize(myPrizes, now);
+  if (!p) return null;
+  return h('div', { class: 'card nudge-card prize-reminder' },
+    h('p', {}, h('strong', {}, `Your ${lower(prizeName(p))} expires ${nyDate(p.expiresAt)}.`), ` Show the code at the PAWtastic ${LOCATIONS[p.location] ?? ''} front desk.`),
+    h('button', { class: 'btn', type: 'button', onClick: () => app.go('leaderboard') }, 'Show code'));
 }
 
 /** After opening (signed in): tell a winner about a new prize. */
@@ -318,6 +346,7 @@ export async function prizeNews(app) {
   if (!pay?.signedIn) return;
   const res = await pay.prizes();
   if (!res.ok || !Array.isArray(res.prizes)) return;
+  myPrizes = res.prizes;
   const seen = new Set(seenPrizes());
   const fresh = res.prizes.filter(p => p.status === 'won' && !seen.has(p.id));
   if (!fresh.length || !(await onMap(app))) return;
@@ -327,7 +356,7 @@ export async function prizeNews(app) {
   s = app.modal(h('div', { class: 'stack' },
     h('p', { class: 'eyebrow' }, 'You won!'),
     h('h2', {}, `${dog} placed in ${fresh.map(prizeSeasonName).find(Boolean) ?? 'the Weekly Challenge'}!`),
-    ...fresh.map(prizeCard),
+    ...fresh.map(p => prizeCard(p, app)),
     h('button', { class: 'btn block', type: 'button', onClick: () => s.close() }, 'Yay!')), { label: 'Prize won' });
 }
 
