@@ -48,3 +48,14 @@ export function openOutside(url, win = globalThis) {
     win.open(url, '_blank');
   }
 }
+
+/** Inside the hub (which has no dark mode) the game stays light; on its own site it follows the phone. */
+export function applyEmbedTheme(doc = globalThis.document, win = globalThis) {
+  if (embedded(win) && doc?.documentElement) doc.documentElement.dataset.theme = 'light';
+}
+
+/** Tells the hub around the game about a moment (e.g. 'good-moment' after a good run, to offer notifications). */
+export function tellHub(type, win = globalThis) {
+  if (!embedded(win)) return;
+  try { win.parent.postMessage({ source: 'pawtastic-graduation', type }, win.location.origin); } catch { /* not ours to tell */ }
+}

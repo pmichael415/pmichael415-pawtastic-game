@@ -32,6 +32,7 @@ import { seasonCountdown, SEASON_TEXT } from '../season.js';
 import { shareResult } from '../share-card.js';
 import { LOCATIONS } from '../../engine/levels.js';
 import { prizeGap } from '../growth.js';
+import { tellHub } from '../../net/embed.js';
 import { sendInviteOnce, INVITE_REWARD_TEXT } from '../referral.js';
 const hasFriendCode = () => { try { return !!JSON.parse(localStorage.getItem('pawtastic-gd-ref-v1') ?? 'null')?.code; } catch { return false; } };
 
@@ -225,6 +226,7 @@ export function render(app, params = {}) {
     const confirmed = await sendRun(score, status, () => sheet.close());
     if (!confirmed || !alive) return;
     sendInviteOnce(app).catch(() => null); // came through a friend's link: both get 20 Treats (once)
+    tellHub('good-moment'); // inside the hub: a good moment to offer notifications
     // How close to a prize at the player's location, from this run's own answer (no extra request).
     const standing = confirmed.season ?? confirmed;
     const gap = prizeGap({ me: { rank: standing.rank, score: standing.score ?? confirmed.best }, location: LOCATIONS[confirmed.location] ?? confirmed.location });

@@ -2,7 +2,7 @@
 //   node --test tools/test-embed.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { API_BASES, apiBase, embedded, openOutside } from '../src/net/embed.js';
+import { API_BASES, apiBase, embedded, openOutside, applyEmbedTheme, tellHub } from '../src/net/embed.js';
 
 const docWith = content => ({ querySelector: sel => (sel === 'meta[name="pawtastic-api"]' && content !== null ? { content } : null) });
 
@@ -48,4 +48,25 @@ test('when the page around it is another site, it opens a new tab instead', () =
   win.self = win;
   openOutside('https://billing.stripe.com/p/x', win);
   assert.deepEqual(seen, [['new tab', 'https://billing.stripe.com/p/x', '_blank']]);
+});
+
+// Inside the hub (owner, 10 Nov 2026): the game stays light like the hub, and tells the hub after a good run.
+const fakeDoc = () => ({ documentElement: { dataset: {} } });
+test('inside the hub the game is always light; on its own site it follows the phone', () => {
+  const self = {};
+  const inHub = fakeDoc(); applyEmbedTheme(inHub, { top: {}, self });
+  assert.equal(inHub.documentElement.dataset.theme, 'light');
+  const own = fakeDoc(); applyEmbedTheme(own, { top: self, self });
+  assert.equal(own.documentElement.dataset.theme, undefined);
+});
+test('tellHub posts one plain message to the same origin, only when framed', () => {
+  const sent = [];
+  const self = { location: { origin: 'https://play.pawtasticacademy.com' } };
+  const framed = { ...self, top: {}, self, parent: { postMessage: (m, o) => sent.push([m, o]) } };
+  framed.self = framed;
+  tellHub('good-moment', framed);
+  assert.deepEqual(sent, [[{ source: 'pawtastic-graduation', type: 'good-moment' }, 'https://play.pawtasticacademy.com']]);
+  const alone = { location: self.location, parent: { postMessage: () => sent.push('no') } }; alone.top = alone; alone.self = alone;
+  tellHub('good-moment', alone);
+  assert.equal(sent.length, 1);
 });

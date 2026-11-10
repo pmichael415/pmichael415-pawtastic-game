@@ -10,7 +10,7 @@ import { createLocalBackend, DEMO_FEATURES, FREE_PLAY_FEATURES, PAID_FEATURES } 
 import { openPayments } from './net/pay-api.js';
 import { startPlayerCount, deviceId, DEVICE_KEY } from './net/player-count.js';
 import { createMeasure, linkKind, MEASURE_KEY, EVENT_PATH } from './net/measure.js';
-import { apiBase } from './net/embed.js';
+import { apiBase, applyEmbedTheme } from './net/embed.js';
 import { afterOpen, readCheckoutReturn } from './ui/payments.js';
 import { initInstall } from './ui/install.js';
 import { captureReferral, confirmFriendCode, referralNews } from './ui/referral.js';
@@ -47,6 +47,7 @@ import { createAudio } from './audio/engine.js';
 initInstall();
 // An invite link (?ref=CODE): keep the friend code for the $10 off offer.
 captureReferral();
+applyEmbedTheme(); // inside the hub: always light, like the hub (owner, 10 Nov 2026)
 captureBeatLink();
 
 const params = new URLSearchParams(location.search);
