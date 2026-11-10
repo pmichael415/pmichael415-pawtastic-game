@@ -95,7 +95,60 @@ test('link kinds and the shared device id', () => {
   assert.match(id, /^[A-Za-z0-9_-]{16,64}$/);
   assert.equal(deviceId(store), id, 'the saved id is reused');
   assert.equal(store.value.sent, null);
-  assert.equal(EVENT_NAMES.length, 13);
+  assert.equal(EVENT_NAMES.length, 17); // 13 + the growth events (owner, 10 Nov 2026)
   assert.equal(EVENT_NAMES.includes('challenge_run'), true);
   assert.match(nyDay(day1), /^\d{4}-\d{2}-\d{2}$/);
+});
+
+// Growth measurement (owner, 10 Nov 2026): where players came from (flat src_* props: the server takes flat values
+// only), the growth events, and no automated browsers in the counts.
+test('the growth events are measured', () => {
+  for (const n of ['booking_tap', 'board_joined', 'invite_joined', 'daily_gift']) assert.ok(EVENT_NAMES.includes(n), n);
+});
+
+test('browsers driven by automation send nothing, and skip the daily hello', async () => {
+  const { automated } = await import('../src/net/measure.js');
+  const { sayHello } = await import('../src/net/player-count.js');
+  assert.equal(automated({ webdriver: true }), true);
+  assert.equal(automated({ webdriver: false }), false);
+  assert.equal(automated(undefined), false);
+  const sent = [];
+  const m = createMeasure({ send: async b => { sent.push(b); return { ok: true }; }, device: 'k3Vb9_Qx-2LmZp7TfR4wYa', isAutomated: true, schedule: fn => fn() });
+  assert.equal(m.track('opened'), false);
+  await m.flush();
+  assert.equal(sent.length, 0);
+  let fetched = 0;
+  const store = { load: () => null, save() {} };
+  assert.equal(await sayHello({ fetchImpl: async () => { fetched++; return { ok: true }; }, store, nav: { webdriver: true } }), false);
+  assert.equal(fetched, 0);
+});
+
+test('the first source is kept from the link tags and never overwritten by a later visit', async () => {
+  const { firstTouch, FIRST_TOUCH_KEY } = await import('../src/net/measure.js');
+  assert.equal(FIRST_TOUCH_KEY, 'pawtastic-gd-first-touch-v1');
+  const mem = (() => { let v = null; return { load: () => v, save: o => { v = structuredClone(o); } }; })();
+  const first = firstTouch({ search: '?utm_source=frontdesk&utm_medium=qr&utm_campaign=season1&utm_content=hawthorne', referrer: '', origin: 'https://play.pawtasticacademy.com', store: mem });
+  assert.deepEqual(first, { src_s: 'frontdesk', src_m: 'qr', src_c: 'season1', src_t: 'hawthorne' });
+  const later = firstTouch({ search: '?utm_source=instagram', referrer: 'https://l.instagram.com/x?y=1', origin: 'https://play.pawtasticacademy.com', store: mem });
+  assert.deepEqual(later, first);
+});
+
+test('a referring site is kept as its host only; links of our own site and invite links are told apart', async () => {
+  const { firstTouch } = await import('../src/net/measure.js');
+  const fresh = () => (() => { let v = null; return { load: () => v, save: o => { v = structuredClone(o); } }; })();
+  assert.deepEqual(firstTouch({ search: '', referrer: 'https://l.instagram.com/redirect/path?token=secret', origin: 'https://play.pawtasticacademy.com', store: fresh() }), { src_host: 'l.instagram.com' });
+  assert.deepEqual(firstTouch({ search: '', referrer: 'https://play.pawtasticacademy.com/graduation', origin: 'https://play.pawtasticacademy.com', store: fresh() }), {});
+  assert.deepEqual(firstTouch({ search: '?beat=combo&week=2026-11-09&ref=ABCDEF', referrer: '', origin: 'https://x.test', store: fresh() }), { src_ref: 'beat-my-pup' });
+  // The hub forwards its own first touch to the game frame as src=<source>.<medium>.<campaign>.<content>.
+  assert.deepEqual(firstTouch({ search: '?src=meta.paid.season1-test.', referrer: '', origin: 'https://x.test', store: fresh() }), { src_s: 'meta', src_m: 'paid', src_c: 'season1-test' });
+});
+
+test('the first source rides on the growth events and opens', async () => {
+  const sent = [];
+  const m = createMeasure({ send: async b => { sent.push(...b.events); return { ok: true }; }, device: 'k3Vb9_Qx-2LmZp7TfR4wYa', source: { src_s: 'frontdesk', src_t: 'hawthorne' }, schedule: () => 1, cancel() {} });
+  m.track('opened'); m.track('booking_tap', { from: 'prize' }); m.track('replay');
+  await m.flush();
+  assert.deepEqual(sent.find(e => e.name === 'opened').props, { src_s: 'frontdesk', src_t: 'hawthorne', where: 'site' });
+  assert.deepEqual(sent.find(e => e.name === 'booking_tap').props, { from: 'prize', src_s: 'frontdesk', src_t: 'hawthorne', where: 'site' });
+  assert.deepEqual(sent.find(e => e.name === 'replay').props, { where: 'site' });
 });

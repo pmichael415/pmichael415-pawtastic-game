@@ -32,7 +32,19 @@ const settle = page => page.waitForTimeout(1300); // past the 800 ms event batch
 (async () => {
   const browser = await chromium.launch();
   const errors = [];
+  // Growth (owner, 10 Nov 2026): a browser driven by automation is never counted. Playwright's is (navigator.webdriver),
+  // so first prove it sends nothing, then play the rest as a normal phone (webdriver false), which is what is measured.
+  const botCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  const bot = await botCtx.newPage();
+  const beforeBot = await state();
+  await enroll(bot, 'Robo');
+  await settle(bot);
+  const afterBot = await state();
+  check(afterBot.events.length === beforeBot.events.length && afterBot.devices.length === beforeBot.devices.length, 'an automated browser sends no events and is not counted as a player');
+  await botCtx.close();
+
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  await ctx.addInitScript(() => Object.defineProperty(Navigator.prototype, 'webdriver', { get: () => false }));
   const page = await ctx.newPage();
   page.on('pageerror', e => errors.push(e.message));
 
@@ -41,6 +53,7 @@ const settle = page => page.waitForTimeout(1300); // past the 800 ms event batch
   await settle(page);
   let ev = (await state()).events.slice(before);
   check(ev.some(e => e.name === 'opened'), 'opening the game is measured');
+
   const device = ev[0]?.device;
   const counter = (await state()).devices.find(d => d.device === device);
   check(device && counter, 'events use the same anonymous device id as the player counter', device);
@@ -113,6 +126,19 @@ const settle = page => page.waitForTimeout(1300); // past the 800 ms event batch
   } else {
     check(false, 'level 1 saved a board to lose');
   }
+
+  // Where the device came from rides on "opened" (a tagged link: the front-desk poster).
+  const tagged = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await tagged.addInitScript(() => Object.defineProperty(Navigator.prototype, 'webdriver', { get: () => false }));
+  const poster = await tagged.newPage();
+  const beforePoster = (await state()).events.length;
+  await poster.goto(`${GAME}?utm_source=frontdesk&utm_medium=qr&utm_campaign=season1&utm_content=hawthorne`, { waitUntil: 'networkidle' });
+  await poster.fill('input[type=text]', 'Pixel');
+  await poster.click('text=Start school');
+  await settle(poster);
+  const opened = (await state()).events.slice(beforePoster).find(e => e.name === 'opened');
+  check(opened?.props?.src_s === 'frontdesk' && opened.props.src_m === 'qr' && opened.props.src_t === 'hawthorne', 'the first source (a front-desk poster) rides on "opened"', JSON.stringify(opened?.props));
+  await tagged.close();
 
   check(errors.length === 0, 'no page errors', errors.join(' | '));
   await browser.close();

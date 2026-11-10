@@ -22,7 +22,17 @@ async function closeSheets(page) {
 (async () => {
   const browser = await chromium.launch();
   const errors = [];
+  // Growth (owner, 10 Nov 2026): automated browsers are never counted. Prove it, then count as a normal phone.
+  const botCtx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const devicesBefore = (await (await fetch(`${process.argv[2] || 'http://127.0.0.1:8790'}/mock/state`)).json()).devices.length;
+  const bot = await botCtx.newPage();
+  await bot.goto(`${process.argv[2] || 'http://127.0.0.1:8790'}/play/index.html`, { waitUntil: 'networkidle' });
+  await bot.waitForTimeout(1200);
+  const devicesAfter = (await (await fetch(`${process.argv[2] || 'http://127.0.0.1:8790'}/mock/state`)).json()).devices.length;
+  check(devicesAfter === devicesBefore, 'an automated browser does not say hello (never counted as a player)', `${devicesBefore} → ${devicesAfter}`);
+  await botCtx.close();
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.addInitScript(() => Object.defineProperty(Navigator.prototype, 'webdriver', { get: () => false }));
   const page = await ctx.newPage();
   page.on('pageerror', e => errors.push(e.message));
   const hellos = [];

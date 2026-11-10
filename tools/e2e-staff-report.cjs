@@ -33,6 +33,7 @@ async function staffSignIn(page, email) {
   const browser = await chromium.launch();
   const errors = [];
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.addInitScript(() => Object.defineProperty(Navigator.prototype, 'webdriver', { get: () => false })); // a normal phone: automated browsers are not measured
   const page = await ctx.newPage();
   page.on('pageerror', e => errors.push(e.message));
 

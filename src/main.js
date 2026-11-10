@@ -9,7 +9,7 @@ import { createWallet } from './economy/wallet.js';
 import { createLocalBackend, DEMO_FEATURES, FREE_PLAY_FEATURES, PAID_FEATURES } from './backend/local.js';
 import { openPayments } from './net/pay-api.js';
 import { startPlayerCount, deviceId, DEVICE_KEY } from './net/player-count.js';
-import { createMeasure, linkKind, MEASURE_KEY, EVENT_PATH } from './net/measure.js';
+import { createMeasure, linkKind, MEASURE_KEY, EVENT_PATH, firstTouch, FIRST_TOUCH_KEY, setMeasureSource } from './net/measure.js';
 import { apiBase, applyEmbedTheme } from './net/embed.js';
 import { afterOpen, readCheckoutReturn } from './ui/payments.js';
 import { initInstall } from './ui/install.js';
@@ -46,6 +46,8 @@ import { createAudio } from './audio/engine.js';
 // Catch the browser's "install app" offer early (Android/desktop), for the Add to Home Screen button.
 initInstall();
 // An invite link (?ref=CODE): keep the friend code for the $10 off offer.
+// Where this device first came from: read before the invite and challenge links are tidied from the address.
+setMeasureSource(firstTouch({ search: location.search, referrer: document.referrer, origin: location.origin, store: createLocalStorage(FIRST_TOUCH_KEY) }));
 captureReferral();
 applyEmbedTheme(); // inside the hub: always light, like the hub (owner, 10 Nov 2026)
 captureBeatLink();

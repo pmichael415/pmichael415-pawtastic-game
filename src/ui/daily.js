@@ -56,6 +56,7 @@ export async function showDailyRewards(app, openResult) {
   if (openResult.streak) {
     const { day, reward } = openResult.streak;
     const t = dailyGiftText({ gift: day, total: STREAK.length, reward: rewardText(reward) });
+    app.services.measure?.track('daily_gift', { gift: day });
     app.services.audio?.sfx('stamp');
     await sheet(app, 'Daily gift',
       h('p', { class: 'eyebrow' }, t.eyebrow),

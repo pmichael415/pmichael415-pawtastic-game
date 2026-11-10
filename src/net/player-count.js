@@ -25,8 +25,9 @@ export function deviceId(store, random = randomBytes) {
 }
 
 // Returns a promise of true when today's hello was sent, false when it wasn't needed or failed.
-export function sayHello({ fetchImpl = globalThis.fetch?.bind(globalThis), store, now = Date.now, random = randomBytes, base = '' } = {}) {
+export function sayHello({ fetchImpl = globalThis.fetch?.bind(globalThis), store, now = Date.now, random = randomBytes, base = '', nav = globalThis.navigator } = {}) {
   try {
+    if (nav?.webdriver === true) return Promise.resolve(false); // automated browsers are never counted as players
     if (typeof fetchImpl !== 'function' || !store) return Promise.resolve(false);
     let saved = null;
     try { saved = store.load(); } catch { saved = null; }

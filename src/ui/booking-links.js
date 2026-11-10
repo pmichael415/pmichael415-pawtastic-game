@@ -29,6 +29,6 @@ export function bookingLinkEl(app, areaId, dogName, className = 'booking-link') 
   const { text, href } = bookingLink(areaId, dogName);
   return h('a', {
     class: className, href, target: '_blank', rel: 'noopener',
-    onClick: () => { app.services.backend.logEvent('booking_tap', { area: areaId }); },
+    onClick: () => { app.services.backend.logEvent('booking_tap', { area: areaId }); app.services.measure?.track('booking_tap', { from: 'area', area: areaId }); },
   }, text);
 }
