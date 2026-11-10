@@ -1,5 +1,5 @@
 // Daily rewards shown on the first map visit of the day:
-// the welcome-back gift first (after a long break), then the 7-day streak.
+// the welcome-back gift first (after a long break), then the daily gift (7 gifts that never reset).
 // The rewards were already granted by backend.onAppOpen; these sheets only show them.
 
 import { h } from './dom.js';
@@ -55,15 +55,25 @@ export async function showDailyRewards(app, openResult) {
   }
   if (openResult.streak) {
     const { day, reward } = openResult.streak;
+    const t = dailyGiftText({ gift: day, total: STREAK.length, reward: rewardText(reward) });
     app.services.audio?.sfx('stamp');
-    await sheet(app, 'Daily reward',
-      h('p', { class: 'eyebrow' }, 'Daily attendance'),
-      h('h2', {}, `Day ${day} of ${STREAK.length}`),
-      h('ol', { class: 'streak', 'aria-label': 'This week' }, STREAK.map((r, i) => h('li', {
+    await sheet(app, 'Daily gift',
+      h('p', { class: 'eyebrow' }, t.eyebrow),
+      h('h2', {}, t.heading),
+      h('ol', { class: 'streak', 'aria-label': t.listLabel }, STREAK.map((r, i) => h('li', {
         class: i + 1 < day ? 'done' : i + 1 === day ? 'today' : '',
         'aria-current': i + 1 === day ? 'step' : null,
-      }, h('span', { class: 'streak-day' }, `Day ${i + 1}`), h('span', { class: 'streak-reward' }, rewardText(r)),
+      }, h('span', { class: 'streak-day' }, t.items[i]), h('span', { class: 'streak-reward' }, rewardText(r)),
         i + 1 === day ? h('span', { class: 'stamp', html: pawStampSVG() }) : null))),
-      h('p', {}, `Today: ${rewardText(reward)}. Come back tomorrow for Day ${day % STREAK.length + 1}.`));
+      h('p', {}, t.footer));
   }
+}
+
+/** The daily gift sheet's words: one gift per day you play, a missed day just waits (no streak wording). */
+export function dailyGiftText({ gift, total, reward }) {
+  return {
+    eyebrow: 'Daily gift', heading: "Today's gift", listLabel: 'Your gifts',
+    items: Array.from({ length: total }, (_, i) => `Gift ${i + 1}`),
+    footer: `Today: ${reward}. Next gift tomorrow. Missed a day? Your next gift waits for you.`,
+  };
 }

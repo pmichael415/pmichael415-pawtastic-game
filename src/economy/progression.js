@@ -179,7 +179,8 @@ export function applyDailyOpen(state, nowMs) {
   } else {
     const gap = daysBetween(s.lastOpenDay, today);
     if (gap <= 0) return out;
-    day = gap === 1 ? (s.day % STREAK.length) + 1 : 1;
+    // The daily gift never resets (owner's no-streak rule, 10 Nov 2026): a missed day just waits for you.
+    day = (s.day % STREAK.length) + 1;
     if (gap >= WELCOME_BACK.afterDays) {
       grant(state, WELCOME_BACK);
       out.welcomeBack = WELCOME_BACK;

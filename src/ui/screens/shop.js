@@ -246,7 +246,7 @@ export function render(app) {
 
     // The free-play release sells nothing for money: only what free Treats buy.
     if (!selling) {
-      const soon = section('Coming soon', h('p', {}, 'Buying Treats is coming soon. Free Treats come from your daily streak.'));
+      const soon = section('Coming soon', h('p', {}, 'Buying Treats is coming soon. Free Treats come from your daily gifts.'));
       return h('div', { class: 'shop stack' }, h('h1', {}, 'Shop'), balance, items, costumes, soon);
     }
     // Reward Coins come from real PAWtastic visits, which the public site can't see yet.

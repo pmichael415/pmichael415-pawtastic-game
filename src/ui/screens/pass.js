@@ -23,7 +23,7 @@ const ERRORS = {
 export function render(app) {
   const { backend } = app.services;
   if (!backend.features.pass) {
-    return comingSoon(app, { title: 'Pup Pass', body: 'A monthly pass with rewards for playing is on its way. Your daily streak still pays free Treats every day.' });
+    return comingSoon(app, { title: 'Pup Pass', body: 'A monthly pass with rewards for playing is on its way. Your daily gift still pays free Treats every day you play.' });
   }
   let bar = null;
 

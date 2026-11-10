@@ -20,7 +20,7 @@ function publicRules(paid, accounts) {
     return [
       h('h1', {}, 'Game rules & privacy'),
       h('h2', {}, 'Treats'),
-      h('p', {}, "Treats are play money for Graduation Day. They have no cash value and can't be bought, sold, transferred or cashed out. You earn them free from your daily streak and spend them in the game."),
+      h('p', {}, "Treats are play money for Graduation Day. They have no cash value and can't be bought, sold, transferred or cashed out. You earn them free from your daily gifts and spend them in the game."),
       h('h2', {}, 'Your progress'),
       ...(accounts
         ? [
@@ -37,7 +37,7 @@ function publicRules(paid, accounts) {
   return [
     h('h1', {}, 'Game rules & privacy'),
     h('h2', {}, 'Treats'),
-    h('p', {}, "Treats are play money for Graduation Day. They have no cash value and can't be sold, transferred or cashed out. You earn them free from your daily streak, and you can also buy them. Buying never changes how levels play out."),
+    h('p', {}, "Treats are play money for Graduation Day. They have no cash value and can't be sold, transferred or cashed out. You earn them free from your daily gifts, and you can also buy them. Buying never changes how levels play out."),
     h('h2', {}, 'Buying'),
     h('p', {}, `Prices are in US dollars and shown before you pay. Payments are handled by Stripe; PAWtastic never sees your card number. The Pup Pass costs ${formatUsd(PASS.usd)} a month and renews automatically until you cancel. Cancel anytime from the Pup Pass screen or the menu (Manage Pup Pass & receipts); your benefits continue until the end of the month you paid for.`),
     h('p', {}, `${REFUND_POLICY} Ask from Shop → Spending → Request refund, or the menu → Report a problem.`),
@@ -90,7 +90,7 @@ function customerRules() {
   return [
     h('h1', {}, 'Game rules & privacy'),
     h('h2', {}, 'Treats'),
-    h('p', {}, "Treats are play money for Graduation Day. Treats have no cash value. In this version they can't be bought, sold, transferred or cashed out. You earn them free from your daily streak and spend them in the game."),
+    h('p', {}, "Treats are play money for Graduation Day. Treats have no cash value. In this version they can't be bought, sold, transferred or cashed out. You earn them free from your daily gifts and spend them in the game."),
     h('h2', {}, 'What the game records'),
     h('p', {}, 'Your progress, plus simple play events: when you opened the game, levels played, shares and booking-link taps. We use them to run the game and improve PAWtastic.'),
     h('h2', {}, 'Your dog'),
