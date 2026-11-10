@@ -39,7 +39,7 @@ async function staffSignIn(page, email) {
 
   if (suite === 'ready') {
     // A player opens the game and buys 100 Treats, so there is something to report.
-    await page.goto(GAME, { waitUntil: 'networkidle' });
+    await page.goto(`${GAME}?utm_source=frontdesk&utm_medium=qr&utm_campaign=season1&utm_content=hawthorne`, { waitUntil: 'networkidle' }); // a front-desk poster
     await page.fill('input[type=text]', 'Biscuit');
     await page.click('text=Start school');
     await closeIntroSheets(page);
@@ -80,6 +80,13 @@ async function staffSignIn(page, email) {
     check(/\$4\.99/.test(t) && /100 Treats/.test(t), 'the pack100 purchase shows as $4.99', (t.match(/Paid, after refunds[^\n]*/) || [''])[0]);
     check(/Devices that played/.test(t) && /Opened the game/.test(t), 'player and event counts are shown');
     check(/Paid but not delivered after 1 hour/.test(t), 'watch list covers undelivered purchases');
+    // Growth (owner, 10 Nov 2026): this period's growth numbers, totals only.
+    const growth = await desk.$$eval('li.row', rows => Object.fromEntries(rows.map(r => [r.querySelector('strong')?.textContent ?? '', r.querySelector('.row-side')?.textContent ?? ''])));
+    check(/Growth/.test(t) && /^\d+$/.test(growth['Dogs on the leaderboard'] ?? ''), 'growth: dogs on the leaderboard', growth['Dogs on the leaderboard']);
+    check(/^\d+ \(\d+\)$/.test(growth['Friends who joined (rewarded)'] ?? ''), 'growth: friends who joined (rewarded)', growth['Friends who joined (rewarded)']);
+    check(/^\d+$/.test(growth['Booking taps'] ?? ''), 'growth: booking taps', growth['Booking taps']);
+    check(/^\d+ · \d+$/.test(growth['Prizes won · redeemed'] ?? ''), 'growth: prizes won and redeemed', growth['Prizes won · redeemed']);
+    check(/frontdesk 1/.test(growth['Top sources'] ?? ''), 'growth: top sources by device', growth['Top sources']);
     await desk.click('button:text-is("30 days")');
     await desk.waitForTimeout(1200);
     const pressed = await desk.$eval('.report button[aria-pressed="true"]', el => el.textContent);

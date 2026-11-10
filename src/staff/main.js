@@ -228,7 +228,24 @@ function reportBody(r) {
       h('li', { class: 'row' }, h('div', {}, h('strong', {}, 'Weekly Challenge prizes won · redeemed')), h('div', { class: 'row-side' }, `${n(pz.won)} · ${n(pz.redeemed)}`))),
     Array.isArray(d.by_day) && d.by_day.length
       ? h('p', { class: 'muted' }, 'Devices by day: ', d.by_day.map(x => `${x.day.slice(5)} ${x.devices}`).join(' · '))
-      : null);
+      : null,
+    growthRows(r, n));
+}
+
+/** Growth (owner, 10 Nov 2026): this period's numbers for getting more players. Totals only, never who. */
+function growthRows(r, n) {
+  if (r.board_dogs === undefined) return null; // a server without migration 0017 yet
+  const inv = r.invites ?? {}; const pz = r.prizes ?? {};
+  const sources = Array.isArray(r.sources) && r.sources.length ? r.sources.map(x => `${x.source} ${n(x.devices)}`).join(' · ') : 'None yet';
+  const row = (label, value, note = null) => h('li', { class: 'row' }, h('div', {}, h('strong', {}, label), note ? h('p', { class: 'muted' }, note) : null), h('div', { class: 'row-side' }, value));
+  return h('div', { class: 'stack' },
+    h('h3', {}, 'Growth'),
+    h('ul', { class: 'list' },
+      row('Dogs on the leaderboard', n(r.board_dogs), 'Players with at least one challenge run in this period.'),
+      row('Friends who joined (rewarded)', `${n(inv.joined)} (${n(inv.rewarded)})`, 'Joined the leaderboard through a friend\'s link; in brackets, the friends who earned their inviter 20 Treats.'),
+      row('Booking taps', n(r.booking_taps), 'Taps on "Book your free evaluation" and the booking links in the game.'),
+      row('Prizes won · redeemed', `${n(pz.won)} · ${n(pz.redeemed)}`),
+      row('Top sources', sources, 'Where devices that opened the game first came from (link tags on posters, posts and ads).')));
 }
 
 function ownerReport() {

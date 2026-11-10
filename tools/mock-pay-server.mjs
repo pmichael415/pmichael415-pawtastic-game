@@ -459,6 +459,15 @@ createServer(async (req, res) => {
           pass: { active: [...db.subs.values()].filter(x => x.status === 'active').length, ending: [...db.subs.values()].filter(x => x.status === 'active' && x.cancelAtPeriodEnd).length },
           problems: { not_delivered: db.reports.filter(r => r.kind === 'not-delivered').length, reports: db.reports.filter(r => r.kind !== 'not-delivered').length },
           prizes: { won: prizes.length, redeemed: prizes.filter(p => p.status === 'redeemed').length },
+          // Growth (migration 0017): dogs on the board, friends who joined, booking taps, first sources of opens.
+          board_dogs: new Set(weekly.map(w => w.userId)).size,
+          invites: { joined: invites.length, rewarded: invites.filter(i => i.rewarded).length },
+          booking_taps: byName.booking_tap?.count ?? 0,
+          sources: (() => {
+            const by = {};
+            for (const e of events.filter(x => x.name === 'opened')) (by[e.props?.src_s || 'direct'] ??= new Set()).add(e.device);
+            return Object.entries(by).map(([source, d]) => ({ source, devices: d.size })).sort((x, y) => y.devices - x.devices || (x.source === 'direct') - (y.source === 'direct') || x.source.localeCompare(y.source)).slice(0, 8);
+          })(),
         });
       }
       if (path === '/api/public/game/staff/prizes') {
