@@ -6,7 +6,7 @@ import {
   applyLevelResult, applyDailyOpen, claimMilestones, passActive, startPass, cancelPass, claimTier, tierReached, reportCard,
 } from './progression.js';
 import {
-  PACKS, ITEMS, BOOSTERS, COSTUMES, SETS, STARTER_PACK, EVENT, LIVES, COINS, SPENDING_LIMIT, PASS,
+  PACKS, ITEMS, BOOSTERS, COSTUMES, SETS, STARTER_PACK, EVENT, LIVES, COINS, SPENDING_LIMIT, PASS, SKINS, skinsOnSale,
 } from './catalog.js';
 
 export function defaultState() {
@@ -17,7 +17,7 @@ export function defaultState() {
     treats: { free: 0, converted: 0, paid: 0 },
     lives: { count: LIVES.max, lastRegenAt: 0, unlimitedUntil: 0 },
     activeLevel: null,
-    inventory: { boosters: { shuffle: 0, bomb: 0, blaster: 0 }, costumes: [], equipped: null },
+    inventory: { boosters: { shuffle: 0, bomb: 0, blaster: 0 }, costumes: [], equipped: null, skins: [], skin: null },
     progress: { unlocked: 1, levels: {}, badges: [], side: { hawthorne: 101, hillsdale: 201 } },
     // The player's own PAWtastic: picks their home-location adventure and their leaderboard team.
     home: null,
@@ -120,6 +120,10 @@ function cleanLists(state) {
   const costumeIds = new Set(COSTUMES.map(c => c.id));
   state.inventory.costumes = list(state.inventory.costumes, id => costumeIds.has(id));
   if (!state.inventory.costumes.includes(state.inventory.equipped)) state.inventory.equipped = null;
+  // Season skins (owner, 10 Nov 2026): only known ids, once each; the worn skin only if owned.
+  const skinIds = new Set(SKINS.map(k => k.id));
+  state.inventory.skins = [...new Set(list(state.inventory.skins, id => skinIds.has(id)))];
+  if (!state.inventory.skins.includes(state.inventory.skin)) state.inventory.skin = null;
   state.progress.badges = list(state.progress.badges, isText);
   state.pass.claimedFree = list(state.pass.claimedFree, isTier);
   state.pass.claimedPremium = list(state.pass.claimedPremium, isTier);
@@ -414,6 +418,24 @@ export function createWallet({ storage, now }) {
       const bonusCostume = completeSets();
       save();
       return { ok: true, bonusCostume };
+    },
+
+    buySkin(id) {
+      const skin = SKINS.find(k => k.id === id);
+      if (!skin) return fail('unknown-skin');
+      if (state.inventory.skins.includes(id)) return fail('owned');
+      if (!skinsOnSale(now()).some(k => k.id === id)) return fail('not-on-sale');
+      if (!spendTreats(skin.price)) return fail('insufficient');
+      state.inventory.skins.push(id);
+      save();
+      return { ok: true };
+    },
+
+    wearSkin(id) {
+      if (id !== null && !state.inventory.skins.includes(id)) return fail('not-owned');
+      state.inventory.skin = id;
+      save();
+      return { ok: true };
     },
 
     equip(id) {

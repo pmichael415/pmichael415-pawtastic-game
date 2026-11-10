@@ -1,4 +1,5 @@
 // Every price and reward in the game (spec section 6). Data only.
+import { seasonFor, seasonEndsAt, weekKey } from '../engine/challenge.js';
 
 export const TREAT_USD = 0.05;
 
@@ -59,6 +60,21 @@ export const COSTUMES = [
   { id: 'letterman-scarf', name: 'Letterman Scarf', price: null, set: null, source: 'collection' },
   { id: 'honor-roll-sash', name: 'Honor Roll Sash', price: null, set: null, source: 'pass' },
 ];
+
+// Season skins (owner, 10 Nov 2026): the dog's whole look (coat, pattern, signature piece), sold for Treats while their
+// season runs and kept forever. Drawn in code (ui/art.js SKIN_ART); worn in every game (published as "your pup").
+export const SKINS = [
+  { id: 's1-snow-day', name: 'Snow Day', season: 's1', price: 100, coat: '#EEF2F7', pattern: 'snowflakes', piece: 'earmuffs' },
+  { id: 's1-varsity-star', name: 'Varsity Star', season: 's1', price: 120, coat: '#1F4FB8', pattern: 'star', piece: 'letter-sweater' },
+  { id: 's1-top-dog', name: 'Top Dog Legend', season: 's1', price: 200, coat: '#E2B33C', pattern: 'shine', piece: 'crown' },
+];
+
+/** The skins sold at a moment: those of the season running then (Season 1: 9 Nov - 5 Dec 2026, New York). */
+export function skinsOnSale(nowMs) {
+  const s = seasonFor(weekKey(nowMs));
+  if (!s || nowMs > seasonEndsAt(s)) return [];
+  return SKINS.filter(k => k.season === s.id);
+}
 
 export const SETS = [
   { id: 'everyday', name: 'Everyday', costumes: ['bandana', 'bow-tie', 'sunglasses'], bonus: 'gold-collar' },
