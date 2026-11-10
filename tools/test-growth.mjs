@@ -125,3 +125,32 @@ test('prizes show the last New York day they can be used', async () => {
   assert.equal(nyUseBy('2027-01-05T04:59:59.999Z'), 'Jan 4'); // season: ends 23:59:59.999 on the 4th
   assert.equal(nyUseBy('nope'), '');
 });
+
+// Leftover, 10 Nov 2026: the map card asked the server for the location board on every redraw; now once a minute.
+test('the map card reads a location board at most once a minute, and never keeps a failure', async () => {
+  const { boardCache } = await import('../src/ui/growth.js');
+  let t = 0; let calls = 0; let fail = false;
+  const fetcher = async () => { calls++; if (fail) throw new Error('offline'); return { ok: true, entries: [calls] }; };
+  const cache = boardCache({ now: () => t, ttl: 60000 });
+  const a = await cache.get('season:hawthorne', fetcher);
+  const b = await cache.get('season:hawthorne', fetcher);
+  assert.equal(calls, 1); assert.deepEqual(a, b);
+  await cache.get('season:hillsdale', fetcher); assert.equal(calls, 2); // another board
+  t = 61000; await cache.get('season:hawthorne', fetcher); assert.equal(calls, 3); // a minute later
+  fail = true; t = 200000;
+  await cache.get('season:hawthorne', fetcher).catch(() => {});
+  fail = false;
+  await cache.get('season:hawthorne', fetcher); assert.equal(calls, 5); // the failure wasn't kept
+  const bad = { ok: false };
+  t = 400000; await cache.get('weekly:hawthorne', async () => { calls++; return bad; });
+  await cache.get('weekly:hawthorne', async () => { calls++; return { ok: true }; }); assert.equal(calls, 7); // nor a refusal
+});
+
+// Leftover, 10 Nov 2026: "you both get 20 Treats" only when the inviter can still earn them (5 friends a season).
+test('the 20-Treats line shows only while the inviter can still earn friend Treats', async () => {
+  const { friendRewardLine, INVITE_REWARD_TEXT } = await import('../src/ui/referral.js');
+  assert.equal(friendRewardLine({ code: 'K7Q3DM', verified: true, invitesOpen: true }), INVITE_REWARD_TEXT);
+  assert.equal(friendRewardLine({ code: 'K7Q3DM', verified: true }), INVITE_REWARD_TEXT); // older note: keep the offer
+  assert.equal(friendRewardLine({ code: 'K7Q3DM', verified: true, invitesOpen: false }), null);
+  assert.equal(friendRewardLine(null), null);
+});

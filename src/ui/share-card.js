@@ -25,6 +25,9 @@ export function shareCaption(kind, { dogName, areaName } = {}) {
 }
 
 /** Beat My Pup: the caption for a server-checked Weekly Challenge result (in a season, the season and its chapter). */
+/** The place a share card may show: a confirmed rank that belongs to the card's score (not a three-challenge week's total). */
+export const sharePlace = ({ rank, threeChallenge }) => (!threeChallenge && Number.isInteger(rank) && rank > 0 ? rank : null);
+
 export function resultCaption({ dogName, challenge, score, tier = null, season = null, rank = null, location = null }) {
   const dog = dogName || 'My pup';
   const name = CHALLENGES[challenge]?.name ?? 'Weekly Challenge';

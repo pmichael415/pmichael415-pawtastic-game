@@ -11,7 +11,7 @@ import { totalStars, totalBestScore } from '../economy/progression.js';
 import { weekKey, weekEndsAt, playEndsAt, CHALLENGES, CHALLENGE_IDS, isChallengeId, isWeekKey, TIER_NAMES, rulesFor, SEASONS } from '../engine/challenge.js';
 import { serverNow } from '../net/server-clock.js';
 import { seasonOf, seasonHeadline, seasonCountdown, seasonPrizeText, seasonPhase, fmtLeft, SEASON_TEXT } from './season.js';
-import { weekLabel, nyUseBy, expiringSoon, expiringPrize, evalLink, prizeGap, keepResume, takeResume } from './growth.js';
+import { weekLabel, nyUseBy, expiringSoon, expiringPrize, evalLink, prizeGap, keepResume, takeResume, boardCache } from './growth.js';
 import { copyText } from './share-card.js';
 
 const PRIZE_NAMES = { 'daycare-day': 'Free day of daycare', bath: 'Free bath' };
@@ -146,13 +146,15 @@ export function myBadge(app, week, challenge) {
  * One line on the challenge card: how close the player is to a prize at their home location (owner, 10 Nov 2026).
  * Signed in: their own rank on the location's board; a guest: the rank their best on this phone would have.
  */
+const boards = boardCache(); // one read a minute per board, however often the map is redrawn
 function gapLine(app, { season, score }) {
   const line = h('p', { class: 'small gap-line' });
   line.hidden = true;
   const pay = clientOf(app);
   const home = app.services.backend.state().home;
   if (!pay?.accounts || !home) return line;
-  pay.leaderboard({ board: season ? 'season' : 'weekly', location: home }).then(res => {
+  const board = season ? 'season' : 'weekly';
+  boards.get(`${board}:${home}`, () => pay.leaderboard({ board, location: home })).then(res => {
     if (!res?.ok) return;
     const g = prizeGap({ entries: res.entries ?? [], me: res.me ?? null, score, location: LOCATIONS[home] ?? home });
     if (g) { line.textContent = g.text; line.hidden = false; }
@@ -309,15 +311,16 @@ export async function sendPendingRun(app) {
     }
     if (!runs['high-score'] && w.bestMoves && w.best > w.sentBest) runs['high-score'] = { week, moves: w.bestMoves, challenge: 'high-score' };
   }
-  let last = null;
+  let last = null, accepted = null;
   for (const run of Object.values(runs)) {
     if (!run || !isChallengeId(run.challenge) || !Array.isArray(run.moves)) continue;
     const res = await pay.submitChallenge(run);
     if (res.ok || res.error === 'week-over' || res.error === 'bad-run' || res.error === 'not-this-week') dropPending(run.challenge);
-    if (res.ok) backend.markChallengeSent(run.week, res.score, run.challenge);
+    if (res.ok) { backend.markChallengeSent(run.week, res.score, run.challenge); accepted = res; }
     last = res;
   }
-  return last;
+  // Any accepted run puts the player on the board (the friend credit and "joined" follow it), even if a later one failed.
+  return accepted ?? last;
 }
 
 const seenPrizes = () => { try { return JSON.parse(localStorage.getItem(PRIZES_SEEN_KEY) ?? '[]'); } catch { return []; } };
@@ -342,7 +345,7 @@ export function prizeCard(p, app = null) {
       ? [h('p', {}, `Show this code at the PAWtastic ${LOCATIONS[p.location] ?? ''} front desk by ${nyUseBy(p.expiresAt)}:`),
         h('p', { class: 'friend-code num', 'aria-label': `Prize code ${String(p.code).split('').join(' ')}` }, p.code),
         copy,
-        expiringSoon(p) ? h('p', { class: 'small prize-expiry' }, h('strong', {}, `Use it by ${nyUseBy(p.expiresAt)}.`), ' That is the last day.') : null,
+        expiringSoon(p, serverNow()) ? h('p', { class: 'small prize-expiry' }, h('strong', {}, `Use it by ${nyUseBy(p.expiresAt)}.`), ' That is the last day.') : null,
         h('p', { class: 'small' }, 'New to PAWtastic? ', book, '.'),
         h('p', { class: 'small' }, 'Already a client? Just show this code at the front desk.'),
         h('p', { class: 'muted small' }, "For one dog. New clients complete PAWtastic's usual evaluation and paperwork first.")]

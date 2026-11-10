@@ -19,6 +19,8 @@ const BATHS_SEEN_KEY = 'pawtastic-gd-baths-seen-v1';
 const MY_CODE_KEY = 'pawtastic-gd-my-code-v1';
 const INVITE_SENT_KEY = 'pawtastic-gd-invite-sent-v1';
 export const INVITE_REWARD_TEXT = 'Join the leaderboard and you both get 20 Treats.';
+/** The 20-Treats line for a friend's code, unless the server said the inviter has had their 5 friends this season. */
+export const friendRewardLine = ref => (ref?.code && ref.invitesOpen !== false ? INVITE_REWARD_TEXT : null);
 const OFFER_DISMISS_DAYS = 14;
 const BOOK_URL = 'https://pawtasticacademy.com/';
 
@@ -84,7 +86,7 @@ export function showFriendOffer(app) {
     h('p', {}, 'New to PAWtastic Academy? Daycare, boarding or grooming in Hawthorne or Hillsdale: show this code at the front desk on your first visit and get $10 off.'),
     codeBox(ref.code),
     h('p', { class: 'muted small' }, 'New clients only, one per new client. Staff confirm the offer at the front desk. You can find this code again in the menu (the speaker button).'),
-    h('p', { class: 'invite-treats' }, h('strong', {}, 'In the game: '), INVITE_REWARD_TEXT),
+    friendRewardLine(read(REF_KEY)) ? h('p', { class: 'invite-treats' }, h('strong', {}, 'In the game: '), INVITE_REWARD_TEXT) : null,
     h('a', { class: 'btn block', href: BOOK_URL, target: '_blank', rel: 'noopener' }, 'Visit PAWtastic Academy'),
     h('button', { class: 'btn secondary block', type: 'button', onClick: () => sheet.close() }, 'Play the game'),
   ), { label: 'Friend offer' });
@@ -113,7 +115,7 @@ export async function confirmFriendCode(app) {
   const res = await pay.checkReferral(ref.code);
   if (!res.ok) return; // offline: try again next time
   if (!res.valid || res.own) { write(REF_KEY, null); return; }
-  write(REF_KEY, { ...ref, verified: true });
+  write(REF_KEY, { ...ref, verified: true, invitesOpen: res.invitesOpen !== false });
   if (!(await onMap(app))) return;
   app.go('map', { skipIntro: true });
   showFriendOffer(app);

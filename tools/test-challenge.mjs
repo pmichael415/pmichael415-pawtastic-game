@@ -251,3 +251,12 @@ test('the caption says the place at the location when the server confirmed it', 
   assert.equal(resultCaption({ dogName: 'Biscuit', challenge: 'combo', score: 23400, rank: 3, location: 'mars' }),
     "Biscuit scored 23,400 in this week's Combo run at PAWtastic Academy. Can your pup beat it?");
 });
+
+// Leftover, 10 Nov 2026: in a three-challenge week the rank is for the total, not this one challenge's score.
+test('the share card shows a place only when it matches the score on the card', async () => {
+  const { sharePlace } = await import('../src/ui/share-card.js');
+  assert.equal(sharePlace({ rank: 2, threeChallenge: false }), 2);
+  assert.equal(sharePlace({ rank: 2, threeChallenge: true }), null);
+  assert.equal(sharePlace({ rank: 0, threeChallenge: false }), null);
+  assert.equal(sharePlace({ rank: undefined, threeChallenge: false }), null);
+});

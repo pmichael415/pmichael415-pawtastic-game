@@ -357,8 +357,13 @@ async function home() {
     // Owner, 10 Nov 2026: a ready-to-post picture of the top 3 dog names at each location (hidden players left out).
     season && boardRows.some(b => !b.hidden) ? h('div', { class: 'stack' },
       h('button', { class: 'btn secondary', type: 'button', onClick: async () => {
+        // Each location's own board (top 50, hidden players already left out); the list above if that can't be read.
         const shown = boardRows.filter(b => !b.hidden).sort((a, b) => Number(b.score) - Number(a.score));
         const boards = { hawthorne: shown.filter(b => b.location === 'hawthorne'), hillsdale: shown.filter(b => b.location === 'hillsdale') };
+        for (const location of Object.keys(boards)) {
+          const r = await pay.leaderboard({ board: 'season', location }).catch(() => null);
+          if (r?.ok && Array.isArray(r.entries)) boards[location] = r.entries;
+        }
         const ok = await downloadTopDogs(topDogsLines({ seasonName: season.name, chapter: season.chapter, boards }));
         if (!ok) alert('Could not make the picture on this device.');
       } }, "Download this week's Top Dogs post"),

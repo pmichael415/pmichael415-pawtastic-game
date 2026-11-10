@@ -21,7 +21,7 @@ export function topDogsLines({ seasonName, chapter, boards }) {
   });
   return {
     title: 'Top Dogs',
-    subtitle: `${seasonName}${Number.isInteger(chapter) ? ` · Chapter ${chapter}` : ''} standings`,
+    subtitle: `${seasonName} · season standings${Number.isInteger(chapter) ? ` in Chapter ${chapter}` : ''}`,
     locations,
     cta: 'Play free at play.pawtasticacademy.com',
     fine: 'No purchase necessary. Top 3 at each location win when the season ends.',

@@ -86,3 +86,22 @@ export function takeResume(now = Date.now(), store = globalThis.localStorage) {
   if (!v || typeof v !== 'object' || !RESUME_SCREENS.has(v.screen) || !(now - v.at >= 0 && now - v.at <= 30 * 60000)) return null;
   return v;
 }
+
+/**
+ * Location boards for the map card's "how close to a prize" line, read at most once a minute per board (the card is
+ * redrawn often). A failed or refused answer is not kept, so the next redraw asks again.
+ */
+export function boardCache({ now = () => Date.now(), ttl = 60000 } = {}) {
+  const kept = new Map();
+  return {
+    get(key, fetcher) {
+      const hit = kept.get(key);
+      if (hit && now() - hit.at < ttl) return hit.promise;
+      const promise = Promise.resolve().then(fetcher);
+      const entry = { at: now(), promise };
+      kept.set(key, entry);
+      promise.then(res => { if (!res?.ok && kept.get(key) === entry) kept.delete(key); }, () => { if (kept.get(key) === entry) kept.delete(key); });
+      return promise;
+    },
+  };
+}

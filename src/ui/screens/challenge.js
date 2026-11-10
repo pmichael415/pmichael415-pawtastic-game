@@ -29,12 +29,12 @@ import {
 } from '../compete.js';
 import { serverNow } from '../../net/server-clock.js';
 import { seasonCountdown, SEASON_TEXT } from '../season.js';
-import { shareResult } from '../share-card.js';
+import { shareResult, sharePlace } from '../share-card.js';
 import { LOCATIONS } from '../../engine/levels.js';
 import { prizeGap } from '../growth.js';
 import { tellHub } from '../../net/embed.js';
-import { sendInviteOnce, INVITE_REWARD_TEXT } from '../referral.js';
-const hasFriendCode = () => { try { return !!JSON.parse(localStorage.getItem('pawtastic-gd-ref-v1') ?? 'null')?.code; } catch { return false; } };
+import { sendInviteOnce, INVITE_REWARD_TEXT, friendRewardLine } from '../referral.js';
+const hasFriendCode = () => { try { return !!friendRewardLine(JSON.parse(localStorage.getItem('pawtastic-gd-ref-v1') ?? 'null')); } catch { return false; } };
 
 const ERRORS = {
   'week-over': 'This week\'s challenge just ended, so this run can\'t count. A new challenge is ready!',
@@ -239,7 +239,7 @@ export function render(app, params = {}) {
     // Beat My Pup: the card carries the server-checked result, never a number from this phone alone.
     share.hidden = false;
     share.addEventListener('click', () => shareResult(app, {
-      challenge, week: confirmed.week, score: confirmed.best, tier: tierOf(challenge, confirmed.best), rank: confirmed.rank, players: confirmed.players, location: confirmed.location,
+      challenge, week: confirmed.week, score: confirmed.best, tier: tierOf(challenge, confirmed.best), rank: sharePlace({ rank: confirmed.rank, threeChallenge: v2 }), players: confirmed.players, location: confirmed.location,
       season: weekSeason(confirmed.week),
     }));
   }

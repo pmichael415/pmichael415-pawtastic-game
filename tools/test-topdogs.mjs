@@ -8,7 +8,7 @@ const board = (names) => names.map((dogName, i) => ({ rank: i + 1, dogName, scor
 test('top 3 per location, best first, dog names only', () => {
   const t = topDogsLines({ seasonName: 'Season 1: Top Dog', chapter: 2, boards: { hawthorne: board(['Biscuit', 'Max', 'Bella', 'Rex']), hillsdale: board(['Luna']) } });
   assert.equal(t.title, 'Top Dogs');
-  assert.equal(t.subtitle, 'Season 1: Top Dog · Chapter 2 standings');
+  assert.equal(t.subtitle, 'Season 1: Top Dog · season standings in Chapter 2');
   assert.deepEqual(t.locations, [
     { name: 'Hawthorne', dogs: ['1. Biscuit', '2. Max', '3. Bella'] },
     { name: 'Hillsdale', dogs: ['1. Luna', '2. Your pup?', '3. Your pup?'] },
