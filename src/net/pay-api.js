@@ -221,6 +221,7 @@ export async function openPayments({
     appSigninCode: () => call('POST', '/api/public/game/signin-code', {}),
     // Invite a friend: the player's own code and free baths, and a check of a code from an invite link.
     referral: () => call('GET', '/api/public/game/referral'),
+    invite: code => call('POST', '/api/public/game/invite', { code }),
     checkReferral: code => call('GET', `/api/public/game/referral/check?code=${encodeURIComponent(code)}`, undefined, { signedIn: false }),
     // The front desk's referral page (staff emails only).
     staffHome: () => call('GET', '/api/public/game/staff'),

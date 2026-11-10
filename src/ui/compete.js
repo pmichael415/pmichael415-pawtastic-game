@@ -5,7 +5,7 @@
 
 import { h, fill } from './dom.js';
 import { clientOf, signInForm, leave } from './payments.js';
-import { onMap } from './referral.js';
+import { onMap, sendInviteOnce } from './referral.js';
 import { LOCATIONS } from '../engine/levels.js';
 import { totalStars, totalBestScore } from '../economy/progression.js';
 import { weekKey, weekEndsAt, playEndsAt, CHALLENGES, CHALLENGE_IDS, isChallengeId, isWeekKey, TIER_NAMES, rulesFor, SEASONS } from '../engine/challenge.js';
@@ -385,6 +385,7 @@ export async function competeOnOpen(app) {
   const resume = takeResume();
   await syncProfile(app).catch(() => null);
   const sent = await sendPendingRun(app).catch(() => null);
+  if (sent?.ok) await sendInviteOnce(app).catch(() => null); // a friend's link: both get 20 Treats (once)
   // Back from signing in on the join card (or in the shop): pick up where the player was.
   const pay = clientOf(app);
   if (resume && pay?.signedIn) {

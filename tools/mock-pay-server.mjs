@@ -47,6 +47,8 @@ const codeOf = user => {
 // Competing (src/lib/game/compete.server.ts in the Lovable project): profiles, weekly scores, prizes.
 const players = new Map(); // userId → { dogName, location, stars, levels, bestTotal, hidden }
 const weekly = []; // { week, userId, location, score, moves, at, bests? }
+const invites = []; // { friendId, referrerId, code, rewarded }
+const invitePosts = []; // every POST /invite, to check it is sent once
 // The three-challenge format (game_challenge_rules): the Monday it starts, or null. MOCK_FORMAT_FROM=<Monday> presets it;
 // MOCK_FORMAT_FROM=now starts it this week (for screenshots of a version-2 week).
 let formatFrom = process.env.MOCK_FORMAT_FROM === 'now' ? weekKey(now()) : (isWeekKey(process.env.MOCK_FORMAT_FROM ?? '') ? process.env.MOCK_FORMAT_FROM : null);
@@ -507,7 +509,25 @@ createServer(async (req, res) => {
       }
       if (path === '/api/public/game/referral' && req.method === 'GET') {
         const code = codeOf(user);
-        return send(res, 200, { code, ...summary(db.referrals.filter(r => r.code === code)) });
+        const joined = invites.filter(i => i.referrerId === user.id && i.rewarded).length;
+        return send(res, 200, { code, ...summary(db.referrals.filter(r => r.code === code)), joined, cap: 5, reward: 20 });
+      }
+      // Invites (server: invites.server.ts + migration 0017): a friend who joined the leaderboard through a friend's
+      // link. MOCK_INVITE_NOT_NEW=1 plays a friend whose account is too old to be credited.
+      if (path === '/api/public/game/invite' && req.method === 'POST') {
+        const b = await bodyOf(req);
+        const code = String(b.code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        invitePosts.push({ userId: user.id, code });
+        const owner = ownerOf(code);
+        if (!owner) return send(res, 409, { error: 'unknown-code' });
+        const referrerId = owner[0];
+        if (referrerId === user.id) return send(res, 409, { error: 'own-code' });
+        if (invites.some(i => i.friendId === user.id)) return send(res, 409, { error: 'already-invited' });
+        if (process.env.MOCK_INVITE_NOT_NEW === '1') return send(res, 409, { error: 'not-new' });
+        if (!weekly.some(w => w.userId === user.id)) return send(res, 409, { error: 'not-on-board' });
+        const rewarded = invites.filter(i => i.referrerId === referrerId && i.rewarded).length < 5;
+        invites.push({ friendId: user.id, referrerId, code, rewarded });
+        return send(res, 200, { ok: true, reward: 20, referrerRewarded: rewarded });
       }
       if (path === '/api/public/game/staff') {
         const staff = STAFF.has(user.email);
@@ -628,7 +648,7 @@ createServer(async (req, res) => {
       formatFrom = b.from === 'now' ? weekKey(now()) : isWeekKey(b.from ?? '') ? b.from : null;
       return send(res, 200, { from: formatFrom });
     }
-    if (path === '/mock/state') return send(res, 200, { seasons: SEASONS.map(staffSeason), devices, events, players: Object.fromEntries(players), weekly, results, formatFrom, prizes, purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent, codes: Object.fromEntries(db.codes), referrals: db.referrals, appCodes });
+    if (path === '/mock/state') return send(res, 200, { seasons: SEASONS.map(staffSeason), devices, events, players: Object.fromEntries(players), weekly, results, formatFrom, prizes, purchases: db.purchases, reports: db.reports, saves: Object.fromEntries(db.saves), subs: Object.fromEntries(db.subs), codesSent: db.codesSent, codes: Object.fromEntries(db.codes), referrals: db.referrals, appCodes, invites, invitePosts });
     if (path === '/mock/refund' && req.method === 'POST') {
       const { email, product } = await bodyOf(req);
       const user = userFor(email);

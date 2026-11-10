@@ -32,11 +32,17 @@ export function resultCaption({ dogName, challenge, score, tier = null, season =
   return `${dog} scored ${Number(score).toLocaleString('en-US')} in ${where} at PAWtastic Academy${badge}. Can your pup beat it?`;
 }
 
-/** The link on a Beat My Pup card: opens the same challenge of the same week. It carries no score (scores are never trusted from a link). */
+/**
+ * The link on a Beat My Pup card: opens the same challenge of the same week. It carries no score (scores are never
+ * trusted from a link). With the player's friend code (owner, 10 Nov 2026) a friend who joins through it is credited:
+ * both get 20 Treats.
+ */
 export function beatLink({ challenge, week }, deps) {
   const params = new URLSearchParams();
   params.set('beat', isChallengeId(challenge) ? challenge : 'high-score');
   if (isWeekKey(week)) params.set('week', week);
+  const code = deps && 'code' in deps ? deps.code : shareLink().code;
+  if (/^[A-HJ-NP-Z2-9]{6}$/.test(code ?? '')) params.set('ref', code);
   return gameLink(params.toString());
 }
 

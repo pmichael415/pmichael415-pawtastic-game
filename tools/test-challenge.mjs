@@ -225,6 +225,14 @@ test('the Beat My Pup link opens Graduation Day in the PAWtastic Games hub (the 
   assert.equal(gameLink('ref=ABCDEF'), 'https://play.pawtasticacademy.com/graduation?ref=ABCDEF', 'invite links too');
 });
 
+test('Challenge a friend (owner, 10 Nov 2026): the Beat My Pup link carries the player\'s friend code when they have one', () => {
+  const doc = { querySelector: () => ({ content: 'https://pawtastic-graduation.lovable.app' }) };
+  const hub = { protocol: 'https:', origin: 'https://play.pawtasticacademy.com' };
+  assert.equal(beatLink({ challenge: 'combo', week: WEEK }, { doc, loc: hub, code: 'ABCDEF' }), 'https://play.pawtasticacademy.com/graduation?beat=combo&week=2026-11-02&ref=ABCDEF');
+  assert.equal(beatLink({ challenge: 'combo', week: WEEK }, { doc, loc: hub, code: null }), 'https://play.pawtasticacademy.com/graduation?beat=combo&week=2026-11-02');
+  assert.equal(beatLink({ challenge: 'combo', week: WEEK }, { doc, loc: hub, code: 'not a code' }), 'https://play.pawtasticacademy.com/graduation?beat=combo&week=2026-11-02');
+});
+
 test('the caption names the pup, the verified score and the challenge', () => {
   assert.equal(resultCaption({ dogName: 'Biscuit', challenge: 'combo', score: 23400, tier: 'bronze' }),
     "Biscuit scored 23,400 in this week's Combo run at PAWtastic Academy (Bronze badge). Can your pup beat it?");

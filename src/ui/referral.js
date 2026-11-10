@@ -1,7 +1,9 @@
 // Invite a friend (the public site). Each signed-in player has a friend code. A new PAWtastic client
 // who shows it at their first visit gets $10 off; once that visit is done, the player who shared gets
-// a free bath. The front desk records both on the staff page (/staff/index.html). Nothing in the game
-// itself is paid for sharing (spec §5): the rewards are real-world, given by PAWtastic's staff.
+// a free bath. The front desk records both on the staff page (/staff/index.html).
+// In-game rewards too (owner, 10 Nov 2026, replacing "nothing in the game is paid for sharing"): a friend who
+// joins the leaderboard through a friend's link gets 20 Treats, and so does the friend who invited them, for up
+// to 5 friends a season. The server decides (POST /api/public/game/invite) and delivers the Treats to both saves.
 
 import { h, fill } from './dom.js';
 import { gameLink } from '../net/embed.js';
@@ -15,6 +17,8 @@ const REF_KEY = 'pawtastic-gd-ref-v1';
 const OPEN_INVITE_KEY = 'pawtastic-gd-open-invite-v1';
 const BATHS_SEEN_KEY = 'pawtastic-gd-baths-seen-v1';
 const MY_CODE_KEY = 'pawtastic-gd-my-code-v1';
+const INVITE_SENT_KEY = 'pawtastic-gd-invite-sent-v1';
+export const INVITE_REWARD_TEXT = 'Join the leaderboard and you both get 20 Treats.';
 const OFFER_DISMISS_DAYS = 14;
 const BOOK_URL = 'https://pawtasticacademy.com/';
 
@@ -80,6 +84,7 @@ export function showFriendOffer(app) {
     h('p', {}, 'New to PAWtastic Academy? Daycare, boarding or grooming in Hawthorne or Hillsdale: show this code at the front desk on your first visit and get $10 off.'),
     codeBox(ref.code),
     h('p', { class: 'muted small' }, 'New clients only, one per new client. Staff confirm the offer at the front desk. You can find this code again in the menu (the speaker button).'),
+    h('p', { class: 'invite-treats' }, h('strong', {}, 'In the game: '), INVITE_REWARD_TEXT),
     h('a', { class: 'btn block', href: BOOK_URL, target: '_blank', rel: 'noopener' }, 'Visit PAWtastic Academy'),
     h('button', { class: 'btn secondary block', type: 'button', onClick: () => sheet.close() }, 'Play the game'),
   ), { label: 'Friend offer' });
@@ -186,6 +191,7 @@ export async function showInvite(app) {
         h('p', { class: 'small' }, 'Show this code at the PAWtastic front desk to get it.'))
       : null,
     h('p', { class: 'small num' }, `Friends who visited: ${res.friends ?? 0} · Free baths given: ${res.bathsGiven ?? 0}`),
+    Number.isFinite(res.cap) ? h('p', { class: 'small num invite-joined' }, `${res.joined ?? 0} of ${res.cap} friends joined this season · +${res.reward ?? 20} Treats each`) : null,
     how, terms,
     h('button', { class: 'btn secondary block', type: 'button', onClick: close }, 'Done'));
 }
@@ -223,4 +229,28 @@ export function referralMenuItems(app, close) {
     h('button', { class: 'btn secondary block', type: 'button', onClick: () => { close(); showInvite(app); } }, 'Invite friends (free bath for you)'),
     friendOffer() ? h('button', { class: 'btn secondary block', type: 'button', onClick: () => { close(); showFriendOffer(app); } }, 'My $10 off code') : null,
   ];
+}
+
+/**
+ * What a friend sees once the server has answered their invite: one calm message, and whether to stop trying.
+ * A network or sign-in failure is retried on a later run; every real answer is final (never a loop of errors).
+ */
+export function inviteMessage(res) {
+  if (res?.ok) return { text: "Welcome! 20 Treats from your friend's invite are on their way.", done: true, joined: true };
+  if (res?.error === 'not-new') return { text: 'Invite rewards are for new players. Have fun!', done: true, joined: false };
+  if (['own-code', 'already-invited', 'unknown-code', 'not-on-board'].includes(res?.error)) return { text: null, done: true, joined: false };
+  return { text: null, done: false, joined: false };
+}
+
+/** After the player's first run reaches the leaderboard: tell the server once that they came through a friend's link. */
+export async function sendInviteOnce(app) {
+  const pay = clientOf(app);
+  const ref = read(REF_KEY);
+  if (!pay?.signedIn || typeof pay.invite !== 'function' || !CODE.test(ref?.code ?? '') || read(INVITE_SENT_KEY)) return null;
+  const res = await pay.invite(ref.code).catch(() => ({ ok: false, error: 'offline' }));
+  const m = inviteMessage(res);
+  if (m.done) write(INVITE_SENT_KEY, { code: ref.code, at: Date.now(), joined: m.joined });
+  if (m.joined) app.services.measure?.track('invite_joined', {});
+  if (m.text) app.toast(m.text);
+  return res;
 }

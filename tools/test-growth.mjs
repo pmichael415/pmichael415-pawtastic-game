@@ -108,3 +108,12 @@ test('takeResume returns what was kept once, and nothing after 30 minutes', asyn
   keepResume({ screen: 'somewhere-else' }, store, t);
   assert.equal(takeResume(t, store), null); // only known screens
 });
+
+// What a friend sees after the server answers their invite (task 9): calm, once, never a loop.
+test('invite answers become one calm message, and only a network failure is retried', async () => {
+  const { inviteMessage } = await import('../src/ui/referral.js');
+  assert.deepEqual(inviteMessage({ ok: true, reward: 20, referrerRewarded: true }), { text: "Welcome! 20 Treats from your friend's invite are on their way.", done: true, joined: true });
+  assert.deepEqual(inviteMessage({ ok: false, error: 'not-new' }), { text: 'Invite rewards are for new players. Have fun!', done: true, joined: false });
+  for (const error of ['own-code', 'already-invited', 'unknown-code', 'not-on-board']) assert.deepEqual(inviteMessage({ ok: false, error }), { text: null, done: true, joined: false });
+  for (const error of ['offline', 'server', 'signed-out']) assert.deepEqual(inviteMessage({ ok: false, error }), { text: null, done: false, joined: false });
+});

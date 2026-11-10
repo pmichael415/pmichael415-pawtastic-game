@@ -84,12 +84,41 @@ async function staffSignIn(page, email) {
   await friend.waitForSelector('.sheet .friend-code', { timeout: 10000 }).catch(() => {});
   const offer = await friend.innerText('.sheet').catch(() => '');
   check(/\$10 off your first PAWtastic visit/.test(offer) && offer.includes(code), 'friend sees the $10 off offer with the code', offer.replace(/\n/g, ' | ').slice(0, 160));
+  check(/In the game: Join the leaderboard and you both get 20 Treats\./.test(offer), 'friend offer: in the game, you both get 20 Treats');
   await closeIntroSheets(friend);
   check(/Friend offer: \$10 off/.test(await text(friend)), 'friend\'s map shows the friend offer banner');
   await friend.click('button[aria-label="Sound and effects"]', { force: true });
   await friend.waitForTimeout(300);
   check(/My \$10 off code/.test(await friend.innerText('.sheet')), 'friend\'s menu keeps the code (My $10 off code)');
   await friend.click('.sheet button:text-is("Done")');
+
+  // 2b. Growth (owner, 10 Nov 2026): the friend plays the challenge, joins the leaderboard on the join card, and the
+  //     invite is credited once (both get 20 Treats); the sharer sees it on the invite screen.
+  await friend.goto(`${GAME}?debug=1`, { waitUntil: 'networkidle' });
+  await closeIntroSheets(friend);
+  await friend.click('.weekly-card button:has-text("Play")');
+  await friend.waitForFunction(() => !!window.__pawtasticChallenge);
+  for (let i = 0; i < 25; i++) await friend.evaluate(async () => { const c = window.__pawtasticChallenge; const m = c.validMove(); await c.swap(m.a, m.b); });
+  await friend.waitForSelector('.sheet .home-choice, .sheet .join-card', { timeout: 15000 });
+  if (await friend.$('.sheet .home-choice')) await friend.click('.sheet .home-choice:has-text("Hawthorne")');
+  await friend.waitForSelector('.sheet .join-card #signin-email', { timeout: 15000 });
+  await friend.fill('.sheet .join-card #signin-email', 'newfriend@example.com');
+  await friend.click('.sheet .join-card button:text-is("Email me a code")');
+  await friend.waitForSelector('.sheet .join-card #signin-code');
+  await friend.fill('.sheet .join-card #signin-code', '123456');
+  await Promise.all([friend.waitForNavigation({ waitUntil: 'networkidle' }).catch(() => {}), friend.click('.sheet .join-card button:text-is("Sign in")')]);
+  await friend.waitForFunction(() => /20 Treats from your friend's invite/.test(document.body.innerText), null, { timeout: 15000 }).catch(() => {});
+  check(/20 Treats from your friend's invite are on their way/.test(await text(friend)), 'invite: the friend is welcomed with 20 Treats after joining the leaderboard');
+  let inv = await state();
+  check(inv.invitePosts.length === 1 && inv.invitePosts[0].code === code && inv.invites.length === 1 && inv.invites[0].rewarded, 'invite: credited once on the server, with the sharer rewarded', JSON.stringify(inv.invitePosts));
+  await friend.goto(GAME, { waitUntil: 'networkidle' }); await friend.waitForTimeout(1500);
+  inv = await state();
+  check(inv.invitePosts.length === 1, 'invite: never sent again on a later open', String(inv.invitePosts.length));
+  await sharer.goto(GAME, { waitUntil: 'networkidle' }); await closeIntroSheets(sharer);
+  await sharer.click('button:text-is("Invite friends")', { force: true });
+  await sharer.waitForSelector('.sheet .invite-joined', { timeout: 10000 }).catch(() => {});
+  check(/1 of 5 friends joined this season · \+20 Treats each/.test(await sharer.innerText('.sheet').catch(() => '')), 'invite screen: 1 of 5 friends joined this season');
+  await sharer.click('.sheet button:text-is("Done")');
 
   // 3. A player's own link, and an unknown code, show no offer.
   await sharer.goto(`${GAME}?ref=${code}`, { waitUntil: 'networkidle' });

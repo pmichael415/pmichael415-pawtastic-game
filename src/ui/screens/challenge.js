@@ -32,6 +32,8 @@ import { seasonCountdown, SEASON_TEXT } from '../season.js';
 import { shareResult } from '../share-card.js';
 import { LOCATIONS } from '../../engine/levels.js';
 import { prizeGap } from '../growth.js';
+import { sendInviteOnce, INVITE_REWARD_TEXT } from '../referral.js';
+const hasFriendCode = () => { try { return !!JSON.parse(localStorage.getItem('pawtastic-gd-ref-v1') ?? 'null')?.code; } catch { return false; } };
 
 const ERRORS = {
   'week-over': 'This week\'s challenge just ended, so this run can\'t count. A new challenge is ready!',
@@ -156,7 +158,7 @@ export function render(app, params = {}) {
     challenge === 'high-score' ? h('span', { class: 'goal-text' }, `Score as much as you can in ${movesFor(challenge)} moves`) : subText,
     h('span', { class: 'spacer' }), scoreText);
   const infoText = beat
-    ? `A friend challenged you to this ${period}'s ${def.name}. Beat the result on their card! `
+    ? `A friend challenged you to this ${period}'s ${def.name}. Beat the result on their card!${hasFriendCode() ? ` ${INVITE_REWARD_TEXT}` : ''} `
     : challenge === 'high-score' ? `Same board for everyone this ${period}. No boosters, and tries are free. ` : `${def.goal} ${def.scoring} Same board for everyone; no boosters, and tries are free. `;
   const info = h('p', { class: 'small muted challenge-info' }, infoText, bestText);
   const fallbackNote = wanted !== challenge
@@ -194,7 +196,7 @@ export function render(app, params = {}) {
     const again = h('button', { class: 'btn', type: 'button', onClick: () => { sheet.close(); app.go('challenge', { challenge }); } }, 'Play again');
     const others = v2 ? h('button', { class: 'btn secondary', type: 'button', onClick: () => { sheet.close(); otherChallenges(); } }, 'Other challenges') : null;
     const board = h('button', { class: 'btn secondary', type: 'button', onClick: () => { sheet.close(); app.go('leaderboard'); } }, 'Leaderboard');
-    const share = h('button', { class: 'btn gold', type: 'button', hidden: true }, 'Beat my pup');
+    const share = h('button', { class: 'btn gold', type: 'button', hidden: true }, 'Challenge a friend');
     const detail = challenge === 'combo'
       ? `From ${num(raw)} chain-reaction points × ${COMBO_SCALE}${extra.bestChain ? ` · best chain ${extra.bestChain}` : ''}`
       : challenge === 'cleanup'
@@ -222,6 +224,7 @@ export function render(app, params = {}) {
     if (!best) { status.textContent = 'Only your best run counts. Keep trying!'; return; }
     const confirmed = await sendRun(score, status, () => sheet.close());
     if (!confirmed || !alive) return;
+    sendInviteOnce(app).catch(() => null); // came through a friend's link: both get 20 Treats (once)
     // How close to a prize at the player's location, from this run's own answer (no extra request).
     const standing = confirmed.season ?? confirmed;
     const gap = prizeGap({ me: { rank: standing.rank, score: standing.score ?? confirmed.best }, location: LOCATIONS[confirmed.location] ?? confirmed.location });
