@@ -9,8 +9,12 @@ export function dogLook(state) {
 /** The hub (same site) shows "your pup" from this record. Read by the hub's lib/myPup.ts, which checks it again. */
 export const MY_PUP_KEY = 'pawtastic-my-pup-v1';
 export function publishMyPup(state, store = globalThis.localStorage, now = Date.now()) {
-  if (!state?.dog) return;
+  // No dog (another account, or a guest who hasn't made one): the hub stops showing the previous dog.
+  if (!state?.dog) { try { store?.removeItem?.(MY_PUP_KEY); } catch { /* blocked */ } return; }
   // A fixed label: the dog's name travels as data, never inside the picture.
   const svg = dogSVG({ ...dogLook(state), label: 'Your pup' });
   try { store?.setItem(MY_PUP_KEY, JSON.stringify({ v: 1, name: String(state.dog.name ?? '').slice(0, 24), skin: state.inventory?.skin ?? null, svg, at: now })); } catch { /* storage full or blocked */ }
 }
+
+/** Only the public game publishes the dog for the hub; the PAWtastic customer app (server mode) never does. */
+export const pupPublisher = ({ serverMode }) => (serverMode ? null : state => publishMyPup(state));

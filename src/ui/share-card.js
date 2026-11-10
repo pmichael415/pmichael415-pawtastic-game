@@ -265,13 +265,13 @@ export async function shareCard(app, blob, caption, dogName) {
 }
 
 // Builds the card for the player's dog and opens it. `kind` picks the caption.
-export async function shareDog(app, { kind, areaName, costume }) {
+export async function shareDog(app, { kind, areaName, costume, skin = null }) {
   app.services.backend.logEvent('share_tap', { kind });
   const dog = app.services.backend.state().dog;
   const dogName = dog?.name || 'Your pup';
   const caption = shareCaption(kind, { dogName, areaName });
   try {
-    const blob = await renderShareCard({ dogSvg: dogSVG({ ...dog, costume, label: dogName }), caption, photoUrl: dog?.photoUrl ?? null });
+    const blob = await renderShareCard({ dogSvg: dogSVG({ ...dog, costume, skin, label: dogName }), caption, photoUrl: dog?.photoUrl ?? null });
     await shareCard(app, blob, caption, dogName);
   } catch {
     app.toast('Couldn’t make the picture on this device.');

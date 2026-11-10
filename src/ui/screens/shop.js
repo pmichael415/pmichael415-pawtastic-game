@@ -23,7 +23,8 @@ import { treatPrice } from '../prices.js';
 const ERRORS = {
   insufficient: 'Not enough Treats — get more in Treat packs.',
   'lives-full': 'Your lives are already full.',
-  owned: 'You already own this costume.',
+  owned: 'You already own this.',
+  'not-on-sale': 'Season 1 skins were sold until Sat 5 Dec. The ones you bought are yours to keep.',
   'event-over': `${EVENT.name} has ended.`,
   'min-20': `Convert at least ${COINS.min} Reward Coins.`,
   'not-enough-coins': "You don't have that many Reward Coins.",

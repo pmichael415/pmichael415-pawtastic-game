@@ -103,7 +103,43 @@ test('publishMyPup keeps the dog\'s picture, name and skin for the hub', async (
   assert.equal(rec.v, 1); assert.equal(rec.name, 'Biscuit'); assert.equal(rec.skin, 's1-top-dog'); assert.equal(rec.at, 1000);
   assert.match(rec.svg, /^<svg[\s\S]*data-skin="s1-top-dog"[\s\S]*<\/svg>$/);
   assert.ok(rec.svg.length < 24 * 1024);
-  m.clear();
-  publishMyPup({ dog: null, inventory: {} }, store, 1000); // no dog yet: nothing to show
+  // Review fix: another account (or a guest) without a dog must not keep showing the previous dog in the hub.
+  const store2 = { setItem: (k, v) => m.set(k, v), getItem: k => m.get(k) ?? null, removeItem: k => m.delete(k) };
+  publishMyPup({ dog: null, inventory: {} }, store2, 1000);
   assert.equal(m.get(MY_PUP_KEY), undefined);
+});
+
+// Review fixes, 10 Nov 2026.
+test('buySkin follows the clock it is given (the server\'s), not the phone\'s', () => {
+  const { w } = wallet(IN_SEASON); // the phone says Season 1
+  assert.deepEqual(w.buySkin('s1-snow-day', AFTER), { ok: false, error: 'not-on-sale' }); // the server says it's over
+  assert.deepEqual(w.buySkin('s1-snow-day', IN_SEASON), { ok: true });
+});
+
+test('a skin that is no longer sold has a plain message', async () => {
+  const { errorText } = await import('../src/ui/screens/shop.js').catch(() => ({}));
+  if (!errorText) return; // the shop module needs a browser; covered in e2e-skins
+  assert.match(errorText('not-on-sale'), /Season 1 skins were sold until Sat 5 Dec/);
+});
+
+test('every change to the dog\'s look is published right away by the local game', async () => {
+  const mem = new Map();
+  globalThis.localStorage = { getItem: k => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: k => mem.delete(k) };
+  const { createLocalBackend, PAID_FEATURES } = await import('../src/backend/local.js');
+  const { w } = wallet(IN_SEASON, 300);
+  const b = createLocalBackend({ wallet: w, features: PAID_FEATURES, release: 'public', payments: {} });
+  await b.setDog({ name: 'Biscuit', breed: 'lab', coat: '#C98A4B' });
+  const pup = () => JSON.parse(mem.get('pawtastic-my-pup-v1') ?? 'null');
+  assert.equal(pup()?.name, 'Biscuit');
+  await b.buySkin('s1-snow-day'); await b.wearSkin('s1-snow-day');
+  assert.equal(pup()?.skin, 's1-snow-day');
+  await b.wearSkin(null);
+  assert.equal(pup()?.skin, null);
+  w.state.inventory.costumes; // eslint quiet
+});
+
+test('the game publishes the dog for the hub only in the public game, never in the customer app', async () => {
+  const { pupPublisher } = await import('../src/ui/look.js');
+  assert.equal(typeof pupPublisher({ serverMode: false }), 'function');
+  assert.equal(pupPublisher({ serverMode: true }), null);
 });

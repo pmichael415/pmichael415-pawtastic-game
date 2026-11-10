@@ -33,6 +33,8 @@ export function render(app) {
   }
 
   async function equip(id, button) {
+    // A skin is the whole look: choosing a costume takes the skin off, so the costume is what shows.
+    if (id && backend.state().inventory.skin && typeof backend.wearSkin === 'function') await backend.wearSkin(null);
     const res = await withBusy(button, () => backend.equip(id));
     if (res.ok) app.toast(id ? `${costumeName(id)} on!` : 'Costume off.');
     else showFailure(app, res.error, () => equip(id, button));
@@ -59,7 +61,7 @@ export function render(app) {
     const share = h('button', { class: 'btn gold', type: 'button' }, 'Share');
     share.addEventListener('click', async () => {
       share.disabled = true;
-      await shareDog(app, { kind: 'costume', costume: equipped });
+      await shareDog(app, { kind: 'costume', costume: equipped, skin: backend.state().inventory.skin ?? null });
       share.disabled = false;
     });
 
@@ -68,7 +70,8 @@ export function render(app) {
       h('p', { class: 'closet-wearing' }, wornSkin ? `${dogName} is in the ${skinName(wornSkin)} skin` : equipped ? `${dogName} is wearing the ${costumeName(equipped)}` : `${dogName} isn't wearing a costume`),
       h('div', { class: 'btn-pair' },
         share,
-        h('button', { class: 'btn secondary', type: 'button', disabled: !equipped, onClick: e => equip(null, e.currentTarget) }, 'Take it off')),
+        // While a skin is worn, "Take it off" takes the skin off (the costume underneath comes back).
+        h('button', { class: 'btn secondary', type: 'button', disabled: !equipped && !wornSkin, onClick: e => (wornSkin ? wearSkin(null, e.currentTarget) : equip(null, e.currentTarget)) }, 'Take it off')),
       backend.dogs().length > 1 ? h('button', { class: 'btn secondary block', type: 'button', onClick: () => app.go('pick-dog', { from: 'closet' }) }, 'Switch dog') : null);
 
     const mine = COSTUMES.filter(c => owned.has(c.id));

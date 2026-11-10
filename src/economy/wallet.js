@@ -420,11 +420,12 @@ export function createWallet({ storage, now }) {
       return { ok: true, bonusCostume };
     },
 
-    buySkin(id) {
+    // `at`: the moment that decides whether the skin is on sale (the game passes the server's clock).
+    buySkin(id, at = now()) {
       const skin = SKINS.find(k => k.id === id);
       if (!skin) return fail('unknown-skin');
       if (state.inventory.skins.includes(id)) return fail('owned');
-      if (!skinsOnSale(now()).some(k => k.id === id)) return fail('not-on-sale');
+      if (!skinsOnSale(at).some(k => k.id === id)) return fail('not-on-sale');
       if (!spendTreats(skin.price)) return fail('insufficient');
       state.inventory.skins.push(id);
       save();

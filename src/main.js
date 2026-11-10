@@ -4,7 +4,7 @@
 //   server — the game site (VITE_BACKEND=server): sign in, then the PAWtastic database
 //            (src/net/), loaded on demand so the demo never needs supabase-js.
 
-import { publishMyPup } from './ui/look.js';
+import { pupPublisher } from './ui/look.js';
 import { createRng } from './engine/rng.js';
 import { createWallet } from './economy/wallet.js';
 import { createLocalBackend, DEMO_FEATURES, FREE_PLAY_FEATURES, PAID_FEATURES } from './backend/local.js';
@@ -85,10 +85,12 @@ const screens = {
 let app = null;
 // storagePersistent: false shows "Progress won't be saved on this device."
 // pay: the public site's server (src/net/pay-api.js); flushSave: send the saved game now.
-const startApp = ({ storagePersistent, jar = null, pay = null, flushSave = null }) => {
+const startApp = ({ storagePersistent, jar = null, pay = null, flushSave = null, serverMode = false }) => {
+  // The public game publishes the dog for the hub's "your pup"; the customer app (server mode) never does.
+  const publishPup = pupPublisher({ serverMode });
   app = createApp(document.getElementById('app'), {
     backend: null, api: null, reboot: null, jar, debug, openResult: null, settings, audio, pay, flushSave,
-    onScreen: name => { audio.music(name === 'level' ? 'level-theme' : 'map-theme'); try { if (app?.services.backend) publishMyPup(app.services.backend.state()); } catch { /* not ready */ } },
+    onScreen: name => { audio.music(name === 'level' ? 'level-theme' : 'map-theme'); try { if (app?.services.backend) publishPup?.(app.services.backend.state()); } catch { /* not ready */ } },
     storagePersistent,
   }, screens);
 };
@@ -148,7 +150,7 @@ async function bootLocal() {
 
 async function bootServerMode() {
   // Progress is saved to the PAWtastic account, so the "won't be saved" banner never applies.
-  startApp({ storagePersistent: true });
+  startApp({ storagePersistent: true, serverMode: true });
   const api = testApiUrl
     ? (await import('./net/http-test-api.js')).createHttpTestApi(testApiUrl)
     : (await import('./net/supabase-api.js')).createSupabaseApi({ url: import.meta.env.VITE_SUPABASE_URL, key: import.meta.env.VITE_SUPABASE_KEY });

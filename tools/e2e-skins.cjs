@@ -27,7 +27,7 @@ const wallet = page => page.evaluate(() => JSON.parse(localStorage.getItem('pawt
   await page.click('text=Start school');
   await page.waitForTimeout(800); await closeSheets(page);
   // A player with Treats to spend (free Treats from gifts and levels).
-  await page.evaluate(() => { const w = JSON.parse(localStorage.getItem('pawtastic-gd-wallet-v1')); w.treats.free = 250; localStorage.setItem('pawtastic-gd-wallet-v1', JSON.stringify(w)); });
+  await page.evaluate(() => { const w = JSON.parse(localStorage.getItem('pawtastic-gd-wallet-v1')); w.treats.free = 250; w.inventory.costumes = ['bandana']; w.inventory.equipped = 'bandana'; localStorage.setItem('pawtastic-gd-wallet-v1', JSON.stringify(w)); });
   await page.reload({ waitUntil: 'networkidle' }); await closeSheets(page);
 
   await page.click('button:has-text("Shop")', { force: true }); await page.waitForTimeout(600);
@@ -56,10 +56,18 @@ const wallet = page => page.evaluate(() => JSON.parse(localStorage.getItem('pawt
   const closet = await page.innerText('body');
   check(/Your skins/.test(closet) && /Biscuit is in the Varsity Star skin/.test(closet), 'Closet: skin shelf and preview');
   if (shots) await page.screenshot({ path: `${shots}/skins-03-closet.png` });
-  await page.click('.skin-item[data-skin="s1-varsity-star"]'); await page.waitForTimeout(600);
+  // Review fixes: while a skin is worn, "Take it off" takes the skin off (the costume comes back) ...
+  await page.click('.closet-preview button:text-is("Take it off")'); await page.waitForTimeout(600);
   w = await wallet(page);
-  const pup2 = await page.evaluate(() => JSON.parse(localStorage.getItem('pawtastic-my-pup-v1') ?? 'null'));
-  check(w.inventory.skin === null && pup2?.skin === null && !/data-skin=/.test(pup2?.svg ?? ''), 'taking it off: own coat back, picture updated', JSON.stringify({ skin: w.inventory.skin, pup: pup2?.skin }));
+  let pup2 = await page.evaluate(() => JSON.parse(localStorage.getItem('pawtastic-my-pup-v1') ?? 'null'));
+  check(w.inventory.skin === null && w.inventory.equipped === 'bandana' && pup2?.skin === null && /data-costume="bandana"/.test(pup2?.svg ?? ''), '"Take it off" takes the skin off; the costume is back, picture updated', JSON.stringify({ skin: w.inventory.skin, equipped: w.inventory.equipped, pup: pup2?.skin }));
+  // ... and choosing a costume while a skin is worn takes the skin off.
+  if ((await wallet(page)).inventory.skin !== 's1-varsity-star') { await page.click('.skin-item[data-skin="s1-varsity-star"]'); await page.waitForTimeout(600); }
+  const pre = (await wallet(page)).inventory.skin;
+  await page.click('section[aria-label="Your costumes"] .shop-item:has-text("Bandana")'); await page.waitForTimeout(600);
+  w = await wallet(page);
+  pup2 = await page.evaluate(() => JSON.parse(localStorage.getItem('pawtastic-my-pup-v1') ?? 'null'));
+  check(pre === 's1-varsity-star' && w.inventory.skin === null && w.inventory.equipped === 'bandana' && pup2?.skin === null, 'choosing a costume takes the skin off', JSON.stringify({ pre, skin: w.inventory.skin, equipped: w.inventory.equipped }));
   check(errors.length === 0, 'no page errors', errors.join(' | ').slice(0, 200));
   console.log(`${pass}/${pass + fail} passed`);
   await browser.close(); process.exit(fail ? 1 : 0);

@@ -3,6 +3,8 @@
 //
 // Reads are synchronous; anything that changes the player's things is async and
 // resolves { ok: true, … } or { ok: false, error }.
+import { publishMyPup } from '../ui/look.js';
+import { serverNow } from '../net/server-clock.js';
 
 export const DEMO_FEATURES = { purchases: true, jar: true, pass: true, account: false, stats: false };
 // The public site without payments: nothing for sale, no Pup Pass, no Treat Jar (they show "Coming soon").
@@ -19,6 +21,8 @@ export const isPublicSite = backend => backend?.kind === 'local' && backend.rele
  * payments: the client from src/net/pay-api.js when real purchases are on, else null.
  */
 export function createLocalBackend({ wallet, features = DEMO_FEATURES, release = 'demo', payments = null }) {
+  // Every change to the dog's look reaches the hub's "your pup" right away (season skins, owner 10 Nov 2026).
+  const published = res => { try { publishMyPup(wallet.state); } catch { /* not in a browser */ } return res; };
   // On the public site anything bought with money comes only from the server (applyPurchase, after
   // Stripe), so the simulated purchases below are refused there whatever screen asks for them.
   const simulated = buy => (release === 'public' ? async () => ({ ok: false, error: 'coming-soon' }) : buy);
@@ -39,7 +43,7 @@ export function createLocalBackend({ wallet, features = DEMO_FEATURES, release =
     referralLink: () => null,
 
     async open() { return { ok: true, ...wallet.onAppOpen() }; },
-    async setDog(dog) { return wallet.setDog(dog); },
+    async setDog(dog) { return published(wallet.setDog(dog)); },
     async setHome(location) { return wallet.setHome(location); },
     recordChallenge: (week, score, moves, opts) => wallet.recordChallenge(week, score, moves, opts),
     markChallengeSent: (week, score, challenge) => wallet.markChallengeSent(week, score, challenge),
@@ -49,9 +53,10 @@ export function createLocalBackend({ wallet, features = DEMO_FEATURES, release =
     async buyItem(itemId) { return wallet.buyItem(itemId); },
     async useBoosterItem(type) { return wallet.useBoosterItem(type); },
     async buyCostume(id) { return wallet.buyCostume(id); },
-    async equip(id) { return wallet.equip(id); },
-    async buySkin(id) { return wallet.buySkin(id); },
-    async wearSkin(id) { return wallet.wearSkin(id); },
+    async equip(id) { return published(wallet.equip(id)); },
+    // On sale by the server's clock (Season 1 ends Sat 5 Dec, New York).
+    async buySkin(id) { return published(wallet.buySkin(id, serverNow())); },
+    async wearSkin(id) { return published(wallet.wearSkin(id)); },
     async markIntroSeen(areaId) { wallet.markIntroSeen(areaId); return { ok: true }; },
     levelInProgress: () => wallet.levelInProgress(),
     async saveLevelSnapshot(snapshot) { return wallet.saveLevelSnapshot(snapshot); },
