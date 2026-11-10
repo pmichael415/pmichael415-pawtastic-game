@@ -67,3 +67,27 @@ test('skinsOnSale lists the current season\'s skins only while it runs', async (
   assert.deepEqual(skinsOnSale(AFTER), []);
   assert.deepEqual(skinsOnSale(Date.parse('2026-11-01T17:00:00Z')), []); // before the season
 });
+
+// The skin is the whole look: its coat, its pattern and its signature piece; a costume waits underneath.
+test('dogSVG draws a worn skin over the dog\'s own coat and hides the costume', async () => {
+  const { dogSVG } = await import('../src/ui/art.js');
+  const plain = dogSVG({ breed: 'lab', coat: '#123456', costume: 'bandana', label: 'Biscuit' });
+  assert.equal(dogSVG({ breed: 'lab', coat: '#123456', costume: 'bandana', skin: null, label: 'Biscuit' }), plain);
+  assert.equal(dogSVG({ breed: 'lab', coat: '#123456', costume: 'bandana', skin: 'nope', label: 'Biscuit' }), plain); // unknown: none
+  for (const s of SKINS) {
+    const out = dogSVG({ breed: 'lab', coat: '#123456', costume: 'bandana', skin: s.id, label: 'Biscuit' });
+    assert.ok(out.includes(s.coat), `${s.id} coat`);
+    assert.ok(!out.includes('#123456'), `${s.id} hides the own coat`);
+    assert.ok(out.includes(`data-skin="${s.id}"`), `${s.id} piece`);
+    assert.ok(!out.includes('data-costume'), `${s.id} hides the costume`);
+    assert.equal((out.match(/<svg/g) ?? []).length, 1);
+    assert.doesNotMatch(out, /<script|on\w+=|javascript:|foreignObject|href=/i);
+  }
+});
+
+test('dogLook takes the dog, the costume and the worn skin from the wallet', async () => {
+  const { dogLook } = await import('../src/ui/look.js');
+  const state = { dog: { name: 'Biscuit', breed: 'golden', coat: '#C98A4B' }, inventory: { equipped: 'bandana', skin: 's1-snow-day' } };
+  assert.deepEqual(dogLook(state), { name: 'Biscuit', breed: 'golden', coat: '#C98A4B', costume: 'bandana', skin: 's1-snow-day', label: 'Biscuit' });
+  assert.deepEqual(dogLook({ dog: null, inventory: {} }), { costume: null, skin: null, label: 'Your dog' });
+});

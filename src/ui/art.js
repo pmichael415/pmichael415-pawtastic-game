@@ -1,5 +1,6 @@
 // All game art as inline SVG strings (no image files). Pure functions, so they
 // can be tested in Node.
+import { SKINS } from '../economy/catalog.js';
 
 import { PROF_BOX, PROF_CAP, PROF_HEAD } from './prof-paths.js';
 
@@ -159,7 +160,43 @@ const COSTUME_ART = {
   'honor-roll-sash': `<path d="M50 150 L150 196 L136 200 L44 160 Z" fill="${GOLD}" stroke="#B88A0F" stroke-width="2"/><circle cx="110" cy="180" r="8" fill="${BRAND}"/>`,
 };
 
-export function dogSVG({ breed = 'lab', coat = COATS[0].hex, costume = null, label = 'Your dog' } = {}) {
+// Season skins (owner, 10 Nov 2026): the whole look, drawn from parts in the same style. Each has a pattern (on the
+// coat) and a signature piece: `neck` sits on the body under the head, `head` sits on top of the head.
+const snowflake = (x, y, r) => `<g stroke="#6FA8E0" stroke-width="2.5" stroke-linecap="round"><path d="M${x - r} ${y} H${x + r} M${x - r / 2} ${y - r * 0.87} L${x + r / 2} ${y + r * 0.87} M${x - r / 2} ${y + r * 0.87} L${x + r / 2} ${y - r * 0.87}"/></g>`;
+const star = (x, y, r, fill, stroke) => {
+  const p = [];
+  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5; const d = i % 2 ? r * 0.45 : r; p.push(`${(x + d * Math.cos(a)).toFixed(1)} ${(y + d * Math.sin(a)).toFixed(1)}`); }
+  return `<path d="M${p.join(' L')} Z" fill="${fill}"${stroke ? ` stroke="${stroke}" stroke-width="2"` : ''}/>`;
+};
+const sparkle = (x, y, r) => `<path d="M${x} ${y - r} Q${x + r * 0.2} ${y - r * 0.2} ${x + r} ${y} Q${x + r * 0.2} ${y + r * 0.2} ${x} ${y + r} Q${x - r * 0.2} ${y + r * 0.2} ${x - r} ${y} Q${x - r * 0.2} ${y - r * 0.2} ${x} ${y - r} Z" fill="#FFFFFF" opacity="0.9"/>`;
+const PURPLE = '#6B3FC4';
+const SKIN_ART = {
+  's1-snow-day': {
+    pattern: snowflake(66, 74, 7) + snowflake(134, 72, 7) + snowflake(60, 186, 6) + snowflake(142, 188, 6),
+    neck: `<path d="M54 152 C70 172 130 172 146 152" stroke="#D63A35" stroke-width="16" fill="none" stroke-linecap="round"/><path d="M58 156 C72 170 128 170 142 156" stroke="#FFFFFF" stroke-width="3" stroke-dasharray="6 7" fill="none"/><path d="M118 162 L130 198 L112 198 Z" fill="#D63A35" stroke="#9E2420" stroke-width="2"/>`,
+    head: `<path d="M50 96 C48 34 152 34 150 96" stroke="#D63A35" stroke-width="7" fill="none" stroke-linecap="round"/><circle cx="50" cy="100" r="16" fill="#FFFFFF" stroke="#D63A35" stroke-width="6"/><circle cx="150" cy="100" r="16" fill="#FFFFFF" stroke="#D63A35" stroke-width="6"/>`,
+  },
+  's1-varsity-star': {
+    pattern: star(100, 64, 9, GOLD),
+    neck: `<path d="M38 150 C56 190 144 190 162 150 L170 198 H30 Z" fill="#FFFFFF" stroke="${TRIM}" stroke-width="3"/><path d="M58 154 C72 170 128 170 142 154" stroke="${GOLD}" stroke-width="7" fill="none"/><path d="M34 192 H166" stroke="${TRIM}" stroke-width="5"/>${star(100, 182, 13, GOLD, '#B88A0F')}`,
+    head: '',
+  },
+  's1-top-dog': {
+    pattern: sparkle(70, 70, 8) + sparkle(134, 186, 7) + sparkle(64, 184, 5),
+    neck: `<path d="M70 148 L100 176 L130 148" fill="none" stroke="${PURPLE}" stroke-width="10"/><circle cx="100" cy="184" r="14" fill="${GOLD}" stroke="#B88A0F" stroke-width="3"/>${star(100, 184, 7, '#FFFFFF')}`,
+    head: `<path d="M66 54 L70 20 L85 38 L100 12 L115 38 L130 20 L134 54 Z" fill="${GOLD}" stroke="#B88A0F" stroke-width="3"/><circle cx="85" cy="44" r="4" fill="${PURPLE}"/><circle cx="100" cy="40" r="5" fill="${PURPLE}"/><circle cx="115" cy="44" r="4" fill="${PURPLE}"/>`,
+  },
+};
+
+export function dogSVG({ breed = 'lab', coat = COATS[0].hex, costume = null, skin = null, label = 'Your dog' } = {}) {
+  const worn = skin && SKIN_ART[skin] ? SKINS.find(k => k.id === skin) : null;
+  if (worn) {
+    // A skin is the whole look: its coat, pattern and piece; the costume waits underneath until it is taken off.
+    const art = SKIN_ART[skin];
+    const c = worn.coat;
+    const body = `<path d="M46 150 C60 186 140 186 154 150 L160 200 H40 Z" fill="${c}" stroke="${OUTLINE}" stroke-width="4"/>`;
+    return svg('0 0 200 200', label, body + ears(breed, c) + `<g data-skin="${skin}">${art.neck}</g>` + head(breed, c) + `<g data-skin-pattern="${skin}">${art.pattern}</g>` + (art.head ? `<g data-skin-head="${skin}">${art.head}</g>` : ''));
+  }
   const body = `<path d="M46 150 C60 186 140 186 154 150 L160 200 H40 Z" fill="${coat}" stroke="${OUTLINE}" stroke-width="4"/>`;
   const overlay = costume && COSTUME_ART[costume] ? `<g data-costume="${costume}">${COSTUME_ART[costume]}</g>` : '';
   const collar = costume ? '' : `<path d="${NECK}" stroke="${BRAND}" stroke-width="8" fill="none" stroke-linecap="round"/><circle cx="100" cy="171" r="5" fill="${GOLD}" stroke="${OUTLINE}" stroke-width="2"/>`;
