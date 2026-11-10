@@ -50,6 +50,8 @@ export function createLocalBackend({ wallet, features = DEMO_FEATURES, release =
     async useBoosterItem(type) { return wallet.useBoosterItem(type); },
     async buyCostume(id) { return wallet.buyCostume(id); },
     async equip(id) { return wallet.equip(id); },
+    async buySkin(id) { return wallet.buySkin(id); },
+    async wearSkin(id) { return wallet.wearSkin(id); },
     async markIntroSeen(areaId) { wallet.markIntroSeen(areaId); return { ok: true }; },
     levelInProgress: () => wallet.levelInProgress(),
     async saveLevelSnapshot(snapshot) { return wallet.saveLevelSnapshot(snapshot); },

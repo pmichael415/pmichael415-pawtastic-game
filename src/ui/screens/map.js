@@ -136,7 +136,7 @@ export function render(app, params = {}) {
           isHardLevel(id) ? h('span', { class: 'quiz-tag' }, 'Pop quiz') : null),
         isCurrent ? (state.dog?.photoUrl
           ? h('span', { class: 'map-dog' }, dogPhoto(state.dog.photoUrl, { size: 52, alt: state.dog.name, look: state.dog }))
-          : h('span', { class: 'map-dog', html: dogSVG({ ...state.dog, costume: state.inventory.equipped, label: state.dog?.name ?? 'Your dog' }) })) : null,
+          : h('span', { class: 'map-dog', html: dogSVG({ ...state.dog, costume: state.inventory.equipped, skin: state.inventory.skin ?? null, label: state.dog?.name ?? 'Your dog' }) })) : null,
       ));
       if (isCurrent || (id === unlocked)) currentNode = row;
       return row;

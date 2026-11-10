@@ -109,7 +109,7 @@ async function goShop(page) { await page.click('button:has-text("Shop")', { forc
     const page = await newPage();
     await enroll(page, 'Biscuit');
     await goShop(page);
-    await page.click('button.shop-item:has-text("55 Treats")', { force: true });
+    await page.click('section[aria-label="Treat packs"] button.shop-item:has-text("55 Treats")', { force: true });
     await page.click('.sheet button:text-is("Continue to checkout")');
     await signIn(page);
     await payOnMockStripe(page);
@@ -126,7 +126,7 @@ async function goShop(page) { await page.click('button:has-text("Shop")', { forc
     await goShop(a);
     check(/Secure checkout by Stripe/.test(await text(a)) && /test mode/i.test(await text(a)), 'shop shows Stripe checkout and test-mode note');
     check(!/Reward Coins/.test(await text(a)), 'shop hides the demo Reward Coins');
-    await a.click('button.shop-item:has-text("100 Treats")', { force: true });
+    await a.click('section[aria-label="Treat packs"] button.shop-item:has-text("100 Treats")', { force: true });
     const confirm = await a.innerText('.sheet');
     check(/\$4\.99/.test(confirm) && /Continue to checkout/.test(confirm) && /test mode/i.test(confirm), 'confirm sheet: price, test mode, continue button');
     await a.click('.sheet button:text-is("Continue to checkout")');
@@ -222,7 +222,7 @@ async function goShop(page) { await page.click('button:has-text("Shop")', { forc
     // 7. Cancelled checkout.
     await closeIntroSheets(a);
     await goShop(a);
-    await a.click('button.shop-item:has-text("55 Treats")', { force: true });
+    await a.click('section[aria-label="Treat packs"] button.shop-item:has-text("55 Treats")', { force: true });
     await a.click('.sheet button:text-is("Continue to checkout")');
     await a.waitForURL(/mock-stripe\/checkout/);
     await Promise.all([a.waitForURL(/\/play\/index\.html/), a.click('#back')]);
@@ -234,7 +234,7 @@ async function goShop(page) { await page.click('button:has-text("Shop")', { forc
     await goShop(a);
     check(/Spending this month: \$[\d.]+ \(no limit\)/.test(await text(a)), 'no monthly limit by default');
     await a.click('button.chip:has-text("$20.00")', { force: true }); await a.waitForTimeout(500);
-    await a.click('button.shop-item:has-text("480 Treats")', { force: true });
+    await a.click('section[aria-label="Treat packs"] button.shop-item:has-text("480 Treats")', { force: true });
     check(await toast(a, /over your monthly limit of \$20\.00/), 'a limit the player chose blocks a purchase over it');
 
     // 9. Refund issued in Stripe: Treats come back off.

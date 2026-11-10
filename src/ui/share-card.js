@@ -295,7 +295,7 @@ export async function shareResult(app, { challenge, week, score, tier = null, ra
   const stamp = `${Number(score).toLocaleString('en-US')} pts · ${def.short}${tier ? ` · ${TIER_NAMES[tier]}` : ''}`;
   let blob = null;
   try {
-    blob = await renderShareCard({ dogSvg: dogSVG({ ...dog, costume: backend.state().inventory?.equipped ?? null, label: dogName }), caption, photoUrl: dog?.photoUrl ?? null, stamp });
+    blob = await renderShareCard({ dogSvg: dogSVG({ ...dog, costume: backend.state().inventory?.equipped ?? null, skin: backend.state().inventory?.skin ?? null, label: dogName }), caption, photoUrl: dog?.photoUrl ?? null, stamp });
   } catch { /* the link still shares without the picture */ }
   const src = blob ? await blobToDataUrl(blob) : null;
   const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';

@@ -45,7 +45,7 @@ async function staffSignIn(page, email) {
     await closeIntroSheets(page);
     await page.click('button:has-text("Shop")', { force: true });
     await page.waitForTimeout(700);
-    await page.click('button.shop-item:has-text("100 Treats")', { force: true });
+    await page.click('section[aria-label="Treat packs"] button.shop-item:has-text("100 Treats")', { force: true });
     await page.click('.sheet button:text-is("Continue to checkout")');
     await page.waitForSelector('#signin-email', { timeout: 8000 }).catch(() => null);
     if (await page.$('#signin-email')) {

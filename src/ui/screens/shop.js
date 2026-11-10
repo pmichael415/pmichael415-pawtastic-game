@@ -4,6 +4,9 @@
 
 import { h } from '../dom.js';
 import { dogSVG, tileSVG } from '../art.js';
+import { publishMyPup } from '../look.js';
+import { skinsOnSale } from '../../economy/catalog.js';
+import { serverNow } from '../../net/server-clock.js';
 import { treatIcon, heartIcon, shuffleIcon } from '../icons.js';
 import { topBar } from '../topbar.js';
 import { confirmPurchase, confirmTreatSpend } from '../purchase.js';
@@ -90,6 +93,16 @@ export function render(app) {
     const item = ITEMS[id];
     if (backend.balance().total < item.treats) { app.toast(errorText('insufficient')); return; }
     if (await confirmTreatSpend(app, { title: item.name, treats: item.treats })) done(backend.buyItem(id), `${item.name} added.`);
+  }
+
+  // Season skins (owner, 10 Nov 2026): the dog's whole look, in every PAWtastic game. Worn right away once bought.
+  async function buySkin(k) {
+    if (backend.balance().total < k.price) { app.toast(errorText('insufficient')); return; }
+    if (!(await confirmTreatSpend(app, { title: `${k.name} skin`, treats: k.price }))) return;
+    const res = await backend.buySkin(k.id);
+    if (res.ok) await backend.wearSkin(k.id);
+    if (res.ok) publishMyPup(backend.state());
+    done(res, `${k.name} is on! Change it any time in the Closet.`);
   }
 
   async function buyCostume(c) {
@@ -190,6 +203,17 @@ export function render(app) {
         h('button', { class: 'btn secondary', type: 'button', disabled: id === 'lives' && (lives.unlimited || lives.count >= lives.max), onClick: () => buyItem(id) },
           treatPrice(app, ITEMS[id].treats))))));
 
+    const skinSale = typeof backend.buySkin === 'function' ? skinsOnSale(serverNow()) : [];
+    const ownedSkins = new Set(state.inventory.skins ?? []);
+    const skins = skinSale.length ? section('Season 1 skins',
+      h('p', { class: 'small' }, "Your dog's whole look, in every PAWtastic game. Sold during Season 1, until Sat 5 Dec. Yours to keep."),
+      h('div', { class: 'shop-grid' }, skinSale.map(k => {
+        const has = ownedSkins.has(k.id);
+        return h('button', { class: `shop-item skin-item${has ? ' owned' : ''}`, type: 'button', disabled: has, 'data-skin': k.id, onClick: () => { app.services.measure?.track('product_previewed', { item: k.id }); buySkin(k); } },
+          h('span', { class: 'shop-dog', html: dogSVG({ ...state.dog, skin: k.id, label: `${k.name} skin preview` }) }),
+          h('strong', {}, k.name),
+          h('span', { class: 'price num' }, has ? 'Owned' : treatPrice(app, k.price)));
+      }))) : null;
     const forSale = COSTUMES.filter(c => c.source === 'shop' && (c.set !== 'event' || eventOn(now)));
     const costumes = section('Costumes', h('div', { class: 'shop-grid' }, forSale.map(c => {
       const has = owned.has(c.id);
@@ -247,11 +271,11 @@ export function render(app) {
     // The free-play release sells nothing for money: only what free Treats buy.
     if (!selling) {
       const soon = section('Coming soon', h('p', {}, 'Buying Treats is coming soon. Free Treats come from your daily gifts.'));
-      return h('div', { class: 'shop stack' }, h('h1', {}, 'Shop'), balance, items, costumes, soon);
+      return h('div', { class: 'shop stack' }, h('h1', {}, 'Shop'), balance, skins, items, costumes, soon);
     }
     // Reward Coins come from real PAWtastic visits, which the public site can't see yet.
-    if (real) return h('div', { class: 'shop stack' }, h('h1', {}, 'Shop'), balance, packs, starter, passCard, items, costumes, purchases, spending);
-    return h('div', { class: 'shop stack' }, h('h1', {}, 'Shop'), balance, packs, starter, passCard, items, costumes, coins, spending);
+    if (real) return h('div', { class: 'shop stack' }, h('h1', {}, 'Shop'), balance, skins, packs, starter, passCard, items, costumes, purchases, spending);
+    return h('div', { class: 'shop stack' }, h('h1', {}, 'Shop'), balance, skins, packs, starter, passCard, items, costumes, coins, spending);
   }
 
   refresh();

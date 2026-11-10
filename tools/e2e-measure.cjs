@@ -69,7 +69,7 @@ const settle = page => page.waitForTimeout(1300); // past the 800 ms event batch
   check(/Your purchases/.test(shop) && /Restore purchases/.test(shop) && /Receipts & Pup Pass/.test(shop), 'shop has a purchases card with Restore and receipts');
   check(/Starter Pack: not bought/.test(shop) && /Pup Pass: not active/.test(shop), 'purchases card shows what is owned');
   check(!/on its way/.test(shop), 'no pending-delivery banner without a checkout');
-  await page.click('button.shop-item:has-text("100 Treats")', { force: true });
+  await page.click('section[aria-label="Treat packs"] button.shop-item:has-text("100 Treats")', { force: true });
   await page.waitForTimeout(500);
   const sheet = await page.$eval('.sheet', el => el.innerText).catch(() => '');
   check(/Consumable/.test(sheet) && /100 Treats/.test(sheet), 'confirm sheet names the kind of purchase', sheet.replace(/\s+/g, ' ').slice(0, 120));

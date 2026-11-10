@@ -5,7 +5,8 @@ import { dogSVG } from '../art.js';
 import { topBar } from '../topbar.js';
 import { shareDog } from '../share-card.js';
 import { AREAS } from '../../engine/levels.js';
-import { COSTUMES, SETS, EVENT, STARTER_PACK, formatUsd } from '../../economy/catalog.js';
+import { COSTUMES, SETS, EVENT, STARTER_PACK, formatUsd, SKINS } from '../../economy/catalog.js';
+import { publishMyPup } from '../look.js';
 import { dayKey } from '../../economy/time.js';
 import { withBusy, showFailure } from '../failure.js';
 import { treatPrice } from '../prices.js';
@@ -38,10 +39,19 @@ export function render(app) {
     refresh();
   }
 
+  // Season skins (owner, 10 Nov 2026): the whole look, shown in every PAWtastic game.
+  async function wearSkin(id, button) {
+    const res = await withBusy(button, () => backend.wearSkin(id));
+    if (res.ok) { publishMyPup(backend.state()); app.toast(id ? `${skinName(id)} is on!` : 'Skin off. Your own coat and costume are back.'); }
+    else showFailure(app, res.error, () => wearSkin(id, button));
+    refresh();
+  }
+
   function body() {
     const state = backend.state();
     const owned = new Set(state.inventory.costumes);
     const equipped = state.inventory.equipped;
+    const wornSkin = state.inventory.skin ?? null;
     const dogName = state.dog?.name || 'Your pup';
     const today = dayKey(Date.now());
     const eventOn = today >= EVENT.start && today <= EVENT.end;
@@ -54,8 +64,8 @@ export function render(app) {
     });
 
     const preview = h('section', { class: 'closet-preview stack' },
-      h('div', { class: 'results-dog', html: dogSVG({ ...state.dog, costume: equipped, label: `${dogName}${equipped ? ` wearing the ${costumeName(equipped)}` : ''}` }) }),
-      h('p', { class: 'closet-wearing' }, equipped ? `${dogName} is wearing the ${costumeName(equipped)}` : `${dogName} isn't wearing a costume`),
+      h('div', { class: 'results-dog', html: dogSVG({ ...state.dog, costume: equipped, skin: wornSkin, label: `${dogName}${wornSkin ? ` in the ${skinName(wornSkin)} skin` : equipped ? ` wearing the ${costumeName(equipped)}` : ''}` }) }),
+      h('p', { class: 'closet-wearing' }, wornSkin ? `${dogName} is in the ${skinName(wornSkin)} skin` : equipped ? `${dogName} is wearing the ${costumeName(equipped)}` : `${dogName} isn't wearing a costume`),
       h('div', { class: 'btn-pair' },
         share,
         h('button', { class: 'btn secondary', type: 'button', disabled: !equipped, onClick: e => equip(null, e.currentTarget) }, 'Take it off')),
@@ -106,9 +116,22 @@ export function render(app) {
         h('button', { class: 'btn secondary small-btn', type: 'button', onClick: () => app.go('shop') }, 'See it'))
       : null;
 
-    return h('div', { class: 'closet stack' }, h('h1', {}, 'Closet'), preview, wardrobe, starter, toEarn, book);
+    const mySkins = SKINS.filter(k => (state.inventory.skins ?? []).includes(k.id));
+    const skinShelf = typeof backend.wearSkin === 'function' && mySkins.length ? h('section', { class: 'card stack', 'aria-label': 'Your skins' },
+      h('h2', {}, 'Your skins'),
+      h('p', { class: 'muted small' }, "A skin is your dog's whole look in every PAWtastic game. Your costume comes back when you take the skin off."),
+      h('div', { class: 'shop-grid' }, mySkins.map(k => h('button', {
+        class: `shop-item skin-item${k.id === wornSkin ? ' equipped' : ''}`, type: 'button', 'aria-pressed': String(k.id === wornSkin), 'data-skin': k.id,
+        onClick: e => wearSkin(k.id === wornSkin ? null : k.id, e.currentTarget),
+      },
+      h('span', { class: 'shop-dog', html: dogSVG({ ...state.dog, skin: k.id, label: `${k.name} skin` }) }),
+      h('strong', {}, k.name),
+      h('span', { class: 'price' }, k.id === wornSkin ? 'Wearing · tap to take off' : 'Tap to wear'))))) : null;
+    return h('div', { class: 'closet stack' }, h('h1', {}, 'Closet'), preview, skinShelf, wardrobe, starter, toEarn, book);
   }
 
   refresh();
   return () => bar?.stop();
 }
+
+const skinName = id => SKINS.find(k => k.id === id)?.name ?? 'season';

@@ -91,3 +91,19 @@ test('dogLook takes the dog, the costume and the worn skin from the wallet', asy
   assert.deepEqual(dogLook(state), { name: 'Biscuit', breed: 'golden', coat: '#C98A4B', costume: 'bandana', skin: 's1-snow-day', label: 'Biscuit' });
   assert.deepEqual(dogLook({ dog: null, inventory: {} }), { costume: null, skin: null, label: 'Your dog' });
 });
+
+// The hub (same site) shows "your pup" from this record: the dog's picture with its worn skin.
+test('publishMyPup keeps the dog\'s picture, name and skin for the hub', async () => {
+  const { publishMyPup, MY_PUP_KEY } = await import('../src/ui/look.js');
+  assert.equal(MY_PUP_KEY, 'pawtastic-my-pup-v1');
+  const m = new Map(); const store = { setItem: (k, v) => m.set(k, v), getItem: k => m.get(k) ?? null };
+  const state = { dog: { name: 'Biscuit', breed: 'lab', coat: '#C98A4B' }, inventory: { equipped: null, skin: 's1-top-dog' } };
+  publishMyPup(state, store, 1000);
+  const rec = JSON.parse(m.get(MY_PUP_KEY));
+  assert.equal(rec.v, 1); assert.equal(rec.name, 'Biscuit'); assert.equal(rec.skin, 's1-top-dog'); assert.equal(rec.at, 1000);
+  assert.match(rec.svg, /^<svg[\s\S]*data-skin="s1-top-dog"[\s\S]*<\/svg>$/);
+  assert.ok(rec.svg.length < 24 * 1024);
+  m.clear();
+  publishMyPup({ dog: null, inventory: {} }, store, 1000); // no dog yet: nothing to show
+  assert.equal(m.get(MY_PUP_KEY), undefined);
+});

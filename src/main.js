@@ -4,6 +4,7 @@
 //   server — the game site (VITE_BACKEND=server): sign in, then the PAWtastic database
 //            (src/net/), loaded on demand so the demo never needs supabase-js.
 
+import { publishMyPup } from './ui/look.js';
 import { createRng } from './engine/rng.js';
 import { createWallet } from './economy/wallet.js';
 import { createLocalBackend, DEMO_FEATURES, FREE_PLAY_FEATURES, PAID_FEATURES } from './backend/local.js';
@@ -87,7 +88,7 @@ let app = null;
 const startApp = ({ storagePersistent, jar = null, pay = null, flushSave = null }) => {
   app = createApp(document.getElementById('app'), {
     backend: null, api: null, reboot: null, jar, debug, openResult: null, settings, audio, pay, flushSave,
-    onScreen: name => audio.music(name === 'level' ? 'level-theme' : 'map-theme'),
+    onScreen: name => { audio.music(name === 'level' ? 'level-theme' : 'map-theme'); try { if (app?.services.backend) publishMyPup(app.services.backend.state()); } catch { /* not ready */ } },
     storagePersistent,
   }, screens);
 };

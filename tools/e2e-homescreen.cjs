@@ -70,7 +70,7 @@ async function enroll(page, name) {
   // The purchase happens in Safari (as it did for the owner).
   await safari.click('button:has-text("Shop")', { force: true });
   await safari.waitForTimeout(500);
-  await safari.click('button.shop-item:has-text("55 Treats")', { force: true });
+  await safari.click('section[aria-label="Treat packs"] button.shop-item:has-text("55 Treats")', { force: true });
   await safari.click('.sheet button:text-is("Continue to checkout")');
   await safari.waitForURL(/\/mock-stripe\/checkout\//, { timeout: 10000 });
   await Promise.all([safari.waitForURL(/\/play\/index\.html/, { timeout: 10000 }), safari.click('#pay')]);

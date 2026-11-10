@@ -110,7 +110,7 @@ export function renderWin(app, { levelId, score, starsEarned, summary, bonus = 0
     h('p', { class: 'eyebrow' }, `Level ${levelNumber(levelId)} · ${areaOf(levelId).name}`),
     banner,
     h('div', { class: 'results-hero' }, prof,
-      h('div', { class: 'results-dog', html: dogSVG({ ...dog, costume: summary.unlockedCostume ?? backend.state().inventory.equipped, label: dog?.name ?? 'Your dog' }) })),
+      h('div', { class: 'results-dog', html: dogSVG({ ...dog, costume: summary.unlockedCostume ?? backend.state().inventory.equipped, skin: summary.unlockedCostume ? null : backend.state().inventory.skin ?? null, label: dog?.name ?? 'Your dog' }) })),
     h('div', { class: 'stars-row', 'aria-label': `${starsEarned} of 3 stars` }, starEls),
     h('p', { class: 'score-line' }, 'Score ', scoreEl),
     bonusLine,
